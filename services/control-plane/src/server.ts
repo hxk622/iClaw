@@ -87,10 +87,11 @@ import {logError, logInfo, logWarn} from './logger.ts';
 import {
   desktopUpdateAllowedRequestHeaders,
   desktopUpdateExposedHeaders,
-  resolveDesktopUpdateHintPayload,
-  resolveDesktopUpdateResponseHeaders,
-  resolveDesktopUpdaterRoutePayload,
 } from './desktop-update-resolver.ts';
+import {
+  createDesktopUpdateApiRoutes,
+  createDesktopUpdateResponseHeadersResolver,
+} from './desktop-update-api.ts';
 import type {KeyValueCache} from './cache.ts';
 import type {ControlPlaneStore} from './store.ts';
 
@@ -149,6 +150,10 @@ const oemService = new OemService(oemStore, async (accessToken) => service.me(ac
   controlStore: store,
 });
 const portalService = new PortalService(portalStore, async (accessToken) => service.me(accessToken), {cache: runtimeCache});
+const desktopUpdateResponseHeadersResolver = createDesktopUpdateResponseHeadersResolver({
+  portalStore,
+  resolvePublicBaseUrl,
+});
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const controlPlaneRoot = resolve(repoRoot, 'services/control-plane');
 const rootPackageJsonPath = resolve(repoRoot, 'package.json');
@@ -490,16 +495,6 @@ function decorateSkillCatalogItemsForApp(
   });
 }
 
-function resolveDesktopUpdateRequest(url: URL) {
-  return {
-    appName: (url.searchParams.get('app_name') || '').trim() || null,
-    appVersion: (url.searchParams.get('current_version') || '').trim() || null,
-    platform: (url.searchParams.get('target') || '').trim() || null,
-    arch: (url.searchParams.get('arch') || '').trim() || null,
-    channel: (url.searchParams.get('channel') || '').trim() || null,
-  };
-}
-
 async function packageGithubSkillArtifact(metadata: Record<string, unknown>): Promise<Buffer> {
   const github =
     metadata.github && typeof metadata.github === 'object' && !Array.isArray(metadata.github)
@@ -603,69 +598,10 @@ const server = createJsonServer([
       bootstrap: {...startupState.bootstrap},
     }),
   },
-  {
-    method: 'GET',
-    path: '/desktop/update-hint',
-    handler: async ({url, headers}: HandlerContext) => {
-      const request = resolveDesktopUpdateRequest(url);
-      if (!request.appVersion) {
-        throw new HttpError(400, 'BAD_REQUEST', 'current_version is required');
-      }
-      const hint = await resolveDesktopUpdateHintPayload(request, portalStore, resolvePublicBaseUrl(headers));
-      return hint || {
-        latestVersion: request.appVersion,
-        updateAvailable: false,
-        mandatory: false,
-        enforcementState: 'recommended',
-        blockNewRuns: false,
-        reasonCode: null,
-        reasonMessage: null,
-        manifestUrl: null,
-        artifactUrl: null,
-      };
-    },
-  },
-  {
-    method: 'GET',
-    path: '/desktop/update',
-    handler: async ({url, headers}: HandlerContext) => {
-      const request = resolveDesktopUpdateRequest(url);
-      if (!request.appVersion) {
-        throw new HttpError(400, 'BAD_REQUEST', 'current_version is required');
-      }
-      const payload = await resolveDesktopUpdaterRoutePayload(request, portalStore, resolvePublicBaseUrl(headers));
-      if (!payload) {
-        return createRawResponse('', {
-          statusCode: 204,
-          headers: {
-            'Cache-Control': 'no-store',
-          },
-        });
-      }
-      return createRawResponse(
-        JSON.stringify({
-          version: payload.version,
-          url: payload.url,
-          signature: payload.signature,
-          notes: payload.notes,
-          pub_date: payload.pubDate,
-          mandatory: payload.mandatory,
-          enforcement_state: payload.enforcementState,
-          block_new_runs: payload.blockNewRuns,
-          reason_code: payload.reasonCode,
-          reason_message: payload.reasonMessage,
-          external_download_url: payload.externalDownloadUrl,
-        }),
-        {
-          statusCode: 200,
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-            'Cache-Control': 'no-store',
-          },
-        },
-      );
-    },
-  },
+  ...createDesktopUpdateApiRoutes({
+    portalStore,
+    resolvePublicBaseUrl,
+  }),
   {
     method: 'GET',
     path: '/auth/avatar',
@@ -2156,8 +2092,8 @@ const server = createJsonServer([
   allowedOrigins: config.allowedOrigins,
   allowedHeaders: desktopUpdateAllowedRequestHeaders(),
   exposedHeaders: ['x-request-id', ...desktopUpdateExposedHeaders()],
-  resolveResponseHeaders: ({request, url}) => ({
-    ...resolveDesktopUpdateResponseHeaders(request.headers, portalStore, resolvePublicBaseUrl(request.headers)),
+  resolveResponseHeaders: async ({request, requestId, url}) => ({
+    ...(await desktopUpdateResponseHeadersResolver({request, requestId, url})),
     ...(url.pathname === '/portal/public-config' ? {'Cache-Control': 'no-store'} : {}),
   }),
 });

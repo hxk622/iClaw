@@ -7,11 +7,14 @@ import {
   type DesktopUpdateRequest,
   type DesktopUpdateHint,
 } from './desktop-updates.ts';
-import {type PgPortalStore} from './portal-store.ts';
 import {
   resolvePortalDesktopReleaseHint,
   resolvePortalDesktopUpdaterPayload,
 } from './portal-desktop-release.ts';
+
+type DesktopUpdatePortalStore = {
+  getAppDetail(appName: string): Promise<{app: {appName: string; config: Record<string, unknown>}} | null>;
+};
 
 function readHeader(headers: IncomingHttpHeaders, name: string): string {
   const value = headers[name];
@@ -37,7 +40,7 @@ export function desktopUpdateExposedHeaders(): string[] {
 
 export async function resolveDesktopUpdateResponseHeaders(
   headers: IncomingHttpHeaders,
-  portalStore: PgPortalStore,
+  portalStore: DesktopUpdatePortalStore,
   publicBaseUrl: string | null = null,
 ): Promise<Record<string, string>> {
   const requestedChannel = readHeader(headers, 'x-iclaw-channel') || config.desktopReleaseChannel;
@@ -76,7 +79,7 @@ export async function resolveDesktopUpdateResponseHeaders(
 
 export async function resolveDesktopUpdateHintPayload(
   request: DesktopUpdateRequest,
-  portalStore: PgPortalStore,
+  portalStore: DesktopUpdatePortalStore,
   publicBaseUrl: string | null = null,
 ): Promise<DesktopUpdateHint | null> {
   const requestedChannel = request.channel || config.desktopReleaseChannel;
@@ -114,7 +117,7 @@ export async function resolveDesktopUpdateHintPayload(
 
 export async function resolveDesktopUpdaterRoutePayload(
   request: DesktopUpdateRequest,
-  portalStore: PgPortalStore,
+  portalStore: DesktopUpdatePortalStore,
   publicBaseUrl: string | null = null,
 ): Promise<DesktopUpdaterPayload | null> {
   const requestedChannel = request.channel || config.desktopReleaseChannel;

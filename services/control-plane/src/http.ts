@@ -26,7 +26,7 @@ export type ResponseHeaderResolverContext = {
 
 type RouteHandler<TBody = unknown> = (context: HandlerContext<TBody>) => Promise<unknown | RawResponse> | unknown | RawResponse;
 
-type Route = {
+export type Route = {
   method: string;
   path: string;
   bodyType?: 'json' | 'raw';
