@@ -10,6 +10,7 @@ type BrandDetailTabId =
   | 'header'
   | 'sidebar'
   | 'input'
+  | 'models'
   | 'skills'
   | 'mcps'
   | 'recharge'
@@ -22,6 +23,7 @@ export function BrandDetailPage({
   loading,
   activeTab,
   setActiveTab,
+  onDirtyChange,
   savingBaseInfo = false,
   onSaveBaseInfo,
   savingDesktopShell = false,
@@ -34,6 +36,12 @@ export function BrandDetailPage({
   onSaveHomeWeb,
   savingInput = false,
   onSaveInput,
+  availableComposerControls = [],
+  savingComposerControls = false,
+  onSaveComposerControls,
+  availableComposerShortcuts = [],
+  savingComposerShortcuts = false,
+  onSaveComposerShortcuts,
   savingSidebar = false,
   onSaveSidebar,
   savingWelcome = false,
@@ -44,6 +52,9 @@ export function BrandDetailPage({
   inheritedPlatformSkills = [],
   savingSkills = false,
   onSaveSkills,
+  availableModels = [],
+  savingModels = false,
+  onSaveModels,
   availableMcps = [],
   inheritedPlatformMcps = [],
   savingMcps = false,
@@ -56,6 +67,10 @@ export function BrandDetailPage({
   onSaveMenus,
   savingAsset = false,
   onUploadAsset,
+  onDeleteAsset,
+  savingReleaseAction = false,
+  onPublish,
+  onRestoreVersion,
   onBack,
   onOpenAudit,
 }: {
@@ -63,6 +78,7 @@ export function BrandDetailPage({
   loading: boolean;
   activeTab: BrandDetailTabId;
   setActiveTab: (tab: BrandDetailTabId) => void;
+  onDirtyChange?: (dirty: boolean) => void;
   savingBaseInfo?: boolean;
   onSaveBaseInfo?: (input: {
     displayName: string;
@@ -157,6 +173,27 @@ export function BrandDetailPage({
     enabled: boolean;
     placeholderText: string;
   }) => Promise<void> | void;
+  availableComposerControls?: Array<{
+    controlKey: string;
+    displayName: string;
+    controlType: string;
+    options: Array<{ optionValue: string; label: string }>;
+  }>;
+  savingComposerControls?: boolean;
+  onSaveComposerControls?: (
+    items: Array<{ controlKey: string; enabled: boolean; displayName: string; allowedOptionValues: string[] }>,
+  ) => Promise<void> | void;
+  availableComposerShortcuts?: Array<{
+    shortcutKey: string;
+    displayName: string;
+    description: string;
+    template: string;
+    tone: string;
+  }>;
+  savingComposerShortcuts?: boolean;
+  onSaveComposerShortcuts?: (
+    items: Array<{ shortcutKey: string; enabled: boolean; displayName: string; description: string; template: string }>,
+  ) => Promise<void> | void;
   savingSidebar?: boolean;
   onSaveSidebar?: (input: {
     enabled: boolean;
@@ -200,6 +237,11 @@ export function BrandDetailPage({
   inheritedPlatformSkills?: Array<{ slug: string; name: string }>;
   savingSkills?: boolean;
   onSaveSkills?: (selectedSkillSlugs: string[]) => Promise<void> | void;
+  availableModels?: Array<{ ref: string; label: string; providerId?: string; modelId?: string }>;
+  savingModels?: boolean;
+  onSaveModels?: (
+    items: Array<{ modelRef: string; enabled: boolean; recommended: boolean; default: boolean }>,
+  ) => Promise<void> | void;
   availableMcps?: Array<{ key: string; name: string; transport?: string }>;
   inheritedPlatformMcps?: Array<{ key: string; name: string }>;
   savingMcps?: boolean;
@@ -216,8 +258,13 @@ export function BrandDetailPage({
   onUploadAsset?: (input: {
     assetKey: string;
     kind: string;
+    metadataText: string;
     file: File;
   }) => Promise<void> | void;
+  onDeleteAsset?: (assetKey: string) => Promise<void> | void;
+  savingReleaseAction?: boolean;
+  onPublish?: () => Promise<void> | void;
+  onRestoreVersion?: (version: string) => Promise<void> | void;
   onBack: () => void;
   onOpenAudit: () => void;
 }) {
@@ -229,6 +276,7 @@ export function BrandDetailPage({
     { id: 'header', label: 'Header栏' },
     { id: 'sidebar', label: '侧边栏' },
     { id: 'input', label: '输入框' },
+    { id: 'models', label: '模型' },
     { id: 'skills', label: '技能' },
     { id: 'mcps', label: 'MCP' },
     { id: 'recharge', label: '充值套餐' },
@@ -261,6 +309,11 @@ export function BrandDetailPage({
                 </p>
               ) : null}
             </div>
+          </div>
+          <div className="fig-brand-detail__actions">
+            <button className="ghost-button fig-button" type="button" disabled={savingReleaseAction} onClick={() => void onPublish?.()}>
+              {savingReleaseAction ? '处理中…' : '发布快照'}
+            </button>
           </div>
         </div>
         {detail?.brand ? (
@@ -302,6 +355,7 @@ export function BrandDetailPage({
             <BrandDetailPanel
               detail={detail}
               activeTab={activeTab}
+              onDirtyChange={onDirtyChange}
               savingBaseInfo={savingBaseInfo}
               onSaveBaseInfo={onSaveBaseInfo}
               savingDesktopShell={savingDesktopShell}
@@ -314,6 +368,12 @@ export function BrandDetailPage({
               onSaveHomeWeb={onSaveHomeWeb}
               savingInput={savingInput}
               onSaveInput={onSaveInput}
+              availableComposerControls={availableComposerControls}
+              savingComposerControls={savingComposerControls}
+              onSaveComposerControls={onSaveComposerControls}
+              availableComposerShortcuts={availableComposerShortcuts}
+              savingComposerShortcuts={savingComposerShortcuts}
+              onSaveComposerShortcuts={onSaveComposerShortcuts}
               savingSidebar={savingSidebar}
               onSaveSidebar={onSaveSidebar}
               savingWelcome={savingWelcome}
@@ -324,6 +384,9 @@ export function BrandDetailPage({
               inheritedPlatformSkills={inheritedPlatformSkills}
               savingSkills={savingSkills}
               onSaveSkills={onSaveSkills}
+              availableModels={availableModels}
+              savingModels={savingModels}
+              onSaveModels={onSaveModels}
               availableMcps={availableMcps}
               inheritedPlatformMcps={inheritedPlatformMcps}
               savingMcps={savingMcps}
@@ -336,6 +399,7 @@ export function BrandDetailPage({
               onSaveMenus={onSaveMenus}
               savingAsset={savingAsset}
               onUploadAsset={onUploadAsset}
+              onDeleteAsset={onDeleteAsset}
             />
             <section className="fig-support-grid">
               <article className="fig-card">
@@ -354,6 +418,9 @@ export function BrandDetailPage({
                           <span>{String(item.createdByName || item.createdByUsername || 'system')}</span>
                         </div>
                       </div>
+                      <button className="text-button" type="button" disabled={savingReleaseAction} onClick={() => void onRestoreVersion?.(String(item.version || ''))}>
+                        恢复
+                      </button>
                     </div>
                   )) : <div className="empty-state">还没有发布快照。</div>}
                 </div>

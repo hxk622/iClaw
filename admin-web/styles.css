@@ -2801,6 +2801,8 @@ code {
 .menu-assembly-list,
 .menu-assembly-detail {
   min-width: 0;
+  display: grid;
+  gap: 18px;
 }
 
 .menu-assembly-list__stack {
@@ -2815,7 +2817,7 @@ code {
   grid-template-columns: 52px minmax(0, 1fr) 22px;
   align-items: center;
   gap: 14px;
-  padding: 14px 16px;
+  padding: 18px 16px 14px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(255, 253, 249, 0.96), rgba(250, 247, 241, 0.96));
@@ -2906,10 +2908,21 @@ code {
   height: 22px;
 }
 
+.menu-assembly-card__glyph,
+.menu-assembly-preview__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .menu-assembly-card__body {
   min-width: 0;
   display: grid;
   gap: 4px;
+  padding-right: 78px;
 }
 
 .menu-assembly-card__title-row {
@@ -2952,6 +2965,22 @@ code {
   gap: 4px;
   color: var(--muted);
   cursor: grab;
+}
+
+.menu-assembly-card__switch {
+  position: absolute;
+  top: 10px;
+  right: 44px;
+  min-height: 20px;
+  padding: 2px 6px 2px 4px;
+  gap: 4px;
+  transform: scale(0.5);
+  transform-origin: top right;
+  z-index: 2;
+}
+
+.menu-assembly-card__switch .switch__label {
+  font-size: 11px;
 }
 
 .menu-assembly-card__drag span {

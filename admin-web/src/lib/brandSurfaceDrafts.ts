@@ -486,7 +486,7 @@ function normalizeBlockPages(
   marketingSite: Record<string, unknown>,
   website: Record<string, unknown>,
   templateKey: string,
-  defaults = DEFAULT_HOME_WEB_SURFACE_CONFIG,
+  defaults: { templateKey: string; siteShell: Record<string, unknown>; pages: Array<Record<string, unknown>> } = DEFAULT_HOME_WEB_SURFACE_CONFIG as unknown as { templateKey: string; siteShell: Record<string, unknown>; pages: Array<Record<string, unknown>> },
 ) {
   const sourcePages = Array.isArray(config.pages)
     ? config.pages

@@ -5,13 +5,16 @@ import {
   asObject,
   deleteAgentCatalogEntry,
   deleteBrandAsset,
+  publishBrandSnapshot,
   createBrand,
   deleteCloudMcpCatalogEntry,
   deletePlatformMcpBinding,
   deletePlatformModelCatalogEntry,
   deletePlatformSkillBinding,
   deleteRechargePackageCatalogEntry,
+  fetchCloudSkillsCatalogPage,
   fetchPaymentOrderDetail,
+  importRuntimeBootstrapSource,
   loadBrandDetailData,
   loadOverviewData,
   loadTokens,
@@ -19,7 +22,9 @@ import {
   persistTokens,
   publishDesktopRelease,
   refundPaymentOrder,
+  restoreRecommendedRechargePackages,
   restorePlatformMemoryEmbedding,
+  restoreBrandVersion,
   restorePlatformModelProvider,
   runSkillSync,
   saveAgentCatalogEntry,
@@ -30,6 +35,9 @@ import {
   saveBrandHomeWebSurface,
   saveBrandInputSurface,
   saveBrandMcps,
+  saveBrandComposerControls,
+  saveBrandComposerShortcuts,
+  saveBrandModels,
   saveBrandMenus,
   saveBrandRechargePackages,
   saveBrandSidebar,
@@ -51,6 +59,7 @@ import {
   setCloudSkillEnabled,
   stringValue,
   testCloudMcpCatalogEntry,
+  testMemoryEmbeddingProfile,
   uploadBrandAsset,
   uploadBrandAssetByBrandId,
 } from './lib/adminApi';
@@ -112,6 +121,7 @@ const BRAND_DETAIL_TABS = [
   { id: 'header', label: 'Header栏' },
   { id: 'sidebar', label: '侧边栏' },
   { id: 'input', label: '输入框' },
+  { id: 'models', label: '模型' },
   { id: 'skills', label: '技能' },
   { id: 'mcps', label: 'MCP' },
   { id: 'recharge', label: '充值套餐' },
@@ -245,7 +255,7 @@ function LoginScreen({
             <span>Password</span>
             <input className="field-input" name="password" type="password" autoComplete="current-password" defaultValue="admin" />
           </label>
-          <div className={`banner banner--error${error ? '' : ' hidden'}`}>{error}</div>
+          {error ? <div className="banner banner--error">{error}</div> : null}
           <button className="solid-button solid-button--full" type="submit" disabled={busy}>
             {busy ? '进入中…' : '进入控制台'}
           </button>
@@ -259,6 +269,7 @@ export default function App() {
   const [view, setView] = useState<LoginState>('booting');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => readStoredThemeMode());
   const [route, setRoute] = useState<AdminRoute>('overview');
   const [overviewLoading, setOverviewLoading] = useState(false);
@@ -279,6 +290,7 @@ export default function App() {
     brandId: '',
     assetKey: '',
     kind: '',
+    metadataText: '{}',
     file: null as File | null,
   });
   const [paymentQuery, setPaymentQuery] = useState('');
@@ -292,6 +304,7 @@ export default function App() {
   const [savingRechargeCatalog, setSavingRechargeCatalog] = useState(false);
   const [cloudSkillQuery, setCloudSkillQuery] = useState('');
   const [selectedCloudSkillSlug, setSelectedCloudSkillSlug] = useState('');
+  const [cloudSkillPage, setCloudSkillPage] = useState<{ items: OverviewData['cloudSkills']; meta: OverviewData['cloudSkillMeta'] } | null>(null);
   const [selectedSkillSyncSourceId, setSelectedSkillSyncSourceId] = useState('');
   const [savingSkillSyncSource, setSavingSkillSyncSource] = useState(false);
   const [runningSkillSync, setRunningSkillSync] = useState(false);
@@ -306,30 +319,41 @@ export default function App() {
   const [selectedPlatformMcpKey, setSelectedPlatformMcpKey] = useState('');
   const [newPlatformMcpKey, setNewPlatformMcpKey] = useState('');
   const [savingPlatformMcp, setSavingPlatformMcp] = useState(false);
+  const [platformSkillMetadataText, setPlatformSkillMetadataText] = useState('{}');
+  const [platformMcpMetadataText, setPlatformMcpMetadataText] = useState('{}');
   const [selectedPlatformModelRef, setSelectedPlatformModelRef] = useState('');
   const [savingPlatformModel, setSavingPlatformModel] = useState(false);
   const [selectedModelProviderTab, setSelectedModelProviderTab] = useState('platform');
   const [selectedModelCenterSection, setSelectedModelCenterSection] = useState<'chat-provider' | 'memory-embedding'>('chat-provider');
   const [savingModelProviderProfile, setSavingModelProviderProfile] = useState(false);
   const [savingMemoryEmbeddingProfile, setSavingMemoryEmbeddingProfile] = useState(false);
+  const [memoryEmbeddingTestResult, setMemoryEmbeddingTestResult] = useState<{ ok?: boolean; message?: string; dimensions?: number | null } | null>(null);
   const [runtimeSection, setRuntimeSection] = useState<'release' | 'binding' | 'history'>('release');
+  const [selectedRuntimeImportChannel, setSelectedRuntimeImportChannel] = useState<'prod' | 'dev'>('prod');
+  const [selectedRuntimeImportBindScopeType, setSelectedRuntimeImportBindScopeType] = useState<'none' | 'platform' | 'app'>('none');
+  const [selectedRuntimeImportBindScopeKey, setSelectedRuntimeImportBindScopeKey] = useState('');
   const [selectedRuntimeReleaseId, setSelectedRuntimeReleaseId] = useState('');
   const [selectedRuntimeBindingId, setSelectedRuntimeBindingId] = useState('');
   const [savingRuntimeRelease, setSavingRuntimeRelease] = useState(false);
   const [savingRuntimeBinding, setSavingRuntimeBinding] = useState(false);
   const [selectedBrandId, setSelectedBrandId] = useState('');
   const [brandDetailTab, setBrandDetailTab] = useState<(typeof BRAND_DETAIL_TABS)[number]['id']>('desktop');
+  const [brandDetailDirty, setBrandDetailDirty] = useState(false);
   const [brandDetailLoading, setBrandDetailLoading] = useState(false);
   const [savingBrandBaseInfo, setSavingBrandBaseInfo] = useState(false);
+  const [savingBrandReleaseAction, setSavingBrandReleaseAction] = useState(false);
   const [savingBrandDesktopShell, setSavingBrandDesktopShell] = useState(false);
   const [savingBrandAuthExperience, setSavingBrandAuthExperience] = useState(false);
   const [savingBrandHeader, setSavingBrandHeader] = useState(false);
   const [savingBrandInput, setSavingBrandInput] = useState(false);
+  const [savingBrandComposerControls, setSavingBrandComposerControls] = useState(false);
+  const [savingBrandComposerShortcuts, setSavingBrandComposerShortcuts] = useState(false);
   const [savingBrandHomeWeb, setSavingBrandHomeWeb] = useState(false);
   const [savingBrandSidebar, setSavingBrandSidebar] = useState(false);
   const [savingBrandWelcome, setSavingBrandWelcome] = useState(false);
   const [savingBrandTheme, setSavingBrandTheme] = useState(false);
   const [savingBrandSkills, setSavingBrandSkills] = useState(false);
+  const [savingBrandModels, setSavingBrandModels] = useState(false);
   const [savingBrandMcps, setSavingBrandMcps] = useState(false);
   const [savingBrandRechargePackages, setSavingBrandRechargePackages] = useState(false);
   const [savingBrandMenus, setSavingBrandMenus] = useState(false);
@@ -404,6 +428,7 @@ export default function App() {
       .then((data) => {
         if (!cancelled) {
           setBrandDetailData(data);
+          setBrandDetailDirty(false);
         }
       })
       .catch((loadError) => {
@@ -473,6 +498,7 @@ export default function App() {
   const openBrandDetail = (brandId: string) => {
     setSelectedBrandId(brandId);
     setBrandDetailTab('desktop');
+    setBrandDetailDirty(false);
     setRoute('brand-detail');
   };
 
@@ -757,6 +783,40 @@ export default function App() {
     }
   };
 
+  const handleSaveBrandComposerControls = async (
+    items: Array<{ controlKey: string; enabled: boolean; displayName: string; allowedOptionValues: string[] }>,
+  ) => {
+    if (!brandDetailData) return;
+    setSavingBrandComposerControls(true);
+    setError('');
+    try {
+      await saveBrandComposerControls(brandDetailData, items);
+      const refreshed = await loadBrandDetailData(brandDetailData.brand.brandId);
+      setBrandDetailData(refreshed);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '输入控件保存失败');
+    } finally {
+      setSavingBrandComposerControls(false);
+    }
+  };
+
+  const handleSaveBrandComposerShortcuts = async (
+    items: Array<{ shortcutKey: string; enabled: boolean; displayName: string; description: string; template: string }>,
+  ) => {
+    if (!brandDetailData) return;
+    setSavingBrandComposerShortcuts(true);
+    setError('');
+    try {
+      await saveBrandComposerShortcuts(brandDetailData, items);
+      const refreshed = await loadBrandDetailData(brandDetailData.brand.brandId);
+      setBrandDetailData(refreshed);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '快捷方式保存失败');
+    } finally {
+      setSavingBrandComposerShortcuts(false);
+    }
+  };
+
   const handleSaveBrandHomeWeb = async (input: {
     enabled: boolean;
     templateKey: string;
@@ -835,13 +895,18 @@ export default function App() {
   const handleUploadBrandAsset = async (input: {
     assetKey: string;
     kind: string;
+    metadataText: string;
     file: File;
   }) => {
     if (!brandDetailData) return;
     setSavingBrandAsset(true);
     setError('');
     try {
-      await uploadBrandAsset(brandDetailData, input);
+      const metadata = asObject(input.metadataText ? JSON.parse(input.metadataText) : {});
+      await uploadBrandAsset(brandDetailData, {
+        ...input,
+        metadata,
+      });
       const refreshed = await loadBrandDetailData(brandDetailData.brand.brandId);
       setBrandDetailData(refreshed);
     } catch (saveError) {
@@ -858,6 +923,7 @@ export default function App() {
       await uploadBrandAssetByBrandId(assetUploadDraft.brandId, {
         assetKey: assetUploadDraft.assetKey,
         kind: assetUploadDraft.kind,
+        metadata: asObject(assetUploadDraft.metadataText ? JSON.parse(assetUploadDraft.metadataText) : {}),
         file: assetUploadDraft.file as File,
       });
       const refreshed = await loadOverviewData();
@@ -870,6 +936,7 @@ export default function App() {
         brandId: current.brandId,
         assetKey: '',
         kind: '',
+        metadataText: '{}',
         file: null,
       }));
     } catch (saveError) {
@@ -894,6 +961,71 @@ export default function App() {
       setError(deleteError instanceof Error ? deleteError.message : '资源删除失败');
     } finally {
       setSavingBrandAsset(false);
+    }
+  };
+
+  const handleDeleteBrandAsset = async (assetKey: string) => {
+    if (!brandDetailData) return;
+    setSavingBrandAsset(true);
+    setError('');
+    try {
+      await deleteBrandAsset(brandDetailData.brand.brandId, assetKey);
+      const [refreshedDetail, refreshedOverview] = await Promise.all([
+        loadBrandDetailData(brandDetailData.brand.brandId),
+        loadOverviewData(),
+      ]);
+      setBrandDetailData(refreshedDetail);
+      setOverviewData(refreshedOverview);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : '品牌资源删除失败');
+    } finally {
+      setSavingBrandAsset(false);
+    }
+  };
+
+  const handlePublishBrand = async () => {
+    if (!brandDetailData) return;
+    if (brandDetailDirty) {
+      const currentTabLabel = BRAND_DETAIL_TABS.find((item) => item.id === brandDetailTab)?.label || '当前页面';
+      setNotice('');
+      setError(`${currentTabLabel} 有未保存改动，请先点击当前 tab 内的保存按钮，再发布快照。`);
+      return;
+    }
+    setSavingBrandReleaseAction(true);
+    setError('');
+    setNotice('');
+    try {
+      await publishBrandSnapshot(brandDetailData.brand.brandId);
+      const [refreshedDetail, refreshedOverview] = await Promise.all([
+        loadBrandDetailData(brandDetailData.brand.brandId),
+        loadOverviewData(),
+      ]);
+      setBrandDetailData(refreshedDetail);
+      setOverviewData(refreshedOverview);
+      setNotice(`已发布 ${brandDetailData.brand.displayName} 当前快照。`);
+    } catch (publishError) {
+      setError(publishError instanceof Error ? publishError.message : '品牌发布失败');
+    } finally {
+      setSavingBrandReleaseAction(false);
+    }
+  };
+
+  const handleRestoreBrandVersion = async (version: string) => {
+    if (!brandDetailData) return;
+    setSavingBrandReleaseAction(true);
+    setError('');
+    try {
+      await restoreBrandVersion(brandDetailData.brand.brandId, version);
+      const [refreshedDetail, refreshedOverview] = await Promise.all([
+        loadBrandDetailData(brandDetailData.brand.brandId),
+        loadOverviewData(),
+      ]);
+      setBrandDetailData(refreshedDetail);
+      setOverviewData(refreshedOverview);
+    } catch (restoreError) {
+      setError(restoreError instanceof Error ? restoreError.message : '品牌版本恢复失败');
+    } finally {
+      setSavingBrandReleaseAction(false);
     }
   };
 
@@ -941,6 +1073,21 @@ export default function App() {
     }
   };
 
+  const handleRestoreRecommendedRechargePackages = async () => {
+    setSavingRechargeCatalog(true);
+    setError('');
+    try {
+      await restoreRecommendedRechargePackages();
+      const refreshed = await loadOverviewData();
+      setOverviewData(refreshed);
+      setSelectedRechargePackageId('topup_7000');
+    } catch (restoreError) {
+      setError(restoreError instanceof Error ? restoreError.message : '恢复超值推荐三挡失败');
+    } finally {
+      setSavingRechargeCatalog(false);
+    }
+  };
+
   const handleMarkPaymentOrderPaid = async (input: {
     providerOrderId: string;
     paidAt: string;
@@ -979,6 +1126,47 @@ export default function App() {
     } finally {
       setSavingPaymentOrderAction(false);
     }
+  };
+
+  const handleExportPaymentOrders = () => {
+    const headers = [
+      'order_id',
+      'status',
+      'provider',
+      'amount_cny_fen',
+      'total_credits',
+      'app_name',
+      'app_version',
+      'release_channel',
+      'platform',
+      'arch',
+      'provider_order_id',
+      'user_id',
+      'username',
+      'user_email',
+      'user_display_name',
+      'created_at',
+      'paid_at',
+      'expires_at',
+      'latest_webhook_at',
+      'webhook_event_count',
+    ];
+    const csvEscape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const lines = [
+      headers.join(','),
+      ...filteredPaymentOrders.map((item) =>
+        headers.map((key) => csvEscape((item as Record<string, unknown>)[key] ?? (item as Record<string, unknown>)[key.replace(/_([a-z])/g, (_, c) => c.toUpperCase())])).join(','),
+      ),
+    ];
+    const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `payment-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleSavePlatformSkill = async (input: {
@@ -1062,11 +1250,16 @@ export default function App() {
     argsText: string;
     httpUrl: string;
     envText: string;
+    metadataText: string;
   }) => {
     setSavingCloudMcp(true);
     setError('');
     try {
-      await saveCloudMcpCatalogEntry(input);
+      const metadata = asObject(input.metadataText ? JSON.parse(input.metadataText) : {});
+      await saveCloudMcpCatalogEntry({
+        ...input,
+        metadata,
+      });
       const refreshed = await loadOverviewData();
       setOverviewData(refreshed);
       setSelectedCloudMcpKey(input.key);
@@ -1103,6 +1296,7 @@ export default function App() {
     argsText: string;
     httpUrl: string;
     envText: string;
+    metadataText: string;
   }) => {
     setSavingCloudMcp(true);
     setError('');
@@ -1121,7 +1315,21 @@ export default function App() {
     setSavingSkillSyncSource(true);
     setError('');
     try {
-      await saveSkillSyncSource(skillSyncSourceDraft);
+      let config: Record<string, unknown> = {};
+      try {
+        config = asObject(skillSyncSourceDraft.configText ? JSON.parse(skillSyncSourceDraft.configText) : {});
+      } catch (parseError) {
+        throw new Error(parseError instanceof Error ? parseError.message : '同步源 Config JSON 解析失败');
+      }
+      await saveSkillSyncSource({
+        id: skillSyncSourceDraft.id,
+        sourceType: skillSyncSourceDraft.sourceType,
+        sourceKey: skillSyncSourceDraft.sourceKey,
+        displayName: skillSyncSourceDraft.displayName,
+        sourceUrl: skillSyncSourceDraft.sourceUrl,
+        config,
+        active: skillSyncSourceDraft.active,
+      });
       const refreshed = await loadOverviewData();
       setOverviewData(refreshed);
       if (skillSyncSourceDraft.id) {
@@ -1149,8 +1357,35 @@ export default function App() {
     }
   };
 
+  const handleLoadCloudSkillsPage = async (input: { query?: string; offset?: number }) => {
+    setSavingCloudSkill(true);
+    setError('');
+    try {
+      const response = await fetchCloudSkillsCatalogPage({
+        query: input.query ?? cloudSkillQuery,
+        offset: input.offset ?? cloudSkillPage?.meta.offset ?? 0,
+        limit: cloudSkillPage?.meta.limit || overviewData?.cloudSkillMeta.limit || 100,
+      });
+      setCloudSkillPage({
+        items: (asObject(response).items as OverviewData['cloudSkills']) || [],
+        meta: {
+          total: Number(asObject(response).total || 0),
+          limit: Number(asObject(response).limit || cloudSkillPage?.meta.limit || overviewData?.cloudSkillMeta.limit || 100),
+          offset: Number(asObject(response).offset || 0),
+          hasMore: asObject(response).has_more === true,
+          nextOffset: Number.isFinite(Number(asObject(response).next_offset)) ? Number(asObject(response).next_offset) : null,
+          query: input.query ?? cloudSkillQuery,
+        },
+      });
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '云技能目录加载失败');
+    } finally {
+      setSavingCloudSkill(false);
+    }
+  };
+
   const handleSetCloudSkillEnabled = async (slug: string, enabled: boolean) => {
-    const skill = (overviewData?.cloudSkills || []).find((item) => item.slug === slug);
+    const skill = (cloudSkillPage?.items || overviewData?.cloudSkills || []).find((item) => item.slug === slug);
     if (!skill) return;
     setSavingCloudSkill(true);
     setError('');
@@ -1158,6 +1393,7 @@ export default function App() {
       await setCloudSkillEnabled(skill, enabled);
       const refreshed = await loadOverviewData();
       setOverviewData(refreshed);
+      await handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: cloudSkillPage?.meta.offset || 0 });
       setSelectedCloudSkillSlug(slug);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : `云技能${enabled ? '上架' : '下架'}失败`);
@@ -1200,19 +1436,14 @@ export default function App() {
     setSavingModelProviderProfile(true);
     setError('');
     try {
-      const models = providerDraft.modelsText
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => {
-          const [label, modelId, billingMultiplier, logoPresetKey] = line.split('|').map((item) => item.trim());
-          return {
-            label,
-            modelId,
-            billingMultiplier: Number(billingMultiplier || 1) || 1,
-            logoPresetKey: logoPresetKey || '',
-          };
-        });
+      const models = providerDraft.models
+        .map((item) => ({
+          label: item.label.trim(),
+          modelId: item.modelId.trim(),
+          billingMultiplier: Number(item.billingMultiplier || 1) || 1,
+          logoPresetKey: item.logoPresetKey.trim() || '',
+        }))
+        .filter((item) => item.label && item.modelId);
       await saveModelProviderProfile({
         profileId: providerDraft.profileId,
         scopeType: selectedProviderScopeType,
@@ -1238,7 +1469,7 @@ export default function App() {
     setSavingMemoryEmbeddingProfile(true);
     setError('');
     try {
-      await saveMemoryEmbeddingProfile({
+      const preflight = await saveMemoryEmbeddingProfile({
         profileId: memoryDraft.profileId,
         scopeType: selectedProviderScopeType,
         scopeKey: selectedProviderScopeKey,
@@ -1249,10 +1480,47 @@ export default function App() {
         logoPresetKey: memoryDraft.logoPresetKey,
         autoRecall: memoryDraft.autoRecall,
       });
+      setMemoryEmbeddingTestResult({
+        ok: true,
+        message: preflight?.dimensions ? `${preflight.dimensions} 维向量返回成功` : '预检通过',
+        dimensions: preflight?.dimensions || null,
+      });
       const refreshed = await loadOverviewData();
       setOverviewData(refreshed);
     } catch (saveError) {
+      setMemoryEmbeddingTestResult({
+        ok: false,
+        message: saveError instanceof Error ? saveError.message : '记忆 Embedding 保存失败',
+        dimensions: null,
+      });
       setError(saveError instanceof Error ? saveError.message : '记忆 Embedding 保存失败');
+    } finally {
+      setSavingMemoryEmbeddingProfile(false);
+    }
+  };
+
+  const handleTestMemoryEmbedding = async () => {
+    setSavingMemoryEmbeddingProfile(true);
+    setError('');
+    try {
+      const preflight = await testMemoryEmbeddingProfile({
+        providerKey: memoryDraft.providerKey,
+        baseUrl: memoryDraft.baseUrl,
+        apiKey: memoryDraft.apiKey,
+        embeddingModel: memoryDraft.embeddingModel,
+      });
+      setMemoryEmbeddingTestResult({
+        ok: true,
+        message: preflight?.dimensions ? `${preflight.dimensions} 维向量返回成功` : '预检通过',
+        dimensions: preflight?.dimensions || null,
+      });
+    } catch (testError) {
+      setMemoryEmbeddingTestResult({
+        ok: false,
+        message: testError instanceof Error ? testError.message : '记忆 Embedding 测试失败',
+        dimensions: null,
+      });
+      setError(testError instanceof Error ? testError.message : '记忆 Embedding 测试失败');
     } finally {
       setSavingMemoryEmbeddingProfile(false);
     }
@@ -1370,6 +1638,29 @@ export default function App() {
     }
   };
 
+  const handleImportRuntimeBootstrap = async () => {
+    if (selectedRuntimeImportBindScopeType === 'app' && !selectedRuntimeImportBindScopeKey) {
+      setError('请选择要自动绑定的 OEM 应用');
+      return;
+    }
+    setSavingRuntimeRelease(true);
+    setError('');
+    try {
+      await importRuntimeBootstrapSource({
+        channel: selectedRuntimeImportChannel,
+        bindScopeType: selectedRuntimeImportBindScopeType,
+        bindScopeKey: selectedRuntimeImportBindScopeKey,
+      });
+      const refreshed = await loadOverviewData();
+      setOverviewData(refreshed);
+      setRuntimeSection(selectedRuntimeImportBindScopeType === 'none' ? 'release' : 'binding');
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : 'legacy runtime bootstrap 导入失败');
+    } finally {
+      setSavingRuntimeRelease(false);
+    }
+  };
+
   const handleSaveBrandSidebar = async (input: {
     enabled: boolean;
     variant: string;
@@ -1409,6 +1700,23 @@ export default function App() {
       setError(saveError instanceof Error ? saveError.message : '技能装配保存失败');
     } finally {
       setSavingBrandSkills(false);
+    }
+  };
+
+  const handleSaveBrandModels = async (
+    items: Array<{ modelRef: string; enabled: boolean; recommended: boolean; default: boolean }>,
+  ) => {
+    if (!brandDetailData) return;
+    setSavingBrandModels(true);
+    setError('');
+    try {
+      await saveBrandModels(brandDetailData, items);
+      const refreshed = await loadBrandDetailData(brandDetailData.brand.brandId);
+      setBrandDetailData(refreshed);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '模型绑定保存失败');
+    } finally {
+      setSavingBrandModels(false);
     }
   };
 
@@ -1565,14 +1873,8 @@ export default function App() {
   }, [selectedPaymentOrder?.orderId]);
   const selectedRechargePackage =
     (overviewData?.rechargeCatalog || []).find((item) => item.packageId === selectedRechargePackageId) || overviewData?.rechargeCatalog?.[0] || null;
-  const filteredCloudSkills = (overviewData?.cloudSkills || []).filter((item) => {
-    const query = cloudSkillQuery.trim().toLowerCase();
-    if (!query) return true;
-    return [item.slug, item.name, item.description, item.publisher, ...(item.tags || [])]
-      .join(' ')
-      .toLowerCase()
-      .includes(query);
-  });
+  const filteredCloudSkills = cloudSkillPage?.items || overviewData?.cloudSkills || [];
+  const cloudSkillMeta = cloudSkillPage?.meta || overviewData?.cloudSkillMeta || { total: 0, limit: 100, offset: 0, hasMore: false, nextOffset: null, query: '' };
   const selectedCloudSkill = filteredCloudSkills.find((item) => item.slug === selectedCloudSkillSlug) || filteredCloudSkills[0] || null;
   const selectedSkillSyncSource =
     (overviewData?.skillSyncSources || []).find((item) => item.id === selectedSkillSyncSourceId) || overviewData?.skillSyncSources?.[0] || null;
@@ -1582,8 +1884,17 @@ export default function App() {
     sourceKey: '',
     displayName: '',
     sourceUrl: '',
+    configText: '{}',
     active: true,
   });
+  useEffect(() => {
+    if (!overviewData) return;
+    setCloudSkillPage({
+      items: overviewData.cloudSkills || [],
+      meta: overviewData.cloudSkillMeta || { total: 0, limit: 100, offset: 0, hasMore: false, nextOffset: null, query: '' },
+    });
+  }, [overviewData?.cloudSkills, overviewData?.cloudSkillMeta]);
+
   useEffect(() => {
     if (!selectedSkillSyncSource) {
       setSkillSyncSourceDraft({
@@ -1592,6 +1903,7 @@ export default function App() {
         sourceKey: '',
         displayName: '',
         sourceUrl: '',
+        configText: '{}',
         active: true,
       });
       return;
@@ -1602,6 +1914,7 @@ export default function App() {
       sourceKey: selectedSkillSyncSource.sourceKey || '',
       displayName: selectedSkillSyncSource.displayName || '',
       sourceUrl: selectedSkillSyncSource.sourceUrl || '',
+      configText: JSON.stringify(selectedSkillSyncSource.config || {}, null, 2),
       active: selectedSkillSyncSource.active !== false,
     });
   }, [selectedSkillSyncSource]);
@@ -1617,6 +1930,12 @@ export default function App() {
   );
   const selectedPlatformMcp =
     filteredPlatformMcps.find((item) => item.key === selectedPlatformMcpKey) || filteredPlatformMcps[0] || null;
+  useEffect(() => {
+    setPlatformSkillMetadataText(JSON.stringify(selectedPlatformSkill?.metadata || {}, null, 2));
+  }, [selectedPlatformSkill?.slug]);
+  useEffect(() => {
+    setPlatformMcpMetadataText(JSON.stringify(selectedPlatformMcp?.metadata || {}, null, 2));
+  }, [selectedPlatformMcp?.key]);
   const filteredPlatformModels = (overviewData?.platformModels || []).filter((item) =>
     [item.ref, item.label, item.providerId, item.modelId].join(' ').toLowerCase().includes(capabilityQuery.trim().toLowerCase()),
   );
@@ -1662,7 +1981,7 @@ export default function App() {
     apiKey: '',
     logoPresetKey: '',
     defaultModelRef: '',
-    modelsText: '',
+    models: [{ label: '', modelId: '', billingMultiplier: 1, logoPresetKey: '' }],
   });
   const [memoryDraft, setMemoryDraft] = useState({
     profileId: '',
@@ -1719,9 +2038,14 @@ export default function App() {
       logoPresetKey: selectedProviderProfile?.logoPresetKey || '',
       defaultModelRef:
         String(selectedProviderProfile?.metadata?.default_model_ref || selectedProviderProfile?.metadata?.defaultModelRef || '').trim(),
-      modelsText: (selectedProviderProfile?.models || [])
-        .map((item) => `${item.label}|${item.modelId}|${item.billingMultiplier || 1}|${item.logoPresetKey || ''}`)
-        .join('\n'),
+      models: (selectedProviderProfile?.models || []).length
+        ? (selectedProviderProfile?.models || []).map((item) => ({
+            label: item.label || '',
+            modelId: item.modelId || '',
+            billingMultiplier: item.billingMultiplier || 1,
+            logoPresetKey: item.logoPresetKey || '',
+          }))
+        : [{ label: '', modelId: '', billingMultiplier: 1, logoPresetKey: '' }],
     });
   }, [selectedProviderScopeKey, selectedProviderProfile?.id, selectedProviderOverride?.providerMode]);
   useEffect(() => {
@@ -1734,6 +2058,7 @@ export default function App() {
       logoPresetKey: selectedMemoryProfile?.logoPresetKey || '',
       autoRecall: selectedMemoryProfile?.autoRecall !== false,
     });
+    setMemoryEmbeddingTestResult(null);
   }, [selectedProviderScopeKey, selectedMemoryProfile?.id]);
   const selectedRuntimeRelease =
     (overviewData?.runtimeReleases || []).find((item) => item.id === selectedRuntimeReleaseId) || overviewData?.runtimeReleases?.[0] || null;
@@ -1850,9 +2175,12 @@ export default function App() {
         currentUser={currentUser}
         onLogout={handleLogout}
         banner={
-          <div className="banner-row">
-            <div className={`banner banner--error${error ? '' : ' hidden'}`}>{error}</div>
-          </div>
+          error || notice ? (
+            <div className="banner-row">
+              {error ? <div className="banner banner--error">{error}</div> : null}
+              {notice ? <div className="banner banner--success">{notice}</div> : null}
+            </div>
+          ) : null
         }
       >
               {overviewLoading || !overviewData ? (
@@ -1884,6 +2212,7 @@ export default function App() {
                   loading={brandDetailLoading}
                   activeTab={brandDetailTab}
                   setActiveTab={setBrandDetailTab}
+                  onDirtyChange={setBrandDetailDirty}
                   savingBaseInfo={savingBrandBaseInfo}
                   onSaveBaseInfo={handleSaveBrandBaseInfo}
                   savingDesktopShell={savingBrandDesktopShell}
@@ -1896,6 +2225,23 @@ export default function App() {
                   onSaveHomeWeb={handleSaveBrandHomeWeb}
                   savingInput={savingBrandInput}
                   onSaveInput={handleSaveBrandInput}
+                  availableComposerControls={(overviewData?.composerControlCatalog || []).map((item) => ({
+                    controlKey: item.controlKey,
+                    displayName: item.displayName,
+                    controlType: item.controlType,
+                    options: item.options.map((option) => ({ optionValue: option.optionValue, label: option.label })),
+                  }))}
+                  savingComposerControls={savingBrandComposerControls}
+                  onSaveComposerControls={handleSaveBrandComposerControls}
+                  availableComposerShortcuts={(overviewData?.composerShortcutCatalog || []).map((item) => ({
+                    shortcutKey: item.shortcutKey,
+                    displayName: item.displayName,
+                    description: item.description,
+                    template: item.template,
+                    tone: item.tone,
+                  }))}
+                  savingComposerShortcuts={savingBrandComposerShortcuts}
+                  onSaveComposerShortcuts={handleSaveBrandComposerShortcuts}
                   savingSidebar={savingBrandSidebar}
                   onSaveSidebar={handleSaveBrandSidebar}
                   savingWelcome={savingBrandWelcome}
@@ -1912,6 +2258,14 @@ export default function App() {
                     .map((item) => ({ slug: item.slug, name: item.name }))}
                   savingSkills={savingBrandSkills}
                   onSaveSkills={handleSaveBrandSkills}
+                  availableModels={(overviewData?.platformModels || []).map((item) => ({
+                    ref: item.ref,
+                    label: item.label,
+                    providerId: item.providerId,
+                    modelId: item.modelId,
+                  }))}
+                  savingModels={savingBrandModels}
+                  onSaveModels={handleSaveBrandModels}
                   availableMcps={(overviewData?.cloudMcps || []).map((item) => ({
                     key: item.key,
                     name: item.name,
@@ -1939,6 +2293,10 @@ export default function App() {
                   onSaveMenus={handleSaveBrandMenus}
                   savingAsset={savingBrandAsset}
                   onUploadAsset={handleUploadBrandAsset}
+                  onDeleteAsset={handleDeleteBrandAsset}
+                  savingReleaseAction={savingBrandReleaseAction}
+                  onPublish={handlePublishBrand}
+                  onRestoreVersion={handleRestoreBrandVersion}
                   onBack={() => setRoute('brands')}
                   onOpenAudit={() => setRoute('audit-log')}
                 />
@@ -1983,29 +2341,35 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                  <div className="fig-capability-screen">
-                    <aside className="fig-capability-sidebar">
-                      <div className="fig-capability-sidebar__toolbar">
-                        <label className="fig-search">
-                          <input className="field-input fig-search__input" placeholder="搜索平台级 Skill..." value={capabilityQuery} onChange={(event) => setCapabilityQuery(event.target.value)} />
+                  <div className="fig-detail-stack">
+                    <section className="fig-card fig-card--subtle">
+                      <div className="fig-card__head">
+                        <h3>筛选与当前对象</h3>
+                        <span>筛选后直接在当前页编辑平台 Skill。</span>
+                      </div>
+                      <div className="form-grid form-grid--two">
+                        <label className="fig-search field">
+                          <span>搜索平台级 Skill</span>
+                          <input className="field-input fig-search__input" placeholder="搜索名称 / slug / 分类..." value={capabilityQuery} onChange={(event) => setCapabilityQuery(event.target.value)} />
                         </label>
-                        <div className="fig-capability-filter-meta">
-                          <span>{`${filteredPlatformSkills.length} 个平台预装 Skill`}</span>
-                          <button className="text-button" type="button" onClick={() => setCapabilityQuery('')}>重置筛选</button>
-                        </div>
+                        <label className="field">
+                          <span>当前对象</span>
+                          <select className="field-select" value={selectedPlatformSkill?.slug || filteredPlatformSkills[0]?.slug || ''} onChange={(event) => setSelectedPlatformSkillSlug(event.target.value)}>
+                            {filteredPlatformSkills.map((item) => (
+                              <option key={item.slug} value={item.slug}>
+                                {item.name} · {item.category || '未分类'}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       </div>
-                      <div className="fig-capability-list">
-                        {filteredPlatformSkills.length ? filteredPlatformSkills.map((item) => (
-                          <button key={item.slug} className={`capability-card${selectedPlatformSkill?.slug === item.slug ? ' is-active' : ''}`} type="button" onClick={() => setSelectedPlatformSkillSlug(item.slug)}>
-                            <strong>{item.name}</strong>
-                            <span>{`${item.category || '未分类'} • ${item.connectedBrands.length} 个 OEM 生效`}</span>
-                          </button>
-                        )) : <div className="empty-state">还没有平台预装 Skill。</div>}
+                      <div className="fig-release-card__actions">
+                        <span>{`${filteredPlatformSkills.length} 个平台预装 Skill`}</span>
+                        <button className="ghost-button" type="button" onClick={() => setCapabilityQuery('')}>重置筛选</button>
                       </div>
-                    </aside>
-                    <section className="fig-capability-detail">
-                      {selectedPlatformSkill ? (
-                        <div className="fig-detail-stack">
+                    </section>
+                    {selectedPlatformSkill ? (
+                      <>
                           <div className="fig-card">
                             <div className="fig-card__head">
                               <div>
@@ -2023,20 +2387,57 @@ export default function App() {
                               <div className="fig-meta-card"><span>版本</span><strong>{selectedPlatformSkill.version || '-'}</strong></div>
                               <div className="fig-meta-card"><span>发布者</span><strong>{selectedPlatformSkill.publisher || '未知'}</strong></div>
                             </div>
+                            <section className="fig-card fig-card--subtle" style={{ marginTop: 16 }}>
+                              <div className="fig-card__head">
+                                <h3>Binding Metadata</h3>
+                                <span>平台预装 Skill binding 的附加字段</span>
+                              </div>
+                              <textarea className="code-input code-input--tall" value={platformSkillMetadataText} onChange={(event) => setPlatformSkillMetadataText(event.target.value)} />
+                            </section>
                             <div className="fig-release-card__actions">
                               <button
                                 className="solid-button"
                                 type="button"
                                 disabled={savingPlatformSkill}
                                 onClick={() =>
-                                  void handleSavePlatformSkill({
-                                    slug: selectedPlatformSkill.slug,
-                                    active: !selectedPlatformSkill.active,
-                                    metadata: selectedPlatformSkill.metadata || {},
-                                  })
+                                  void (() => {
+                                    try {
+                                      const metadata = asObject(platformSkillMetadataText ? JSON.parse(platformSkillMetadataText) : {});
+                                      return handleSavePlatformSkill({
+                                        slug: selectedPlatformSkill.slug,
+                                        active: !selectedPlatformSkill.active,
+                                        metadata,
+                                      });
+                                    } catch (parseError) {
+                                      setError(parseError instanceof Error ? parseError.message : 'Skill metadata JSON 解析失败');
+                                      return Promise.resolve();
+                                    }
+                                  })()
                                 }
                               >
                                 {savingPlatformSkill ? '处理中…' : selectedPlatformSkill.active ? '停用' : '启用'}
+                              </button>
+                              <button
+                                className="ghost-button"
+                                type="button"
+                                disabled={savingPlatformSkill}
+                                onClick={() =>
+                                  void (() => {
+                                    try {
+                                      const metadata = asObject(platformSkillMetadataText ? JSON.parse(platformSkillMetadataText) : {});
+                                      return handleSavePlatformSkill({
+                                        slug: selectedPlatformSkill.slug,
+                                        active: selectedPlatformSkill.active,
+                                        metadata,
+                                      });
+                                    } catch (parseError) {
+                                      setError(parseError instanceof Error ? parseError.message : 'Skill metadata JSON 解析失败');
+                                      return Promise.resolve();
+                                    }
+                                  })()
+                                }
+                              >
+                                保存 Metadata
                               </button>
                               <button
                                 className="ghost-button"
@@ -2061,9 +2462,8 @@ export default function App() {
                               )) : <div className="empty-state">当前没有 OEM 绑定此 Skill。</div>}
                             </div>
                           </section>
-                        </div>
-                      ) : <div className="fig-card fig-card--detail-empty"><div className="empty-state">选择一个平台预装 Skill 查看详情。</div></div>}
-                    </section>
+                      </>
+                    ) : <div className="fig-card fig-card--detail-empty"><div className="empty-state">还没有平台预装 Skill。</div></div>}
                   </div>
                 </div>
               ) : route === 'mcp-center' ? (
@@ -2108,25 +2508,35 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                  <div className="fig-capability-screen">
-                    <aside className="fig-capability-sidebar">
-                      <div className="fig-capability-sidebar__toolbar">
-                        <label className="fig-search">
-                          <input className="field-input fig-search__input" placeholder="搜索平台级 MCP..." value={capabilityQuery} onChange={(event) => setCapabilityQuery(event.target.value)} />
+                  <div className="fig-detail-stack">
+                    <section className="fig-card fig-card--subtle">
+                      <div className="fig-card__head">
+                        <h3>筛选与当前对象</h3>
+                        <span>筛选后直接在当前页编辑平台 MCP。</span>
+                      </div>
+                      <div className="form-grid form-grid--two">
+                        <label className="fig-search field">
+                          <span>搜索平台级 MCP</span>
+                          <input className="field-input fig-search__input" placeholder="搜索名称 / key / transport..." value={capabilityQuery} onChange={(event) => setCapabilityQuery(event.target.value)} />
+                        </label>
+                        <label className="field">
+                          <span>当前对象</span>
+                          <select className="field-select" value={selectedPlatformMcp?.key || filteredPlatformMcps[0]?.key || ''} onChange={(event) => setSelectedPlatformMcpKey(event.target.value)}>
+                            {filteredPlatformMcps.map((item) => (
+                              <option key={item.key} value={item.key}>
+                                {item.name} · {item.transport}
+                              </option>
+                            ))}
+                          </select>
                         </label>
                       </div>
-                      <div className="fig-capability-list">
-                        {filteredPlatformMcps.length ? filteredPlatformMcps.map((item) => (
-                          <button key={item.key} className={`capability-card${selectedPlatformMcp?.key === item.key ? ' is-active' : ''}`} type="button" onClick={() => setSelectedPlatformMcpKey(item.key)}>
-                            <strong>{item.name}</strong>
-                            <span>{`${item.transport} • ${item.connectedBrands.length} 个 OEM 生效`}</span>
-                          </button>
-                        )) : <div className="empty-state">还没有平台级 MCP。</div>}
+                      <div className="fig-release-card__actions">
+                        <span>{`${filteredPlatformMcps.length} 个平台级 MCP`}</span>
+                        <button className="ghost-button" type="button" onClick={() => setCapabilityQuery('')}>重置筛选</button>
                       </div>
-                    </aside>
-                    <section className="fig-capability-detail">
-                      {selectedPlatformMcp ? (
-                        <div className="fig-detail-stack">
+                    </section>
+                    {selectedPlatformMcp ? (
+                      <>
                           <div className="fig-card">
                             <div className="fig-card__head">
                               <div>
@@ -2139,20 +2549,85 @@ export default function App() {
                               </div>
                             </div>
                             <p className="detail-copy">{selectedPlatformMcp.description || '暂无描述。'}</p>
+                            <div className="fig-meta-cards">
+                              <div className="fig-meta-card"><span>Transport</span><strong>{selectedPlatformMcp.transport || 'config'}</strong></div>
+                              <div className="fig-meta-card"><span>Command</span><strong>{selectedPlatformMcp.command || '未声明'}</strong></div>
+                              <div className="fig-meta-card"><span>HTTP URL</span><strong>{selectedPlatformMcp.httpUrl || '未声明'}</strong></div>
+                              <div className="fig-meta-card"><span>环境变量</span><strong>{String(selectedPlatformMcp.envKeys?.length || 0)}</strong></div>
+                            </div>
+                            <section className="fig-card fig-card--subtle" style={{ marginTop: 16 }}>
+                              <div className="fig-card__head">
+                                <h3>Binding Metadata</h3>
+                                <span>平台级 MCP binding 的附加字段</span>
+                              </div>
+                              <textarea className="code-input code-input--tall" value={platformMcpMetadataText} onChange={(event) => setPlatformMcpMetadataText(event.target.value)} />
+                            </section>
                             <div className="fig-release-card__actions">
                               <button
                                 className="solid-button"
                                 type="button"
                                 disabled={savingPlatformMcp}
                                 onClick={() =>
-                                  void handleSavePlatformMcp({
-                                    key: selectedPlatformMcp.key,
-                                    active: !selectedPlatformMcp.active,
-                                    metadata: selectedPlatformMcp.metadata || {},
-                                  })
+                                  void (() => {
+                                    try {
+                                      const metadata = asObject(platformMcpMetadataText ? JSON.parse(platformMcpMetadataText) : {});
+                                      return handleSavePlatformMcp({
+                                        key: selectedPlatformMcp.key,
+                                        active: !selectedPlatformMcp.active,
+                                        metadata,
+                                      });
+                                    } catch (parseError) {
+                                      setError(parseError instanceof Error ? parseError.message : 'MCP metadata JSON 解析失败');
+                                      return Promise.resolve();
+                                    }
+                                  })()
                                 }
                               >
                                 {savingPlatformMcp ? '处理中…' : selectedPlatformMcp.active ? '停用' : '启用'}
+                              </button>
+                              <button
+                                className="ghost-button"
+                                type="button"
+                                disabled={savingPlatformMcp}
+                                onClick={() =>
+                                  void (() => {
+                                    try {
+                                      const metadata = asObject(platformMcpMetadataText ? JSON.parse(platformMcpMetadataText) : {});
+                                      return handleSavePlatformMcp({
+                                        key: selectedPlatformMcp.key,
+                                        active: selectedPlatformMcp.active,
+                                        metadata,
+                                      });
+                                    } catch (parseError) {
+                                      setError(parseError instanceof Error ? parseError.message : 'MCP metadata JSON 解析失败');
+                                      return Promise.resolve();
+                                    }
+                                  })()
+                                }
+                              >
+                                保存 Metadata
+                              </button>
+                              <button
+                                className="ghost-button"
+                                type="button"
+                                disabled={savingPlatformMcp}
+                                onClick={() =>
+                                  void handleTestCloudMcp({
+                                    key: selectedPlatformMcp.key,
+                                    name: selectedPlatformMcp.name,
+                                    description: selectedPlatformMcp.description,
+                                    transport: selectedPlatformMcp.transport,
+                                    objectKey: selectedPlatformMcp.objectKey || '',
+                                    enabled: selectedPlatformMcp.active,
+                                    command: selectedPlatformMcp.command || '',
+                                    argsText: '',
+                                    httpUrl: selectedPlatformMcp.httpUrl || '',
+                                    envText: (selectedPlatformMcp.envKeys || []).map((key) => `${key}=`).join('\n'),
+                                    metadataText: platformMcpMetadataText,
+                                  })
+                                }
+                              >
+                                测试连接
                               </button>
                               <button
                                 className="ghost-button"
@@ -2177,9 +2652,8 @@ export default function App() {
                               )) : <div className="empty-state">当前没有 OEM 绑定此 MCP。</div>}
                             </div>
                           </section>
-                        </div>
-                      ) : <div className="fig-card fig-card--detail-empty"><div className="empty-state">选择一个平台级 MCP 查看详情。</div></div>}
-                    </section>
+                      </>
+                    ) : <div className="fig-card fig-card--detail-empty"><div className="empty-state">还没有平台级 MCP。</div></div>}
                   </div>
                 </div>
               ) : route === 'model-center' ? (
@@ -2213,7 +2687,9 @@ export default function App() {
                   setMemoryDraft={setMemoryDraft}
                   savingMemoryEmbeddingProfile={savingMemoryEmbeddingProfile}
                   handleSaveMemoryEmbedding={() => void handleSaveMemoryEmbedding()}
+                  handleTestMemoryEmbedding={() => void handleTestMemoryEmbedding()}
                   handleRestorePlatformMemory={() => void handleRestorePlatformMemory()}
+                  memoryEmbeddingTestResult={memoryEmbeddingTestResult}
                 />
               ) : route === 'runtime-management' ? (
                 <div className="fig-page">
@@ -2259,13 +2735,62 @@ export default function App() {
                       <div className="fig-detail-stack">
                         <section className="fig-card fig-card--subtle">
                           <div className="fig-card__head">
-                            <h3>Runtime Bootstrap Source</h3>
-                            <span>兼容当前已经在对象存储上的 runtime 包</span>
+                            <div>
+                              <h3>Runtime Bootstrap Source</h3>
+                              <span>兼容当前已经在对象存储上的 runtime 包</span>
+                            </div>
+                            <div className="action-row">
+                              <button className="ghost-button" type="button" disabled={savingRuntimeRelease} onClick={() => void (async () => {
+                                setSavingRuntimeRelease(true);
+                                setError('');
+                                try {
+                                  const refreshed = await loadOverviewData();
+                                  setOverviewData(refreshed);
+                                } catch (refreshError) {
+                                  setError(refreshError instanceof Error ? refreshError.message : 'runtime bootstrap 刷新失败');
+                                } finally {
+                                  setSavingRuntimeRelease(false);
+                                }
+                              })()}>
+                                刷新源预览
+                              </button>
+                              <button className="ghost-button" type="button" disabled={savingRuntimeRelease} onClick={() => void handleImportRuntimeBootstrap()}>
+                                {savingRuntimeRelease ? '导入中…' : '导入到 Runtime Center'}
+                              </button>
+                            </div>
                           </div>
                           <div className="fig-meta-cards">
                             <div className="fig-meta-card"><span>Source Path</span><strong>{overviewData?.runtimeBootstrapSource?.sourcePath || '未找到'}</strong></div>
                             <div className="fig-meta-card"><span>Version</span><strong>{overviewData?.runtimeBootstrapSource?.version || '未找到'}</strong></div>
                             <div className="fig-meta-card"><span>Artifacts</span><strong>{String(overviewData?.runtimeBootstrapSource?.artifacts.length || 0)}</strong></div>
+                          </div>
+                          <div className="fig-toolbar">
+                            <label className="field">
+                              <span>导入到哪个 Channel</span>
+                              <select className="field-select" value={selectedRuntimeImportChannel} onChange={(event) => setSelectedRuntimeImportChannel(event.target.value === 'dev' ? 'dev' : 'prod')}>
+                                <option value="prod">prod</option>
+                                <option value="dev">dev</option>
+                              </select>
+                            </label>
+                            <label className="field">
+                              <span>导入后自动绑定</span>
+                              <select className="field-select" value={selectedRuntimeImportBindScopeType} onChange={(event) => setSelectedRuntimeImportBindScopeType(event.target.value as 'none' | 'platform' | 'app')}>
+                                <option value="none">只导入 Release</option>
+                                <option value="platform">绑定到平台默认</option>
+                                <option value="app">绑定到 OEM</option>
+                              </select>
+                            </label>
+                            <label className="field" style={selectedRuntimeImportBindScopeType === 'app' ? undefined : { opacity: 0.55 }}>
+                              <span>OEM 应用</span>
+                              <select className="field-select" value={selectedRuntimeImportBindScopeKey} disabled={selectedRuntimeImportBindScopeType !== 'app'} onChange={(event) => setSelectedRuntimeImportBindScopeKey(event.target.value)}>
+                                <option value="">请选择 OEM</option>
+                                {(overviewData?.brands || []).map((brand) => (
+                                  <option key={brand.brandId} value={brand.brandId}>
+                                    {brand.displayName}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
                           </div>
                           <div className="fig-list">
                             {overviewData?.runtimeBootstrapSource?.artifacts.length ? (
@@ -2292,6 +2817,30 @@ export default function App() {
                               <h3>Release 列表</h3>
                               <span>{String(overviewData?.runtimeReleases.length || 0)} 条</span>
                             </div>
+                            <button className="ghost-button" type="button" onClick={() => {
+                              setSelectedRuntimeReleaseId('');
+                              setRuntimeReleaseDraft({
+                                id: '',
+                                runtimeKind: 'openclaw',
+                                version: '',
+                                channel: 'prod',
+                                platform: 'darwin',
+                                arch: 'aarch64',
+                                artifactUrl: '',
+                                bucketName: '',
+                                objectKey: '',
+                                artifactSha256: '',
+                                artifactSizeBytes: 0,
+                                launcherRelativePath: '',
+                                gitCommit: '',
+                                gitTag: '',
+                                releaseVersion: '',
+                                buildTime: '',
+                                status: 'draft',
+                              });
+                            }}>
+                              新建 Release
+                            </button>
                           </div>
                           <div className="fig-list">
                             {(overviewData?.runtimeReleases || []).length ? (
@@ -2363,6 +2912,23 @@ export default function App() {
                               <h3>Binding 列表</h3>
                               <span>{String(overviewData?.runtimeBindings.length || 0)} 条</span>
                             </div>
+                            <button className="ghost-button" type="button" onClick={() => {
+                              setSelectedRuntimeBindingId('');
+                              setRuntimeBindingDraft({
+                                id: '',
+                                scopeType: 'platform',
+                                scopeKey: 'platform',
+                                runtimeKind: 'openclaw',
+                                channel: 'prod',
+                                platform: 'darwin',
+                                arch: 'aarch64',
+                                releaseId: '',
+                                enabled: true,
+                                changeReason: '',
+                              });
+                            }}>
+                              新建 Binding
+                            </button>
                           </div>
                           <div className="fig-list">
                             {(overviewData?.runtimeBindings || []).length ? (
@@ -2467,6 +3033,7 @@ export default function App() {
                               sourceKey: '',
                               displayName: '',
                               sourceUrl: '',
+                              configText: '{}',
                               active: true,
                             })
                           }
@@ -2506,10 +3073,10 @@ export default function App() {
                         <span>技能商店直接读取这里的已上架技能</span>
                       </div>
                       <div className="fig-meta-cards">
-                        <div className="fig-meta-card"><span>云技能</span><strong>{String(overviewData?.cloudSkillMeta.total || 0)}</strong></div>
+                        <div className="fig-meta-card"><span>云技能</span><strong>{String(cloudSkillMeta.total || 0)}</strong></div>
                         <div className="fig-meta-card"><span>同步源</span><strong>{String(overviewData?.skillSyncSources.length || 0)}</strong></div>
                         <div className="fig-meta-card"><span>同步记录</span><strong>{String(overviewData?.skillSyncRuns.length || 0)}</strong></div>
-                        <div className="fig-meta-card"><span>当前页</span><strong>{filteredCloudSkills.length ? `${(overviewData?.cloudSkillMeta.offset || 0) + 1}-${(overviewData?.cloudSkillMeta.offset || 0) + filteredCloudSkills.length}` : '0'}</strong></div>
+                        <div className="fig-meta-card"><span>当前页</span><strong>{filteredCloudSkills.length ? `${(cloudSkillMeta.offset || 0) + 1}-${(cloudSkillMeta.offset || 0) + filteredCloudSkills.length}` : '0'}</strong></div>
                       </div>
                     </section>
                     <div className="fig-layout">
@@ -2562,6 +3129,10 @@ export default function App() {
                               <span>Source URL</span>
                               <input className="field-input" value={skillSyncSourceDraft.sourceUrl} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceUrl: event.target.value }))} />
                             </label>
+                            <label className="field field--wide">
+                              <span>Config JSON</span>
+                              <textarea className="code-input code-input--tall" rows={6} value={skillSyncSourceDraft.configText} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, configText: event.target.value }))} />
+                            </label>
                             <label className="field" style={{ maxWidth: 180 }}>
                               <span>Active</span>
                               <input type="checkbox" checked={skillSyncSourceDraft.active} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, active: event.target.checked }))} />
@@ -2576,7 +3147,7 @@ export default function App() {
                         <section className="fig-card fig-card--subtle">
                           <div className="fig-card__head">
                             <h3>云技能列表</h3>
-                            <span>{String(overviewData?.cloudSkillMeta.total || 0)} 个</span>
+                            <span>{String(cloudSkillMeta.total || 0)} 个</span>
                           </div>
                           <div className="fig-toolbar">
                             <label className="fig-search fig-search--grow">
@@ -2587,8 +3158,17 @@ export default function App() {
                                 onChange={(event) => setCloudSkillQuery(event.target.value)}
                               />
                             </label>
-                            <button className="ghost-button" type="button" onClick={() => setCloudSkillQuery('')}>
+                            <button className="ghost-button" type="button" disabled={savingCloudSkill} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: 0 })}>
+                              搜索
+                            </button>
+                            <button className="ghost-button" type="button" onClick={() => { setCloudSkillQuery(''); void handleLoadCloudSkillsPage({ query: '', offset: 0 }); }}>
                               清空
+                            </button>
+                            <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.offset <= 0} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: Math.max(0, cloudSkillMeta.offset - cloudSkillMeta.limit) })}>
+                              上一页
+                            </button>
+                            <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.hasMore !== true} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: cloudSkillMeta.nextOffset || (cloudSkillMeta.offset + cloudSkillMeta.limit) })}>
+                              下一页
                             </button>
                           </div>
                           <div className="fig-capability-list">
@@ -2788,6 +3368,15 @@ export default function App() {
                             className="field-input"
                             value={assetUploadDraft.kind}
                             onChange={(event) => setAssetUploadDraft((current) => ({ ...current, kind: event.target.value }))}
+                          />
+                        </label>
+                        <label className="field field--wide">
+                          <span>Metadata JSON</span>
+                          <textarea
+                            className="code-input code-input--tall"
+                            rows={5}
+                            value={assetUploadDraft.metadataText}
+                            onChange={(event) => setAssetUploadDraft((current) => ({ ...current, metadataText: event.target.value }))}
                           />
                         </label>
                         <label className="field field--wide">
@@ -3037,6 +3626,22 @@ export default function App() {
                                         打开品牌
                                       </button>
                                     </div>
+                                    <section className="fig-card fig-card--subtle">
+                                      <div className="fig-card__head">
+                                        <h3>Diff 视图</h3>
+                                        <span>对比选中发布版本与当前品牌草稿</span>
+                                      </div>
+                                      <div className="form-grid form-grid--two">
+                                        <label className="field">
+                                          <span>发布版本 JSON</span>
+                                          <textarea className="code-input code-input--tall" readOnly value={JSON.stringify(item.config || {}, null, 2)} />
+                                        </label>
+                                        <label className="field">
+                                          <span>当前草稿 JSON</span>
+                                          <textarea className="code-input code-input--tall" readOnly value={JSON.stringify(overviewData?.brandConfigs?.[item.brandId] || {}, null, 2)} />
+                                        </label>
+                                      </div>
+                                    </section>
                                   </div>
                                 ) : null}
                               </div>
@@ -3063,6 +3668,7 @@ export default function App() {
                   onSelectPackage={setSelectedRechargePackageId}
                   onSave={handleSaveRechargeCatalog}
                   onDelete={handleDeleteRechargeCatalog}
+                  onRestoreRecommended={handleRestoreRecommendedRechargePackages}
                   saving={savingRechargeCatalog}
                 />
               ) : route === 'payments-orders' ? (
@@ -3074,6 +3680,9 @@ export default function App() {
                         <p className="fig-page__description">查看充值订单、来源 OEM app、到账链路与基础技术明细</p>
                       </div>
                       <div className="fig-toolbar fig-toolbar--audit">
+                        <button className="ghost-button" type="button" onClick={handleExportPaymentOrders}>
+                          导出 CSV
+                        </button>
                         <label className="fig-search">
                           <input
                             className="field-input fig-search__input"

@@ -20,6 +20,8 @@ import {
 } from '../lib/brandSurfaceDrafts';
 import type { BrandDetailData } from '../lib/adminTypes';
 
+const HOME_WEB_PREVIEW_BASE_URL = ((import.meta.env.VITE_HOME_WEB_BASE_URL || 'http://127.0.0.1:1477') + '').trim().replace(/\/+$/, '');
+
 type BrandDetailTabId =
   | 'desktop'
   | 'home-web'
@@ -370,6 +372,7 @@ function renderRechargeBindings(detail: BrandDetailData) {
 export function BrandDetailPanel({
   detail,
   activeTab,
+  onDirtyChange,
   savingBaseInfo = false,
   onSaveBaseInfo,
   savingDesktopShell = false,
@@ -382,6 +385,12 @@ export function BrandDetailPanel({
   onSaveHomeWeb,
   savingInput = false,
   onSaveInput,
+  availableComposerControls = [],
+  savingComposerControls = false,
+  onSaveComposerControls,
+  availableComposerShortcuts = [],
+  savingComposerShortcuts = false,
+  onSaveComposerShortcuts,
   savingSidebar = false,
   onSaveSidebar,
   savingWelcome = false,
@@ -411,6 +420,7 @@ export function BrandDetailPanel({
 }: {
   detail: BrandDetailData;
   activeTab: BrandDetailTabId;
+  onDirtyChange?: (dirty: boolean) => void;
   savingBaseInfo?: boolean;
   onSaveBaseInfo?: (input: {
     displayName: string;
@@ -505,6 +515,27 @@ export function BrandDetailPanel({
     enabled: boolean;
     placeholderText: string;
   }) => Promise<void> | void;
+  availableComposerControls?: Array<{
+    controlKey: string;
+    displayName: string;
+    controlType: string;
+    options: Array<{ optionValue: string; label: string }>;
+  }>;
+  savingComposerControls?: boolean;
+  onSaveComposerControls?: (
+    items: Array<{ controlKey: string; enabled: boolean; displayName: string; allowedOptionValues: string[] }>,
+  ) => Promise<void> | void;
+  availableComposerShortcuts?: Array<{
+    shortcutKey: string;
+    displayName: string;
+    description: string;
+    template: string;
+    tone: string;
+  }>;
+  savingComposerShortcuts?: boolean;
+  onSaveComposerShortcuts?: (
+    items: Array<{ shortcutKey: string; enabled: boolean; displayName: string; description: string; template: string }>,
+  ) => Promise<void> | void;
   savingSidebar?: boolean;
   onSaveSidebar?: (input: {
     enabled: boolean;
@@ -569,6 +600,7 @@ export function BrandDetailPanel({
   onUploadAsset?: (input: {
     assetKey: string;
     kind: string;
+    metadata?: Record<string, unknown>;
     file: File;
   }) => Promise<void> | void;
   onDeleteAsset?: (assetKey: string) => Promise<void> | void;
@@ -734,10 +766,26 @@ export function BrandDetailPanel({
       })
       .filter((item) => item.modelRef),
   );
+  const buildMenuDraftItems = (items: Array<{ menuKey: string; enabled: boolean; displayName: string; group: string }>) => {
+    const nonLegacyMenus = availableMenus.filter((item) => item.category !== 'legacy');
+    const itemMap = new Map(
+      items
+        .filter((item) => item.menuKey)
+        .map((item) => [item.menuKey, item] as const),
+    );
+    return nonLegacyMenus.length
+      ? nonLegacyMenus.map((item) => itemMap.get(item.key) || {
+        menuKey: item.key,
+        enabled: false,
+        displayName: '',
+        group: '',
+      })
+      : items.slice();
+  };
   const [menuDraft, setMenuDraft] = useState<
     Array<{ menuKey: string; enabled: boolean; displayName: string; group: string }>
   >(
-    detail.menuBindings.map((item) => {
+    buildMenuDraftItems(detail.menuBindings.map((item) => {
       const config = asObject(item.config);
       return {
         menuKey: stringValue(item.menuKey || item.menu_key),
@@ -745,13 +793,26 @@ export function BrandDetailPanel({
         displayName: stringValue(config.display_name || config.displayName),
         group: stringValue(config.group_label || config.groupLabel || config.group),
       };
-    }),
+    })),
   );
+  const [selectedMenuKey, setSelectedMenuKey] = useState(menuDraft[0]?.menuKey || '');
+  const [menuDragState, setMenuDragState] = useState<{
+    sourceKey: string;
+    overKey: string;
+    placement: 'before' | 'after';
+  }>({
+    sourceKey: '',
+    overKey: '',
+    placement: 'before',
+  });
   const [assetDraft, setAssetDraft] = useState({
     assetKey: '',
     kind: '',
+    metadataText: '{}',
     file: null as File | null,
   });
+
+  const isSameJson = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 
   useEffect(() => {
     setBrandMetaDraft(buildBrandMetaDraft());
@@ -887,7 +948,7 @@ export function BrandDetailPanel({
 
   useEffect(() => {
     setMenuDraft(
-      detail.menuBindings.map((item) => {
+      buildMenuDraftItems(detail.menuBindings.map((item) => {
         const config = asObject(item.config);
         return {
           menuKey: stringValue(item.menuKey || item.menu_key),
@@ -895,9 +956,191 @@ export function BrandDetailPanel({
           displayName: stringValue(config.display_name || config.displayName),
           group: stringValue(config.group_label || config.groupLabel || config.group),
         };
-      }),
+      })),
     );
-  }, [detail]);
+  }, [detail, availableMenus]);
+
+  useEffect(() => {
+    if (!menuDraft.length) {
+      if (selectedMenuKey) {
+        setSelectedMenuKey('');
+      }
+      return;
+    }
+    if (!menuDraft.some((item) => item.menuKey === selectedMenuKey)) {
+      setSelectedMenuKey(menuDraft[0]?.menuKey || '');
+    }
+  }, [menuDraft, selectedMenuKey]);
+
+  const reorderMenuDraft = (sourceKey: string, targetKey: string, placement: 'before' | 'after') => {
+    if (!sourceKey || !targetKey || sourceKey === targetKey) {
+      return;
+    }
+    setMenuDraft((current) => {
+      const next = [...current];
+      const sourceIndex = next.findIndex((item) => item.menuKey === sourceKey);
+      const targetIndex = next.findIndex((item) => item.menuKey === targetKey);
+      if (sourceIndex < 0 || targetIndex < 0) {
+        return current;
+      }
+      const [moved] = next.splice(sourceIndex, 1);
+      const normalizedTargetIndex = next.findIndex((item) => item.menuKey === targetKey);
+      const insertIndex = placement === 'after' ? normalizedTargetIndex + 1 : normalizedTargetIndex;
+      next.splice(insertIndex, 0, moved);
+      return next;
+    });
+    setSelectedMenuKey(sourceKey);
+  };
+
+  const selectedMenu = menuDraft.find((item) => item.menuKey === selectedMenuKey) || menuDraft[0] || null;
+  const selectedMenuCatalog = selectedMenu
+    ? availableMenus.find((entry) => entry.key === selectedMenu.menuKey) || null
+    : null;
+  const selectedMenuLabel = selectedMenu?.displayName.trim() || selectedMenuCatalog?.label || selectedMenu?.menuKey || '';
+  const updateSelectedMenu = (updater: (item: { menuKey: string; enabled: boolean; displayName: string; group: string }) => {
+    menuKey: string;
+    enabled: boolean;
+    displayName: string;
+    group: string;
+  }) => {
+    if (!selectedMenu) {
+      return;
+    }
+    setMenuDraft((current) =>
+      current.map((entry) => (entry.menuKey === selectedMenu.menuKey ? updater(entry) : entry)),
+    );
+  };
+
+  useEffect(() => {
+    const baseComposerControls = detail.composerControlBindings.map((item) => {
+      const config = asObject(item.config);
+      return {
+        controlKey: stringValue(item.controlKey || item.control_key),
+        enabled: item.enabled !== false,
+        displayName: stringValue(config.display_name || config.displayName),
+        allowedOptionValues: Array.isArray(config.allowed_option_values)
+          ? config.allowed_option_values.map((entry) => String(entry || ''))
+          : Array.isArray(config.allowedOptionValues)
+            ? config.allowedOptionValues.map((entry) => String(entry || ''))
+            : [],
+      };
+    }).filter((item) => item.controlKey);
+    const baseComposerShortcuts = detail.composerShortcutBindings.map((item) => {
+      const config = asObject(item.config);
+      return {
+        shortcutKey: stringValue(item.shortcutKey || item.shortcut_key),
+        enabled: item.enabled !== false,
+        displayName: stringValue(config.display_name || config.displayName),
+        description: stringValue(config.description),
+        template: stringValue(config.template || config.template_text),
+      };
+    }).filter((item) => item.shortcutKey);
+    const baseModelDraft = detail.modelBindings
+      .map((item) => {
+        const config = asObject(item.config);
+        return {
+          modelRef: stringValue(item.modelRef || item.model_ref),
+          enabled: item.enabled !== false,
+          recommended: config.recommended === true,
+          default: config.default === true,
+        };
+      })
+      .filter((item) => item.modelRef);
+    const baseMenuDraft = buildMenuDraftItems(detail.menuBindings.map((item) => {
+      const config = asObject(item.config);
+      return {
+        menuKey: stringValue(item.menuKey || item.menu_key),
+        enabled: item.enabled !== false,
+        displayName: stringValue(config.display_name || config.displayName),
+        group: stringValue(config.group_label || config.groupLabel || config.group),
+      };
+    }));
+    const dirty =
+      activeTab === 'desktop'
+        ? !isSameJson(desktopShellDraft, desktopDraftSource)
+        : activeTab === 'auth'
+          ? !isSameJson(authDraft, buildAuthDraft())
+          : activeTab === 'header'
+            ? !isSameJson(headerDraft, buildHeaderDraft())
+            : activeTab === 'home-web'
+              ? !isSameJson(homeWebDraft, buildHomeWebDraft())
+              : activeTab === 'welcome'
+                ? !isSameJson(welcomeDraft, buildWelcomeDraft())
+                : activeTab === 'sidebar'
+                  ? !isSameJson(sidebarDraft, {
+                    enabled: sidebarSurface.enabled !== false,
+                    variant: sidebarConfig.variant,
+                    brandTitle: sidebarConfig.brandTitle,
+                    brandSubtitle: sidebarConfig.brandSubtitle,
+                    sectionStyle: sidebarConfig.sectionStyle,
+                    emphasizeActiveItem: sidebarConfig.emphasizeActiveItem,
+                  })
+                  : activeTab === 'input'
+                    ? (
+                      !isSameJson(inputDraft, buildInputDraft()) ||
+                      !isSameJson(composerControlDraft, baseComposerControls) ||
+                      !isSameJson(composerShortcutDraft, baseComposerShortcuts)
+                    )
+                    : activeTab === 'theme'
+                      ? !isSameJson(themeDraft, {
+                        defaultMode:
+                          String(theme.defaultMode || theme.default_mode || 'dark') === 'light'
+                            ? 'light'
+                            : String(theme.defaultMode || theme.default_mode || 'dark') === 'system'
+                              ? 'system'
+                              : 'dark',
+                        lightPrimary: stringValue(lightTheme.primary),
+                        lightPrimaryHover: stringValue(lightTheme.primaryHover),
+                        lightOnPrimary: stringValue(lightTheme.onPrimary),
+                        darkPrimary: stringValue(darkTheme.primary),
+                        darkPrimaryHover: stringValue(darkTheme.primaryHover),
+                        darkOnPrimary: stringValue(darkTheme.onPrimary),
+                      })
+                      : activeTab === 'skills'
+                        ? !isSameJson(skillDraft, detail.skillBindings.filter((item) => item.enabled !== false).map((item) => stringValue(item.skillSlug)).filter(Boolean))
+                        : activeTab === 'models'
+                          ? !isSameJson(modelDraft, baseModelDraft)
+                          : activeTab === 'mcps'
+                            ? !isSameJson(mcpDraft, detail.mcpBindings.filter((item) => item.enabled !== false).map((item) => stringValue(item.mcpKey)).filter(Boolean))
+                            : activeTab === 'recharge'
+                              ? !isSameJson(rechargeDraft, detail.rechargePackageBindings.filter((item) => item.enabled !== false).map((item) => stringValue(item.packageId || item.package_id)).filter(Boolean))
+                              : activeTab === 'menus'
+                                ? !isSameJson(menuDraft, baseMenuDraft)
+                                : activeTab === 'assets'
+                                  ? Boolean(assetDraft.file || assetDraft.assetKey || assetDraft.kind)
+                                  : !isSameJson(brandMetaDraft, buildBrandMetaDraft());
+    onDirtyChange?.(dirty);
+  }, [
+    activeTab,
+    assetDraft,
+    authDraft,
+    brandMetaDraft,
+    composerControlDraft,
+    composerShortcutDraft,
+    desktopShellDraft,
+    detail,
+    headerDraft,
+    homeWebDraft,
+    inputDraft,
+    lightTheme,
+    darkTheme,
+    mcpDraft,
+    menuDraft,
+    onDirtyChange,
+    rechargeDraft,
+    sidebarConfig.brandSubtitle,
+    sidebarConfig.brandTitle,
+    sidebarConfig.emphasizeActiveItem,
+    sidebarConfig.sectionStyle,
+    sidebarConfig.variant,
+    sidebarDraft,
+    sidebarSurface.enabled,
+    skillDraft,
+    theme,
+    themeDraft,
+    welcomeDraft,
+    modelDraft,
+  ]);
 
   return (
     <>
@@ -1178,104 +1421,217 @@ export function BrandDetailPanel({
               <section className="fig-card fig-card--subtle">
                 <div className="fig-card__head">
                   <h3>左菜单栏</h3>
-                  <span>显隐、顺序和展示名会直接保存到 OEM menu binding</span>
+                  <span>左侧拖拽排序，右侧编辑当前选中的菜单项</span>
                 </div>
-                <div className="fig-list">
-                  {(menuDraft.length ? menuDraft : availableMenus.map((item) => ({
-                    menuKey: item.key,
-                    enabled: false,
-                    displayName: '',
-                    group: '',
-                  }))).map((item, index, list) => {
-                    const catalog = availableMenus.find((entry) => entry.key === item.menuKey);
-                    return (
-                      <div key={item.menuKey || index} className="fig-list-item">
-                        <div style={{ width: '100%' }}>
-                          <div className="fig-list-item__title">{catalog?.label || item.menuKey}</div>
-                          <div className="fig-list-item__meta">
-                            <span>{item.menuKey}</span>
-                            {catalog?.category ? <span>{catalog.category}</span> : null}
-                          </div>
-                          <div className="form-grid" style={{ marginTop: 12 }}>
-                            <label className="field" style={{ maxWidth: 160 }}>
-                              <span>启用</span>
-                              <input
-                                type="checkbox"
-                                checked={item.enabled}
-                                onChange={(event) =>
-                                  setMenuDraft((current) =>
-                                    current.map((entry, entryIndex) =>
-                                      entryIndex === index ? { ...entry, enabled: event.target.checked } : entry,
-                                    ),
-                                  )
+                <div className="fig-layout">
+                  <section className="menu-assembly-list">
+                    <div className="fig-card fig-card--subtle">
+                      <div className="fig-card__head">
+                        <h3>菜单列表</h3>
+                        <span>拖动卡片排序，点击卡片切换右侧配置</span>
+                      </div>
+                      <div className="menu-assembly-list__stack">
+                        {menuDraft.map((item, index) => {
+                          const catalog = availableMenus.find((entry) => entry.key === item.menuKey) || null;
+                          const displayName = item.displayName.trim() || catalog?.label || item.menuKey;
+                          const isActive = selectedMenu?.menuKey === item.menuKey;
+                          const isDragging = menuDragState.sourceKey === item.menuKey;
+                          const isDropBefore =
+                            menuDragState.overKey === item.menuKey &&
+                            menuDragState.sourceKey !== item.menuKey &&
+                            menuDragState.placement === 'before';
+                          const isDropAfter =
+                            menuDragState.overKey === item.menuKey &&
+                            menuDragState.sourceKey !== item.menuKey &&
+                            menuDragState.placement === 'after';
+                          return (
+                            <div
+                              key={item.menuKey || index}
+                              className={`menu-assembly-card${isActive ? ' is-active' : ''}${isDragging ? ' is-dragging' : ''}${isDropBefore ? ' is-drop-before' : ''}${isDropAfter ? ' is-drop-after' : ''}`}
+                              role="button"
+                              tabIndex={0}
+                              draggable
+                              onClick={() => setSelectedMenuKey(item.menuKey)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  setSelectedMenuKey(item.menuKey);
                                 }
-                              />
-                            </label>
-                            <label className="field">
-                              <span>展示名</span>
-                              <input
-                                className="field-input"
-                                value={item.displayName}
-                                onChange={(event) =>
-                                  setMenuDraft((current) =>
-                                    current.map((entry, entryIndex) =>
-                                      entryIndex === index ? { ...entry, displayName: event.target.value } : entry,
-                                    ),
-                                  )
+                              }}
+                              onDragStart={(event) => {
+                                event.dataTransfer.effectAllowed = 'move';
+                                event.dataTransfer.setData('text/plain', item.menuKey);
+                                setMenuDragState({
+                                  sourceKey: item.menuKey,
+                                  overKey: '',
+                                  placement: 'before',
+                                });
+                              }}
+                              onDragOver={(event) => {
+                                if (!menuDragState.sourceKey || menuDragState.sourceKey === item.menuKey) {
+                                  return;
                                 }
-                              />
-                            </label>
-                            <label className="field">
-                              <span>分组</span>
-                              <input
-                                className="field-input"
-                                value={item.group}
-                                onChange={(event) =>
-                                  setMenuDraft((current) =>
-                                    current.map((entry, entryIndex) =>
-                                      entryIndex === index ? { ...entry, group: event.target.value } : entry,
-                                    ),
-                                  )
-                                }
-                              />
-                            </label>
-                          </div>
-                          <div className="fig-release-card__actions" style={{ marginTop: 12 }}>
-                            <button
-                              className="ghost-button"
-                              type="button"
-                              disabled={index === 0}
-                              onClick={() =>
-                                setMenuDraft((current) => {
-                                  const next = [...current];
-                                  const [moved] = next.splice(index, 1);
-                                  next.splice(index - 1, 0, moved);
-                                  return next;
+                                event.preventDefault();
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                const placement = event.clientY >= rect.top + rect.height / 2 ? 'after' : 'before';
+                                setMenuDragState((current) =>
+                                  current.overKey === item.menuKey && current.placement === placement
+                                    ? current
+                                    : {
+                                      ...current,
+                                      overKey: item.menuKey,
+                                      placement,
+                                    },
+                                );
+                              }}
+                              onDrop={(event) => {
+                                event.preventDefault();
+                                const sourceKey = menuDragState.sourceKey || event.dataTransfer.getData('text/plain');
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                const placement = event.clientY >= rect.top + rect.height / 2 ? 'after' : 'before';
+                                reorderMenuDraft(sourceKey, item.menuKey, placement);
+                                setMenuDragState({
+                                  sourceKey: '',
+                                  overKey: '',
+                                  placement: 'before',
+                                });
+                              }}
+                              onDragEnd={() =>
+                                setMenuDragState({
+                                  sourceKey: '',
+                                  overKey: '',
+                                  placement: 'before',
                                 })
                               }
                             >
-                              上移
-                            </button>
-                            <button
-                              className="ghost-button"
-                              type="button"
-                              disabled={index === list.length - 1}
-                              onClick={() =>
-                                setMenuDraft((current) => {
-                                  const next = [...current];
-                                  const [moved] = next.splice(index, 1);
-                                  next.splice(index + 1, 0, moved);
-                                  return next;
-                                })
-                              }
-                            >
-                              下移
-                            </button>
+                              <span className="menu-assembly-card__icon">
+                                <span className="menu-assembly-card__svg menu-assembly-card__glyph" aria-hidden="true">
+                                  {(displayName || 'M').slice(0, 1)}
+                                </span>
+                              </span>
+                              <span className="menu-assembly-card__body">
+                                <span className="menu-assembly-card__title-row">
+                                  <strong>{displayName}</strong>
+                                  <span className="menu-assembly-card__order">#{index + 1}</span>
+                                </span>
+                                <span className="menu-assembly-card__meta">
+                                  {item.menuKey}
+                                  {catalog?.category ? ` · ${catalog.category}` : ''}
+                                </span>
+                                <span className="menu-assembly-card__submeta">
+                                  {(item.group.trim() || '未分组')}
+                                  {' · '}
+                                  {item.enabled ? '已启用' : '已关闭'}
+                                </span>
+                              </span>
+                              <button
+                                className={`switch menu-assembly-card__switch${item.enabled ? ' is-checked' : ''}`}
+                                type="button"
+                                draggable={false}
+                                aria-pressed={item.enabled ? 'true' : 'false'}
+                                aria-label={`${item.enabled ? '关闭' : '启用'} ${displayName}`}
+                                onPointerDown={(event) => {
+                                  event.stopPropagation();
+                                }}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setMenuDraft((current) =>
+                                    current.map((entry) =>
+                                      entry.menuKey === item.menuKey ? { ...entry, enabled: !entry.enabled } : entry,
+                                    ),
+                                  );
+                                }}
+                                onDragStart={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                }}
+                              >
+                                <span className="switch__track">
+                                  <span className="switch__thumb"></span>
+                                </span>
+                                <span className="switch__label">{item.enabled ? '开' : '关'}</span>
+                              </button>
+                              <span className="menu-assembly-card__drag" aria-hidden="true" title="拖动排序">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </section>
+                  <section className="menu-assembly-detail">
+                    {selectedMenu ? (
+                      <div className="fig-card fig-card--subtle">
+                        <div className="fig-card__head">
+                          <h3>{selectedMenuLabel || '菜单详情'}</h3>
+                          <span>
+                            {selectedMenu.menuKey}
+                            {selectedMenuCatalog?.category ? ` · ${selectedMenuCatalog.category}` : ''}
+                          </span>
+                        </div>
+                        <article className="menu-assembly-preview">
+                          <div className="menu-assembly-preview__icon">
+                            <span className="menu-assembly-preview__svg menu-assembly-preview__glyph" aria-hidden="true">
+                              {(selectedMenuLabel || 'M').slice(0, 1)}
+                            </span>
                           </div>
+                          <div className="menu-assembly-preview__body">
+                            <div className="menu-assembly-preview__eyebrow">Menu Preview</div>
+                            <div className="menu-assembly-preview__title">{selectedMenuLabel || selectedMenu.menuKey}</div>
+                            <div className="menu-assembly-preview__meta">
+                              {selectedMenu.group.trim() || '未分组'}
+                              {' · '}
+                              {selectedMenu.enabled ? '已启用' : '已关闭'}
+                            </div>
+                          </div>
+                        </article>
+                        <div className="form-grid fig-menu-card__grid fig-menu-card__grid--detail">
+                          <label className="field">
+                            <span>Menu Key</span>
+                            <input className="field-input" value={selectedMenu.menuKey} readOnly />
+                          </label>
+                          <label className="field">
+                            <span>默认名称</span>
+                            <input className="field-input" value={selectedMenuCatalog?.label || selectedMenu.menuKey} readOnly />
+                          </label>
+                          <label className="field">
+                            <span>分类</span>
+                            <input className="field-input" value={selectedMenuCatalog?.category || ''} readOnly />
+                          </label>
+                          <label className="field field--wide">
+                            <span>展示名</span>
+                            <input
+                              className="field-input"
+                              value={selectedMenu.displayName}
+                              onChange={(event) =>
+                                updateSelectedMenu((entry) => ({ ...entry, displayName: event.target.value }))
+                              }
+                            />
+                          </label>
+                          <label className="field field--wide">
+                            <span>分组</span>
+                            <input
+                              className="field-input"
+                              value={selectedMenu.group}
+                              onChange={(event) =>
+                                updateSelectedMenu((entry) => ({ ...entry, group: event.target.value }))
+                              }
+                            />
+                          </label>
                         </div>
                       </div>
-                    );
-                  })}
+                    ) : (
+                      <div className="fig-card fig-card--subtle">
+                        <div className="empty-state">当前没有可编辑的菜单项。</div>
+                      </div>
+                    )}
+                  </section>
                 </div>
                 <div className="fig-release-card__actions">
                   <button className="solid-button" type="button" disabled={savingMenus} onClick={() => onSaveMenus?.(menuDraft)}>
@@ -1345,6 +1701,10 @@ export function BrandDetailPanel({
                         <input className="field-input" value={assetDraft.kind} onChange={(event) => setAssetDraft((current) => ({ ...current, kind: event.target.value }))} />
                       </label>
                       <label className="field field--wide">
+                        <span>Metadata JSON</span>
+                        <textarea className="code-input code-input--tall" rows={5} value={assetDraft.metadataText} onChange={(event) => setAssetDraft((current) => ({ ...current, metadataText: event.target.value }))} />
+                      </label>
+                      <label className="field field--wide">
                         <span>上传文件</span>
                         <input className="field-input" type="file" onChange={(event) => setAssetDraft((current) => ({ ...current, file: event.target.files?.[0] || null }))} />
                       </label>
@@ -1354,7 +1714,15 @@ export function BrandDetailPanel({
                         className="solid-button"
                         type="button"
                         disabled={savingAsset}
-                        onClick={() => assetDraft.file && onUploadAsset?.({ assetKey: assetDraft.assetKey, kind: assetDraft.kind, file: assetDraft.file })}
+                        onClick={() => {
+                          if (!assetDraft.file) return;
+                          try {
+                            const metadata = asObject(assetDraft.metadataText ? JSON.parse(assetDraft.metadataText) : {});
+                            void onUploadAsset?.({ assetKey: assetDraft.assetKey, kind: assetDraft.kind, metadata, file: assetDraft.file });
+                          } catch {
+                            // ignore parse error here; parent page banner will surface later once validation is added upstream
+                          }
+                        }}
                       >
                         {savingAsset ? '上传中…' : '上传资源'}
                       </button>
@@ -1549,6 +1917,11 @@ export function BrandDetailPanel({
                         <span>Template Key</span>
                         <input className="field-input" value={homeWebDraft.templateKey} onChange={(event) => setHomeWebDraft((current) => ({ ...current, templateKey: event.target.value }))} />
                       </label>
+                      <div className="fig-release-card__actions">
+                        <button className="ghost-button" type="button" onClick={() => window.open(`${HOME_WEB_PREVIEW_BASE_URL}/?app_name=${encodeURIComponent(detail.brand.brandId)}`, '_blank', 'noopener,noreferrer')}>
+                          打开预览
+                        </button>
+                      </div>
                     </div>
                     <section className="fig-card fig-card--subtle">
                       <div className="fig-card__head"><h3>Header Shell</h3></div>
@@ -1720,6 +2093,11 @@ export function BrandDetailPanel({
                             }}
                           />
                         </label>
+                        <div className="fig-release-card__actions">
+                          <button className="ghost-button" type="button" onClick={() => setWelcomeDraft((current) => ({ ...current, avatarUrl: '' }))}>
+                            清空头像回填
+                          </button>
+                        </div>
                         <label className="field field--wide">
                           <span>替换欢迎背景图</span>
                           <input
@@ -1742,6 +2120,11 @@ export function BrandDetailPanel({
                             }}
                           />
                         </label>
+                        <div className="fig-release-card__actions">
+                          <button className="ghost-button" type="button" onClick={() => setWelcomeDraft((current) => ({ ...current, backgroundImageUrl: '' }))}>
+                            清空背景回填
+                          </button>
+                        </div>
                       </div>
                     </section>
                     <section className="fig-card fig-card--subtle">
