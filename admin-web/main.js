@@ -443,7 +443,8 @@ const BRAND_DETAIL_TABS = [
 ];
 const BRAND_DETAIL_TAB_GROUPS = [
   {id: 'shell', label: 'Shell骨架', icon: 'monitor', tabs: ['desktop', 'home-web', 'welcome', 'auth', 'header', 'sidebar', 'input']},
-  {id: 'capabilities', label: '能力绑定', icon: 'zap', tabs: ['skills', 'mcps', 'recharge', 'menus']},
+  {id: 'capabilities', label: '能力绑定', icon: 'zap', tabs: ['skills', 'mcps', 'menus']},
+  {id: 'commerce', label: '支付配置', icon: 'package', tabs: ['recharge']},
   {id: 'brand', label: '品牌资源', icon: 'image', tabs: ['assets', 'theme']},
 ];
 const ADMIN_SKILL_BROWSER_PAGE_SIZE = 100;
@@ -474,6 +475,7 @@ function ensureCanonicalAdminWebOrigin() {
 }
 
 const redirectedToCanonicalOrigin = ensureCanonicalAdminWebOrigin();
+let legacyBootstrapped = false;
 
 function isThemeMode(value) {
   return value === 'light' || value === 'dark' || value === 'system';
@@ -1369,16 +1371,28 @@ const DEFAULT_WELCOME_SURFACE_CONFIG = {
   kolName: '陈雪',
   expertName: '陈雪的投资智囊',
   slogan: '用价值投资思维，陪你穿越市场周期',
-  avatarUrl:
-    'https://images.unsplash.com/photo-1581065178047-8ee15951ede6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBhc2lhbiUyMHdvbWFuJTIwYnVzaW5lc3N8ZW58MXx8fHwxNzc0MjgzMTg0fDA&ixlib=rb-4.1.0&q=80&w=1080',
-  backgroundImageUrl:
-    'https://images.unsplash.com/photo-1760172287483-02d382f63a6f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwYWJzdHJhY3QlMjBnb2xkJTIwZ3JhZGllbnR8ZW58MXx8fHwxNzc0MjgzMTgzfDA&ixlib=rb-4.1.0&q=80&w=1080',
+  avatarUrl: '',
+  backgroundImageUrl: '',
   primaryColor: '#C4975F',
   description: '我会用我 10 年的投资框架和市场洞察，帮你理解复杂的金融市场，找到适合你的投资路径。',
   expertiseAreas: ['价值投资', '资产配置', '长期持有策略', '市场周期分析'],
   targetAudience: '希望建立长期投资思维的理性投资者。',
   disclaimer: '本智囊提供的所有信息仅供学习参考，不构成投资建议。投资有风险，决策需谨慎。',
   quickActions: DEFAULT_WELCOME_QUICK_ACTIONS,
+};
+const WELCOME_ASSET_UPLOAD_SPECS = {
+  avatar: {
+    assetKey: 'welcomeAvatar',
+    filePrefix: 'welcome-avatar',
+    kind: 'welcome-avatar',
+    label: '头像',
+  },
+  background: {
+    assetKey: 'welcomeBackground',
+    filePrefix: 'welcome-background',
+    kind: 'welcome-background',
+    label: '背景图',
+  },
 };
 const WELCOME_ASSEMBLY_PRESETS = [
   {
@@ -1390,10 +1404,8 @@ const WELCOME_ASSEMBLY_PRESETS = [
       kol_name: '林安',
       expert_name: '林安的财富顾问',
       slogan: '用长期主义管理波动，用纪律守住回报',
-      avatar_url:
-        'https://images.unsplash.com/photo-1573497491765-cf4147d9d62f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
-      background_image_url:
-        'https://images.unsplash.com/photo-1516321497487-e288fb19713f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+      avatar_url: '',
+      background_image_url: '',
       primary_color: '#B68B4C',
       description: '我会围绕组合体检、基金筛选、资产配置和长期持有策略，帮你把复杂的理财问题拆成可执行判断。',
       expertise_areas: ['资产配置', '基金分析', '组合诊断', '长期配置'],
@@ -1416,10 +1428,8 @@ const WELCOME_ASSEMBLY_PRESETS = [
       kol_name: '周策',
       expert_name: '周策的交易研究席',
       slogan: '先抓主线，再看估值，最后回到交易纪律',
-      avatar_url:
-        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
-      background_image_url:
-        'https://images.unsplash.com/photo-1526628953301-3e589a6a8b74?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+      avatar_url: '',
+      background_image_url: '',
       primary_color: '#4F82C9',
       description: '我会围绕盘中主线、财报预期差、行业轮动和估值框架，快速给你研究线索与结论。',
       expertise_areas: ['盘面复盘', '财报解读', '行业轮动', '估值比较'],
@@ -1442,10 +1452,8 @@ const WELCOME_ASSEMBLY_PRESETS = [
       kol_name: '顾言',
       expert_name: '顾言的投顾助手',
       slogan: '把复杂市场翻译成客户能听懂的行动建议',
-      avatar_url:
-        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
-      background_image_url:
-        'https://images.unsplash.com/photo-1519389950473-47ba0277781c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+      avatar_url: '',
+      background_image_url: '',
       primary_color: '#8E6BBE',
       description: '我会从组合解释、客户沟通、风险提示和顾问交付四个角度，帮你更高效地服务客户。',
       expertise_areas: ['客户陪伴', '组合解释', '顾问交付', '风险提示'],
@@ -1585,7 +1593,7 @@ const DEFAULT_HOME_WEB_SURFACE_CONFIG = {
           sortOrder: 10,
           props: {
             title: '隐私政策',
-            content: '请在 admin-web 中维护隐私政策内容。',
+            content: buildDefaultMarketingLegalPageContent('iclaw', 'iClaw', 'iClaw').privacyContent,
           },
         },
       ],
@@ -1605,13 +1613,67 @@ const DEFAULT_HOME_WEB_SURFACE_CONFIG = {
           sortOrder: 10,
           props: {
             title: '用户协议',
-            content: '请在 admin-web 中维护用户协议内容。',
+            content: buildDefaultMarketingLegalPageContent('iclaw', 'iClaw', 'iClaw').termsContent,
           },
         },
       ],
     },
   ],
 };
+
+function buildDefaultHomeWebSurfaceConfig(context = {}) {
+  const brandId = String(context.brandId || '').trim();
+  const displayName = String(context.displayName || '').trim() || 'iClaw';
+  const isWealth = brandId === 'licaiclaw';
+  const legalPages = buildDefaultMarketingLegalPageContent(brandId || 'iclaw', displayName, displayName);
+  return {
+    ...clone(DEFAULT_HOME_WEB_SURFACE_CONFIG),
+    templateKey: isWealth ? 'wealth-premium' : DEFAULT_HOME_WEB_SURFACE_CONFIG.templateKey,
+    siteShell: {
+      ...clone(DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell),
+      header: {
+        ...clone(DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header),
+        variant: isWealth ? 'finance-header' : DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.variant,
+        props: {
+          ...clone(DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.props),
+          brandLabel: displayName,
+        },
+      },
+      footer: {
+        ...clone(DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.footer),
+        variant: isWealth ? 'finance-legal-footer' : DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.footer.variant,
+        props: {
+          ...clone(DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.footer.props),
+          copyrightText: `© 2026 ${displayName}`,
+        },
+      },
+    },
+    pages: clone(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages).map((page) => {
+      const nextPage = clone(page);
+      if (page.pageKey === 'privacy') {
+        nextPage.blocks[0].props.title = legalPages.privacyTitle;
+        nextPage.blocks[0].props.content = legalPages.privacyContent;
+        return nextPage;
+      }
+      if (page.pageKey === 'terms') {
+        nextPage.blocks[0].props.title = legalPages.termsTitle;
+        nextPage.blocks[0].props.content = legalPages.termsContent;
+        return nextPage;
+      }
+      nextPage.seo.title = `${displayName} 官网`;
+      nextPage.seo.description = `${displayName} 官网，面向${isWealth ? '财富管理' : '普通用户'}场景的本地 AI 客户端。`;
+      nextPage.blocks[0].blockKey = isWealth ? 'hero.wealth' : nextPage.blocks[0].blockKey;
+      nextPage.blocks[0].props.titlePre = isWealth ? '把 AI 装进你的财富工作流' : nextPage.blocks[0].props.titlePre;
+      nextPage.blocks[0].props.titleMain = isWealth ? '打开就能干活' : nextPage.blocks[0].props.titleMain;
+      nextPage.blocks[0].props.description = isWealth
+        ? `${displayName} 面向财富管理场景设计。少一点配置，多一点交付。`
+        : nextPage.blocks[0].props.description;
+      nextPage.blocks[1].blockKey = isWealth ? 'download-grid.finance' : nextPage.blocks[1].blockKey;
+      nextPage.blocks[1].props.title = `下载 ${displayName}`;
+      return nextPage;
+    }),
+  };
+}
 
 const DEFAULT_SIDEBAR_SURFACE_CONFIG = {
   variant: 'default',
@@ -1646,6 +1708,18 @@ const AUTH_AGREEMENT_LABELS = {
   privacy: '隐私说明',
   billing: '龙虾币计费规则',
 };
+
+function buildDefaultMarketingLegalPageContent(brandId, displayName, legalName) {
+  const preset = buildDefaultAuthExperiencePreset(brandId, displayName, legalName);
+  const serviceAgreement = preset.agreements.find((item) => item.key === 'service');
+  const privacyAgreement = preset.agreements.find((item) => item.key === 'privacy');
+  return {
+    privacyTitle: '隐私政策',
+    privacyContent: String(privacyAgreement?.content || '').trim(),
+    termsTitle: '用户协议',
+    termsContent: String(serviceAgreement?.content || '').trim(),
+  };
+}
 
 function buildDefaultAuthExperiencePreset(brandId, displayName, legalName) {
   const normalizedBrandId = String(brandId || '').trim().toLowerCase();
@@ -1905,58 +1979,117 @@ function findMarketingBlock(page, blockPrefix) {
     .find((item) => String(item.blockKey || '').trim().startsWith(blockPrefix)) || null;
 }
 
-function normalizeHomeWebSurfaceConfig(value) {
+function deriveWebsiteFromMarketingState(input) {
+  const defaults = input.defaults || DEFAULT_HOME_WEB_SURFACE_CONFIG;
+  const context = input.context || {};
+  const displayName = String(context.displayName || '').trim() || 'iClaw';
+  const brandId = String(context.brandId || '').trim();
+  const isWealth = brandId === 'licaiclaw';
+  const siteShell = asObject(input.siteShell);
+  const pages = Array.isArray(input.pages) ? input.pages : [];
+  const header = asObject(siteShell.header);
+  const headerProps = asObject(header.props);
+  const homePage = findMarketingPage({pages}, 'home') || asObject(defaults.pages[0]);
+  const heroBlock =
+    findMarketingBlock(homePage, 'hero.') ||
+    normalizeBlockItem(defaults.pages[0].blocks[0], 'hero.basic', 10, defaults.pages[0].blocks[0].props);
+  const downloadBlock =
+    findMarketingBlock(homePage, 'download-grid.') ||
+    normalizeBlockItem(defaults.pages[0].blocks[1], 'download-grid.classic', 20, defaults.pages[0].blocks[1].props);
+
+  return {
+    homeTitle: String(asObject(homePage.seo).title || `${displayName} 官网`).trim() || `${displayName} 官网`,
+    metaDescription:
+      String(asObject(homePage.seo).description || `${displayName} 官网，面向${isWealth ? '财富管理' : '普通用户'}场景的本地 AI 客户端。`).trim() ||
+      `${displayName} 官网`,
+    brandLabel:
+      String(headerProps.brandLabel || displayName).trim() || displayName,
+    kicker:
+      String(asObject(heroBlock.props).eyebrow || headerProps.subline || defaults.siteShell.header.props.subline).trim() ||
+      defaults.siteShell.header.props.subline,
+    heroTitlePre:
+      String(asObject(heroBlock.props).titlePre || defaults.pages[0].blocks[0].props.titlePre).trim(),
+    heroTitleMain:
+      String(asObject(heroBlock.props).titleMain || defaults.pages[0].blocks[0].props.titleMain).trim(),
+    heroDescription:
+      String(asObject(heroBlock.props).description || defaults.pages[0].blocks[0].props.description).trim(),
+    topCtaLabel:
+      String(asObject(headerProps.primaryCta).label || defaults.siteShell.header.props.primaryCta.label).trim(),
+    scrollLabel: '向下下载',
+    downloadTitle:
+      String(asObject(downloadBlock.props).title || `下载 ${displayName}`).trim() || `下载 ${displayName}`,
+  };
+}
+
+function normalizeHomeWebSurfaceConfig(value, context = {}) {
   const config = asObject(value);
+  const defaults = buildDefaultHomeWebSurfaceConfig(context);
   const marketingSite = asObject(config.marketingSite);
   const siteShell = asObject(config.siteShell);
   const header = asObject(siteShell.header || marketingSite.siteShell?.header);
   const footer = asObject(siteShell.footer || marketingSite.siteShell?.footer);
-  const website = asObject(config.website);
-  const templateKey = String(config.templateKey || marketingSite.templateKey || DEFAULT_HOME_WEB_SURFACE_CONFIG.templateKey).trim()
-    || DEFAULT_HOME_WEB_SURFACE_CONFIG.templateKey;
-  const pages = normalizeBlockPages(config, marketingSite, website, templateKey);
-  const homePage = findMarketingPage({pages}, 'home') || asObject(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0]);
-  const privacyPage = findMarketingPage({pages}, 'privacy') || asObject(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1]);
-  const termsPage = findMarketingPage({pages}, 'terms') || asObject(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2]);
-  const heroBlock = findMarketingBlock(homePage, 'hero.') || normalizeBlockItem(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0], 'hero.basic', 10, DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0].props);
-  const downloadBlock = findMarketingBlock(homePage, 'download-grid.') || normalizeBlockItem(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[1], 'download-grid.classic', 20, DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[1].props);
+  const rawWebsite = asObject(config.website);
+  const templateKey = String(config.templateKey || marketingSite.templateKey || defaults.templateKey).trim()
+    || defaults.templateKey;
+  const pages = normalizeBlockPages(config, marketingSite, rawWebsite, templateKey, defaults);
+  const homePage = findMarketingPage({pages}, 'home') || asObject(defaults.pages[0]);
+  const privacyPage = findMarketingPage({pages}, 'privacy') || asObject(defaults.pages[1]);
+  const termsPage = findMarketingPage({pages}, 'terms') || asObject(defaults.pages[2]);
+  const heroBlock = findMarketingBlock(homePage, 'hero.') || normalizeBlockItem(defaults.pages[0].blocks[0], 'hero.basic', 10, defaults.pages[0].blocks[0].props);
+  const downloadBlock = findMarketingBlock(homePage, 'download-grid.') || normalizeBlockItem(defaults.pages[0].blocks[1], 'download-grid.classic', 20, defaults.pages[0].blocks[1].props);
   const featureBlock = findMarketingBlock(homePage, 'feature-cards.') || normalizeBlockItem({blockKey: 'feature-cards.wealth', sortOrder: 30, props: {title: '', items: []}}, 'feature-cards.wealth', 30, {title: '', items: []});
   const scenarioBlock = findMarketingBlock(homePage, 'scenario-cards.') || normalizeBlockItem({blockKey: 'scenario-cards.wealth', sortOrder: 40, props: {title: '', items: []}}, 'scenario-cards.wealth', 40, {title: '', items: []});
   const workflowBlock = findMarketingBlock(homePage, 'workflow-steps.') || normalizeBlockItem({blockKey: 'workflow-steps.wealth', sortOrder: 50, props: {title: '', steps: []}}, 'workflow-steps.wealth', 50, {title: '', steps: []});
   const capabilityBlock = findMarketingBlock(homePage, 'capability-grid.') || normalizeBlockItem({blockKey: 'capability-grid.wealth', sortOrder: 60, props: {title: '', items: []}}, 'capability-grid.wealth', 60, {title: '', items: []});
   const securityBlock = findMarketingBlock(homePage, 'security') || normalizeBlockItem({blockKey: 'security-badges.finance', sortOrder: 70, props: {title: '', items: []}}, 'security-badges.finance', 70, {title: '', items: []});
   const ctaBlock = findMarketingBlock(homePage, 'cta-banner.') || normalizeBlockItem({blockKey: 'cta-banner.finance', sortOrder: 80, props: {title: '', description: '', ctaLabel: ''}}, 'cta-banner.finance', 80, {title: '', description: '', ctaLabel: ''});
-  const privacyBlock = findMarketingBlock(privacyPage, 'rich-text.') || normalizeBlockItem(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].blocks[0], 'rich-text.legal', 10, DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].blocks[0].props);
-  const termsBlock = findMarketingBlock(termsPage, 'rich-text.') || normalizeBlockItem(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].blocks[0], 'rich-text.legal', 10, DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].blocks[0].props);
+  const privacyBlock = findMarketingBlock(privacyPage, 'rich-text.') || normalizeBlockItem(defaults.pages[1].blocks[0], 'rich-text.legal', 10, defaults.pages[1].blocks[0].props);
+  const termsBlock = findMarketingBlock(termsPage, 'rich-text.') || normalizeBlockItem(defaults.pages[2].blocks[0], 'rich-text.legal', 10, defaults.pages[2].blocks[0].props);
   const headerProps = asObject(header.props);
   const footerProps = asObject(footer.props);
+  const hasStructuredMarketing =
+    Array.isArray(marketingSite.pages) && marketingSite.pages.length > 0 ||
+    Array.isArray(config.pages) && config.pages.length > 0 ||
+    Object.keys(asObject(config.siteShell)).length > 0 ||
+    Object.keys(asObject(marketingSite.siteShell)).length > 0;
+  const website = hasStructuredMarketing
+    ? deriveWebsiteFromMarketingState({
+        defaults,
+        context,
+        siteShell: {
+          ...clone(asObject(marketingSite.siteShell)),
+          ...clone(asObject(config.siteShell)),
+        },
+        pages,
+      })
+    : rawWebsite;
   return {
     templateKey,
     headerEnabled: header.enabled !== false,
-    headerVariant: String(header.variant || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.variant).trim(),
-    headerBrandLabel: String(headerProps.brandLabel || website.brandLabel || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.props.brandLabel).trim(),
-    headerSubline: String(headerProps.subline || website.kicker || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.props.subline).trim(),
+    headerVariant: String(header.variant || defaults.siteShell.header.variant).trim(),
+    headerBrandLabel: String(headerProps.brandLabel || website.brandLabel || defaults.siteShell.header.props.brandLabel).trim(),
+    headerSubline: String(headerProps.subline || website.kicker || defaults.siteShell.header.props.subline).trim(),
     headerNavItemsText: formatLabelHrefLines(asArray(headerProps.navItems)),
-    headerPrimaryCtaLabel: String(asObject(headerProps.primaryCta).label || website.topCtaLabel || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.props.primaryCta.label).trim(),
-    headerPrimaryCtaHref: String(asObject(headerProps.primaryCta).href || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.props.primaryCta.href).trim(),
+    headerPrimaryCtaLabel: String(asObject(headerProps.primaryCta).label || website.topCtaLabel || defaults.siteShell.header.props.primaryCta.label).trim(),
+    headerPrimaryCtaHref: String(asObject(headerProps.primaryCta).href || defaults.siteShell.header.props.primaryCta.href).trim(),
     footerEnabled: footer.enabled !== false,
-    footerVariant: String(footer.variant || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.footer.variant).trim(),
+    footerVariant: String(footer.variant || defaults.siteShell.footer.variant).trim(),
     footerColumnsText: formatLabelHrefLines(asArray(asObject(asArray(footerProps.columns)[0]).links)),
     footerLegalLinksText: formatLabelHrefLines(asArray(footerProps.legalLinks)),
-    footerCopyrightText: String(footerProps.copyrightText || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.footer.props.copyrightText).trim(),
+    footerCopyrightText: String(footerProps.copyrightText || defaults.siteShell.footer.props.copyrightText).trim(),
     footerIcpText: String(footerProps.icpText || '').trim(),
     homeEnabled: asObject(homePage).enabled !== false,
-    homeSeoTitle: String(asObject(homePage.seo).title || website.homeTitle || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].seo.title).trim(),
-    homeSeoDescription: String(asObject(homePage.seo).description || website.metaDescription || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].seo.description).trim(),
+    homeSeoTitle: String(asObject(homePage.seo).title || website.homeTitle || defaults.pages[0].seo.title).trim(),
+    homeSeoDescription: String(asObject(homePage.seo).description || website.metaDescription || defaults.pages[0].seo.description).trim(),
     heroEnabled: heroBlock.enabled !== false,
     heroVariant: heroBlock.blockKey,
-    heroEyebrow: String(asObject(heroBlock.props).eyebrow || website.kicker || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0].props.eyebrow).trim(),
-    heroTitlePre: String(asObject(heroBlock.props).titlePre || website.heroTitlePre || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0].props.titlePre).trim(),
-    heroTitleMain: String(asObject(heroBlock.props).titleMain || website.heroTitleMain || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0].props.titleMain).trim(),
-    heroDescription: String(asObject(heroBlock.props).description || website.heroDescription || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0].props.description).trim(),
+    heroEyebrow: String(asObject(heroBlock.props).eyebrow || website.kicker || defaults.pages[0].blocks[0].props.eyebrow).trim(),
+    heroTitlePre: String(asObject(heroBlock.props).titlePre || website.heroTitlePre || defaults.pages[0].blocks[0].props.titlePre).trim(),
+    heroTitleMain: String(asObject(heroBlock.props).titleMain || website.heroTitleMain || defaults.pages[0].blocks[0].props.titleMain).trim(),
+    heroDescription: String(asObject(heroBlock.props).description || website.heroDescription || defaults.pages[0].blocks[0].props.description).trim(),
     downloadEnabled: downloadBlock.enabled !== false,
     downloadVariant: downloadBlock.blockKey,
-    downloadTitle: String(asObject(downloadBlock.props).title || website.downloadTitle || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[1].props.title).trim(),
+    downloadTitle: String(asObject(downloadBlock.props).title || website.downloadTitle || defaults.pages[0].blocks[1].props.title).trim(),
     featureEnabled: featureBlock.enabled !== false,
     featureVariant: featureBlock.blockKey,
     featureTitle: String(asObject(featureBlock.props).title || '').trim(),
@@ -1983,15 +2116,15 @@ function normalizeHomeWebSurfaceConfig(value) {
     ctaDescription: String(asObject(ctaBlock.props).description || '').trim(),
     ctaLabel: String(asObject(ctaBlock.props).ctaLabel || '').trim(),
     privacyEnabled: asObject(privacyPage).enabled !== false,
-    privacySeoTitle: String(asObject(privacyPage.seo).title || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].seo.title).trim(),
-    privacySeoDescription: String(asObject(privacyPage.seo).description || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].seo.description).trim(),
-    privacyTitle: String(asObject(privacyBlock.props).title || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].blocks[0].props.title).trim(),
-    privacyContent: String(asObject(privacyBlock.props).content || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].blocks[0].props.content).trim(),
+    privacySeoTitle: String(asObject(privacyPage.seo).title || defaults.pages[1].seo.title).trim(),
+    privacySeoDescription: String(asObject(privacyPage.seo).description || defaults.pages[1].seo.description).trim(),
+    privacyTitle: String(asObject(privacyBlock.props).title || defaults.pages[1].blocks[0].props.title).trim(),
+    privacyContent: String(asObject(privacyBlock.props).content || defaults.pages[1].blocks[0].props.content).trim(),
     termsEnabled: asObject(termsPage).enabled !== false,
-    termsSeoTitle: String(asObject(termsPage.seo).title || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].seo.title).trim(),
-    termsSeoDescription: String(asObject(termsPage.seo).description || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].seo.description).trim(),
-    termsTitle: String(asObject(termsBlock.props).title || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].blocks[0].props.title).trim(),
-    termsContent: String(asObject(termsBlock.props).content || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].blocks[0].props.content).trim(),
+    termsSeoTitle: String(asObject(termsPage.seo).title || defaults.pages[2].seo.title).trim(),
+    termsSeoDescription: String(asObject(termsPage.seo).description || defaults.pages[2].seo.description).trim(),
+    termsTitle: String(asObject(termsBlock.props).title || defaults.pages[2].blocks[0].props.title).trim(),
+    termsContent: String(asObject(termsBlock.props).content || defaults.pages[2].blocks[0].props.content).trim(),
     pages,
   };
 }
@@ -2214,7 +2347,7 @@ function buildHomeWebSurfaceConfigFromBuffer(homeWeb) {
   };
 }
 
-function normalizeBlockPages(config, marketingSite, website, templateKey) {
+function normalizeBlockPages(config, marketingSite, website, templateKey, defaults = DEFAULT_HOME_WEB_SURFACE_CONFIG) {
   const sourcePages = Array.isArray(config.pages)
     ? config.pages
     : Array.isArray(marketingSite.pages)
@@ -2224,7 +2357,7 @@ function normalizeBlockPages(config, marketingSite, website, templateKey) {
     return sourcePages.map((item) => clone(asObject(item)));
   }
   const isWealth = templateKey === 'wealth-premium';
-  const base = clone(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages);
+  const base = clone(defaults.pages);
   base[0].seo.title = String(website.homeTitle || base[0].seo.title).trim();
   base[0].seo.description = String(website.metaDescription || base[0].seo.description).trim();
   base[0].blocks[0].blockKey = isWealth ? 'hero.wealth' : 'hero.basic';
@@ -4350,12 +4483,31 @@ function buildBrandDraftBuffer(detail) {
     '';
   const meta = getAppBrandMeta(brand);
   const desktopShellConfig = normalizeDesktopShellConfig(draftConfig);
-  const welcomeSurface = asObject(surfaceEntries.welcome);
+  const appConfig = asObject(detail?.app?.config);
+  const appSurfaceEntries = asObject(appConfig.surfaces);
+  const welcomeSurface = asObject(appSurfaceEntries.welcome || surfaceEntries.welcome);
   const welcomeConfig = normalizeWelcomeSurfaceConfig(asObject(welcomeSurface.config));
   const headerSurface = asObject(surfaceEntries.header);
   const headerConfig = normalizeHeaderSurfaceConfig(asObject(headerSurface.config));
-  const homeWebSurface = asObject(surfaceEntries['home-web']);
-  const homeWebConfig = normalizeHomeWebSurfaceConfig(asObject(homeWebSurface.config));
+  const homeWebSurface = asObject(appSurfaceEntries['home-web'] || surfaceEntries['home-web']);
+  const homeWebConfig = normalizeHomeWebSurfaceConfig(asObject(homeWebSurface.config), {
+    brandId: brand?.brandId || '',
+    displayName: brand?.displayName || '',
+  });
+  const nextSurfaceEntries = {
+    ...surfaceEntries,
+    welcome: {
+      ...welcomeSurface,
+      enabled: welcomeSurface.enabled !== false,
+      config: buildWelcomeSurfaceConfigFromBuffer(welcomeConfig),
+    },
+    'home-web': {
+      ...homeWebSurface,
+      enabled: homeWebSurface.enabled !== false,
+      config: buildHomeWebSurfaceConfigFromBuffer(homeWebConfig),
+    },
+  };
+  draftConfig.surfaces = nextSurfaceEntries;
   const inputSurface = asObject(surfaceEntries.input);
   const inputConfig = normalizeInputSurfaceConfig(asObject(inputSurface.config));
   const sidebarSurface = asObject(surfaceEntries.sidebar);
@@ -4434,7 +4586,7 @@ function buildBrandDraftBuffer(detail) {
     },
     authExperience: authExperienceConfig,
     surfaces: orderedSurfaceKeys.map((key) => {
-      const surface = asObject(surfaceEntries[key]);
+      const surface = asObject(nextSurfaceEntries[key]);
       return {
         key,
         label: surfaceLabel(key),
@@ -4443,6 +4595,24 @@ function buildBrandDraftBuffer(detail) {
       };
     }),
   };
+}
+
+function looksLikeStaleHomeWebBuffer(homeWeb, context = {}) {
+  const brandId = String(context.brandId || '').trim();
+  const displayName = String(context.displayName || '').trim();
+  if (!homeWeb || !brandId || brandId === 'iclaw') {
+    return false;
+  }
+  const texts = [
+    String(homeWeb.headerBrandLabel || ''),
+    String(homeWeb.homeSeoTitle || ''),
+    String(homeWeb.homeSeoDescription || ''),
+    String(homeWeb.heroTitlePre || ''),
+    String(homeWeb.heroTitleMain || ''),
+    String(homeWeb.heroDescription || ''),
+    String(homeWeb.downloadTitle || ''),
+  ].join('\n');
+  return texts.includes('iClaw') && !texts.includes(displayName);
 }
 
 function ensureBrandDraftBuffer() {
@@ -5385,6 +5555,48 @@ async function verifyMarketingSitePublicPayload(appName, expectedTemplateKey) {
   return normalized;
 }
 
+function verifyWelcomeConfigMatches(actual, expected) {
+  if ((expected?.entryLabel || '') !== (actual?.entryLabel || '')) {
+    throw new Error(`Welcome 入口标题不匹配，预期 ${expected?.entryLabel || '(空)'}，实际 ${actual?.entryLabel || '(空)'}。`);
+  }
+  if ((expected?.kolName || '') !== (actual?.kolName || '')) {
+    throw new Error(`Welcome KOL 名称不匹配，预期 ${expected?.kolName || '(空)'}，实际 ${actual?.kolName || '(空)'}。`);
+  }
+  if ((expected?.expertName || '') !== (actual?.expertName || '')) {
+    throw new Error(`Welcome 专家名称不匹配，预期 ${expected?.expertName || '(空)'}，实际 ${actual?.expertName || '(空)'}。`);
+  }
+  if ((expected?.avatarUrl || '') !== (actual?.avatarUrl || '')) {
+    throw new Error('Welcome 头像 URL 未按预期保存。');
+  }
+  if ((expected?.backgroundImageUrl || '') !== (actual?.backgroundImageUrl || '')) {
+    throw new Error('Welcome 背景图 URL 未按预期保存。');
+  }
+}
+
+async function verifyWelcomePublicPayload(appName, expectedWelcome) {
+  const result = await apiFetch(`/portal/public-config?app_name=${encodeURIComponent(appName)}&surface_key=welcome`, {method: 'GET'});
+  const payload = asObject(result?.data || result);
+  const rawSurfaceConfig = asObject(payload.surfaceConfig);
+  if (Object.keys(rawSurfaceConfig).length === 0) {
+    throw new Error('公开 payload 未返回 Welcome 配置。');
+  }
+  const normalized = normalizeWelcomeSurfaceConfig(rawSurfaceConfig);
+  verifyWelcomeConfigMatches(normalized, expectedWelcome);
+  return normalized;
+}
+
+async function verifyWelcomeDraftPayload(appName, expectedWelcome) {
+  const detail = await apiFetch(`/admin/portal/apps/${encodeURIComponent(appName)}`, {method: 'GET'});
+  const surface = asObject(asObject(asObject(detail?.app).config).surfaces).welcome;
+  const rawConfig = asObject(asObject(surface).config);
+  if (Object.keys(rawConfig).length === 0) {
+    throw new Error('后台 draft 未保存 Welcome 配置。');
+  }
+  const normalized = normalizeWelcomeSurfaceConfig(rawConfig);
+  verifyWelcomeConfigMatches(normalized, expectedWelcome);
+  return normalized;
+}
+
 async function verifyMarketingSiteDraftPayload(appName, expectedTemplateKey) {
   const detail = await apiFetch(`/admin/portal/apps/${encodeURIComponent(appName)}`, {method: 'GET'});
   const normalized = normalizeHomeWebSurfaceConfig(asObject(asObject(asObject(detail?.app).config).surfaces)['home-web']?.config || {});
@@ -6047,13 +6259,47 @@ async function loadBrandDetail(brandId, options = {}) {
   }
 
   try {
-    const detail =
-      state.portalAppDetails[brandId] || (await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}`, {method: 'GET'}));
+    const detail = await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}`, {method: 'GET'});
     state.portalAppDetails[brandId] = detail;
     const data = adaptPortalDetail(detail);
     state.selectedBrandId = brandId;
     state.brandDetail = data;
-    state.brandDraftBuffer = buildBrandDraftBuffer(data);
+    const nextBuffer = buildBrandDraftBuffer(data);
+    const liveWelcomeConfig = normalizeWelcomeSurfaceConfig(
+      asObject(asObject(asObject(detail?.app?.config).surfaces).welcome?.config || {}),
+    );
+    nextBuffer.welcome = {
+      enabled: asObject(asObject(asObject(detail?.app?.config).surfaces).welcome).enabled !== false,
+      ...liveWelcomeConfig,
+    };
+    const liveHomeWebConfig = normalizeHomeWebSurfaceConfig(
+      asObject(asObject(asObject(detail?.app?.config).surfaces)['home-web']?.config || {}),
+      {
+        brandId: data?.brand?.brandId || '',
+        displayName: data?.brand?.displayName || '',
+      },
+    );
+    nextBuffer.homeWeb = {
+      enabled: asObject(asObject(asObject(detail?.app?.config).surfaces)['home-web']).enabled !== false,
+      ...liveHomeWebConfig,
+    };
+    nextBuffer.surfaces = asArray(nextBuffer.surfaces)
+      .filter((item) => !['home-web', 'welcome'].includes(String(asObject(item).key || '').trim()))
+      .concat([
+        {
+          key: 'welcome',
+          label: surfaceLabel('welcome'),
+          enabled: nextBuffer.welcome.enabled !== false,
+          json: JSON.stringify(buildWelcomeSurfaceConfigFromBuffer(nextBuffer.welcome), null, 2),
+        },
+        {
+          key: 'home-web',
+          label: surfaceLabel('home-web'),
+          enabled: nextBuffer.homeWeb.enabled !== false,
+          json: JSON.stringify(buildHomeWebSurfaceConfigFromBuffer(nextBuffer.homeWeb), null, 2),
+        },
+      ]);
+    state.brandDraftBuffer = nextBuffer;
     state.selectedBrandMenuKey = '';
   } catch (error) {
     setError(error instanceof Error ? error.message : '品牌详情加载失败');
@@ -6073,9 +6319,11 @@ async function saveBrandEditor(form) {
   snapshot.selectedMcp = ensureEffectiveMcpSelection(snapshot.selectedMcp);
   let draftConfig;
   let expectedMarketingSite;
+  let expectedWelcome;
   try {
     draftConfig = composeDraftConfig(snapshot);
     expectedMarketingSite = validateMarketingSiteSurfaceConfig(asObject(asObject(draftConfig.surfaces)['home-web']).config);
+    expectedWelcome = normalizeWelcomeSurfaceConfig(asObject(asObject(draftConfig.surfaces).welcome).config);
   } catch (error) {
     setError(error instanceof Error ? error.message : '品牌配置不是合法 JSON');
     return false;
@@ -6211,6 +6459,7 @@ async function saveBrandEditor(form) {
     state.route = 'brand-detail';
     await loadBrandDetail(snapshot.brandId, {silent: true, suppressRender: true});
     await verifyMarketingSiteDraftPayload(snapshot.brandId, expectedMarketingSite.templateKey);
+    await verifyWelcomeDraftPayload(snapshot.brandId, expectedWelcome);
     setNotice(`已保存 ${snapshot.displayName || snapshot.brandId} 的应用配置。`);
     return true;
   } catch (error) {
@@ -6243,7 +6492,9 @@ async function publishCurrentBrand() {
     await loadBrandDetail(brandId, {silent: true, suppressRender: true});
     const detail = state.portalAppDetails[brandId];
     const expectedTemplateKey = normalizeHomeWebSurfaceConfig(asObject(asObject(asObject(detail?.app?.config).surfaces)['home-web']).config).templateKey;
+    const expectedWelcome = normalizeWelcomeSurfaceConfig(asObject(asObject(asObject(detail?.app?.config).surfaces).welcome).config);
     await verifyMarketingSitePublicPayload(brandId, expectedTemplateKey);
+    await verifyWelcomePublicPayload(brandId, expectedWelcome);
     setNotice(`已发布 ${brandId} 当前快照。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : '发布失败');
@@ -8525,7 +8776,25 @@ function renderBrandDesktopAssembly(buffer) {
 }
 
 function renderBrandHomeWebAssembly(buffer) {
-  const homeWeb = normalizeHomeWebSurfaceConfig(buffer.homeWeb);
+  const liveHomeWeb = state.brandDetail?.app
+    ? normalizeHomeWebSurfaceConfig(
+        asObject(asObject(asObject(state.brandDetail.app.config).surfaces)['home-web']?.config || {}),
+        {
+          brandId: state.brandDetail.brand?.brandId || '',
+          displayName: state.brandDetail.brand?.displayName || '',
+        },
+      )
+    : null;
+  const bufferedHomeWeb = normalizeHomeWebSurfaceConfig(buffer.homeWeb, {
+    brandId: state.brandDetail?.brand?.brandId || '',
+    displayName: state.brandDetail?.brand?.displayName || '',
+  });
+  const homeWeb = liveHomeWeb && looksLikeStaleHomeWebBuffer(bufferedHomeWeb, {
+    brandId: state.brandDetail?.brand?.brandId || '',
+    displayName: state.brandDetail?.brand?.displayName || '',
+  })
+    ? liveHomeWeb
+    : bufferedHomeWeb;
   const enabled = buffer.homeWeb?.enabled !== false;
   const presetPicker = renderPresetPicker({
     presets: HOME_WEB_SURFACE_PRESETS,
@@ -9927,6 +10196,8 @@ function renderBrandHeaderAssembly(buffer) {
 function renderBrandWelcomeAssembly(buffer) {
   const welcome = normalizeWelcomeSurfaceConfig(buffer.welcome);
   const enabled = buffer.welcome?.enabled !== false;
+  const avatarPreviewUrl = String(welcome.avatarUrl || '').trim();
+  const backgroundPreviewUrl = String(welcome.backgroundImageUrl || '').trim();
   const presetPicker = renderPresetPicker({
     presets: WELCOME_ASSEMBLY_PRESETS,
     action: 'apply-welcome-assembly-preset',
@@ -9972,17 +10243,23 @@ function renderBrandWelcomeAssembly(buffer) {
               <input class="field-input" name="welcome_slogan" value="${fieldValue(welcome.slogan)}" />
             </label>
             <label class="field">
-              <span>头像 URL</span>
-              <input class="field-input" name="welcome_avatar_url" value="${fieldValue(welcome.avatarUrl)}" />
-            </label>
-            <label class="field">
-              <span>背景图 URL</span>
-              <input class="field-input" name="welcome_background_image_url" value="${fieldValue(welcome.backgroundImageUrl)}" />
-            </label>
-            <label class="field">
               <span>主色</span>
               <input class="field-input" name="welcome_primary_color" value="${fieldValue(welcome.primaryColor)}" placeholder="#C4975F" />
             </label>
+            ${renderWelcomeAssetEditor({
+              role: 'avatar',
+              label: '欢迎头像',
+              assetKey: 'welcomeAvatar',
+              previewUrl: avatarPreviewUrl,
+              emptyLabel: '未设置头像',
+            })}
+            ${renderWelcomeAssetEditor({
+              role: 'background',
+              label: '欢迎背景图',
+              assetKey: 'welcomeBackground',
+              previewUrl: backgroundPreviewUrl,
+              emptyLabel: '未设置背景图',
+            })}
           </div>
         </article>
         <article class="fig-card fig-card--subtle">
@@ -10047,6 +10324,47 @@ function renderBrandWelcomeAssembly(buffer) {
         </div>
       </article>
     </section>
+  `;
+}
+
+function renderWelcomeAssetEditor({role, label, assetKey, previewUrl, emptyLabel}) {
+  return `
+    <div class="field field--wide">
+      <span>${escapeHtml(label)}</span>
+      <div style="display:grid;grid-template-columns:160px minmax(0,1fr);gap:16px;align-items:start;">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="height:160px;border:1px solid var(--border-default);border-radius:18px;overflow:hidden;background:var(--card-subtle);display:flex;align-items:center;justify-content:center;">
+            ${
+              previewUrl
+                ? `<img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(label)}" style="width:100%;height:100%;object-fit:cover;" />`
+                : `<span style="font-size:12px;color:var(--text-secondary);">${escapeHtml(emptyLabel)}</span>`
+            }
+          </div>
+          <small style="color:var(--text-secondary);font-size:12px;">Asset Key: ${escapeHtml(assetKey)}</small>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <label class="field" style="margin:0;">
+            <span>${escapeHtml(label)} URL</span>
+            <input class="field-input" name="${role === 'avatar' ? 'welcome_avatar_url' : 'welcome_background_image_url'}" data-welcome-asset-url="${escapeHtml(role)}" value="${fieldValue(previewUrl)}" placeholder="https://... 或上传后自动回填" />
+          </label>
+          <label class="field" style="margin:0;">
+            <span>上传替换</span>
+            <input class="field-input" type="file" accept="image/*" data-welcome-asset-file="${escapeHtml(role)}" />
+          </label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${
+              previewUrl
+                ? `<a class="text-button" href="${escapeHtml(previewUrl)}" target="_blank" rel="noreferrer">打开资源</a>`
+                : ''
+            }
+            <button class="ghost-button" type="button" data-action="clear-welcome-asset" data-role="${escapeHtml(role)}">清空回填</button>
+          </div>
+          <div data-welcome-asset-upload-status="${escapeHtml(role)}" style="font-size:12px;line-height:1.6;color:var(--text-secondary);">
+            ${escapeHtml(previewUrl ? `当前已绑定 ${assetKey}。` : `当前未绑定 ${assetKey}。`)}
+          </div>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -15049,6 +15367,13 @@ function renderDashboard() {
 }
 
 function render() {
+  if (import.meta.env.DEV) {
+    window.__ICLAW_ADMIN_DEBUG_STATE = state;
+    window.__ICLAW_ADMIN_DEBUG_API = {
+      buildBrandDraftBuffer,
+      normalizeHomeWebSurfaceConfig,
+    };
+  }
   if (state.view === 'dashboard') {
     renderDashboard();
   } else {
@@ -16079,6 +16404,28 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'clear-welcome-asset') {
+    const role = String(target.getAttribute('data-role') || '').trim();
+    const form = document.querySelector('#brand-editor-form');
+    if (form instanceof HTMLFormElement && (role === 'avatar' || role === 'background')) {
+      const urlInput = form.querySelector(`[data-welcome-asset-url="${role}"]`);
+      const fileInput = form.querySelector(`[data-welcome-asset-file="${role}"]`);
+      if (urlInput instanceof HTMLInputElement) {
+        urlInput.value = '';
+      }
+      if (fileInput instanceof HTMLInputElement) {
+        fileInput.value = '';
+      }
+      setWelcomeAssetUploadStatus(
+        form,
+        role,
+        `已清空 ${role === 'avatar' ? 'welcomeAvatar' : 'welcomeBackground'} 的 URL 回填，保存并发布后生效。`,
+      );
+      syncBrandEditorBuffer();
+    }
+    return;
+  }
+
   if (action === 'publish-brand') {
     const brandId = state.selectedBrandId || '';
     if (window.confirm(`确认发布 ${brandId} 当前草稿？`)) {
@@ -16192,6 +16539,76 @@ function handleFilterInput(target) {
     }
     pendingFilterFocus = null;
   }, 80);
+}
+
+async function uploadWelcomeAssetFile(form, role, file) {
+  if (!(form instanceof HTMLFormElement) || !(file instanceof File) || file.size === 0) {
+    return;
+  }
+  const appName = String(state.selectedBrandId || state.brandDetail?.brand?.brandId || '').trim();
+  const spec = WELCOME_ASSET_UPLOAD_SPECS[role];
+  if (!appName || !spec) {
+    setError('没有可用的 Welcome 上传目标应用。');
+    return;
+  }
+  const urlInput = form.querySelector(`[data-welcome-asset-url="${role}"]`);
+  const fileInput = form.querySelector(`[data-welcome-asset-file="${role}"]`);
+  if (!(urlInput instanceof HTMLInputElement)) {
+    setError('Welcome 资源上传表单缺少 URL 字段。');
+    return;
+  }
+
+  const extensionFromType = String(file.type || '').toLowerCase().includes('png')
+    ? 'png'
+    : String(file.type || '').toLowerCase().includes('webp')
+      ? 'webp'
+      : String(file.type || '').toLowerCase().includes('gif')
+        ? 'gif'
+        : 'jpg';
+
+  try {
+    setWelcomeAssetUploadStatus(form, role, `正在上传 ${spec.label}...`);
+    const fileBase64 = await readFileAsBase64(file);
+    const response = await apiFetch(`/admin/portal/apps/${encodeURIComponent(appName)}/assets/${encodeURIComponent(spec.assetKey)}/upload`, {
+      method: 'POST',
+      body: JSON.stringify({
+        content_type: file.type || 'image/jpeg',
+        file_name: `${slugifyFilename(`${appName}-${spec.filePrefix}`)}.${extensionFromType}`,
+        file_base64: fileBase64,
+        metadata: {
+          kind: spec.kind,
+          scope: 'welcome',
+          role,
+        },
+      }),
+    });
+    const uploadedAsset = response?.asset || {};
+    urlInput.value = String(uploadedAsset.publicUrl || buildPortalAssetUrl(appName, spec.assetKey)).trim();
+    if (fileInput instanceof HTMLInputElement) {
+      fileInput.value = '';
+    }
+    syncBrandEditorBuffer();
+    setWelcomeAssetUploadStatus(form, role, `${spec.label}已上传并回填，保存并发布后生效。`, 'success');
+    setNotice(`Welcome ${spec.label}已上传并回填 URL，请继续保存并发布。`);
+  } catch (error) {
+    setWelcomeAssetUploadStatus(form, role, error instanceof Error ? error.message : `${spec.label}上传失败`, 'error');
+    setError(error instanceof Error ? error.message : `Welcome ${spec.label}上传失败`);
+  }
+}
+
+function setWelcomeAssetUploadStatus(form, role, message, tone = 'muted') {
+  const status = form.querySelector(`[data-welcome-asset-upload-status="${role}"]`);
+  if (!(status instanceof HTMLElement)) {
+    return;
+  }
+  const color =
+    tone === 'error'
+      ? 'var(--danger-strong, #d35b5b)'
+      : tone === 'success'
+        ? 'var(--success-strong, #4ea46e)'
+        : 'var(--text-secondary)';
+  status.textContent = message || '';
+  status.style.color = color;
 }
 
 function syncAgentAvatarEditor(form) {
@@ -16333,7 +16750,16 @@ app.addEventListener('change', (event) => {
   if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
     return;
   }
-  if (target.closest('#brand-editor-form')) {
+  const brandEditorForm = target.closest('#brand-editor-form');
+  if (brandEditorForm instanceof HTMLFormElement) {
+    if (target instanceof HTMLInputElement && target.matches('[data-welcome-asset-file]')) {
+      const file = target.files?.[0];
+      const role = String(target.getAttribute('data-welcome-asset-file') || '').trim();
+      if (file && (role === 'avatar' || role === 'background')) {
+        void uploadWelcomeAssetFile(brandEditorForm, role, file);
+      }
+      return;
+    }
     syncBrandEditorBuffer();
   }
   const agentEditorForm = target.closest('#agent-editor-form');
@@ -16361,7 +16787,48 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
   }
 });
 
-if (!redirectedToCanonicalOrigin) {
+export function bootLegacyAdmin(options = {}) {
+  if (redirectedToCanonicalOrigin) {
+    return;
+  }
+  if (options.route) {
+    state.route = String(options.route || '').trim() || state.route;
+  }
+  if (legacyBootstrapped) {
+    render();
+    return;
+  }
+  legacyBootstrapped = true;
   render();
   ensureSession();
+}
+
+export function showLegacyRoute(route) {
+  if (!redirectedToCanonicalOrigin) {
+    const nextRoute = String(route || '').trim();
+    if (nextRoute) {
+      state.route = nextRoute;
+      if (isCapabilityRoute(state.route)) {
+        state.capabilityMode = getCapabilityModeForRoute(state.route);
+      }
+    }
+    render();
+  }
+}
+
+export async function showLegacyBrandDetail(brandId, tabId = 'desktop') {
+  if (redirectedToCanonicalOrigin) {
+    return;
+  }
+  const normalized = String(brandId || '').trim();
+  if (!normalized) {
+    return;
+  }
+  state.route = 'brand-detail';
+  state.brandDetailTab = normalizeBrandDetailTab(tabId);
+  await loadBrandDetail(normalized);
+}
+
+export function performLegacyLogout() {
+  logout();
 }
