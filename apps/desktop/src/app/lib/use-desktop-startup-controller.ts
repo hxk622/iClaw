@@ -290,7 +290,7 @@ export function useDesktopStartupController(
   }, [applyRuntimeDiagnosis, params]);
 
   useEffect(() => {
-    if (params.isTauriRuntime && (!params.brandRuntimeReady || !runtimeReady || runtimeChecking || runtimeInstalling)) {
+    if (params.isTauriRuntime && (!runtimeReady || runtimeChecking || runtimeInstalling)) {
       setHealthChecking(false);
       setHealthy(false);
       setInitialHealthResolved(false);

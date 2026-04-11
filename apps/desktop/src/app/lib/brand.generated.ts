@@ -1,23 +1,23 @@
 export const BRAND = {
-  "brandId": "iclaw",
-  "productName": "iClaw",
-  "displayName": "iClaw",
-  "websiteTitle": "iClaw",
-  "devWebsiteTitle": "iClaw-dev",
+  "brandId": "licaiclaw",
+  "productName": "理财客",
+  "displayName": "理财客",
+  "websiteTitle": "理财客",
+  "devWebsiteTitle": "理财客-dev",
   "defaultThemeMode": "dark",
-  "sidebarTitle": "iClaw",
-  "devSidebarTitle": "iClaw-dev",
+  "sidebarTitle": "理财客",
+  "devSidebarTitle": "理财客-dev",
   "sidebarSubtitle": "",
-  "legalName": "iClaw",
-  "bundleIdentifier": "ai.iclaw.desktop",
-  "authService": "ai.iclaw.desktop",
+  "legalName": "理财客",
+  "bundleIdentifier": "ai.licaiclaw.desktop",
+  "authService": "ai.licaiclaw.desktop",
   "assets": {
     "faviconIcoSrc": "/brand/favicon.ico",
     "faviconPngSrc": "/brand/favicon.png",
     "appleTouchIconSrc": "/brand/apple-touch-icon.png",
     "installerHeroSrc": "/brand/installer-hero.png",
     "assistantAvatarSrc": "/brand/assistant-avatar.png",
-    "logoAlt": "iClaw logo"
+    "logoAlt": "理财客 logo"
   },
   "theme": {
     "dark": {
@@ -32,10 +32,10 @@ export const BRAND = {
     }
   },
   "storage": {
-    "namespace": "iclaw"
+    "namespace": "licaiclaw"
   },
   "endpoints": {
-    "authBaseUrl": "https://iclaw.aiyuanxi.com"
+    "authBaseUrl": "https://caiclaw.aiyuanxi.com"
   },
   "oauth": {
     "wechat": {
@@ -48,18 +48,18 @@ export const BRAND = {
     }
   },
   "website": {
-    "homeTitle": "iClaw 官网",
-    "metaDescription": "iClaw 官网，面向普通用户的本地 AI 客户端。",
-    "brandLabel": "iClaw",
+    "homeTitle": "理财客官网",
+    "metaDescription": "理财客官网，面向财富管理场景的本地 AI 客户端。",
+    "brandLabel": "理财客",
     "kicker": "Official Website",
-    "heroTitlePre": "让AI真正像软件一样",
-    "heroTitleMain": "装上就能用！",
-    "heroDescription": "iClaw 面向普通用户设计。少一点配置，多一点结果。打开、提问、执行、拿答案。",
+    "heroTitlePre": "把 AI 装进你的财富工作流",
+    "heroTitleMain": "打开就能干活",
+    "heroDescription": "理财客面向财富管理场景设计。少一点配置，多一点交付。",
     "topCtaLabel": "下载",
     "scrollLabel": "向下下载",
-    "downloadTitle": "下载 iClaw"
+    "downloadTitle": "下载理财客"
   },
   "distribution": {
-    "artifactBaseName": "iClaw"
+    "artifactBaseName": "LiCaiClaw"
   }
 } as const;

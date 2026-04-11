@@ -32,6 +32,7 @@ import {
   type HighRiskRollbackStatus,
 } from '@/app/components/HighRiskConfirmationModal';
 import { K2CWelcomePage } from '@/app/components/K2CWelcomePage';
+import { createCoalescedDomTask } from '@/app/lib/coalesced-dom-task';
 import { readAppLocale } from '@/app/lib/general-preferences';
 import {
   isChatSemanticDirectiveClose,
@@ -45,7 +46,11 @@ import {
   looksLikeOpenClawTransportIssue,
   resolveOpenClawChatRecoveryAction,
 } from '@/app/lib/openclaw-chat-recovery';
-import { shouldShowOpenClawConnectionCard } from '@/app/lib/openclaw-chat-connection';
+import { buildArtifactWorkspaceNameCandidates } from '@/app/lib/artifact-workspace-path';
+import {
+  deriveOpenClawChatSurfaceLifecycle,
+  shouldShowOpenClawWelcomePage,
+} from '@/app/lib/openclaw-chat-connection';
 import {
   buildComposerModelOptions,
   findComposerModelOption,
@@ -124,6 +129,27 @@ declare global {
 }
 
 type OpenClawTheme = 'system' | 'light' | 'dark';
+
+type FlushableCoalescedDomTask = {
+  flush: () => void;
+};
+
+function attachVisibilityResumeFlush(task: FlushableCoalescedDomTask): () => void {
+  const handleResume = () => {
+    if (typeof document === 'undefined' || document.visibilityState !== 'visible') {
+      return;
+    }
+    task.flush();
+  };
+
+  document.addEventListener('visibilitychange', handleResume);
+  window.addEventListener('focus', handleResume);
+
+  return () => {
+    document.removeEventListener('visibilitychange', handleResume);
+    window.removeEventListener('focus', handleResume);
+  };
+}
 
 function resolveFundComposerInstrumentLabel(fund: MarketFundData): '基金' | 'ETF' | 'QDII' {
   if (fund.instrument_kind === 'etf') {
@@ -1033,25 +1059,6 @@ function buildArtifactPreviewTitle(path: string): string {
   const normalized = path.replace(/\\/g, '/');
   const segments = normalized.split('/').filter(Boolean);
   return segments.at(-1) ?? normalized;
-}
-
-function buildArtifactWorkspaceNameCandidates(path: string, workspaceDir: string | null): string[] {
-  const normalizedPath = path.replace(/\\/g, '/').trim();
-  const normalizedWorkspace = workspaceDir?.replace(/\\/g, '/').replace(/\/+$/, '') ?? null;
-  const candidates = new Set<string>();
-
-  if (normalizedWorkspace && normalizedPath.startsWith(`${normalizedWorkspace}/`)) {
-    candidates.add(normalizedPath.slice(normalizedWorkspace.length + 1));
-  }
-  if (normalizedPath.startsWith('./')) {
-    candidates.add(normalizedPath.slice(2));
-  }
-  candidates.add(normalizedPath);
-  candidates.add(normalizedPath.replace(/^\/+/, ''));
-
-  return Array.from(candidates)
-    .map((candidate) => candidate.trim())
-    .filter((candidate) => Boolean(candidate) && candidate !== '.');
 }
 
 function isLikelyArtifactToolCard(card: HTMLElement): boolean {
@@ -4306,6 +4313,9 @@ async function loadGatewaySessionTokenSnapshot(
 }
 
 function isSessionRenderReady(renderState: ChatSurfaceRenderState): boolean {
+  if (renderState.hasNativeInput && renderState.nativeInputVisible) {
+    return true;
+  }
   if (!renderState.hasThread) {
     return renderState.hostHeight > 0;
   }
@@ -6194,14 +6204,19 @@ export function OpenClawChatSurface({
       });
     };
 
+    const scheduleReferenceMarkerRewrite = createCoalescedDomTask(rewriteReferenceMarkers);
+    const detachResumeListener = attachVisibilityResumeFlush(scheduleReferenceMarkerRewrite);
+
     rewriteReferenceMarkers();
     const observer = new MutationObserver(() => {
-      rewriteReferenceMarkers();
+      scheduleReferenceMarkerRewrite.schedule();
     });
     observer.observe(host, { childList: true, subtree: true });
 
     return () => {
       observer.disconnect();
+      detachResumeListener();
+      scheduleReferenceMarkerRewrite.cancel();
     };
   }, []);
 
@@ -6225,10 +6240,13 @@ export function OpenClawChatSurface({
       });
     };
 
+    const scheduleSemanticTextDecoration = createCoalescedDomTask(decorateSemanticText);
+    const detachResumeListener = attachVisibilityResumeFlush(scheduleSemanticTextDecoration);
+
     decorateSemanticText();
 
     const observer = new MutationObserver(() => {
-      decorateSemanticText();
+      scheduleSemanticTextDecoration.schedule();
     });
 
     observer.observe(host, {
@@ -6238,6 +6256,8 @@ export function OpenClawChatSurface({
 
     return () => {
       observer.disconnect();
+      detachResumeListener();
+      scheduleSemanticTextDecoration.cancel();
     };
   }, [status.busy]);
 
@@ -6257,10 +6277,12 @@ export function OpenClawChatSurface({
       });
     };
 
+    const scheduleTableDecoration = createCoalescedDomTask(decorateChatTables);
+
     decorateChatTables();
 
     const observer = new MutationObserver(() => {
-      decorateChatTables();
+      scheduleTableDecoration.schedule();
     });
 
     observer.observe(host, {
@@ -6269,11 +6291,15 @@ export function OpenClawChatSurface({
       characterData: true,
     });
 
-    window.addEventListener('resize', decorateChatTables);
+    const detachResumeListener = attachVisibilityResumeFlush(scheduleTableDecoration);
+
+    window.addEventListener('resize', scheduleTableDecoration.schedule);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener('resize', decorateChatTables);
+      scheduleTableDecoration.cancel();
+      detachResumeListener();
+      window.removeEventListener('resize', scheduleTableDecoration.schedule);
     };
   }, []);
 
@@ -6283,16 +6309,20 @@ export function OpenClawChatSurface({
       return;
     }
 
-    const observer = new MutationObserver(() => {
+    const scheduleArtifactAutoOpenScanTask = createCoalescedDomTask(() => {
       if (artifactAutoOpenStateRef.current.pendingRunSequence == null) {
         return;
       }
       queueArtifactAutoOpenScan(90);
     });
+    const observer = new MutationObserver(() => {
+      scheduleArtifactAutoOpenScanTask.schedule();
+    });
     observer.observe(host, { childList: true, subtree: true });
 
     return () => {
       observer.disconnect();
+      scheduleArtifactAutoOpenScanTask.cancel();
     };
   }, [queueArtifactAutoOpenScan]);
 
@@ -6404,13 +6434,16 @@ export function OpenClawChatSurface({
       return event.deltaY;
     };
 
-    updateComposerHeight();
-    const resizeObserver = new ResizeObserver(() => {
+    let observedThread: HTMLElement | null = null;
+    const refreshShellLayout = () => {
       updateComposerHeight();
-      syncScrollToBottomState(observedThread);
+      bindActiveThread();
+    };
+    const scheduleShellLayoutRefresh = createCoalescedDomTask(refreshShellLayout);
+    const resizeObserver = new ResizeObserver(() => {
+      scheduleShellLayoutRefresh.schedule();
     });
     const composer = shell.querySelector<HTMLElement>('.iclaw-composer');
-    let observedThread: HTMLElement | null = null;
     const handleThreadScroll = () => {
       syncScrollToBottomState(observedThread);
     };
@@ -6431,13 +6464,13 @@ export function OpenClawChatSurface({
       }
       syncScrollToBottomState(observedThread);
     };
+    const detachResumeListener = attachVisibilityResumeFlush(scheduleShellLayoutRefresh);
     if (composer) {
       resizeObserver.observe(composer);
     }
-    bindActiveThread();
+    refreshShellLayout();
     const mutationObserver = new MutationObserver(() => {
-      updateComposerHeight();
-      bindActiveThread();
+      scheduleShellLayoutRefresh.schedule();
     });
     mutationObserver.observe(shell, {childList: true, subtree: true});
 
@@ -6481,18 +6514,18 @@ export function OpenClawChatSurface({
     };
 
     shell.addEventListener('wheel', handleShellWheel, {passive: false});
-    window.addEventListener('resize', updateComposerHeight);
-    window.addEventListener('resize', handleThreadScroll);
+    window.addEventListener('resize', scheduleShellLayoutRefresh.schedule);
 
     return () => {
       mutationObserver.disconnect();
       resizeObserver.disconnect();
+      scheduleShellLayoutRefresh.cancel();
+      detachResumeListener();
       if (observedThread) {
         observedThread.removeEventListener('scroll', handleThreadScroll);
       }
       shell.removeEventListener('wheel', handleShellWheel);
-      window.removeEventListener('resize', updateComposerHeight);
-      window.removeEventListener('resize', handleThreadScroll);
+      window.removeEventListener('resize', scheduleShellLayoutRefresh.schedule);
     };
   }, [resolveActiveThread, status.connected, status.busy, syncScrollToBottomState]);
 
@@ -6523,7 +6556,8 @@ export function OpenClawChatSurface({
     const syncSurfaceState = () => {
       const app = appRef.current;
       const host = hostRef.current;
-      if (!app || !host) {
+      const shell = shellRef.current;
+      if (!app || !host || !shell) {
         return;
       }
 
@@ -6536,7 +6570,9 @@ export function OpenClawChatSurface({
         lastError: app.lastError ?? null,
         lastErrorCode: app.lastErrorCode ?? null,
       };
-      const nativeInput = host.querySelector('.agent-chat__input, .chat-compose');
+      const nativeInput = shell.querySelector(
+        '.iclaw-composer__editor, .iclaw-composer, .agent-chat__input, .chat-compose',
+      );
       const thread = host.querySelector('.chat-thread');
       const nativeInputState = isVisibleElement(nativeInput);
       const threadState = isVisibleElement(thread);
@@ -6728,9 +6764,6 @@ export function OpenClawChatSurface({
     }
     setSessionHistoryState('has-history');
   }, [hasObservedHistory, optimisticEmptySessionActive, sessionHistoryState]);
-
-  const allowImmediateEmptySessionUi =
-    shellAuthenticated && optimisticEmptySessionActive;
 
   useEffect(() => {
     if (!status.connected) {
@@ -6944,20 +6977,61 @@ export function OpenClawChatSurface({
     };
   }, [closeSelectionMenu, resolveChatSelection, selectionMenu]);
 
+  const hasGatewayAuth = Boolean((gatewayToken ?? '').trim() || (gatewayPassword ?? '').trim());
+  const connectionMessage = status.lastError
+    ? status.lastError
+    : hasGatewayAuth
+      ? '正在连接 OpenClaw 网关…'
+      : '缺少本地网关凭据，当前无法连接 OpenClaw。';
+  const hasStableVisibleChat =
+    hasLocalStoredSnapshotMessages || hasObservedHistory || renderState.groupCount > 0 || renderState.chatMessageCount > 0;
+  const hasStableVisibleInput = renderState.hasNativeInput && renderState.nativeInputVisible;
+  const renderReady = isSessionRenderReady(renderState);
+  const localSendBlockedReason =
+    modelSwitching
+      ? '正在切换模型，请稍后发送。'
+      : modelsLoading
+        ? '正在准备对话模型，请稍后发送。'
+        : null;
+  const effectiveSendBlockedReason = sendBlockedReason || localSendBlockedReason;
+  const lifecycle = deriveOpenClawChatSurfaceLifecycle({
+    optimisticEmptySessionActive,
+    statusConnected: status.connected,
+    statusLastError: status.lastError,
+    surfaceVisible,
+    surfaceReactivating,
+    sessionTransitionVisible,
+    initialSurfaceRestorePending,
+    hasBootSettled,
+    shellAuthenticated,
+    sessionHistoryState,
+    hasObservedHistory,
+    hasStableVisibleInput,
+    hasStableVisibleChat,
+    renderReady,
+    compatibilityRecoveryActive,
+    sendBlockedReason: effectiveSendBlockedReason,
+  });
+  const {
+    allowImmediateEmptySessionUi,
+    showBootMask,
+    showSessionTransitionMask,
+    showSurfaceReactivationMask,
+    shellTransitioning,
+    surfaceReadyForReveal,
+    shouldForceSurfaceReveal,
+    allowDisconnectedComposerQueue,
+  } = lifecycle;
+  const secureContextHint =
+    typeof window !== 'undefined' && !window.isSecureContext
+      ? '当前页面不是安全上下文，OpenClaw 可能会拒绝设备身份校验。'
+      : null;
+  const authRole = appRef.current?.hello?.auth?.role ?? null;
+  const authScopes = appRef.current?.hello?.auth?.scopes ?? null;
+  const showRechargeCtaCard = status.connected && Boolean(creditBlockNotice) && !rechargeNoticeDismissed;
+
   useEffect(() => {
-    const shouldShow = shouldShowOpenClawConnectionCard({
-      allowImmediateEmptySessionUi,
-      statusConnected: status.connected,
-      statusLastError: status.lastError,
-      surfaceVisible,
-      surfaceReactivating,
-      sessionTransitionVisible,
-      initialSurfaceRestorePending,
-      hasBootSettled,
-      shellAuthenticated,
-      sessionHistoryState,
-      hasObservedHistory,
-    });
+    const shouldShow = lifecycle.shouldShowConnectionCard;
 
     if (!shouldShow) {
       setShowConnectionCard(false);
@@ -6975,30 +7049,12 @@ export function OpenClawChatSurface({
 
     return () => window.clearTimeout(timer);
   }, [
-    allowImmediateEmptySessionUi,
-    hasBootSettled,
-    hasObservedHistory,
-    initialSurfaceRestorePending,
-    sessionHistoryState,
-    sessionTransitionVisible,
-    shellAuthenticated,
-    status.connected,
+    lifecycle.shouldShowConnectionCard,
     status.lastError,
-    surfaceReactivating,
-    surfaceVisible,
   ]);
 
   useEffect(() => {
-    const threadReady = renderState.hasThread && renderState.threadVisible;
-    if (
-      initialSurfaceRestorePending ||
-      sessionTransitionVisible ||
-      surfaceReactivating ||
-      !surfaceVisible ||
-      !shellAuthenticated ||
-      !status.connected ||
-      threadReady
-    ) {
+    if (!lifecycle.shouldShowRenderDiagnostics) {
       setShowRenderDiagnosticsCard(false);
       return;
     }
@@ -7009,16 +7065,7 @@ export function OpenClawChatSurface({
 
     return () => window.clearTimeout(timer);
   }, [
-    renderState.hasNativeInput,
-    renderState.hasThread,
-    renderState.nativeInputVisible,
-    renderState.threadVisible,
-    initialSurfaceRestorePending,
-    shellAuthenticated,
-    sessionTransitionVisible,
-    surfaceReactivating,
-    surfaceVisible,
-    status.connected,
+    lifecycle.shouldShowRenderDiagnostics,
   ]);
 
   useEffect(() => {
@@ -7056,60 +7103,15 @@ export function OpenClawChatSurface({
 
   useEffect(() => clearSessionTransitionTimer, [clearSessionTransitionTimer]);
 
-  const hasGatewayAuth = Boolean((gatewayToken ?? '').trim() || (gatewayPassword ?? '').trim());
-  const connectionMessage = status.lastError
-    ? status.lastError
-    : hasGatewayAuth
-      ? '正在连接 OpenClaw 网关…'
-      : '缺少本地网关凭据，当前无法连接 OpenClaw。';
-  const waitingForHistoryResolution =
-    initialSurfaceRestorePending &&
-    shellAuthenticated &&
-    sessionHistoryState === 'unknown' &&
-    !hasObservedHistory;
-  const hasStableVisibleChat =
-    hasLocalStoredSnapshotMessages || hasObservedHistory || renderState.groupCount > 0 || renderState.chatMessageCount > 0;
-  const renderReady = isSessionRenderReady(renderState);
-  const shouldForceSurfaceReveal = compatibilityRecoveryActive && status.connected && !status.lastError;
-  const surfaceReadyForReveal =
-    status.connected &&
-    (hasStableVisibleChat || allowImmediateEmptySessionUi || sessionHistoryState === 'empty' || shouldForceSurfaceReveal) &&
-    !status.lastError;
-  const showBootMask =
-    shellAuthenticated &&
-    !sessionTransitionVisible &&
-    !allowImmediateEmptySessionUi &&
-    !compatibilityRecoveryActive &&
-    !hasStableVisibleChat &&
-    !status.lastError &&
-    (!surfaceReadyForReveal || !hasBootSettled || initialSurfaceRestorePending || waitingForHistoryResolution || !renderReady);
-  const showSessionTransitionMask = sessionTransitionVisible && !showBootMask;
-  const showSurfaceReactivationMask = false;
-  const shellTransitioning = showBootMask || showSessionTransitionMask;
-  const localSendBlockedReason =
-    modelSwitching
-      ? '正在切换模型，请稍后发送。'
-      : modelsLoading
-        ? '正在准备对话模型，请稍后发送。'
-        : null;
-  const effectiveSendBlockedReason = sendBlockedReason || localSendBlockedReason;
-  const secureContextHint =
-    typeof window !== 'undefined' && !window.isSecureContext
-      ? '当前页面不是安全上下文，OpenClaw 可能会拒绝设备身份校验。'
-      : null;
-  const authRole = appRef.current?.hello?.auth?.role ?? null;
-  const authScopes = appRef.current?.hello?.auth?.scopes ?? null;
-  const showRechargeCtaCard = status.connected && Boolean(creditBlockNotice) && !rechargeNoticeDismissed;
-
   useEffect(() => {
     const renderStuck =
       shellAuthenticated &&
       status.connected &&
       !status.lastError &&
       !renderReady &&
-      !surfaceReactivating &&
-      !sessionTransitionVisible &&
-      !initialSurfaceRestorePending &&
+      !showSurfaceReactivationMask &&
+      !showSessionTransitionMask &&
+      !lifecycle.bootStillSettling &&
       !allowImmediateEmptySessionUi &&
       !hasStableVisibleChat;
 
@@ -7122,14 +7124,14 @@ export function OpenClawChatSurface({
   }, [
     allowImmediateEmptySessionUi,
     hasStableVisibleChat,
-    initialSurfaceRestorePending,
+    lifecycle.bootStillSettling,
     renderReady,
     scheduleSelfHealingRecovery,
-    sessionTransitionVisible,
+    showSessionTransitionMask,
     shellAuthenticated,
     status.connected,
     status.lastError,
-    surfaceReactivating,
+    showSurfaceReactivationMask,
   ]);
 
   useEffect(() => {
@@ -8100,7 +8102,7 @@ export function OpenClawChatSurface({
       return;
     }
     if (!status.connected) {
-      if (allowImmediateEmptySessionUi) {
+      if (allowDisconnectedComposerQueue) {
         app?.connect();
       }
       return;
@@ -8128,7 +8130,7 @@ export function OpenClawChatSurface({
       setQueuedMessages((current) => (current.some((item) => item.id === next.id) ? current : [next, ...current]));
     }
   }, [
-    allowImmediateEmptySessionUi,
+    allowDisconnectedComposerQueue,
     effectiveGatewaySessionKey,
     effectiveSendBlockedReason,
     sendQueuedOrImmediateMessage,
@@ -8150,8 +8152,10 @@ export function OpenClawChatSurface({
     }
     const app = appRef.current;
     const gatewayBusy = app ? reconcileGatewayChatBusyState(app, effectiveGatewaySessionKey).busy : false;
-    if (!effectiveSendBlockedReason && !status.connected && allowImmediateEmptySessionUi) {
-      setOptimisticEmptySessionActive(false);
+    if (!effectiveSendBlockedReason && !status.connected && allowDisconnectedComposerQueue) {
+      if (optimisticEmptySessionActive) {
+        setOptimisticEmptySessionActive(false);
+      }
       enqueueQueuedMessage(payload);
       app?.connect();
       return true;
@@ -8168,7 +8172,7 @@ export function OpenClawChatSurface({
     }
     return (await sendQueuedOrImmediateMessage(payload)) === 'sent';
   }, [
-    allowImmediateEmptySessionUi,
+    allowDisconnectedComposerQueue,
     effectiveGatewaySessionKey,
     effectiveSendBlockedReason,
     enqueueQueuedMessage,
@@ -8351,19 +8355,19 @@ export function OpenClawChatSurface({
   const allowWelcomeForCurrentRoute =
     !conversationId || shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId);
 
-  const showWelcomePage =
-    allowWelcomeForCurrentRoute &&
-    ((allowImmediateEmptySessionUi && sessionHistoryState === 'empty') ||
-      (!initialSurfaceRestorePending &&
-        !hasObservedHistory &&
-        sessionHistoryState === 'empty' &&
-        renderState.groupCount === 0)) &&
-    !showRenderDiagnosticsCard &&
-    !showConnectionCard &&
-    !showBootMask &&
-    !showSessionTransitionMask &&
-    !status.busy &&
-    welcomePageConfig?.enabled !== false;
+  const showWelcomePage = shouldShowOpenClawWelcomePage({
+    allowWelcomeForCurrentRoute,
+    allowImmediateEmptySessionUi,
+    bootStillSettling: lifecycle.bootStillSettling,
+    shellTransitioning,
+    sessionHistoryState,
+    hasObservedHistory,
+    renderGroupCount: renderState.groupCount,
+    showRenderDiagnosticsCard,
+    showConnectionCard,
+    statusBusy: status.busy,
+    welcomePageEnabled: welcomePageConfig?.enabled !== false,
+  });
 
   const artifactPreviewMarkup =
     artifactPreview?.kind === 'markdown' && artifactPreview.content
@@ -9005,10 +9009,13 @@ export function OpenClawChatSurface({
       });
     };
 
+    const scheduleChatGroupDecoration = createCoalescedDomTask(decorateChatGroups);
+    const detachResumeListener = attachVisibilityResumeFlush(scheduleChatGroupDecoration);
+
     decorateChatGroups();
 
     const observer = new MutationObserver(() => {
-      decorateChatGroups();
+      scheduleChatGroupDecoration.schedule();
     });
     observer.observe(host, {
       childList: true,
@@ -9037,6 +9044,8 @@ export function OpenClawChatSurface({
 
     return () => {
       observer.disconnect();
+      scheduleChatGroupDecoration.cancel();
+      detachResumeListener();
       document.removeEventListener('pointerdown', handleToolbarOutsidePointerDown, true);
       clearMessageActionTimers();
     };
@@ -9299,7 +9308,7 @@ export function OpenClawChatSurface({
                   sendDisabledReason={effectiveSendBlockedReason}
                   dropActive={shellDropActive}
                   sessionTransitioning={shellTransitioning}
-                  queueWhileConnecting={allowImmediateEmptySessionUi || !shellAuthenticated}
+                  queueWhileConnecting={allowDisconnectedComposerQueue || !shellAuthenticated}
                   lobsterAgents={installedLobsterAgents}
                   skillOptions={skillOptions}
                   initialSelectedAgentSlug={initialAgentSlug}

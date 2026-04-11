@@ -8,12 +8,18 @@ import {config} from '../src/config.ts';
 import {CLOUD_SKILL_ARTIFACT_OBJECT_KEY_FIELD} from '../src/cloud-skill-artifacts.ts';
 import {
   buildRemotionSkillMarkdown,
+  buildWebCrawlForToutiaoSkillMarkdown,
+  buildWebCrawlForWechatArticalSkillMarkdown,
   FRONTEND_SLIDES_CLOUD_SKILL_REQUIRED_PATHS,
   FRONTEND_SLIDES_CLOUD_SKILL_SLUG,
   buildXiaohongshuSkillMarkdown,
   getExternalCloudSkillSeed,
   REMOTION_CLOUD_SKILL_REQUIRED_PATHS,
   REMOTION_CLOUD_SKILL_SLUG,
+  WEB_CRAWL_FOR_TOUTIAO_CLOUD_SKILL_REQUIRED_PATHS,
+  WEB_CRAWL_FOR_TOUTIAO_CLOUD_SKILL_SLUG,
+  WEB_CRAWL_FOR_WECHAT_ARTICAL_CLOUD_SKILL_REQUIRED_PATHS,
+  WEB_CRAWL_FOR_WECHAT_ARTICAL_CLOUD_SKILL_SLUG,
   XIAOHONGSHU_CLOUD_SKILL_OPTIONAL_PATHS,
   XIAOHONGSHU_CLOUD_SKILL_REQUIREMENTS,
   XIAOHONGSHU_CLOUD_SKILL_REQUIRED_PATHS,
@@ -114,6 +120,32 @@ async function stageFrontendSlidesSkill(sourceDir: string, stageDir: string): Pr
   await removeJunkFiles(stageDir);
 }
 
+async function stageWebCrawlForToutiaoSkill(sourceDir: string, stageDir: string): Promise<void> {
+  for (const relativePath of WEB_CRAWL_FOR_TOUTIAO_CLOUD_SKILL_REQUIRED_PATHS) {
+    const sourcePath = resolve(sourceDir, relativePath);
+    if (!(await pathExists(sourcePath))) {
+      throw new Error(`missing required source path: ${relativePath}`);
+    }
+    await cp(sourcePath, resolve(stageDir, relativePath), {recursive: true, force: true});
+  }
+
+  await removeJunkFiles(stageDir);
+  await writeFile(resolve(stageDir, 'SKILL.md'), buildWebCrawlForToutiaoSkillMarkdown(), 'utf8');
+}
+
+async function stageWebCrawlForWechatArticalSkill(sourceDir: string, stageDir: string): Promise<void> {
+  for (const relativePath of WEB_CRAWL_FOR_WECHAT_ARTICAL_CLOUD_SKILL_REQUIRED_PATHS) {
+    const sourcePath = resolve(sourceDir, relativePath);
+    if (!(await pathExists(sourcePath))) {
+      throw new Error(`missing required source path: ${relativePath}`);
+    }
+    await cp(sourcePath, resolve(stageDir, relativePath), {recursive: true, force: true});
+  }
+
+  await removeJunkFiles(stageDir);
+  await writeFile(resolve(stageDir, 'SKILL.md'), buildWebCrawlForWechatArticalSkillMarkdown(), 'utf8');
+}
+
 async function stageSkillSource(slug: string, sourceDir: string, stageDir: string): Promise<void> {
   switch (slug) {
     case XIAOHONGSHU_CLOUD_SKILL_SLUG:
@@ -124,6 +156,12 @@ async function stageSkillSource(slug: string, sourceDir: string, stageDir: strin
       return;
     case FRONTEND_SLIDES_CLOUD_SKILL_SLUG:
       await stageFrontendSlidesSkill(sourceDir, stageDir);
+      return;
+    case WEB_CRAWL_FOR_TOUTIAO_CLOUD_SKILL_SLUG:
+      await stageWebCrawlForToutiaoSkill(sourceDir, stageDir);
+      return;
+    case WEB_CRAWL_FOR_WECHAT_ARTICAL_CLOUD_SKILL_SLUG:
+      await stageWebCrawlForWechatArticalSkill(sourceDir, stageDir);
       return;
     default:
       throw new Error(`unsupported external cloud skill slug: ${slug}`);

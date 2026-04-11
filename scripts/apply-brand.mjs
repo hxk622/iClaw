@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
@@ -74,6 +75,70 @@ async function copyFile(sourcePath, targetPath) {
   await fs.copyFile(resolvedSourcePath, targetPath);
 }
 
+async function detectBinaryFileFormat(sourcePath, fallbackExtension = 'png') {
+  const resolvedSourcePath = await resolveExistingFile(sourcePath, path.basename(sourcePath || 'asset'));
+  const buffer = await fs.readFile(resolvedSourcePath);
+  const textProbe = buffer.subarray(0, 256).toString('utf8').trimStart().toLowerCase();
+  if (textProbe.startsWith('<svg') || textProbe.startsWith('<?xml')) {
+    return 'svg';
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer[0] === 0x52 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x46 &&
+    buffer[8] === 0x57 &&
+    buffer[9] === 0x45 &&
+    buffer[10] === 0x42 &&
+    buffer[11] === 0x50
+  ) {
+    return 'webp';
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return 'png';
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'jpg';
+  }
+  if (
+    buffer.length >= 6 &&
+    buffer[0] === 0x47 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x38
+  ) {
+    return 'gif';
+  }
+  const inferred = path.extname(resolvedSourcePath).replace(/^\./, '').trim().toLowerCase();
+  return inferred || fallbackExtension;
+}
+
+async function copyBrowserAsset(sourcePath, targetDir, baseName, fallbackExtension = 'png') {
+  const extension = await detectBinaryFileFormat(sourcePath, fallbackExtension);
+  try {
+    const existingEntries = await fs.readdir(targetDir, { withFileTypes: true });
+    await Promise.all(
+      existingEntries
+        .filter((entry) => entry.isFile() && entry.name.startsWith(`${baseName}.`))
+        .map((entry) => fs.rm(path.join(targetDir, entry.name), { force: true })),
+    );
+  } catch {}
+  const fileName = `${baseName}.${extension}`;
+  await copyFile(sourcePath, path.join(targetDir, fileName));
+  return fileName;
+}
+
 async function copyOptionalFile(sourcePath, targetPath) {
   if (!sourcePath) {
     await fs.rm(targetPath, { force: true });
@@ -134,7 +199,7 @@ async function ensureTauriIcons(params) {
   await copyFile(icnsSourcePath, path.join(outputIconsDir, 'icon.icns'));
 }
 
-function buildBrandTs(brand) {
+function buildBrandTs(brand, assetPaths) {
   return `export const BRAND = ${JSON.stringify(
     {
       brandId: brand.brandId,
@@ -153,8 +218,8 @@ function buildBrandTs(brand) {
         faviconIcoSrc: '/brand/favicon.ico',
         faviconPngSrc: '/brand/favicon.png',
         appleTouchIconSrc: '/brand/apple-touch-icon.png',
-        installerHeroSrc: '/brand/installer-hero.png',
-        assistantAvatarSrc: '/brand/assistant-avatar.png',
+        installerHeroSrc: assetPaths.installerHeroSrc,
+        assistantAvatarSrc: assetPaths.assistantAvatarSrc,
         logoAlt: `${brand.displayName} logo`,
       },
       theme: brand.theme,
@@ -189,7 +254,7 @@ function resolveHomeReleaseVersion(appVersion) {
   return typeof appVersion === 'string' ? appVersion.replace(/\+/g, '.') : '0.0.0';
 }
 
-function buildHomeBrandJs(brand, appVersion) {
+function buildHomeBrandJs(brand, appVersion, assetPaths) {
   return `export const HOME_BRAND = ${JSON.stringify(
     {
       brandId: brand.brandId,
@@ -213,9 +278,9 @@ function buildHomeBrandJs(brand, appVersion) {
       assets: {
         faviconPngSrc: '/brand/favicon.png',
         appleTouchIconSrc: '/brand/apple-touch-icon.png',
-        logoSrc: '/brand/logo.png',
-        installerHeroSrc: '/brand/installer-hero.png',
-        logoMasterSrc: '/brand/logo-master.png',
+        logoSrc: assetPaths.logoSrc,
+        installerHeroSrc: assetPaths.installerHeroSrc,
+        logoMasterSrc: assetPaths.logoMasterSrc,
         heroArtSrc: brand.assets.homeHeroArt ? '/brand/hero-art.svg' : '/hero-art.svg',
         heroLayer1Src: brand.assets.homeHeroLayer1 ? '/brand/hero-layer-1.svg' : '/hero-layer-1.svg',
         heroLayer2Src: brand.assets.homeHeroLayer2 ? '/brand/hero-layer-2.svg' : '/hero-layer-2.svg',
@@ -298,6 +363,13 @@ async function main() {
   const homeHeroLayer2 = brand.assets.homeHeroLayer2 ? resolveBrandPath(brandDir, brand.assets.homeHeroLayer2) : null;
   const homeHeroPhoto = brand.assets.homeHeroPhoto ? resolveBrandPath(brandDir, brand.assets.homeHeroPhoto) : null;
 
+  if (tauriIconsDir) {
+    execFileSync(path.join(rootDir, 'scripts', 'generate-icons.sh'), [brand.brandId], {
+      cwd: rootDir,
+      stdio: 'inherit',
+    });
+  }
+
   await fs.mkdir(outputBrandDir, { recursive: true });
   await fs.mkdir(outputPublicDir, { recursive: true });
   await fs.mkdir(homeWebPublicBrandDir, { recursive: true });
@@ -305,8 +377,8 @@ async function main() {
   await copyFile(faviconIco, path.join(outputBrandDir, 'favicon.ico'));
   await copyFile(faviconPng, path.join(outputBrandDir, 'favicon.png'));
   await copyFile(appleTouchIcon, path.join(outputBrandDir, 'apple-touch-icon.png'));
-  await copyFile(installerHero, path.join(outputBrandDir, 'installer-hero.png'));
-  await copyFile(assistantAvatar, path.join(outputBrandDir, 'assistant-avatar.png'));
+  const installerHeroFileName = await copyBrowserAsset(installerHero, outputBrandDir, 'installer-hero');
+  const assistantAvatarFileName = await copyBrowserAsset(assistantAvatar, outputBrandDir, 'assistant-avatar');
   await copyFile(faviconIco, path.join(outputPublicDir, 'favicon.ico'));
   await copyFile(faviconPng, path.join(outputPublicDir, 'favicon.png'));
   await copyFile(appleTouchIcon, path.join(outputPublicDir, 'apple-touch-icon.png'));
@@ -330,13 +402,20 @@ async function main() {
   );
   await copyFile(faviconPng, path.join(homeWebPublicBrandDir, 'favicon.png'));
   await copyFile(appleTouchIcon, path.join(homeWebPublicBrandDir, 'apple-touch-icon.png'));
-  await copyFile(homeLogo, path.join(homeWebPublicBrandDir, 'logo.png'));
-  await copyFile(installerHero, path.join(homeWebPublicBrandDir, 'installer-hero.png'));
-  await copyFile(logoMaster, path.join(homeWebPublicBrandDir, 'logo-master.png'));
+  const homeLogoFileName = await copyBrowserAsset(homeLogo, homeWebPublicBrandDir, 'logo');
+  await copyBrowserAsset(installerHero, homeWebPublicBrandDir, 'installer-hero');
+  const logoMasterFileName = await copyBrowserAsset(logoMaster, homeWebPublicBrandDir, 'logo-master');
   await copyOptionalFile(homeHeroArt, path.join(homeWebPublicBrandDir, 'hero-art.svg'));
   await copyOptionalFile(homeHeroLayer1, path.join(homeWebPublicBrandDir, 'hero-layer-1.svg'));
   await copyOptionalFile(homeHeroLayer2, path.join(homeWebPublicBrandDir, 'hero-layer-2.svg'));
   await copyOptionalFile(homeHeroPhoto, path.join(homeWebPublicBrandDir, 'hero-photo.jpg'));
+
+  const brandAssetPaths = {
+    installerHeroSrc: `/brand/${installerHeroFileName}`,
+    assistantAvatarSrc: `/brand/${assistantAvatarFileName}`,
+    logoSrc: `/brand/${homeLogoFileName}`,
+    logoMasterSrc: `/brand/${logoMasterFileName}`,
+  };
 
   const tauriConfig = JSON.parse(await fs.readFile(tauriTemplatePath, 'utf8'));
   tauriConfig.productName = brand.productName;
@@ -401,8 +480,8 @@ async function main() {
     )}\n`,
     'utf8',
   );
-  await fs.writeFile(brandGeneratedTsPath, buildBrandTs(brand), 'utf8');
-  await fs.writeFile(homeWebBrandGeneratedJsPath, buildHomeBrandJs(brand, appVersion), 'utf8');
+  await fs.writeFile(brandGeneratedTsPath, buildBrandTs(brand, brandAssetPaths), 'utf8');
+  await fs.writeFile(homeWebBrandGeneratedJsPath, buildHomeBrandJs(brand, appVersion, brandAssetPaths), 'utf8');
 
   process.stdout.write(`[brand] applied ${brand.brandId}\n`);
 }

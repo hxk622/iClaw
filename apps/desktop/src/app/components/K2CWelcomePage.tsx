@@ -43,7 +43,7 @@ const DEFAULT_PROFILE: WelcomeProfile = {
   slogan: '打开就会用的 AI 助理',
   avatarUrl: BRAND.assets.assistantAvatarSrc || BRAND.assets.faviconPngSrc || '/brand/favicon.png',
   primaryColor: '#C4975F',
-  backgroundImageUrl: '/brand/installer-hero.png',
+  backgroundImageUrl: BRAND.assets.installerHeroSrc || '/brand/installer-hero.png',
   description:
     '我会帮你查资料、写内容、整理信息、拆解任务，把复杂问题变成可以直接使用的结果。',
   expertiseAreas: ['通用问答', '内容创作', '信息整理', '任务执行'],

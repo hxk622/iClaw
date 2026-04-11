@@ -55,3 +55,4 @@ docs/.obsidian/
 config/*.local.json
 .codex/
 docs/copilot/
+.omx/

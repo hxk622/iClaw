@@ -41,6 +41,7 @@ struct SidecarState {
 
 struct DesktopUpdateState {
     pending: Mutex<Option<tauri_plugin_updater::Update>>,
+    stop_sidecar_on_exit: Mutex<bool>,
 }
 
 const AUTH_SERVICE: &str = match option_env!("ICLAW_AUTH_SERVICE") {
@@ -85,6 +86,20 @@ struct OemRuntimeSnapshot {
     brand_id: String,
     published_version: u64,
     config: serde_json::Value,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct PersistedSidecarState {
+    pid: Option<u32>,
+    port: u16,
+    brand_id: String,
+    app_version: String,
+    runtime_published_version: u64,
+    runtime_config_sha256: String,
+    sidecar_args: String,
+    runtime_source: String,
+    updated_at: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -4563,6 +4578,23 @@ fn port_listener_pids(port: u16) -> Vec<u32> {
         .collect()
 }
 
+fn managed_listener_pids(app: &AppHandle, ports: &[u16]) -> Vec<u32> {
+    let mut pids = Vec::new();
+    for port in ports {
+        for pid in port_listener_pids(*port) {
+            if pids.contains(&pid) {
+                continue;
+            }
+            if let Some(process) = inspect_process(pid) {
+                if process_is_managed_local_service(&process, app) {
+                    pids.push(process.pid);
+                }
+            }
+        }
+    }
+    pids
+}
+
 fn inspect_process(pid: u32) -> Option<ListeningProcess> {
     let command_output = Command::new("ps")
         .args(["-p", &pid.to_string(), "-o", "command="])
@@ -4625,21 +4657,7 @@ fn terminate_pid(pid: u32) -> bool {
 }
 
 fn reclaim_managed_local_service_ports(app: &AppHandle) {
-    let mut pids = Vec::new();
-
-    for port in listen_port_targets() {
-        for pid in port_listener_pids(port) {
-            if pids.contains(&pid) {
-                continue;
-            }
-            if let Some(process) = inspect_process(pid) {
-                if process_is_managed_local_service(&process, app) {
-                    pids.push(process.pid);
-                }
-            }
-        }
-    }
-
+    let pids = managed_listener_pids(app, &listen_port_targets());
     if pids.is_empty() {
         return;
     }
@@ -4654,6 +4672,42 @@ fn reclaim_managed_local_service_ports(app: &AppHandle) {
         }
         std::thread::sleep(Duration::from_millis(150));
     }
+    let _ = clear_persisted_sidecar_state(app);
+}
+
+fn stop_sidecar_internal(
+    app: &AppHandle,
+    state: &SidecarState,
+) -> Result<bool, String> {
+    let mut stopped = false;
+    let mut child_guard = state
+        .child
+        .lock()
+        .map_err(|_| String::from("failed to lock sidecar state"))?;
+
+    if let Some(mut child) = child_guard.take() {
+        let _ = child.kill();
+        stopped = true;
+    }
+
+    drop(child_guard);
+
+    let pids = managed_listener_pids(app, &listen_port_targets());
+    if !pids.is_empty() {
+        for pid in pids {
+            let _ = terminate_pid(pid);
+            stopped = true;
+        }
+        for _ in 0..20 {
+            if detect_local_service_port_conflicts().is_empty() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(150));
+        }
+    }
+
+    clear_persisted_sidecar_state(app)?;
+    Ok(stopped)
 }
 
 fn runtime_config_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -4710,6 +4764,93 @@ fn desktop_client_config_path(app: &AppHandle) -> Result<PathBuf, String> {
             .map_err(|e| format!("failed to create desktop client config dir: {e}"))?;
     }
     Ok(path)
+}
+
+fn sidecar_state_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = app_data_base_dir(app)?
+        .join("config")
+        .join("sidecar-state.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create sidecar state dir: {e}"))?;
+    }
+    Ok(path)
+}
+
+fn current_app_version() -> String {
+    env!("CARGO_PKG_VERSION").trim().to_string()
+}
+
+fn build_expected_sidecar_state(
+    app: &AppHandle,
+    runtime_source: &str,
+    args: &[String],
+    pid: Option<u32>,
+) -> Result<PersistedSidecarState, String> {
+    let snapshot = load_oem_runtime_snapshot_internal(app)?.unwrap_or_default();
+    let runtime_config_sha256 = serde_json::to_vec(&snapshot.config)
+        .map(|bytes| sha256_hex(&bytes))
+        .map_err(|e| format!("failed to serialize OEM runtime snapshot config: {e}"))?;
+    let brand_id = if snapshot.brand_id.trim().is_empty() {
+        DESKTOP_BRAND_ID.trim().to_string()
+    } else {
+        snapshot.brand_id.trim().to_string()
+    };
+    Ok(PersistedSidecarState {
+        pid,
+        port: configured_sidecar_port(),
+        brand_id,
+        app_version: current_app_version(),
+        runtime_published_version: snapshot.published_version,
+        runtime_config_sha256,
+        sidecar_args: args.join(" "),
+        runtime_source: runtime_source.trim().to_string(),
+        updated_at: chrono_like_timestamp(),
+    })
+}
+
+fn load_persisted_sidecar_state(app: &AppHandle) -> Result<Option<PersistedSidecarState>, String> {
+    let path = sidecar_state_path(app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path)
+        .map_err(|e| format!("failed to read sidecar state {}: {e}", path.to_string_lossy()))?;
+    let parsed = serde_json::from_str::<PersistedSidecarState>(&raw)
+        .map_err(|e| format!("failed to parse sidecar state {}: {e}", path.to_string_lossy()))?;
+    Ok(Some(parsed))
+}
+
+fn save_persisted_sidecar_state(app: &AppHandle, state: &PersistedSidecarState) -> Result<(), String> {
+    let path = sidecar_state_path(app)?;
+    let raw = serde_json::to_string_pretty(state)
+        .map_err(|e| format!("failed to serialize sidecar state: {e}"))?;
+    fs::write(&path, raw)
+        .map_err(|e| format!("failed to write sidecar state {}: {e}", path.to_string_lossy()))?;
+    Ok(())
+}
+
+fn clear_persisted_sidecar_state(app: &AppHandle) -> Result<(), String> {
+    let path = sidecar_state_path(app)?;
+    if !path.exists() {
+        return Ok(());
+    }
+    fs::remove_file(&path)
+        .map_err(|e| format!("failed to remove sidecar state {}: {e}", path.to_string_lossy()))?;
+    Ok(())
+}
+
+fn persisted_sidecar_state_matches(
+    existing: &PersistedSidecarState,
+    expected: &PersistedSidecarState,
+) -> bool {
+    existing.port == expected.port
+        && existing.brand_id == expected.brand_id
+        && existing.app_version == expected.app_version
+        && existing.runtime_published_version == expected.runtime_published_version
+        && existing.runtime_config_sha256 == expected.runtime_config_sha256
+        && existing.sidecar_args == expected.sidecar_args
+        && existing.runtime_source == expected.runtime_source
 }
 
 fn load_desktop_window_state(
@@ -5038,6 +5179,7 @@ fn start_sidecar(
             Ok(Some(_)) => {
                 append_desktop_bootstrap_log(&app, "start_sidecar: previous child already exited");
                 *child_guard = None;
+                let _ = clear_persisted_sidecar_state(&app);
             }
             Ok(None) => {
                 append_desktop_bootstrap_log(&app, "start_sidecar: existing child still running");
@@ -5051,37 +5193,6 @@ fn start_sidecar(
         }
     }
 
-    reclaim_managed_local_service_ports(&app);
-    let occupied_ports = detect_local_service_port_conflicts();
-    if !occupied_ports.is_empty() {
-        if should_reuse_existing_local_sidecar(&occupied_ports) {
-            let port = configured_sidecar_port();
-            if is_existing_local_sidecar_healthy(port) {
-                append_desktop_bootstrap_log(
-                    &app,
-                    &format!("start_sidecar: reusing healthy listener on {port}"),
-                );
-                return Ok(true);
-            }
-            append_desktop_bootstrap_log(
-                &app,
-                &format!("start_sidecar: unhealthy listener detected on {port}"),
-            );
-            return Err(format!(
-                "检测到 {port} 端口已有监听，但该服务未通过 OpenClaw 健康检查。请先关闭占用进程后再启动应用。"
-            ));
-        }
-
-        let ports = occupied_ports
-            .iter()
-            .map(|port| port.to_string())
-            .collect::<Vec<_>>()
-            .join("/");
-        return Err(format!(
-            "检测到本地 OpenClaw API 正在运行，占用了 {ports}。请先关闭 `pnpm dev:api` 或释放该端口后再启动应用。"
-        ));
-    }
-
     let runtime = resolve_runtime_command(&app)?;
     if let Err(error) = sync_current_brand_runtime_snapshot(&app) {
         eprintln!("failed to sync OEM runtime snapshot before sidecar start: {error}");
@@ -5089,6 +5200,68 @@ fn start_sidecar(
             &app,
             &format!("start_sidecar: snapshot sync warning {error}"),
         );
+    }
+    let expected_sidecar_state = build_expected_sidecar_state(&app, &runtime.source, &args, None)?;
+    let mut occupied_ports = detect_local_service_port_conflicts();
+    if !occupied_ports.is_empty() {
+        if should_reuse_existing_local_sidecar(&occupied_ports) {
+            let port = configured_sidecar_port();
+            let managed_pids = managed_listener_pids(&app, &[port]);
+            if is_existing_local_sidecar_healthy(port) {
+                if let Some(existing_state) = load_persisted_sidecar_state(&app)? {
+                    if persisted_sidecar_state_matches(&existing_state, &expected_sidecar_state) {
+                        let mut refreshed_state = expected_sidecar_state.clone();
+                        refreshed_state.pid = managed_pids.first().copied().or(existing_state.pid);
+                        save_persisted_sidecar_state(&app, &refreshed_state)?;
+                        append_desktop_bootstrap_log(
+                            &app,
+                            &format!("start_sidecar: reusing healthy listener on {port}"),
+                        );
+                        return Ok(true);
+                    }
+                    append_desktop_bootstrap_log(
+                        &app,
+                        &format!(
+                            "start_sidecar: existing healthy listener on {port} does not match current app/runtime state"
+                        ),
+                    );
+                }
+                if !managed_pids.is_empty() {
+                    reclaim_managed_local_service_ports(&app);
+                    occupied_ports = detect_local_service_port_conflicts();
+                } else {
+                    return Err(format!(
+                        "检测到 {port} 端口已有健康的 OpenClaw 服务，但它不属于当前应用版本或品牌配置，无法直接复用。"
+                    ));
+                }
+            } else if !managed_pids.is_empty() {
+                append_desktop_bootstrap_log(
+                    &app,
+                    &format!("start_sidecar: reclaiming unhealthy managed listener on {port}"),
+                );
+                reclaim_managed_local_service_ports(&app);
+                occupied_ports = detect_local_service_port_conflicts();
+            } else {
+                append_desktop_bootstrap_log(
+                    &app,
+                    &format!("start_sidecar: unhealthy listener detected on {port}"),
+                );
+                return Err(format!(
+                    "检测到 {port} 端口已有监听，但该服务未通过 OpenClaw 健康检查。请先关闭占用进程后再启动应用。"
+                ));
+            }
+        }
+
+        if !occupied_ports.is_empty() {
+            let ports = occupied_ports
+                .iter()
+                .map(|port| port.to_string())
+                .collect::<Vec<_>>()
+                .join("/");
+            return Err(format!(
+                "检测到本地 OpenClaw API 正在运行，占用了 {ports}。请先关闭 `pnpm dev:api` 或释放该端口后再启动应用。"
+            ));
+        }
     }
     let gateway_token = load_or_create_gateway_token(&app)?;
     append_desktop_bootstrap_log(&app, "start_sidecar: gateway token ready");
@@ -5146,7 +5319,7 @@ fn start_sidecar(
     command.arg(&cli_path);
     command.arg("gateway");
     command.args(&runtime.args_prefix);
-    command.args(args);
+    command.args(&args);
     command.env("OPENCLAW_STATE_DIR", openclaw_state_dir);
     command.env("OPENCLAW_CONFIG_PATH", openclaw_config_path);
     command.env("OPENCLAW_WORK_DIR", paths.work_dir);
@@ -5223,22 +5396,20 @@ fn start_sidecar(
         ));
     }
     *child_guard = Some(child);
+    let persisted_state = build_expected_sidecar_state(
+        &app,
+        &runtime.source,
+        &args,
+        child_guard.as_ref().map(|running| running.id()),
+    )?;
+    save_persisted_sidecar_state(&app, &persisted_state)?;
     append_desktop_bootstrap_log(&app, "start_sidecar: child running");
     Ok(true)
 }
 
 #[tauri::command]
-fn stop_sidecar(state: State<'_, SidecarState>) -> Result<bool, String> {
-    let mut child_guard = state
-        .child
-        .lock()
-        .map_err(|_| String::from("failed to lock sidecar state"))?;
-
-    if let Some(mut child) = child_guard.take() {
-        let _ = child.kill();
-    }
-
-    Ok(true)
+fn stop_sidecar(app: AppHandle, state: State<'_, SidecarState>) -> Result<bool, String> {
+    stop_sidecar_internal(&app, &state)
 }
 
 #[tauri::command]
@@ -6689,6 +6860,12 @@ async fn download_and_install_desktop_update(
         .await
         .map_err(|e| format!("failed to download and install desktop update: {e}"))?;
 
+    let mut stop_flag = state
+        .stop_sidecar_on_exit
+        .lock()
+        .map_err(|_| String::from("failed to lock desktop update sidecar state"))?;
+    *stop_flag = true;
+
     emit_desktop_update_progress(
         &app,
         "ready-to-restart",
@@ -6703,7 +6880,26 @@ async fn download_and_install_desktop_update(
 }
 
 #[tauri::command]
-fn restart_desktop_app(app: AppHandle) {
+fn restart_desktop_app(
+    app: AppHandle,
+    sidecar_state: State<'_, SidecarState>,
+    update_state: State<'_, DesktopUpdateState>,
+) {
+    let should_stop_sidecar = {
+        match update_state.stop_sidecar_on_exit.lock() {
+            Ok(mut stop_flag) => {
+                let should_stop = *stop_flag;
+                if should_stop {
+                    *stop_flag = false;
+                }
+                should_stop
+            }
+            Err(_) => false,
+        }
+    };
+    if should_stop_sidecar {
+        let _ = stop_sidecar_internal(&app, &sidecar_state);
+    }
     app.restart();
 }
 
@@ -6948,6 +7144,7 @@ fn main() {
         })
         .manage(DesktopUpdateState {
             pending: Mutex::new(None),
+            stop_sidecar_on_exit: Mutex::new(false),
         });
     let builder = if desktop_update_pubkey().is_some() {
         builder.plugin(tauri_plugin_updater::Builder::new().build())
@@ -7029,13 +7226,33 @@ fn main() {
             if let Some(window) = app_handle.get_webview_window("main") {
                 persist_desktop_webview_window_state(&window);
             }
+            let should_stop_sidecar = {
+                let update_state = app_handle.state::<DesktopUpdateState>();
+                let next = match update_state.stop_sidecar_on_exit.lock() {
+                    Ok(mut stop_flag) => {
+                        let should_stop = *stop_flag;
+                        if should_stop {
+                            *stop_flag = false;
+                        }
+                        should_stop
+                    }
+                    Err(_) => false,
+                };
+                next
+            };
+            if should_stop_sidecar {
+                let sidecar_state = app_handle.state::<SidecarState>();
+                let _ = stop_sidecar_internal(app_handle, &sidecar_state);
+            }
         }
     });
 }
 
 #[cfg(test)]
 mod tests {
-    use super::parse_memory_cli_json_output;
+    use super::{
+        parse_memory_cli_json_output, persisted_sidecar_state_matches, PersistedSidecarState,
+    };
 
     #[test]
     fn parse_memory_cli_json_output_accepts_plain_json() {
@@ -7080,5 +7297,54 @@ mod tests {
         .expect("disabled memory search banner should still parse trailing json");
 
         assert_eq!(value.as_array().map(|items| items.len()), Some(0));
+    }
+
+    fn sample_sidecar_state() -> PersistedSidecarState {
+        PersistedSidecarState {
+            pid: Some(1234),
+            port: 2126,
+            brand_id: String::from("licaiclaw"),
+            app_version: String::from("1.0.4+202604101315"),
+            runtime_published_version: 3,
+            runtime_config_sha256: String::from("abc123"),
+            sidecar_args: String::from("--port 2126"),
+            runtime_source: String::from("bundled"),
+            updated_at: String::from("[0]"),
+        }
+    }
+
+    #[test]
+    fn persisted_sidecar_state_matches_when_runtime_signature_is_identical() {
+        let existing = sample_sidecar_state();
+        let expected = sample_sidecar_state();
+        assert!(persisted_sidecar_state_matches(&existing, &expected));
+    }
+
+    #[test]
+    fn persisted_sidecar_state_rejects_app_version_mismatch() {
+        let existing = sample_sidecar_state();
+        let mut expected = sample_sidecar_state();
+        expected.app_version = String::from("1.0.5+202604101500");
+        assert!(!persisted_sidecar_state_matches(&existing, &expected));
+    }
+
+    #[test]
+    fn persisted_sidecar_state_rejects_brand_mismatch() {
+        let existing = sample_sidecar_state();
+        let mut expected = sample_sidecar_state();
+        expected.brand_id = String::from("iclaw");
+        assert!(!persisted_sidecar_state_matches(&existing, &expected));
+    }
+
+    #[test]
+    fn persisted_sidecar_state_rejects_runtime_snapshot_mismatch() {
+        let existing = sample_sidecar_state();
+        let mut expected = sample_sidecar_state();
+        expected.runtime_published_version = 4;
+        assert!(!persisted_sidecar_state_matches(&existing, &expected));
+
+        let mut expected_hash = sample_sidecar_state();
+        expected_hash.runtime_config_sha256 = String::from("def456");
+        assert!(!persisted_sidecar_state_matches(&existing, &expected_hash));
     }
 }

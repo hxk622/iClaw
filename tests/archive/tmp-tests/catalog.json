@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-04-06T08:12:17.296Z",
+  "updatedAt": "2026-04-07T14:17:30.253Z",
   "entries": [
     {
       "sourcePath": ".tmp-tests/cdp-assistant-avatar-check.mjs",
@@ -18,7 +18,7 @@
         "tests/archive/tmp-tests/snapshots/ui/cdp-assistant-avatar-check__4110f6cec596.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-assistant-avatar-current-check.mjs",
@@ -36,7 +36,7 @@
         "tests/archive/tmp-tests/snapshots/ui/cdp-assistant-avatar-current-check__7d8673d68454.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-auth-state.mjs",
@@ -54,7 +54,7 @@
         "tests/archive/tmp-tests/snapshots/auth/cdp-auth-state__e47deebd328c.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-auth-welcome-flow-check.mjs",
@@ -72,7 +72,7 @@
         "tests/archive/tmp-tests/snapshots/auth/cdp-auth-welcome-flow-check__995dbd615319.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-billing-footer-check.mjs",
@@ -90,7 +90,7 @@
         "tests/archive/tmp-tests/snapshots/payment/cdp-billing-footer-check__6f9eed2dcc06.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-billing-live-check.mjs",
@@ -108,7 +108,7 @@
         "tests/archive/tmp-tests/snapshots/payment/cdp-billing-live-check__d61175ecb4ac.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-billing-multi-model-check.mjs",
@@ -126,7 +126,7 @@
         "tests/archive/tmp-tests/snapshots/payment/cdp-billing-multi-model-check__db1c996abdec.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-busy-state-inspect.mjs",
@@ -144,7 +144,7 @@
         "tests/archive/tmp-tests/snapshots/misc/cdp-busy-state-inspect__e72375f8cb7f.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-chat-check.mjs",
@@ -162,7 +162,7 @@
         "tests/archive/tmp-tests/snapshots/chat/cdp-chat-check__525a7527a9af.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-chat-surface-probe.mjs",
@@ -180,7 +180,7 @@
         "tests/archive/tmp-tests/snapshots/chat/cdp-chat-surface-probe__0c5ff7a38822.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-console-debug.mjs",
@@ -198,7 +198,7 @@
         "tests/archive/tmp-tests/snapshots/misc/cdp-console-debug__08783acaa89f.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-conversation-switch-inspect.mjs",
@@ -216,7 +216,7 @@
         "tests/archive/tmp-tests/snapshots/chat/cdp-conversation-switch-inspect__966cdc900630.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-list-buttons.mjs",
@@ -234,7 +234,7 @@
         "tests/archive/tmp-tests/snapshots/ui/cdp-list-buttons__5d8dd08e7328.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-list-model-options.mjs",
@@ -252,7 +252,7 @@
         "tests/archive/tmp-tests/snapshots/models/cdp-list-model-options__284d81ad97d1.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-new-chat-repro.mjs",
@@ -270,7 +270,7 @@
         "tests/archive/tmp-tests/snapshots/chat/cdp-new-chat-repro__1e89b2562480.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-page-state-probe.mjs",
@@ -288,7 +288,7 @@
         "tests/archive/tmp-tests/snapshots/misc/cdp-page-state-probe__7831a342e1a7.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-real-tool-card-check.mjs",
@@ -306,7 +306,7 @@
         "tests/archive/tmp-tests/snapshots/ui/cdp-real-tool-card-check__172ef0198554.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-recharge-layout-check.mjs",
@@ -324,7 +324,7 @@
         "tests/archive/tmp-tests/snapshots/payment/cdp-recharge-layout-check__1c2d716941d1.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-scroll-inspect.mjs",
@@ -342,7 +342,7 @@
         "tests/archive/tmp-tests/snapshots/ui/cdp-scroll-inspect__6e8bfd4315d1.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-selection-menu-check.mjs",
@@ -360,7 +360,7 @@
         "tests/archive/tmp-tests/snapshots/ui/cdp-selection-menu-check__2504498609d0.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-send-smoke-current-page.mjs",
@@ -378,7 +378,7 @@
         "tests/archive/tmp-tests/snapshots/chat/cdp-send-smoke-current-page__b5394d6f9164.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-single-track-e2e-v2.mjs",
@@ -396,7 +396,7 @@
         "tests/archive/tmp-tests/snapshots/chat/cdp-single-track-e2e-v2__ff3196afde27.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-single-track-seeded-switch.mjs",
@@ -414,7 +414,7 @@
         "tests/archive/tmp-tests/snapshots/chat/cdp-single-track-seeded-switch__d85a9b9645e2.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-single-track-verify.mjs",
@@ -432,7 +432,7 @@
         "tests/archive/tmp-tests/snapshots/chat/cdp-single-track-verify__a5fcb055a992.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-switch-check.mjs",
@@ -450,7 +450,7 @@
         "tests/archive/tmp-tests/snapshots/chat/cdp-switch-check__959b7052f929.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-switch-render-trace.mjs",
@@ -468,7 +468,7 @@
         "tests/archive/tmp-tests/snapshots/chat/cdp-switch-render-trace__77b77db8223e.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-token-send-check.mjs",
@@ -486,7 +486,7 @@
         "tests/archive/tmp-tests/snapshots/auth/cdp-token-send-check__3613bdc5a8c7.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-tool-card-dark-screenshot.mjs",
@@ -504,7 +504,7 @@
         "tests/archive/tmp-tests/snapshots/ui/cdp-tool-card-dark-screenshot__5a75392f21fd.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-tool-card-dom-probe.mjs",
@@ -522,7 +522,7 @@
         "tests/archive/tmp-tests/snapshots/ui/cdp-tool-card-dom-probe__c2963fa7a52c.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-tool-card-visual-check.mjs",
@@ -540,7 +540,7 @@
         "tests/archive/tmp-tests/snapshots/ui/cdp-tool-card-visual-check__ed815619a891.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-user-scope-chat-persistence-check.mjs",
@@ -558,7 +558,7 @@
         "tests/archive/tmp-tests/snapshots/chat/cdp-user-scope-chat-persistence-check__78b792b67c00.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-visual-inspect.mjs",
@@ -576,7 +576,7 @@
         "tests/archive/tmp-tests/snapshots/ui/cdp-visual-inspect__3d27f76164a8.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/cdp-weather-crash-check.mjs",
@@ -594,7 +594,7 @@
         "tests/archive/tmp-tests/snapshots/models/cdp-weather-crash-check__df02fafec1f1.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/chrome-capture-front-window.applescript",
@@ -612,7 +612,7 @@
         "tests/archive/tmp-tests/snapshots/misc/chrome-capture-front-window__d80cf9313642.applescript"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/chrome-focus-dark-toolcard.applescript",
@@ -630,7 +630,7 @@
         "tests/archive/tmp-tests/snapshots/misc/chrome-focus-dark-toolcard__9e3f7350cf07.applescript"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/dashscope-usage-check.mjs",
@@ -648,7 +648,7 @@
         "tests/archive/tmp-tests/snapshots/chat/dashscope-usage-check__289b3f261628.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/iclaw.conf.remote",
@@ -666,7 +666,7 @@
         "tests/archive/tmp-tests/snapshots/misc/iclaw.conf__5f3cabb1d2b2.remote"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/oem-input-composer-e2e.mjs",
@@ -684,7 +684,7 @@
         "tests/archive/tmp-tests/snapshots/oem/oem-input-composer-e2e__de0f1f8bbb6e.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     },
     {
       "sourcePath": ".tmp-tests/oem-menu-catalog-e2e.mjs",
@@ -702,7 +702,7 @@
         "tests/archive/tmp-tests/snapshots/oem/oem-menu-catalog-e2e__525fb6c9c76b.mjs"
       ],
       "createdAt": "2026-04-06T08:11:15.059Z",
-      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+      "lastSeenAt": "2026-04-07T14:17:30.253Z"
     }
   ]
 }

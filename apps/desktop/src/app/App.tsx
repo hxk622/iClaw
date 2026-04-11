@@ -112,6 +112,7 @@ import { syncManagedSkills, type SkillStoreItem } from './lib/skill-store';
 import { readCacheJson, readCacheString, writeCacheJson, writeCacheString } from './lib/persistence/cache-store';
 import { buildStorageKey } from './lib/storage';
 import { useSurfaceCacheManager } from './lib/surface-cache';
+import { resolveSurfaceCacheLimits } from './lib/surface-cache-profile';
 import { buildNotificationCenterItems } from './lib/notification-center';
 import {
   clearAppNotifications,
@@ -216,12 +217,35 @@ interface AuthUser {
   name?: string | null;
   email?: string | null;
   avatar_url?: string | null;
+  avatarRevision?: string | number | null;
   display_name?: string | null;
   role?: 'user' | 'admin' | 'super_admin' | null;
 }
 
 function isUnauthorizedAuthError(error: unknown): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'UNAUTHORIZED');
+}
+
+function resolveAuthErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+
+  const message = error.message.trim();
+  if (!message) {
+    return fallback;
+  }
+
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes('access token') ||
+    normalized.includes('refresh token') ||
+    normalized.includes('provider auth sync')
+  ) {
+    return '登录状态已失效，请重新登录';
+  }
+
+  return message;
 }
 
 function resolveSidecarPort(args: string[]): string {
@@ -984,7 +1008,7 @@ export default function App() {
     writePersistedWorkspaceScene({primaryView});
   }, [primaryView]);
 
-  const syncWorkspaceForUser = async (token: string): Promise<void> => {
+  const syncWorkspaceForUser = useCallback(async (token: string): Promise<void> => {
     if (!IS_TAURI_RUNTIME) return;
 
     const backup = await client.getWorkspaceBackup(token);
@@ -999,7 +1023,7 @@ export default function App() {
     }
 
     await resetIclawWorkspaceToDefaults();
-  };
+  }, [client]);
 
   const syncBrandRuntimeSnapshot = useCallback(async (): Promise<void> => {
     if (brandRuntimeSyncInFlightRef.current) {
@@ -1052,6 +1076,65 @@ export default function App() {
     }
     await clearPortalProviderAuth();
   }, []);
+
+  const syncSessionArtifacts = useCallback(
+    async (
+      token: string,
+      options: {
+        resetWorkspaceOnFailure?: boolean;
+        logContext: string;
+      },
+    ): Promise<void> => {
+      try {
+        await syncWorkspaceForUser(token);
+      } catch (error) {
+        console.error(`[desktop] ${options.logContext}: failed to sync workspace from backup`, error);
+        if (options.resetWorkspaceOnFailure) {
+          await resetIclawWorkspaceToDefaults();
+        }
+      }
+
+      try {
+        await syncManagedProviderAuth();
+      } catch (error) {
+        console.warn(`[desktop] ${options.logContext}: failed to sync managed provider auth`, error);
+        if (isUnauthorizedAuthError(error)) {
+          await clearManagedProviderAuth().catch(() => {});
+        }
+      }
+    },
+    [clearManagedProviderAuth, syncManagedProviderAuth, syncWorkspaceForUser],
+  );
+
+  const finalizeAuthenticatedSession = useCallback(
+    async (
+      tokens: {access_token: string; refresh_token: string},
+      user: AuthUser | null,
+      options: {
+        postAuthSyncContext: string;
+        resetWorkspaceOnFailure?: boolean;
+      },
+    ): Promise<void> => {
+      await writeAuth({
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+      });
+      applyChatPersistenceUserScope(user);
+      setAccessToken(tokens.access_token);
+      setSessionAuthed(true);
+      setCurrentUser(user);
+      setAuthModalOpen(false);
+      if (postAuthView) {
+        setOverlayView(postAuthView);
+        setPostAuthView(null);
+      }
+      void syncSessionArtifacts(tokens.access_token, {
+        resetWorkspaceOnFailure: options.resetWorkspaceOnFailure,
+        logContext: options.postAuthSyncContext,
+      });
+    },
+    [postAuthView, syncSessionArtifacts],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -1146,29 +1229,6 @@ export default function App() {
       markBootstrapReady();
     }, AUTH_BOOTSTRAP_TIMEOUT_MS);
 
-    const syncSessionArtifacts = async (
-      token: string,
-      options: {
-        resetWorkspaceOnFailure?: boolean;
-        logContext: string;
-      },
-    ): Promise<void> => {
-      try {
-        await syncWorkspaceForUser(token);
-      } catch (error) {
-        console.error(`[desktop] ${options.logContext}: failed to sync workspace from backup`, error);
-        if (options.resetWorkspaceOnFailure) {
-          await resetIclawWorkspaceToDefaults();
-        }
-      }
-
-      try {
-        await syncManagedProviderAuth();
-      } catch (error) {
-        console.warn(`[desktop] ${options.logContext}: failed to sync managed provider auth`, error);
-      }
-    };
-
     const bootAuth = async () => {
       try {
         const auth = await readAuth();
@@ -1257,32 +1317,21 @@ export default function App() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [client]);
+  }, [client, clearManagedProviderAuth, syncSessionArtifacts]);
 
   const handleLogin = async (input: { identifier: string; password: string }) => {
     setAuthLoading(true);
     setAuthError(null);
     try {
       const data = IS_TAURI_RUNTIME ? await desktopLogin(input) : await client.login(input);
-      await syncWorkspaceForUser(data.tokens.access_token);
-      await writeAuth({
-        accessToken: data.tokens.access_token,
-        refreshToken: data.tokens.refresh_token,
+      await finalizeAuthenticatedSession(data.tokens, (data.user as AuthUser) || null, {
+        postAuthSyncContext: 'login session sync',
+        resetWorkspaceOnFailure: true,
       });
-      await syncManagedProviderAuth();
-      applyChatPersistenceUserScope((data.user as AuthUser) || null);
-      setAccessToken(data.tokens.access_token);
-      setSessionAuthed(true);
-      setCurrentUser((data.user as AuthUser) || null);
-      setAuthModalOpen(false);
-      if (postAuthView) {
-        setOverlayView(postAuthView);
-        setPostAuthView(null);
-      }
     } catch (e) {
       void clearAuth();
       void clearManagedProviderAuth();
-      setAuthError(e instanceof Error ? e.message : '登录失败');
+      setAuthError(resolveAuthErrorMessage(e, '登录失败'));
     } finally {
       setAuthLoading(false);
     }
@@ -1293,25 +1342,14 @@ export default function App() {
     setAuthError(null);
     try {
       const data = await client.register(input);
-      await syncWorkspaceForUser(data.tokens.access_token);
-      await writeAuth({
-        accessToken: data.tokens.access_token,
-        refreshToken: data.tokens.refresh_token,
+      await finalizeAuthenticatedSession(data.tokens, (data.user as AuthUser) || null, {
+        postAuthSyncContext: 'register session sync',
+        resetWorkspaceOnFailure: true,
       });
-      await syncManagedProviderAuth();
-      applyChatPersistenceUserScope((data.user as AuthUser) || null);
-      setAccessToken(data.tokens.access_token);
-      setSessionAuthed(true);
-      setCurrentUser((data.user as AuthUser) || null);
-      setAuthModalOpen(false);
-      if (postAuthView) {
-        setOverlayView(postAuthView);
-        setPostAuthView(null);
-      }
     } catch (e) {
       void clearAuth();
       void clearManagedProviderAuth();
-      setAuthError(e instanceof Error ? e.message : '注册失败');
+      setAuthError(resolveAuthErrorMessage(e, '注册失败'));
     } finally {
       setAuthLoading(false);
     }
@@ -1328,23 +1366,12 @@ export default function App() {
 
       const code = await openOAuthPopup(oauthUrl, `${provider}-login`);
       const data = provider === 'wechat' ? await client.wechatLogin({ code }) : await client.googleLogin({ code });
-      await syncWorkspaceForUser(data.tokens.access_token);
-      await writeAuth({
-        accessToken: data.tokens.access_token,
-        refreshToken: data.tokens.refresh_token,
+      await finalizeAuthenticatedSession(data.tokens, (data.user as AuthUser) || null, {
+        postAuthSyncContext: `${provider} session sync`,
+        resetWorkspaceOnFailure: true,
       });
-      await syncManagedProviderAuth();
-      applyChatPersistenceUserScope((data.user as AuthUser) || null);
-      setAccessToken(data.tokens.access_token);
-      setSessionAuthed(true);
-      setCurrentUser((data.user as AuthUser) || null);
-      setAuthModalOpen(false);
-      if (postAuthView) {
-        setOverlayView(postAuthView);
-        setPostAuthView(null);
-      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : '社交登录失败';
+      const message = resolveAuthErrorMessage(error, '社交登录失败');
       if (message !== '授权已取消') {
         void clearAuth();
         void clearManagedProviderAuth();
@@ -1944,7 +1971,16 @@ function AuthedView({
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
   const appNotifications = useAppNotifications();
-  const surfaceCache = useSurfaceCacheManager();
+  const surfaceCacheLimits = useMemo(
+    () =>
+      resolveSurfaceCacheLimits({
+        isTauriRuntime: IS_TAURI_RUNTIME,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+        platform: typeof navigator !== 'undefined' ? navigator.platform : null,
+      }),
+    [],
+  );
+  const surfaceCache = useSurfaceCacheManager(surfaceCacheLimits);
   const {
     ensureMounted: ensureSurfaceMounted,
     ensureVisible: ensureSurfaceVisible,

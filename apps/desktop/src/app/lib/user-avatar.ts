@@ -7,6 +7,8 @@ export type AppUserAvatarSource = {
   avatar_url?: string | null;
   avatar?: string | null;
   avatarUrl?: string | null;
+  avatar_revision?: string | number | null;
+  avatarRevision?: string | number | null;
 } | null;
 
 function resolveUserLabel(user: AppUserAvatarSource, fallback = 'i'): string {
@@ -35,7 +37,18 @@ export function resolveUserAvatarUrl(user: AppUserAvatarSource): string | null {
   if (!user) {
     return null;
   }
-  return user.avatar_url || user.avatarUrl || user.avatar || null;
+  const rawUrl = user.avatar_url || user.avatarUrl || user.avatar || null;
+  if (!rawUrl) {
+    return null;
+  }
+
+  const revision = user.avatar_revision ?? user.avatarRevision;
+  if (revision === null || revision === undefined || revision === '') {
+    return rawUrl;
+  }
+
+  const separator = rawUrl.includes('?') ? '&' : '?';
+  return `${rawUrl}${separator}v=${encodeURIComponent(String(revision))}`;
 }
 
 export function buildGeneratedUserAvatarDataUrl(user: AppUserAvatarSource, fallback = 'i'): string {

@@ -19,6 +19,7 @@ type AuthUser = {
   avatar_url?: string | null;
   avatarUrl?: string | null;
   avatar?: string | null;
+  avatarRevision?: string | number | null;
 };
 
 type LinkedAccount = {
@@ -254,9 +255,11 @@ export function AccountPanel({
         removeAvatar,
       })) as AuthUser;
       const latestProfile = ((await client.me(token).catch(() => null)) as AuthUser | null) || updated;
+      const avatarChanged = Boolean(avatarDataBase64) || removeAvatar;
       onUserUpdated({
         ...(user || {}),
         ...latestProfile,
+        avatarRevision: avatarChanged ? Date.now() : latestProfile.avatarRevision ?? user?.avatarRevision ?? null,
       });
       setAvatarPreview(resolveUserAvatarUrl(latestProfile));
       setAvatarDataBase64(null);

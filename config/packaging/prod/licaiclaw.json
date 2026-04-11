@@ -26,7 +26,7 @@
     "appleTouchIcon": "services/control-plane/assets/licaiclaw/apple-touch-icon.png",
     "installerHero": "services/control-plane/assets/licaiclaw/installer-hero.png",
     "tauriIconsDir": "services/control-plane/assets/licaiclaw/tauri-icons",
-    "logoMaster": "services/control-plane/assets/licaiclaw/logo-master.jpg",
+    "logoMaster": "services/control-plane/assets/licaiclaw/logo-master.png",
     "homeLogo": "services/control-plane/assets/licaiclaw/home-logo.jpg",
     "homeHeroArt": null,
     "homeHeroLayer1": null,

@@ -9,8 +9,9 @@ The correct product model is:
 - `task` = task center entry shown to the user
 - `conversation` = user-visible continuous chat
 - `runtime session` = OpenClaw execution thread, can rotate over time
+- `active agent` = current native agent handling this conversation at this point in time
 
-One conversation may span multiple runtime sessions through handoff.
+One conversation may span multiple runtime sessions through handoff, and those handoffs may also change the active native agent.
 
 ## Design Principles
 
@@ -36,6 +37,7 @@ One conversation may span multiple runtime sessions through handoff.
 - `conversation.id`
 - `conversation.kind`
 - `conversation.title`
+- `conversation.active_agent_id`
 - `conversation.active_session_key`
 - `conversation.created_at`
 - `conversation.updated_at`
@@ -52,6 +54,8 @@ One conversation may span multiple runtime sessions through handoff.
 ### Conversation Handoff
 
 - `conversation_id`
+- `from_agent_id`
+- `to_agent_id`
 - `from_session_key`
 - `to_session_key`
 - `reason`
@@ -65,6 +69,7 @@ One conversation may span multiple runtime sessions through handoff.
 - User enters a chat view.
 - UI binds to one `conversationId`.
 - Conversation points to one active runtime session.
+- Conversation also points to one active native agent.
 
 ### Pressure / Handoff
 
@@ -76,6 +81,26 @@ When session pressure exceeds threshold:
 4. Switch `conversation.active_session_key` to the new session.
 5. UI continues rendering the same conversation thread.
 
+### Agent Handoff
+
+When the user switches from expert/agent A to expert/agent B inside the same chat window:
+
+1. Keep the current `conversationId`.
+2. Preserve the visible thread history.
+3. Switch `conversation.active_agent_id` from A to B.
+4. Switch `conversation.active_session_key` to B's native session key.
+5. Write a handoff record with:
+   - `from_agent_id`
+   - `to_agent_id`
+   - `from_session_key`
+   - `to_session_key`
+   - `reason`
+   - optional continuation summary
+6. The new agent receives:
+   - shared conversation history
+   - handoff summary
+   - its own private long-term memory
+
 ## UI Rules
 
 - Chat window remains the same.
@@ -83,6 +108,8 @@ When session pressure exceeds threshold:
 - Task center entry remains the same.
 - Historical messages must be rendered as one continuous thread for the conversation.
 - Session boundaries are internal implementation detail unless explicitly exposed for debugging.
+- Agent switch must not force the user into a blank chat.
+- The user-visible conversation continues even when the runtime agent changes.
 
 ## Current Local Rollout
 
@@ -106,6 +133,7 @@ Next server-side steps:
 3. Add `chat_conversation_handoffs`
 4. Persist task-to-conversation relationship in backend APIs
 5. Expose conversation aggregate history instead of only per-session history
+6. Persist conversation active agent and agent handoff records
 
 ## Non-Goals
 

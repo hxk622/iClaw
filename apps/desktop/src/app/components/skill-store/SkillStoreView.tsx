@@ -447,7 +447,8 @@ function SkillCard({
         'relative flex h-full flex-col overflow-hidden rounded-lg border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]',
         skill.featured &&
           'border-[rgba(201,169,97,0.24)] bg-[linear-gradient(180deg,rgba(255,251,242,0.98),rgba(252,251,248,0.96))] dark:bg-[linear-gradient(180deg,rgba(39,31,18,0.42),rgba(24,21,18,0.96))]',
-        !adminMode && 'hover:border-[rgba(201,169,97,0.22)] hover:shadow-[var(--shadow-md)]',
+        !adminMode &&
+          'hover:border-[rgba(201,169,97,0.22)] hover:bg-[color:color-mix(in_srgb,var(--bg-card)_90%,var(--bg-hover))] hover:shadow-[var(--shadow-md)]',
       )}
     >
       {showPreinstalledBadge ? (
