@@ -2820,6 +2820,9 @@ code {
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(255, 253, 249, 0.96), rgba(250, 247, 241, 0.96));
   text-align: left;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-drag: none;
   transition:
     border-color 0.18s ease,
     box-shadow 0.18s ease,
@@ -2827,8 +2830,9 @@ code {
     background-color 0.18s ease;
 }
 
-.menu-assembly-card[draggable='true'] {
-  cursor: grab;
+.menu-assembly-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--highlight) 64%, transparent);
+  outline-offset: 2px;
 }
 
 [data-resolved-theme='dark'] .menu-assembly-card {
@@ -2854,6 +2858,7 @@ code {
 
 .menu-assembly-card.is-dragging {
   opacity: 0.56;
+  cursor: grabbing;
   transform: scale(0.992);
   box-shadow: none;
 }
@@ -2946,6 +2951,7 @@ code {
   align-content: center;
   gap: 4px;
   color: var(--muted);
+  cursor: grab;
 }
 
 .menu-assembly-card__drag span {

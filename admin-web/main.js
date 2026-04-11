@@ -9556,12 +9556,13 @@ function renderMenuAssemblyListCard(buffer, item, note, isActive = false) {
   const group = menuConfig.group || '主体区';
   const effectiveIconKey = menuConfig.iconKey || item.iconKey || item.key;
   return `
-    <button
+    <div
       class="menu-assembly-card${isActive ? ' is-active' : ''}"
-      type="button"
-      draggable="true"
+      role="button"
+      tabindex="0"
       data-action="select-brand-menu"
       data-menu-key="${escapeHtml(item.key)}"
+      aria-pressed="${isActive ? 'true' : 'false'}"
       aria-label="${escapeHtml(`拖动排序或编辑 ${displayName}`)}"
     >
       <span class="menu-assembly-card__icon">${renderIconPreview(effectiveIconKey, 'menu-assembly-card__svg')}</span>
@@ -9573,7 +9574,7 @@ function renderMenuAssemblyListCard(buffer, item, note, isActive = false) {
         <span class="menu-assembly-card__meta">${escapeHtml(`Menu ID: ${item.key}${note ? ` · ${note}` : ''}`)}</span>
         <span class="menu-assembly-card__submeta">${escapeHtml(group)} · ${escapeHtml(visibilityStateLabel(enabled))}</span>
       </span>
-      <span class="menu-assembly-card__drag" aria-hidden="true">
+      <span class="menu-assembly-card__drag" data-menu-drag-handle="true" aria-hidden="true" title="拖动排序">
         <span></span>
         <span></span>
         <span></span>
@@ -9581,7 +9582,7 @@ function renderMenuAssemblyListCard(buffer, item, note, isActive = false) {
         <span></span>
         <span></span>
       </span>
-    </button>
+    </div>
   `;
 }
 
@@ -14875,10 +14876,14 @@ let customSelectListenersBound = false;
 let menuAssemblyListenersBound = false;
 let composerSortableListenersBound = false;
 let shouldResetDashboardContentScroll = false;
+let menuAssemblyClickSuppressedUntil = 0;
 const menuAssemblyDragState = {
   sourceKey: '',
   overKey: '',
   placement: 'before',
+  pointerId: null,
+  startY: 0,
+  dragging: false,
 };
 const composerSortableDragState = {
   kind: '',
@@ -14914,6 +14919,9 @@ function resetMenuAssemblyDragState() {
   menuAssemblyDragState.sourceKey = '';
   menuAssemblyDragState.overKey = '';
   menuAssemblyDragState.placement = 'before';
+  menuAssemblyDragState.pointerId = null;
+  menuAssemblyDragState.startY = 0;
+  menuAssemblyDragState.dragging = false;
   clearMenuAssemblyDragIndicators();
 }
 
@@ -15103,69 +15111,98 @@ function ensureMenuAssemblyListeners() {
   }
   menuAssemblyListenersBound = true;
 
-  document.addEventListener('dragstart', (event) => {
-    const target = event.target;
-    const card = target instanceof Element ? target.closest('.menu-assembly-card[data-menu-key]') : null;
-    if (!(card instanceof HTMLElement)) {
+  document.addEventListener('keydown', (event) => {
+    const target = event.target instanceof Element ? event.target.closest('.menu-assembly-card[data-menu-key][data-action="select-brand-menu"]') : null;
+    if (!(target instanceof HTMLElement)) {
       return;
     }
-    const menuKey = String(card.getAttribute('data-menu-key') || '').trim();
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    event.preventDefault();
+    target.click();
+  });
+
+  document.addEventListener('pointerdown', (event) => {
+    const target = event.target instanceof Element ? event.target.closest('.menu-assembly-card[data-menu-key]') : null;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    if (event.button !== 0) {
+      return;
+    }
+    const menuKey = String(target.getAttribute('data-menu-key') || '').trim();
     if (!menuKey) {
       return;
     }
     menuAssemblyDragState.sourceKey = menuKey;
     menuAssemblyDragState.overKey = '';
     menuAssemblyDragState.placement = 'before';
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', menuKey);
-    }
-    requestAnimationFrame(() => {
-      clearMenuAssemblyDragIndicators();
-      card.classList.add('is-dragging');
-      document.body.classList.add('is-dragging-menu-assembly');
-    });
+    menuAssemblyDragState.pointerId = event.pointerId;
+    menuAssemblyDragState.startY = event.clientY;
+    menuAssemblyDragState.dragging = false;
+    clearMenuAssemblyDragIndicators();
   });
 
-  document.addEventListener('dragover', (event) => {
-    if (!menuAssemblyDragState.sourceKey) {
+  document.addEventListener('pointermove', (event) => {
+    if (!menuAssemblyDragState.sourceKey || menuAssemblyDragState.pointerId !== event.pointerId) {
       return;
     }
-    const target = event.target;
-    const card = target instanceof Element ? target.closest('.menu-assembly-card[data-menu-key]') : null;
-    if (!(card instanceof HTMLElement)) {
+    const sourceCard = app.querySelector(`.menu-assembly-card[data-menu-key="${CSS.escape(menuAssemblyDragState.sourceKey)}"]`);
+    if (!(sourceCard instanceof HTMLElement)) {
+      resetMenuAssemblyDragState();
       return;
     }
-    const targetKey = String(card.getAttribute('data-menu-key') || '').trim();
+    if (!menuAssemblyDragState.dragging) {
+      if (Math.abs(event.clientY - menuAssemblyDragState.startY) < 6) {
+        return;
+      }
+      menuAssemblyDragState.dragging = true;
+      document.body.classList.add('is-dragging-menu-assembly');
+      sourceCard.classList.add('is-dragging');
+    }
+    const hovered = document.elementFromPoint(event.clientX, event.clientY);
+    const targetCard = hovered instanceof Element ? hovered.closest('.menu-assembly-card[data-menu-key]') : null;
+    if (!(targetCard instanceof HTMLElement)) {
+      clearMenuAssemblyDragIndicators();
+      sourceCard.classList.add('is-dragging');
+      document.body.classList.add('is-dragging-menu-assembly');
+      return;
+    }
+    const targetKey = String(targetCard.getAttribute('data-menu-key') || '').trim();
     if (!targetKey || targetKey === menuAssemblyDragState.sourceKey) {
+      clearMenuAssemblyDragIndicators();
+      sourceCard.classList.add('is-dragging');
+      document.body.classList.add('is-dragging-menu-assembly');
       return;
     }
-    event.preventDefault();
-    const rect = card.getBoundingClientRect();
+    const rect = targetCard.getBoundingClientRect();
     const placement = event.clientY >= rect.top + rect.height / 2 ? 'after' : 'before';
     menuAssemblyDragState.overKey = targetKey;
     menuAssemblyDragState.placement = placement;
-    applyMenuAssemblyDropIndicator(card, placement);
+    applyMenuAssemblyDropIndicator(targetCard, placement);
   });
 
-  document.addEventListener('drop', (event) => {
-    if (!menuAssemblyDragState.sourceKey) {
+  document.addEventListener('pointerup', (event) => {
+    if (!menuAssemblyDragState.sourceKey || menuAssemblyDragState.pointerId !== event.pointerId) {
       return;
     }
-    const target = event.target;
-    const card = target instanceof Element ? target.closest('.menu-assembly-card[data-menu-key]') : null;
     const sourceKey = menuAssemblyDragState.sourceKey;
-    const targetKey = card instanceof HTMLElement ? String(card.getAttribute('data-menu-key') || '').trim() : '';
+    const targetKey = menuAssemblyDragState.overKey;
     const placement = menuAssemblyDragState.placement;
-    event.preventDefault();
+    const wasDragging = menuAssemblyDragState.dragging;
     resetMenuAssemblyDragState();
+    if (!wasDragging) {
+      return;
+    }
+    menuAssemblyClickSuppressedUntil = Date.now() + 250;
     if (!targetKey || targetKey === sourceKey) {
       return;
     }
     reorderBrandMenu(sourceKey, targetKey, placement);
   });
 
-  document.addEventListener('dragend', () => {
+  document.addEventListener('pointercancel', () => {
     resetMenuAssemblyDragState();
   });
 }
@@ -16250,6 +16287,9 @@ app.addEventListener('click', async (event) => {
   }
 
   if (action === 'select-brand-menu') {
+    if (Date.now() < menuAssemblyClickSuppressedUntil) {
+      return;
+    }
     captureBrandEditorBuffer();
     state.selectedBrandMenuKey = target.getAttribute('data-menu-key') || '';
     render();
