@@ -1,4 +1,10 @@
-import type { AuthTokens, BrandDetailData, OverviewData } from './adminTypes';
+import type {
+  AuthTokens,
+  BrandDetailData,
+  OverviewData,
+  UserActionAuditRecord,
+  UserActionDiagnosticUploadRecord,
+} from './adminTypes';
 
 export const API_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '').trim().replace(/\/+$/, '');
 export const PRIMARY_PAYMENT_PROVIDER = 'wechat_qr';
@@ -199,6 +205,7 @@ export async function loadOverviewData(): Promise<OverviewData> {
     modelCatalogData,
     modelProviderProfilesData,
     memoryEmbeddingProfilesData,
+    modelLogoPresetsData,
     menuCatalogData,
     composerControlCatalogData,
     composerShortcutCatalogData,
@@ -224,6 +231,7 @@ export async function loadOverviewData(): Promise<OverviewData> {
     apiFetch('/admin/portal/catalog/models', { method: 'GET' }).catch(() => ({ items: [] })),
     apiFetch('/admin/portal/model-provider-profiles', { method: 'GET' }).catch(() => ({ items: [] })),
     apiFetch('/admin/portal/memory-embedding-profiles', { method: 'GET' }).catch(() => ({ items: [] })),
+    apiFetch('/admin/portal/model-logo-presets', { method: 'GET' }).catch(() => ({ items: [] })),
     apiFetch('/admin/portal/catalog/menus', { method: 'GET' }).catch(() => ({ items: [] })),
     apiFetch('/admin/portal/catalog/composer-controls', { method: 'GET' }).catch(() => ({ items: [] })),
     apiFetch('/admin/portal/catalog/composer-shortcuts', { method: 'GET' }).catch(() => ({ items: [] })),
@@ -287,6 +295,7 @@ export async function loadOverviewData(): Promise<OverviewData> {
         ),
         skillCount: toArray<Record<string, unknown>>(detailObject.skillBindings).filter((entry) => entry.enabled !== false).length,
         mcpCount: toArray<Record<string, unknown>>(detailObject.mcpBindings).filter((entry) => entry.enabled !== false).length,
+        config: asObject(item.config),
       }));
     })
     .filter((item) => item.version)
@@ -400,6 +409,13 @@ export async function loadOverviewData(): Promise<OverviewData> {
     mode: stringValue(item.mode || 'inherit_platform'),
     activeProfileId: stringValue(item.active_profile_id || item.activeProfileId),
   }));
+  const modelLogoPresets = toArray<Record<string, unknown>>(asObject(modelLogoPresetsData).items).map((item) => ({
+    presetKey: stringValue(item.presetKey || item.preset_key),
+    label: stringValue(item.label || item.presetKey || item.preset_key),
+    fileName: stringValue(item.fileName || item.file_name),
+    contentType: stringValue(item.contentType || item.content_type || 'image/png'),
+    url: stringValue(item.url),
+  }));
 
   const paymentOrders = toArray<Record<string, unknown>>(asObject(paymentOrdersData).items).map((item) => ({
     orderId: stringValue(item.order_id),
@@ -463,11 +479,31 @@ export async function loadOverviewData(): Promise<OverviewData> {
 
   const composerControlCatalog = toArray<Record<string, unknown>>(asObject(composerControlCatalogData).items).map((item) => ({
     controlKey: stringValue(item.controlKey || item.control_key),
+    displayName: stringValue(item.displayName || item.display_name || item.controlKey || item.control_key),
+    controlType: stringValue(item.controlType || item.control_type || 'static'),
+    iconKey: stringValue(item.iconKey || item.icon_key),
+    metadata: asObject(item.metadata),
+    sortOrder: numberValue(item.sortOrder || item.sort_order || 0),
+    options: toArray<Record<string, unknown>>(item.options).map((option, index) => ({
+      optionValue: stringValue(option.optionValue || option.option_value || option.value),
+      label: stringValue(option.label || option.optionValue || option.option_value || option.value),
+      description: stringValue(option.description || option.detail),
+      sortOrder: numberValue(option.sortOrder || option.sort_order || (index + 1) * 10),
+      metadata: asObject(option.metadata),
+      active: option.active !== false,
+    })),
     active: item.active !== false,
   }));
 
   const composerShortcutCatalog = toArray<Record<string, unknown>>(asObject(composerShortcutCatalogData).items).map((item) => ({
     shortcutKey: stringValue(item.shortcutKey || item.shortcut_key),
+    displayName: stringValue(item.displayName || item.display_name || item.shortcutKey || item.shortcut_key),
+    description: stringValue(item.description),
+    template: stringValue(item.template || item.template_text),
+    iconKey: stringValue(item.iconKey || item.icon_key),
+    tone: stringValue(item.tone),
+    metadata: asObject(item.metadata),
+    sortOrder: numberValue(item.sortOrder || item.sort_order || 0),
     active: item.active !== false,
   }));
 
@@ -629,6 +665,10 @@ export async function loadOverviewData(): Promise<OverviewData> {
         name: stringValue(item.name || key),
         description: stringValue(item.description),
         transport: stringValue(item.transport || 'config'),
+        objectKey: stringValue(item.object_key || item.objectKey),
+        command: stringValue(item.command),
+        httpUrl: stringValue(item.http_url || item.httpUrl),
+        envKeys: toArray<string>(item.env_keys || item.envKeys).map((entry) => String(entry || '')),
         active: item.active !== false,
         metadata: asObject(item.metadata),
         connectedBrands: getMcpConnections(key),
@@ -783,6 +823,7 @@ export async function loadOverviewData(): Promise<OverviewData> {
     skillSyncSources,
     skillSyncRuns,
     cloudMcps,
+    modelLogoPresets,
     modelProviderProfiles,
     memoryEmbeddingProfiles,
     modelProviderOverrides,
@@ -827,6 +868,62 @@ export async function loadBrandDetailData(brandId: string): Promise<BrandDetailD
     assets: toArray<Record<string, unknown>>(detailObject.assets),
     versions: toArray<Record<string, unknown>>(detailObject.releases),
     audit: toArray<Record<string, unknown>>(detailObject.audit),
+  };
+}
+
+export async function loadUserActionAuditData(): Promise<{
+  items: UserActionAuditRecord[];
+  uploads: UserActionDiagnosticUploadRecord[];
+}> {
+  const [auditData, uploadData] = await Promise.all([
+    apiFetch('/admin/security/action-audit-events?limit=500', {method: 'GET'}),
+    apiFetch('/admin/security/action-diagnostic-uploads?limit=500', {method: 'GET'}).catch(() => ({items: []})),
+  ]);
+
+  return {
+    items: toArray<Record<string, unknown>>(asObject(auditData).items).map((item) => ({
+      id: stringValue(item.id),
+      intentId: stringValue(item.intent_id || item.intentId),
+      traceId: stringValue(item.trace_id || item.traceId),
+      userId: stringValue(item.user_id || item.userId),
+      deviceId: stringValue(item.device_id || item.deviceId),
+      appName: stringValue(item.app_name || item.appName),
+      agentId: stringValue(item.agent_id || item.agentId),
+      skillSlug: stringValue(item.skill_slug || item.skillSlug),
+      workflowId: stringValue(item.workflow_id || item.workflowId),
+      capability: stringValue(item.capability),
+      riskLevel: (stringValue(item.risk_level || item.riskLevel) || 'medium') as UserActionAuditRecord['riskLevel'],
+      requiresElevation: Boolean(item.requires_elevation ?? item.requiresElevation),
+      decision: (stringValue(item.decision) || 'pending') as UserActionAuditRecord['decision'],
+      stage: (stringValue(item.stage) || 'intent_created') as UserActionAuditRecord['stage'],
+      summary: stringValue(item.summary),
+      reason: stringValue(item.reason),
+      resources: toArray<Record<string, unknown>>(item.resources),
+      matchedPolicyRuleId: stringValue(item.matched_policy_rule_id || item.matchedPolicyRuleId),
+      approvedPlanHash: stringValue(item.approved_plan_hash || item.approvedPlanHash),
+      executedPlanHash: stringValue(item.executed_plan_hash || item.executedPlanHash),
+      commandSnapshotRedacted: stringValue(item.command_snapshot_redacted || item.commandSnapshotRedacted),
+      resultCode: stringValue(item.result_code || item.resultCode),
+      resultSummary: stringValue(item.result_summary || item.resultSummary),
+      durationMs: typeof item.duration_ms === 'number' ? item.duration_ms : typeof item.durationMs === 'number' ? item.durationMs : null,
+      createdAt: stringValue(item.created_at || item.createdAt),
+    })),
+    uploads: toArray<Record<string, unknown>>(asObject(uploadData).items).map((item) => ({
+      id: stringValue(item.id),
+      userId: stringValue(item.user_id || item.userId),
+      deviceId: stringValue(item.device_id || item.deviceId),
+      appName: stringValue(item.app_name || item.appName),
+      uploadBucket: stringValue(item.upload_bucket || item.uploadBucket),
+      uploadKey: stringValue(item.upload_key || item.uploadKey),
+      fileName: stringValue(item.file_name || item.fileName),
+      fileSizeBytes: numberValue(item.file_size_bytes || item.fileSizeBytes),
+      sha256: stringValue(item.sha256),
+      sourceType: stringValue(item.source_type || item.sourceType),
+      containsCustomerLogs: Boolean(item.contains_customer_logs ?? item.containsCustomerLogs),
+      sensitivityLevel: (stringValue(item.sensitivity_level || item.sensitivityLevel) || 'internal') as UserActionDiagnosticUploadRecord['sensitivityLevel'],
+      linkedIntentId: stringValue(item.linked_intent_id || item.linkedIntentId),
+      createdAt: stringValue(item.created_at || item.createdAt),
+    })),
   };
 }
 
@@ -1009,6 +1106,109 @@ export async function saveBrandRechargePackages(
   });
 
   await apiFetch(`/admin/portal/apps/${encodeURIComponent(detail.brand.brandId)}/recharge-packages`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function saveBrandModels(
+  detail: BrandDetailData,
+  items: Array<{
+    modelRef: string;
+    enabled: boolean;
+    recommended: boolean;
+    default: boolean;
+  }>,
+) {
+  const existingBindings = new Map(
+    detail.modelBindings
+      .map((item) => [stringValue(item.modelRef || item.model_ref), item] as const)
+      .filter(([modelRef]) => Boolean(modelRef)),
+  );
+  const payload = items
+    .filter((item) => item.enabled && item.modelRef.trim())
+    .map((item, index) => ({
+      modelRef: item.modelRef.trim(),
+      enabled: true,
+      sortOrder: (index + 1) * 10,
+      config: {
+        ...asObject(asObject(existingBindings.get(item.modelRef))?.config),
+        recommended: item.recommended === true,
+        default: item.default === true,
+      },
+    }));
+
+  await apiFetch(`/admin/portal/apps/${encodeURIComponent(detail.brand.brandId)}/models`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function saveBrandComposerControls(
+  detail: BrandDetailData,
+  items: Array<{
+    controlKey: string;
+    enabled: boolean;
+    displayName: string;
+    allowedOptionValues: string[];
+  }>,
+) {
+  const existingBindings = new Map(
+    detail.composerControlBindings
+      .map((item) => [stringValue(item.controlKey || item.control_key), item] as const)
+      .filter(([controlKey]) => Boolean(controlKey)),
+  );
+  const payload = items.map((item, index) => {
+    const existing = asObject(existingBindings.get(item.controlKey));
+    const existingConfig = asObject(existing.config);
+    return {
+      controlKey: item.controlKey,
+      enabled: item.enabled,
+      sortOrder: (index + 1) * 10,
+      config: {
+        ...existingConfig,
+        display_name: item.displayName.trim(),
+        allowed_option_values: item.allowedOptionValues.map((entry) => entry.trim()).filter(Boolean),
+      },
+    };
+  });
+  await apiFetch(`/admin/portal/apps/${encodeURIComponent(detail.brand.brandId)}/composer-controls`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function saveBrandComposerShortcuts(
+  detail: BrandDetailData,
+  items: Array<{
+    shortcutKey: string;
+    enabled: boolean;
+    displayName: string;
+    description: string;
+    template: string;
+  }>,
+) {
+  const existingBindings = new Map(
+    detail.composerShortcutBindings
+      .map((item) => [stringValue(item.shortcutKey || item.shortcut_key), item] as const)
+      .filter(([shortcutKey]) => Boolean(shortcutKey)),
+  );
+  const payload = items.map((item, index) => {
+    const existing = asObject(existingBindings.get(item.shortcutKey));
+    const existingConfig = asObject(existing.config);
+    return {
+      shortcutKey: item.shortcutKey,
+      enabled: item.enabled,
+      sortOrder: (index + 1) * 10,
+      config: {
+        ...existingConfig,
+        display_name: item.displayName.trim(),
+        description: item.description.trim(),
+        template: item.template,
+      },
+    };
+  });
+  await apiFetch(`/admin/portal/apps/${encodeURIComponent(detail.brand.brandId)}/composer-shortcuts`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
@@ -1550,6 +1750,7 @@ export async function saveCloudMcpCatalogEntry(input: {
   argsText: string;
   httpUrl: string;
   envText: string;
+  metadata?: Record<string, unknown>;
 }) {
   const splitLines = (value: string) =>
     value
@@ -1584,7 +1785,7 @@ export async function saveCloudMcpCatalogEntry(input: {
       args: splitLines(input.argsText),
       http_url: input.httpUrl.trim() || null,
       env: parseEnvText(input.envText),
-      metadata: {},
+      metadata: asObject(input.metadata),
     }),
   });
 }
@@ -1650,6 +1851,7 @@ export async function saveSkillSyncSource(input: {
   sourceKey: string;
   displayName: string;
   sourceUrl: string;
+  config?: Record<string, unknown>;
   active: boolean;
 }) {
   await apiFetch('/admin/skills/sync/sources', {
@@ -1660,10 +1862,24 @@ export async function saveSkillSyncSource(input: {
       source_key: input.sourceKey.trim(),
       display_name: input.displayName.trim(),
       source_url: input.sourceUrl.trim(),
-      config: {},
+      config: asObject(input.config),
       active: input.active,
     }),
   });
+}
+
+export async function fetchCloudSkillsCatalogPage(input: { query?: string; offset?: number; limit?: number }) {
+  const query = stringValue(input.query);
+  const offset = Math.max(0, numberValue(input.offset));
+  const limit = Math.max(1, numberValue(input.limit || 100));
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  if (query) {
+    params.set('query', query);
+  }
+  return await apiFetch(`/admin/skills/catalog?${params.toString()}`, { method: 'GET' });
 }
 
 export async function runSkillSync(sourceId: string) {
@@ -1919,6 +2135,32 @@ export async function saveRuntimeBinding(input: {
   });
 }
 
+export async function importRuntimeBootstrapSource(input: {
+  channel: 'prod' | 'dev';
+  bindScopeType: 'none' | 'platform' | 'app';
+  bindScopeKey?: string;
+}) {
+  const bindScopeType =
+    input.bindScopeType === 'platform'
+      ? 'platform'
+      : input.bindScopeType === 'app'
+        ? 'app'
+        : 'none';
+  return await apiFetch('/admin/portal/runtime-bootstrap-source/import', {
+    method: 'POST',
+    body: JSON.stringify({
+      channel: input.channel === 'dev' ? 'dev' : 'prod',
+      bind_scope_type: bindScopeType === 'none' ? null : bindScopeType,
+      bind_scope_key:
+        bindScopeType === 'app'
+          ? stringValue(input.bindScopeKey)
+          : bindScopeType === 'platform'
+            ? 'platform'
+            : null,
+    }),
+  });
+}
+
 export async function publishDesktopRelease(input: {
   brandId: string;
   channel: string;
@@ -2095,6 +2337,24 @@ export async function saveMemoryEmbeddingProfile(input: {
   return preflight;
 }
 
+export async function testMemoryEmbeddingProfile(input: {
+  providerKey: string;
+  baseUrl: string;
+  apiKey: string;
+  embeddingModel: string;
+}) {
+  return await apiFetch('/admin/portal/memory-embedding-profiles/preflight', {
+    method: 'POST',
+    body: JSON.stringify({
+      providerKey: input.providerKey.trim(),
+      baseUrl: input.baseUrl.trim(),
+      authMode: 'bearer',
+      apiKey: input.apiKey.trim(),
+      embeddingModel: input.embeddingModel.trim(),
+    }),
+  });
+}
+
 export async function restorePlatformModelProvider(appName: string) {
   const normalized = appName.trim();
   if (!normalized) return;
@@ -2134,6 +2394,7 @@ export async function uploadBrandAssetByBrandId(
   input: {
     assetKey: string;
     kind: string;
+    metadata?: Record<string, unknown>;
     file: File;
   },
 ) {
@@ -2156,6 +2417,7 @@ export async function uploadBrandAssetByBrandId(
       file_name: input.file.name,
       file_base64: fileBase64,
       metadata: {
+        ...asObject(input.metadata),
         kind: input.kind.trim(),
       },
     }),
@@ -2167,6 +2429,7 @@ export async function uploadBrandAsset(
   input: {
     assetKey: string;
     kind: string;
+    metadata?: Record<string, unknown>;
     file: File;
   },
 ) {
@@ -2181,6 +2444,29 @@ export async function deleteBrandAsset(brandId: string, assetKey: string) {
   }
   await apiFetch(`/admin/portal/apps/${encodeURIComponent(normalizedBrandId)}/assets/${encodeURIComponent(normalizedAssetKey)}`, {
     method: 'DELETE',
+  });
+}
+
+export async function publishBrandSnapshot(brandId: string) {
+  const normalizedBrandId = brandId.trim();
+  if (!normalizedBrandId) {
+    throw new Error('缺少品牌标识');
+  }
+  await apiFetch(`/admin/portal/apps/${encodeURIComponent(normalizedBrandId)}/publish`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function restoreBrandVersion(brandId: string, version: string) {
+  const normalizedBrandId = brandId.trim();
+  const normalizedVersion = version.trim();
+  if (!normalizedBrandId || !normalizedVersion) {
+    throw new Error('缺少品牌或版本信息');
+  }
+  await apiFetch(`/admin/portal/apps/${encodeURIComponent(normalizedBrandId)}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({ version: normalizedVersion }),
   });
 }
 
@@ -2398,6 +2684,13 @@ export async function deleteRechargePackageCatalogEntry(packageId: string) {
   if (!normalized) return;
   await apiFetch(`/admin/portal/catalog/recharge-packages/${encodeURIComponent(normalized)}`, {
     method: 'DELETE',
+  });
+}
+
+export async function restoreRecommendedRechargePackages() {
+  return await apiFetch('/admin/portal/catalog/recharge-packages/restore-recommended', {
+    method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 

@@ -11,6 +11,7 @@ export type AdminRoute =
   | 'overview'
   | 'brands'
   | 'brand-detail'
+  | 'user-action-audit'
   | 'agent-center'
   | 'skill-center'
   | 'mcp-center'
@@ -85,6 +86,7 @@ export type OverviewData = {
     surfaces: string[];
     skillCount: number;
     mcpCount: number;
+    config: Record<string, unknown>;
   }>;
   audit: Array<{
     id: string;
@@ -224,6 +226,13 @@ export type OverviewData = {
     enabled: boolean;
     metadata: Record<string, unknown>;
   }>;
+  modelLogoPresets: Array<{
+    presetKey: string;
+    label: string;
+    fileName: string;
+    contentType: string;
+    url: string;
+  }>;
   modelProviderProfiles: Array<{
     id: string;
     scopeType: string;
@@ -280,6 +289,10 @@ export type OverviewData = {
     name: string;
     description: string;
     transport: string;
+    objectKey?: string;
+    command?: string;
+    httpUrl?: string;
+    envKeys?: string[];
     active: boolean;
     metadata?: Record<string, unknown>;
     connectedBrands: Array<{ brandId: string; displayName: string }>;
@@ -326,10 +339,30 @@ export type OverviewData = {
   }>;
   composerControlCatalog: Array<{
     controlKey: string;
+    displayName: string;
+    controlType: string;
+    iconKey: string;
+    metadata: Record<string, unknown>;
+    sortOrder: number;
+    options: Array<{
+      optionValue: string;
+      label: string;
+      description: string;
+      sortOrder: number;
+      metadata: Record<string, unknown>;
+      active: boolean;
+    }>;
     active: boolean;
   }>;
   composerShortcutCatalog: Array<{
     shortcutKey: string;
+    displayName: string;
+    description: string;
+    template: string;
+    iconKey: string;
+    tone: string;
+    metadata: Record<string, unknown>;
+    sortOrder: number;
     active: boolean;
   }>;
   runtimeReleases: Array<{
@@ -480,6 +513,59 @@ export type OverviewData = {
     mcpCount: number;
   }>;
   user: Record<string, unknown> | null;
+};
+
+export type UserActionAuditRecord = {
+  id: string;
+  intentId: string;
+  traceId: string;
+  userId: string;
+  deviceId: string;
+  appName: string;
+  agentId: string;
+  skillSlug: string;
+  workflowId: string;
+  capability: string;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  requiresElevation: boolean;
+  decision: 'allow' | 'deny' | 'pending';
+  stage:
+    | 'intent_created'
+    | 'policy_evaluated'
+    | 'approval_requested'
+    | 'approval_granted'
+    | 'approval_denied'
+    | 'plan_mismatch_denied'
+    | 'execution_started'
+    | 'execution_finished';
+  summary: string;
+  reason: string;
+  resources: Array<Record<string, unknown>>;
+  matchedPolicyRuleId: string;
+  approvedPlanHash: string;
+  executedPlanHash: string;
+  commandSnapshotRedacted: string;
+  resultCode: string;
+  resultSummary: string;
+  durationMs: number | null;
+  createdAt: string;
+};
+
+export type UserActionDiagnosticUploadRecord = {
+  id: string;
+  userId: string;
+  deviceId: string;
+  appName: string;
+  uploadBucket: string;
+  uploadKey: string;
+  fileName: string;
+  fileSizeBytes: number;
+  sha256: string;
+  sourceType: string;
+  containsCustomerLogs: boolean;
+  sensitivityLevel: 'customer' | 'internal' | 'redacted';
+  linkedIntentId: string;
+  createdAt: string;
 };
 
 export type BrandDetailData = {

@@ -14,6 +14,7 @@ import {
   deleteRechargePackageCatalogEntry,
   fetchCloudSkillsCatalogPage,
   fetchPaymentOrderDetail,
+  loadUserActionAuditData,
   importRuntimeBootstrapSource,
   loadBrandDetailData,
   loadOverviewData,
@@ -71,6 +72,7 @@ import { CloudMcpPage } from './components/CloudMcpPage';
 import { ModelCenterPage } from './components/ModelCenterPage';
 import { PaymentConfigPage } from './components/PaymentConfigPage';
 import { RechargePackagesPage } from './components/RechargePackagesPage';
+import { UserActionAuditPage } from './components/UserActionAuditPage';
 import {
   actionLabel,
   formatCredits,
@@ -88,6 +90,7 @@ import {
 } from './lib/adminFormat';
 import { applyThemeMode, persistThemeMode, readStoredThemeMode } from './lib/theme';
 import type { AdminRoute, BrandDetailData, LoginState, NavItem, OverviewData, ThemeMode } from './lib/adminTypes';
+import type { UserActionAuditRecord, UserActionDiagnosticUploadRecord } from './lib/adminTypes';
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: '总览' },
@@ -111,6 +114,7 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { id: 'audit-log', label: '审计日志' },
+  { id: 'user-action-audit', label: '用户Action审计' },
 ];
 
 const BRAND_DETAIL_TABS = [
@@ -129,6 +133,63 @@ const BRAND_DETAIL_TABS = [
   { id: 'assets', label: '品牌资源' },
   { id: 'theme', label: '主题样式' },
 ] as const;
+
+function isAdminRoute(value: string): value is AdminRoute {
+  return NAV_ITEMS.some((item) =>
+    item.id === value || item.children?.some((child) => child.id === value),
+  );
+}
+
+function isBrandDetailTab(value: string): value is (typeof BRAND_DETAIL_TABS)[number]['id'] {
+  return BRAND_DETAIL_TABS.some((item) => item.id === value);
+}
+
+function readInitialAdminLocation(): {
+  route: AdminRoute;
+  brandId: string;
+  brandDetailTab: (typeof BRAND_DETAIL_TABS)[number]['id'];
+} {
+  if (typeof window === 'undefined') {
+    return {
+      route: 'overview',
+      brandId: '',
+      brandDetailTab: 'desktop',
+    };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const routeParam = String(params.get('route') || '').trim();
+  const brandParam = String(params.get('brand') || '').trim();
+  const tabParam = String(params.get('tab') || '').trim();
+  return {
+    route: isAdminRoute(routeParam) ? routeParam : 'overview',
+    brandId: brandParam,
+    brandDetailTab: isBrandDetailTab(tabParam) ? tabParam : 'desktop',
+  };
+}
+
+function writeAdminLocation(input: {
+  route: AdminRoute;
+  brandId: string;
+  brandDetailTab: (typeof BRAND_DETAIL_TABS)[number]['id'];
+}) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.set('route', input.route);
+  if (input.route === 'brand-detail' && input.brandId.trim()) {
+    url.searchParams.set('brand', input.brandId.trim());
+    url.searchParams.set('tab', input.brandDetailTab);
+  } else {
+    url.searchParams.delete('brand');
+    url.searchParams.delete('tab');
+  }
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (nextUrl !== currentUrl) {
+    window.history.replaceState(null, '', nextUrl);
+  }
+}
 
 function AdminLogo() {
   return (
@@ -266,12 +327,13 @@ function LoginScreen({
 }
 
 export default function App() {
+  const initialLocation = useMemo(() => readInitialAdminLocation(), []);
   const [view, setView] = useState<LoginState>('booting');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => readStoredThemeMode());
-  const [route, setRoute] = useState<AdminRoute>('overview');
+  const [route, setRoute] = useState<AdminRoute>(initialLocation.route);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [savingCreateBrand, setSavingCreateBrand] = useState(false);
   const [savingAgentCatalog, setSavingAgentCatalog] = useState(false);
@@ -336,8 +398,8 @@ export default function App() {
   const [selectedRuntimeBindingId, setSelectedRuntimeBindingId] = useState('');
   const [savingRuntimeRelease, setSavingRuntimeRelease] = useState(false);
   const [savingRuntimeBinding, setSavingRuntimeBinding] = useState(false);
-  const [selectedBrandId, setSelectedBrandId] = useState('');
-  const [brandDetailTab, setBrandDetailTab] = useState<(typeof BRAND_DETAIL_TABS)[number]['id']>('desktop');
+  const [selectedBrandId, setSelectedBrandId] = useState(initialLocation.brandId);
+  const [brandDetailTab, setBrandDetailTab] = useState<(typeof BRAND_DETAIL_TABS)[number]['id']>(initialLocation.brandDetailTab);
   const [brandDetailDirty, setBrandDetailDirty] = useState(false);
   const [brandDetailLoading, setBrandDetailLoading] = useState(false);
   const [savingBrandBaseInfo, setSavingBrandBaseInfo] = useState(false);
@@ -364,6 +426,9 @@ export default function App() {
   const [auditAction, setAuditAction] = useState('all');
   const [selectedAuditId, setSelectedAuditId] = useState('');
   const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
+  const [userActionAuditLoading, setUserActionAuditLoading] = useState(false);
+  const [userActionAuditItems, setUserActionAuditItems] = useState<UserActionAuditRecord[]>([]);
+  const [userActionDiagnosticUploads, setUserActionDiagnosticUploads] = useState<UserActionDiagnosticUploadRecord[]>([]);
   const hasTokens = useMemo(() => {
     const tokens = loadTokens();
     return Boolean(tokens?.access_token || tokens?.refresh_token);
@@ -373,6 +438,14 @@ export default function App() {
     applyThemeMode(themeMode);
     persistThemeMode(themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    writeAdminLocation({
+      route,
+      brandId: selectedBrandId,
+      brandDetailTab,
+    });
+  }, [brandDetailTab, route, selectedBrandId]);
 
   useEffect(() => {
     const listener = () => {
@@ -385,6 +458,22 @@ export default function App() {
       window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', listener);
     };
   }, []);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => {
+      setNotice('');
+    }, 3200);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  useEffect(() => {
+    if (!error) return;
+    const timer = window.setTimeout(() => {
+      setError('');
+    }, 5200);
+    return () => window.clearTimeout(timer);
+  }, [error]);
 
   useEffect(() => {
     if (!hasTokens) {
@@ -455,6 +544,47 @@ export default function App() {
       brandId: overviewData?.brands?.[0]?.brandId || '',
     }));
   }, [assetUploadDraft.brandId, overviewData?.brands]);
+
+  useEffect(() => {
+    if (route !== 'user-action-audit') {
+      return;
+    }
+    let cancelled = false;
+    setUserActionAuditLoading(true);
+    setError('');
+    void loadUserActionAuditData()
+      .then((data) => {
+        if (cancelled) return;
+        setUserActionAuditItems(data.items);
+        setUserActionDiagnosticUploads(data.uploads);
+      })
+      .catch((loadError) => {
+        if (cancelled) return;
+        setError(loadError instanceof Error ? loadError.message : '用户Action审计加载失败');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setUserActionAuditLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [route]);
+
+  const handleRefreshUserActionAudit = async () => {
+    setUserActionAuditLoading(true);
+    setError('');
+    try {
+      const data = await loadUserActionAuditData();
+      setUserActionAuditItems(data.items);
+      setUserActionDiagnosticUploads(data.uploads);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '用户Action审计加载失败');
+    } finally {
+      setUserActionAuditLoading(false);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -983,9 +1113,9 @@ export default function App() {
     }
   };
 
-  const handlePublishBrand = async () => {
+  const handlePublishBrand = async (options: { force?: boolean } = {}) => {
     if (!brandDetailData) return;
-    if (brandDetailDirty) {
+    if (brandDetailDirty && !options.force) {
       const currentTabLabel = BRAND_DETAIL_TABS.find((item) => item.id === brandDetailTab)?.label || '当前页面';
       setNotice('');
       setError(`${currentTabLabel} 有未保存改动，请先点击当前 tab 内的保存按钮，再发布快照。`);
@@ -2159,6 +2289,88 @@ export default function App() {
     );
   });
   const selectedAudit = filteredAudit.find((item) => item.id === selectedAuditId) || filteredAudit[0] || null;
+  const brandDetailAvailableComposerControls = useMemo(
+    () =>
+      (overviewData?.composerControlCatalog || []).map((item) => ({
+        controlKey: item.controlKey,
+        displayName: item.displayName,
+        controlType: item.controlType,
+        options: item.options.map((option) => ({ optionValue: option.optionValue, label: option.label })),
+      })),
+    [overviewData?.composerControlCatalog],
+  );
+  const brandDetailAvailableComposerShortcuts = useMemo(
+    () =>
+      (overviewData?.composerShortcutCatalog || []).map((item) => ({
+        shortcutKey: item.shortcutKey,
+        displayName: item.displayName,
+        description: item.description,
+        template: item.template,
+        tone: item.tone,
+      })),
+    [overviewData?.composerShortcutCatalog],
+  );
+  const brandDetailAvailableSkills = useMemo(
+    () =>
+      (overviewData?.cloudSkills || []).map((item) => ({
+        slug: item.slug,
+        name: item.name,
+        category: item.publisher || item.originType,
+      })),
+    [overviewData?.cloudSkills],
+  );
+  const brandDetailInheritedPlatformSkills = useMemo(
+    () =>
+      (overviewData?.platformSkills || [])
+        .filter((item) => item.connectedBrands.some((brand) => brand.brandId === selectedBrandId))
+        .map((item) => ({ slug: item.slug, name: item.name })),
+    [overviewData?.platformSkills, selectedBrandId],
+  );
+  const brandDetailAvailableModels = useMemo(
+    () =>
+      (overviewData?.platformModels || []).map((item) => ({
+        ref: item.ref,
+        label: item.label,
+        providerId: item.providerId,
+        modelId: item.modelId,
+      })),
+    [overviewData?.platformModels],
+  );
+  const brandDetailAvailableMcps = useMemo(
+    () =>
+      (overviewData?.cloudMcps || []).map((item) => ({
+        key: item.key,
+        name: item.name,
+        transport: item.transport,
+      })),
+    [overviewData?.cloudMcps],
+  );
+  const brandDetailInheritedPlatformMcps = useMemo(
+    () =>
+      (overviewData?.platformMcps || [])
+        .filter((item) => item.connectedBrands.some((brand) => brand.brandId === selectedBrandId))
+        .map((item) => ({ key: item.key, name: item.name })),
+    [overviewData?.platformMcps, selectedBrandId],
+  );
+  const brandDetailAvailableRechargePackages = useMemo(
+    () =>
+      (overviewData?.rechargeCatalog || []).map((item) => ({
+        packageId: item.packageId,
+        packageName: item.packageName,
+        default: item.default,
+        recommended: item.recommended,
+      })),
+    [overviewData?.rechargeCatalog],
+  );
+  const brandDetailAvailableMenus = useMemo(
+    () =>
+      (overviewData?.menuCatalog || []).map((item) => ({
+        key: item.key,
+        label: item.label,
+        category: item.category,
+      })),
+    [overviewData?.menuCatalog],
+  );
 
   if (view === 'booting' || (view === 'console' && overviewLoading && !overviewData)) {
     return (
@@ -2176,7 +2388,7 @@ export default function App() {
         onLogout={handleLogout}
         banner={
           error || notice ? (
-            <div className="banner-row">
+            <div className="banner-row banner-row--toast">
               {error ? <div className="banner banner--error">{error}</div> : null}
               {notice ? <div className="banner banner--success">{notice}</div> : null}
             </div>
@@ -2206,6 +2418,13 @@ export default function App() {
                   onSave={handleSaveAgentCatalog}
                   onDelete={handleDeleteAgentCatalog}
                 />
+              ) : route === 'user-action-audit' ? (
+                <UserActionAuditPage
+                  items={userActionAuditItems}
+                  uploads={userActionDiagnosticUploads}
+                  loading={userActionAuditLoading}
+                  onRefresh={() => void handleRefreshUserActionAudit()}
+                />
               ) : route === 'brand-detail' ? (
                 <BrandDetailPage
                   detail={brandDetailData}
@@ -2225,21 +2444,10 @@ export default function App() {
                   onSaveHomeWeb={handleSaveBrandHomeWeb}
                   savingInput={savingBrandInput}
                   onSaveInput={handleSaveBrandInput}
-                  availableComposerControls={(overviewData?.composerControlCatalog || []).map((item) => ({
-                    controlKey: item.controlKey,
-                    displayName: item.displayName,
-                    controlType: item.controlType,
-                    options: item.options.map((option) => ({ optionValue: option.optionValue, label: option.label })),
-                  }))}
+                  availableComposerControls={brandDetailAvailableComposerControls}
                   savingComposerControls={savingBrandComposerControls}
                   onSaveComposerControls={handleSaveBrandComposerControls}
-                  availableComposerShortcuts={(overviewData?.composerShortcutCatalog || []).map((item) => ({
-                    shortcutKey: item.shortcutKey,
-                    displayName: item.displayName,
-                    description: item.description,
-                    template: item.template,
-                    tone: item.tone,
-                  }))}
+                  availableComposerShortcuts={brandDetailAvailableComposerShortcuts}
                   savingComposerShortcuts={savingBrandComposerShortcuts}
                   onSaveComposerShortcuts={handleSaveBrandComposerShortcuts}
                   savingSidebar={savingBrandSidebar}
@@ -2248,47 +2456,21 @@ export default function App() {
                   onSaveWelcome={handleSaveBrandWelcome}
                   savingTheme={savingBrandTheme}
                   onSaveTheme={handleSaveBrandTheme}
-                  availableSkills={(overviewData?.cloudSkills || []).map((item) => ({
-                    slug: item.slug,
-                    name: item.name,
-                    category: item.publisher || item.originType,
-                  }))}
-                  inheritedPlatformSkills={(overviewData?.platformSkills || [])
-                    .filter((item) => item.connectedBrands.some((brand) => brand.brandId === selectedBrandId))
-                    .map((item) => ({ slug: item.slug, name: item.name }))}
+                  availableSkills={brandDetailAvailableSkills}
+                  inheritedPlatformSkills={brandDetailInheritedPlatformSkills}
                   savingSkills={savingBrandSkills}
                   onSaveSkills={handleSaveBrandSkills}
-                  availableModels={(overviewData?.platformModels || []).map((item) => ({
-                    ref: item.ref,
-                    label: item.label,
-                    providerId: item.providerId,
-                    modelId: item.modelId,
-                  }))}
+                  availableModels={brandDetailAvailableModels}
                   savingModels={savingBrandModels}
                   onSaveModels={handleSaveBrandModels}
-                  availableMcps={(overviewData?.cloudMcps || []).map((item) => ({
-                    key: item.key,
-                    name: item.name,
-                    transport: item.transport,
-                  }))}
-                  inheritedPlatformMcps={(overviewData?.platformMcps || [])
-                    .filter((item) => item.connectedBrands.some((brand) => brand.brandId === selectedBrandId))
-                    .map((item) => ({ key: item.key, name: item.name }))}
+                  availableMcps={brandDetailAvailableMcps}
+                  inheritedPlatformMcps={brandDetailInheritedPlatformMcps}
                   savingMcps={savingBrandMcps}
                   onSaveMcps={handleSaveBrandMcps}
-                  availableRechargePackages={(overviewData?.rechargeCatalog || []).map((item) => ({
-                    packageId: item.packageId,
-                    packageName: item.packageName,
-                    default: item.default,
-                    recommended: item.recommended,
-                  }))}
+                  availableRechargePackages={brandDetailAvailableRechargePackages}
                   savingRechargePackages={savingBrandRechargePackages}
                   onSaveRechargePackages={handleSaveBrandRechargePackages}
-                  availableMenus={(overviewData?.menuCatalog || []).map((item) => ({
-                    key: item.key,
-                    label: item.label,
-                    category: item.category,
-                  }))}
+                  availableMenus={brandDetailAvailableMenus}
                   savingMenus={savingBrandMenus}
                   onSaveMenus={handleSaveBrandMenus}
                   savingAsset={savingBrandAsset}
@@ -2368,6 +2550,36 @@ export default function App() {
                         <button className="ghost-button" type="button" onClick={() => setCapabilityQuery('')}>重置筛选</button>
                       </div>
                     </section>
+                    <section className="fig-card fig-card--subtle">
+                      <div className="fig-card__head">
+                        <h3>统计区域</h3>
+                        <span>帮助运营快速判断当前平台级 Skill 子集状态</span>
+                      </div>
+                      <div className="fig-meta-cards">
+                        <div className="fig-meta-card"><span>Skill 总数</span><strong>{String(filteredPlatformSkills.length)}</strong></div>
+                        <div className="fig-meta-card"><span>已启用</span><strong>{String(filteredPlatformSkills.filter((item) => item.active).length)}</strong></div>
+                        <div className="fig-meta-card"><span>品牌连接</span><strong>{String(filteredPlatformSkills.reduce((sum, item) => sum + item.connectedBrands.length, 0))}</strong></div>
+                        <div className="fig-meta-card"><span>当前选中</span><strong>{selectedPlatformSkill?.name || '未选择'}</strong></div>
+                      </div>
+                    </section>
+                    <div className="fig-workspace fig-workspace--drawer">
+                      <section className="fig-workspace__list">
+                        <div className="fig-card fig-card--subtle">
+                          <div className="fig-card__head">
+                            <h3>Skill 列表</h3>
+                            <span>列表卡片用于选择当前对象</span>
+                          </div>
+                          <div className="fig-capability-list">
+                            {filteredPlatformSkills.length ? filteredPlatformSkills.map((item) => (
+                              <button key={item.slug} className={`capability-card${selectedPlatformSkill?.slug === item.slug ? ' is-active' : ''}`} type="button" onClick={() => setSelectedPlatformSkillSlug(item.slug)}>
+                                <strong>{item.name}</strong>
+                                <span>{`${item.category || '未分类'} • ${item.connectedBrands.length} 个 OEM 生效`}</span>
+                              </button>
+                            )) : <div className="empty-state">还没有平台预装 Skill。</div>}
+                          </div>
+                        </div>
+                      </section>
+                      <aside className="fig-workspace__drawer">
                     {selectedPlatformSkill ? (
                       <>
                           <div className="fig-card">
@@ -2464,6 +2676,8 @@ export default function App() {
                           </section>
                       </>
                     ) : <div className="fig-card fig-card--detail-empty"><div className="empty-state">还没有平台预装 Skill。</div></div>}
+                      </aside>
+                    </div>
                   </div>
                 </div>
               ) : route === 'mcp-center' ? (
@@ -2535,6 +2749,36 @@ export default function App() {
                         <button className="ghost-button" type="button" onClick={() => setCapabilityQuery('')}>重置筛选</button>
                       </div>
                     </section>
+                    <section className="fig-card fig-card--subtle">
+                      <div className="fig-card__head">
+                        <h3>统计区域</h3>
+                        <span>帮助运营快速判断当前平台级 MCP 子集状态</span>
+                      </div>
+                      <div className="fig-meta-cards">
+                        <div className="fig-meta-card"><span>MCP 总数</span><strong>{String(filteredPlatformMcps.length)}</strong></div>
+                        <div className="fig-meta-card"><span>已启用</span><strong>{String(filteredPlatformMcps.filter((item) => item.active).length)}</strong></div>
+                        <div className="fig-meta-card"><span>品牌连接</span><strong>{String(filteredPlatformMcps.reduce((sum, item) => sum + item.connectedBrands.length, 0))}</strong></div>
+                        <div className="fig-meta-card"><span>当前选中</span><strong>{selectedPlatformMcp?.name || '未选择'}</strong></div>
+                      </div>
+                    </section>
+                    <div className="fig-workspace fig-workspace--drawer">
+                      <section className="fig-workspace__list">
+                        <div className="fig-card fig-card--subtle">
+                          <div className="fig-card__head">
+                            <h3>MCP 列表</h3>
+                            <span>列表卡片用于选择当前对象</span>
+                          </div>
+                          <div className="fig-capability-list">
+                            {filteredPlatformMcps.length ? filteredPlatformMcps.map((item) => (
+                              <button key={item.key} className={`capability-card${selectedPlatformMcp?.key === item.key ? ' is-active' : ''}`} type="button" onClick={() => setSelectedPlatformMcpKey(item.key)}>
+                                <strong>{item.name}</strong>
+                                <span>{`${item.transport} • ${item.connectedBrands.length} 个 OEM 生效`}</span>
+                              </button>
+                            )) : <div className="empty-state">还没有平台级 MCP。</div>}
+                          </div>
+                        </div>
+                      </section>
+                      <aside className="fig-workspace__drawer">
                     {selectedPlatformMcp ? (
                       <>
                           <div className="fig-card">
@@ -2654,6 +2898,8 @@ export default function App() {
                           </section>
                       </>
                     ) : <div className="fig-card fig-card--detail-empty"><div className="empty-state">还没有平台级 MCP。</div></div>}
+                      </aside>
+                    </div>
                   </div>
                 </div>
               ) : route === 'model-center' ? (
@@ -3079,120 +3325,138 @@ export default function App() {
                         <div className="fig-meta-card"><span>当前页</span><strong>{filteredCloudSkills.length ? `${(cloudSkillMeta.offset || 0) + 1}-${(cloudSkillMeta.offset || 0) + filteredCloudSkills.length}` : '0'}</strong></div>
                       </div>
                     </section>
-                    <div className="fig-layout">
-                      <aside className="fig-sidebar">
-                        <section className="fig-card fig-card--subtle">
-                          <div className="fig-card__head">
-                            <h3>同步源</h3>
-                            <span>{String(overviewData?.skillSyncSources.length || 0)} 个</span>
-                          </div>
-                          <div className="fig-capability-list">
-                            {(overviewData?.skillSyncSources || []).length ? (
-                              (overviewData?.skillSyncSources || []).map((item) => (
-                                <button
-                                  key={item.id}
-                                  className={`capability-card${selectedSkillSyncSource?.id === item.id ? ' is-active' : ''}`}
-                                  type="button"
-                                  onClick={() => setSelectedSkillSyncSourceId(item.id)}
-                                >
-                                  <strong>{item.displayName}</strong>
-                                  <span>{`${item.sourceType} • ${item.active ? '启用' : '禁用'}`}</span>
-                                </button>
-                              ))
-                            ) : (
-                              <div className="empty-state">还没有同步源。</div>
-                            )}
-                          </div>
+                    <div className="fig-detail-stack">
+                      <section className="fig-card fig-card--subtle">
+                        <div className="fig-card__head">
+                          <h3>统计区域</h3>
+                          <span>帮助运营快速判断云技能主库当前状态</span>
+                        </div>
+                        <div className="fig-meta-cards">
+                          <div className="fig-meta-card"><span>云技能总数</span><strong>{String(cloudSkillMeta.total || 0)}</strong></div>
+                          <div className="fig-meta-card"><span>同步源</span><strong>{String(overviewData?.skillSyncSources.length || 0)}</strong></div>
+                          <div className="fig-meta-card"><span>当前页技能</span><strong>{String(filteredCloudSkills.length)}</strong></div>
+                          <div className="fig-meta-card"><span>当前选中</span><strong>{selectedCloudSkill?.name || '未选择'}</strong></div>
+                        </div>
+                      </section>
+                      <section className="fig-card fig-card--subtle">
+                        <div className="fig-card__head">
+                          <h3>当前对象</h3>
+                          <span>当前页直接切换同步源和云技能对象。</span>
+                        </div>
+                        <div className="form-grid form-grid--two">
+                          <label className="field">
+                            <span>当前同步源</span>
+                            <select className="field-select" value={selectedSkillSyncSource?.id || ''} onChange={(event) => setSelectedSkillSyncSourceId(event.target.value)}>
+                              {(overviewData?.skillSyncSources || []).map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.displayName} · {item.sourceType}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="field">
+                            <span>当前云技能</span>
+                            <select className="field-select" value={selectedCloudSkill?.slug || ''} onChange={(event) => setSelectedCloudSkillSlug(event.target.value)}>
+                              {filteredCloudSkills.map((item) => (
+                                <option key={item.slug} value={item.slug}>
+                                  {item.name} · v{item.version}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      </section>
+                      <div className="fig-workspace fig-workspace--drawer">
+                        <section className="fig-workspace__list">
+                          <section className="fig-card fig-card--subtle">
+                            <div className="fig-card__head">
+                              <h3>同步源编辑</h3>
+                              <span>列表卡片切对象，当前页维护同步源主数据。</span>
+                            </div>
+                            <div className="form-grid form-grid--two">
+                              <label className="field">
+                                <span>Source Type</span>
+                                <select className="field-select" value={skillSyncSourceDraft.sourceType} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceType: event.target.value }))}>
+                                  <option value="github_repo">GitHub Repo</option>
+                                  <option value="clawhub">ClawHub</option>
+                                </select>
+                              </label>
+                              <label className="field">
+                                <span>Source Key</span>
+                                <input className="field-input" value={skillSyncSourceDraft.sourceKey} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceKey: event.target.value }))} />
+                              </label>
+                              <label className="field">
+                                <span>Display Name</span>
+                                <input className="field-input" value={skillSyncSourceDraft.displayName} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, displayName: event.target.value }))} />
+                              </label>
+                              <label className="field">
+                                <span>Source URL</span>
+                                <input className="field-input" value={skillSyncSourceDraft.sourceUrl} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceUrl: event.target.value }))} />
+                              </label>
+                              <label className="field field--wide">
+                                <span>Config JSON</span>
+                                <textarea className="code-input code-input--tall" rows={6} value={skillSyncSourceDraft.configText} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, configText: event.target.value }))} />
+                              </label>
+                              <label className="field" style={{ maxWidth: 180 }}>
+                                <span>Active</span>
+                                <input type="checkbox" checked={skillSyncSourceDraft.active} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, active: event.target.checked }))} />
+                              </label>
+                            </div>
+                            <div className="fig-release-card__actions">
+                              <button className="solid-button" type="button" disabled={savingSkillSyncSource} onClick={() => void handleSaveSkillSyncSource()}>
+                                {savingSkillSyncSource ? '保存中…' : '保存同步源'}
+                              </button>
+                            </div>
+                          </section>
+                          <section className="fig-card fig-card--subtle">
+                            <div className="fig-card__head">
+                              <h3>云技能列表</h3>
+                              <span>{String(cloudSkillMeta.total || 0)} 个</span>
+                            </div>
+                            <div className="fig-toolbar">
+                              <label className="fig-search fig-search--grow">
+                                <input
+                                  className="field-input fig-search__input"
+                                  placeholder="搜索 slug / 名称 / 分类 / 发布者 / 标签..."
+                                  value={cloudSkillQuery}
+                                  onChange={(event) => setCloudSkillQuery(event.target.value)}
+                                />
+                              </label>
+                              <button className="ghost-button" type="button" disabled={savingCloudSkill} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: 0 })}>
+                                搜索
+                              </button>
+                              <button className="ghost-button" type="button" onClick={() => { setCloudSkillQuery(''); void handleLoadCloudSkillsPage({ query: '', offset: 0 }); }}>
+                                清空
+                              </button>
+                              <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.offset <= 0} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: Math.max(0, cloudSkillMeta.offset - cloudSkillMeta.limit) })}>
+                                上一页
+                              </button>
+                              <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.hasMore !== true} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: cloudSkillMeta.nextOffset || (cloudSkillMeta.offset + cloudSkillMeta.limit) })}>
+                                下一页
+                              </button>
+                            </div>
+                            <div className="fig-capability-list">
+                              {filteredCloudSkills.length ? (
+                                filteredCloudSkills.map((item) => (
+                                  <button
+                                    key={item.slug}
+                                    className={`capability-card${selectedCloudSkill?.slug === item.slug ? ' is-active' : ''}`}
+                                    type="button"
+                                    onClick={() => setSelectedCloudSkillSlug(item.slug)}
+                                  >
+                                    <strong>{item.name}</strong>
+                                    <span>{`v${item.version} • ${item.originType}`}</span>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="empty-state">没有匹配的云技能。</div>
+                              )}
+                            </div>
+                          </section>
                         </section>
-                        <section className="fig-card fig-card--subtle">
-                          <div className="fig-card__head">
-                            <h3>{skillSyncSourceDraft.id ? '编辑同步源' : '新增同步源'}</h3>
-                            <span>同步源主数据直接在当前页维护。</span>
-                          </div>
-                          <div className="form-grid form-grid--two">
-                            <label className="field">
-                              <span>Source Type</span>
-                              <select className="field-select" value={skillSyncSourceDraft.sourceType} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceType: event.target.value }))}>
-                                <option value="github_repo">GitHub Repo</option>
-                                <option value="clawhub">ClawHub</option>
-                              </select>
-                            </label>
-                            <label className="field">
-                              <span>Source Key</span>
-                              <input className="field-input" value={skillSyncSourceDraft.sourceKey} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceKey: event.target.value }))} />
-                            </label>
-                            <label className="field">
-                              <span>Display Name</span>
-                              <input className="field-input" value={skillSyncSourceDraft.displayName} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, displayName: event.target.value }))} />
-                            </label>
-                            <label className="field">
-                              <span>Source URL</span>
-                              <input className="field-input" value={skillSyncSourceDraft.sourceUrl} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceUrl: event.target.value }))} />
-                            </label>
-                            <label className="field field--wide">
-                              <span>Config JSON</span>
-                              <textarea className="code-input code-input--tall" rows={6} value={skillSyncSourceDraft.configText} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, configText: event.target.value }))} />
-                            </label>
-                            <label className="field" style={{ maxWidth: 180 }}>
-                              <span>Active</span>
-                              <input type="checkbox" checked={skillSyncSourceDraft.active} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, active: event.target.checked }))} />
-                            </label>
-                          </div>
-                          <div className="fig-release-card__actions">
-                            <button className="solid-button" type="button" disabled={savingSkillSyncSource} onClick={() => void handleSaveSkillSyncSource()}>
-                              {savingSkillSyncSource ? '保存中…' : '保存同步源'}
-                            </button>
-                          </div>
-                        </section>
-                        <section className="fig-card fig-card--subtle">
-                          <div className="fig-card__head">
-                            <h3>云技能列表</h3>
-                            <span>{String(cloudSkillMeta.total || 0)} 个</span>
-                          </div>
-                          <div className="fig-toolbar">
-                            <label className="fig-search fig-search--grow">
-                              <input
-                                className="field-input fig-search__input"
-                                placeholder="搜索 slug / 名称 / 分类 / 发布者 / 标签..."
-                                value={cloudSkillQuery}
-                                onChange={(event) => setCloudSkillQuery(event.target.value)}
-                              />
-                            </label>
-                            <button className="ghost-button" type="button" disabled={savingCloudSkill} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: 0 })}>
-                              搜索
-                            </button>
-                            <button className="ghost-button" type="button" onClick={() => { setCloudSkillQuery(''); void handleLoadCloudSkillsPage({ query: '', offset: 0 }); }}>
-                              清空
-                            </button>
-                            <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.offset <= 0} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: Math.max(0, cloudSkillMeta.offset - cloudSkillMeta.limit) })}>
-                              上一页
-                            </button>
-                            <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.hasMore !== true} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: cloudSkillMeta.nextOffset || (cloudSkillMeta.offset + cloudSkillMeta.limit) })}>
-                              下一页
-                            </button>
-                          </div>
-                          <div className="fig-capability-list">
-                            {filteredCloudSkills.length ? (
-                              filteredCloudSkills.map((item) => (
-                                <button
-                                  key={item.slug}
-                                  className={`capability-card${selectedCloudSkill?.slug === item.slug ? ' is-active' : ''}`}
-                                  type="button"
-                                  onClick={() => setSelectedCloudSkillSlug(item.slug)}
-                                >
-                                  <strong>{item.name}</strong>
-                                  <span>{`v${item.version} • ${item.originType}`}</span>
-                                </button>
-                              ))
-                            ) : (
-                              <div className="empty-state">没有匹配的云技能。</div>
-                            )}
-                          </div>
-                        </section>
-                      </aside>
-                      <section className="fig-capability-detail">
-                        {selectedCloudSkill ? (
-                          <div className="fig-detail-stack">
+                        <aside className="fig-workspace__drawer">
+                          {selectedCloudSkill ? (
+                            <>
                             <div className="fig-card">
                               <div className="fig-card__head">
                                 <div>
@@ -3265,11 +3529,12 @@ export default function App() {
                                 )}
                               </div>
                             </section>
-                          </div>
+                          </>
                         ) : (
                           <div className="fig-card fig-card--detail-empty"><div className="empty-state">还没有云技能。</div></div>
                         )}
-                      </section>
+                        </aside>
+                      </div>
                     </div>
                   </div>
                 </div>
