@@ -2,12 +2,22 @@ import { asObject, stringValue } from '../lib/adminApi';
 import { useEffect, useState } from 'react';
 import {
   actionLabel,
+  buildPortalAssetUrl,
   formatDateTime,
   formatRelative,
   isImageLike,
   resolveAssetUrl,
   statusLabel,
 } from '../lib/adminFormat';
+import {
+  normalizeAuthExperienceConfig,
+  normalizeDesktopShellConfig,
+  normalizeHeaderSurfaceConfig,
+  normalizeHomeWebSurfaceConfig,
+  normalizeInputSurfaceConfig,
+  normalizeSidebarSurfaceConfig,
+  normalizeWelcomeSurfaceConfig,
+} from '../lib/brandSurfaceDrafts';
 import type { BrandDetailData } from '../lib/adminTypes';
 
 type BrandDetailTabId =
@@ -18,12 +28,81 @@ type BrandDetailTabId =
   | 'header'
   | 'sidebar'
   | 'input'
+  | 'models'
   | 'skills'
   | 'mcps'
   | 'recharge'
   | 'menus'
   | 'assets'
   | 'theme';
+
+function resolveDetailAsset(detail: BrandDetailData, assetKey: string) {
+  return detail.assets.find((item) => stringValue(item.assetKey) === assetKey) || null;
+}
+
+function resolveDetailAssetUrl(detail: BrandDetailData, assetKey: string): string {
+  const asset = resolveDetailAsset(detail, assetKey);
+  if (!asset) {
+    return '';
+  }
+  return resolveAssetUrl({
+    publicUrl: stringValue(asset.publicUrl),
+    appName: stringValue(asset.appName || detail.brand.brandId),
+    brandId: detail.brand.brandId,
+    assetKey: stringValue(asset.assetKey),
+  });
+}
+
+function renderWelcomeAssetCard({
+  title,
+  assetKey,
+  previewUrl,
+  emptyLabel,
+}: {
+  title: string;
+  assetKey: string;
+  previewUrl: string;
+  emptyLabel: string;
+}) {
+  return (
+    <div className="field field--wide">
+      <span>{title}</span>
+      <div style={{ display: 'grid', gridTemplateColumns: '160px minmax(0,1fr)', gap: 16, alignItems: 'start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div
+            style={{
+              height: 160,
+              border: '1px solid var(--border-default)',
+              borderRadius: 18,
+              overflow: 'hidden',
+              background: 'var(--card-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {previewUrl ? (
+              <img src={previewUrl} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{emptyLabel}</span>
+            )}
+          </div>
+          <small style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Asset Key: {assetKey}</small>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            {previewUrl ? `当前已绑定 ${assetKey}` : `当前未绑定 ${assetKey}`}
+          </div>
+          {previewUrl ? (
+            <a className="text-button" href={previewUrl} target="_blank" rel="noreferrer">
+              打开资源
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function renderJsonPreview(value: unknown) {
   return (
@@ -185,7 +264,7 @@ function renderMenuBindings(detail: BrandDetailData) {
   );
 }
 
-function renderAssets(detail: BrandDetailData) {
+function renderAssets(detail: BrandDetailData, savingAsset = false, onDeleteAsset?: (assetKey: string) => void) {
   return (
     <section className="fig-assets-grid">
       {detail.assets.length ? (
@@ -211,6 +290,11 @@ function renderAssets(detail: BrandDetailData) {
               <div className="fig-asset-card__title">{stringValue(item.assetKey)}</div>
               <div className="fig-asset-card__meta">{`${stringValue(asObject(item.metadata).kind || 'asset')} • ${stringValue(item.storageProvider || 's3')}`}</div>
               <div className="fig-asset-card__meta">{formatDateTime(stringValue(item.updatedAt))}</div>
+              <div className="fig-asset-card__actions">
+                <button className="text-button" type="button" disabled={savingAsset} onClick={() => onDeleteAsset?.(stringValue(item.assetKey))}>
+                  删除
+                </button>
+              </div>
             </div>
           </article>
         ))
@@ -220,6 +304,17 @@ function renderAssets(detail: BrandDetailData) {
     </section>
   );
 }
+
+const BRAND_ASSET_SLOTS: Array<{ assetKey: string; label: string; kind: string }> = [
+  { assetKey: 'logoMaster', label: 'Logo Master', kind: 'logo' },
+  { assetKey: 'homeLogo', label: 'Home Logo', kind: 'logo' },
+  { assetKey: 'faviconPng', label: 'Favicon PNG', kind: 'favicon' },
+  { assetKey: 'faviconIco', label: 'Favicon ICO', kind: 'favicon' },
+  { assetKey: 'assistantAvatar', label: 'Assistant Avatar', kind: 'assistant-avatar' },
+  { assetKey: 'installerHero', label: 'Installer Hero', kind: 'hero' },
+  { assetKey: 'welcomeAvatar', label: 'Welcome Avatar', kind: 'welcome-avatar' },
+  { assetKey: 'welcomeBackground', label: 'Welcome Background', kind: 'welcome-background' },
+];
 
 function renderTheme(detail: BrandDetailData) {
   const theme = asObject(detail.appConfig.theme);
@@ -297,6 +392,9 @@ export function BrandDetailPanel({
   inheritedPlatformSkills = [],
   savingSkills = false,
   onSaveSkills,
+  availableModels = [],
+  savingModels = false,
+  onSaveModels,
   availableMcps = [],
   inheritedPlatformMcps = [],
   savingMcps = false,
@@ -309,6 +407,7 @@ export function BrandDetailPanel({
   onSaveMenus,
   savingAsset = false,
   onUploadAsset,
+  onDeleteAsset,
 }: {
   detail: BrandDetailData;
   activeTab: BrandDetailTabId;
@@ -449,6 +548,11 @@ export function BrandDetailPanel({
   inheritedPlatformSkills?: Array<{ slug: string; name: string }>;
   savingSkills?: boolean;
   onSaveSkills?: (selectedSkillSlugs: string[]) => Promise<void> | void;
+  availableModels?: Array<{ ref: string; label: string; providerId?: string; modelId?: string }>;
+  savingModels?: boolean;
+  onSaveModels?: (
+    items: Array<{ modelRef: string; enabled: boolean; recommended: boolean; default: boolean }>,
+  ) => Promise<void> | void;
   availableMcps?: Array<{ key: string; name: string; transport?: string }>;
   inheritedPlatformMcps?: Array<{ key: string; name: string }>;
   savingMcps?: boolean;
@@ -467,10 +571,12 @@ export function BrandDetailPanel({
     kind: string;
     file: File;
   }) => Promise<void> | void;
+  onDeleteAsset?: (assetKey: string) => Promise<void> | void;
 }) {
   const surface = asObject(asObject(detail.appConfig.surfaces)[activeTab] || {});
   const surfaceConfig = asObject(surface.config || surface);
   const theme = asObject(detail.appConfig.theme);
+  const desktopDraftSource = normalizeDesktopShellConfig(detail.appConfig);
   const buildBrandMetaDraft = () => ({
     displayName: stringValue(detail.brand.displayName),
     productName: stringValue(detail.brand.productName),
@@ -478,201 +584,99 @@ export function BrandDetailPanel({
     defaultLocale: stringValue(detail.brand.defaultLocale || 'zh-CN'),
     status: detail.brand.status === 'disabled' ? 'disabled' : 'active',
   });
-  const desktopDraftSource = {
-    websiteTitle: stringValue(detail.appConfig.websiteTitle || detail.appConfig.website_title),
-    devWebsiteTitle: stringValue(detail.appConfig.devWebsiteTitle || detail.appConfig.dev_website_title),
-    sidebarTitle: stringValue(detail.appConfig.sidebarTitle || detail.appConfig.sidebar_title),
-    devSidebarTitle: stringValue(detail.appConfig.devSidebarTitle || detail.appConfig.dev_sidebar_title),
-    sidebarSubtitle: stringValue(detail.appConfig.sidebarSubtitle || detail.appConfig.sidebar_subtitle),
-    legalName: stringValue(asObject(detail.appConfig.brand_meta).legal_name || detail.appConfig.legalName || detail.appConfig.legal_name),
-    bundleIdentifier: stringValue(detail.appConfig.bundleIdentifier || detail.appConfig.bundle_identifier),
-    authService: stringValue(detail.appConfig.authService || detail.appConfig.auth_service),
-  };
   const sidebarSurface = asObject(asObject(detail.appConfig.surfaces).sidebar);
-  const sidebarConfig = asObject(sidebarSurface.config);
-  const sidebarBrandBlock = asObject(sidebarConfig.brandBlock || sidebarConfig.brand_block);
-  const sidebarLayout = asObject(sidebarConfig.layout);
+  const sidebarConfig = normalizeSidebarSurfaceConfig(asObject(sidebarSurface.config));
   const [sidebarDraft, setSidebarDraft] = useState({
     enabled: sidebarSurface.enabled !== false,
-    variant: stringValue(sidebarConfig.variant),
-    brandTitle: stringValue(sidebarBrandBlock.title),
-    brandSubtitle: stringValue(sidebarBrandBlock.subtitle),
-    sectionStyle: stringValue(sidebarLayout.sectionStyle || sidebarLayout.section_style),
-    emphasizeActiveItem:
-      sidebarLayout.emphasizeActiveItem !== false && sidebarLayout.emphasize_active_item !== false,
+    variant: sidebarConfig.variant,
+    brandTitle: sidebarConfig.brandTitle,
+    brandSubtitle: sidebarConfig.brandSubtitle,
+    sectionStyle: sidebarConfig.sectionStyle,
+    emphasizeActiveItem: sidebarConfig.emphasizeActiveItem,
   });
   const lightTheme = asObject(theme.light);
   const darkTheme = asObject(theme.dark);
   const [brandMetaDraft, setBrandMetaDraft] = useState(buildBrandMetaDraft);
   const [desktopShellDraft, setDesktopShellDraft] = useState(desktopDraftSource);
-  const authSource = asObject(detail.appConfig.auth_experience || detail.appConfig.authExperience);
-  const authAgreementList = Array.isArray(authSource.agreements) ? authSource.agreements : [];
-  const authAgreementMap = new Map(
-    authAgreementList.map((item) => {
-      const entry = asObject(item);
-      return [stringValue(entry.key), entry] as const;
-    }),
-  );
-  const buildAuthDraft = () => ({
-    title: stringValue(authSource.title),
-    subtitle: stringValue(authSource.subtitle),
-    socialNotice: stringValue(authSource.social_notice || authSource.socialNotice),
-    agreements: ['service', 'privacy', 'billing'].map((key) => {
-      const entry = asObject(authAgreementMap.get(key));
-      return {
-        key,
-        title: stringValue(entry.title),
-        version: stringValue(entry.version),
-        effectiveDate: stringValue(entry.effective_date || entry.effectiveDate),
-        summary: stringValue(entry.summary),
-        content: stringValue(entry.content),
-      };
-    }),
-  });
+  const buildAuthDraft = () =>
+    normalizeAuthExperienceConfig(detail.appConfig.auth_experience || detail.appConfig.authExperience, {
+      brandId: detail.brand.brandId,
+      displayName: detail.brand.displayName,
+      legalName: desktopDraftSource.legalName,
+    });
   const [authDraft, setAuthDraft] = useState(buildAuthDraft);
   const headerSurface = asObject(asObject(detail.appConfig.surfaces).header);
-  const headerConfig = asObject(headerSurface.config);
   const buildHeaderDraft = () => ({
     enabled: headerSurface.enabled !== false,
-    statusLabel: stringValue(headerConfig.status_label || headerConfig.statusLabel),
-    liveStatusLabel: stringValue(headerConfig.live_status_label || headerConfig.liveStatusLabel),
-    showLiveBadge: headerConfig.show_live_badge !== false && headerConfig.showLiveBadge !== false,
-    showQuotes: headerConfig.show_quotes !== false && headerConfig.showQuotes !== false,
-    showHeadlines: headerConfig.show_headlines !== false && headerConfig.showHeadlines !== false,
-    showSecurityBadge: headerConfig.show_security_badge !== false && headerConfig.showSecurityBadge !== false,
-    securityLabel: stringValue(headerConfig.security_label || headerConfig.securityLabel),
-    showCredits: headerConfig.show_credits !== false && headerConfig.showCredits !== false,
-    showRechargeButton: headerConfig.show_recharge_button !== false && headerConfig.showRechargeButton !== false,
-    rechargeLabel: stringValue(headerConfig.recharge_label || headerConfig.rechargeLabel),
-    showModeBadge: headerConfig.show_mode_badge !== false && headerConfig.showModeBadge !== false,
-    modeBadgeLabel: stringValue(headerConfig.mode_badge_label || headerConfig.modeBadgeLabel),
-    fallbackQuotes: Array.from({ length: 4 }, (_, index) => {
-      const quoteList = Array.isArray(headerConfig.fallback_quotes)
-        ? headerConfig.fallback_quotes
-        : Array.isArray(headerConfig.fallbackQuotes)
-          ? headerConfig.fallbackQuotes
-          : [];
-      const entry = asObject(quoteList[index]);
-      return {
-        label: stringValue(entry.label),
-        value: stringValue(entry.value),
-        change: Number(entry.change || 0) || 0,
-        changePercent: stringValue(entry.change_percent || entry.changePercent),
-      };
-    }),
-    fallbackHeadlines: Array.from({ length: 3 }, (_, index) => {
-      const headlineList = Array.isArray(headerConfig.fallback_headlines)
-        ? headerConfig.fallback_headlines
-        : Array.isArray(headerConfig.fallbackHeadlines)
-          ? headerConfig.fallbackHeadlines
-          : [];
-      const entry = asObject(headlineList[index]);
-      return {
-        title: stringValue(entry.title),
-        source: stringValue(entry.source),
-        href: stringValue(entry.href),
-      };
-    }),
+    ...normalizeHeaderSurfaceConfig(asObject(headerSurface.config)),
   });
   const [headerDraft, setHeaderDraft] = useState(buildHeaderDraft);
   const homeWebSurface = asObject(asObject(detail.appConfig.surfaces)['home-web']);
-  const homeWebConfig = asObject(homeWebSurface.config);
-  const headerShell = asObject(asObject(asObject(homeWebConfig.siteShell).header).props);
-  const footerShell = asObject(asObject(asObject(homeWebConfig.siteShell).footer).props);
-  const homeWebsite = asObject(homeWebConfig.website);
-  const pages = Array.isArray(homeWebConfig.pages) ? homeWebConfig.pages : [];
-  const findPage = (pageKey: string) => asObject(pages.find((item) => stringValue(asObject(item).pageKey) === pageKey));
-  const findBlock = (page: Record<string, unknown>, prefix: string) =>
-    asObject((Array.isArray(page.blocks) ? page.blocks : []).find((item) => String(asObject(item).blockKey || '').startsWith(prefix)));
-  const homePage = findPage('home');
-  const privacyPage = findPage('privacy');
-  const termsPage = findPage('terms');
-  const heroBlock = findBlock(homePage, 'hero.');
-  const downloadBlock = findBlock(homePage, 'download-grid.');
-  const privacyBlock = findBlock(privacyPage, 'rich-text.');
-  const termsBlock = findBlock(termsPage, 'rich-text.');
-  const formatLines = (items: Array<Record<string, unknown>>) =>
-    items
-      .map((item) => `${stringValue(asObject(item).label || asObject(item).title)}|${stringValue(asObject(item).href || asObject(item).description || '#')}`)
-      .filter(Boolean)
-      .join('\n');
-  const footerColumns = Array.isArray(footerShell.columns) ? footerShell.columns.map((item) => asObject(item)) : [];
-  const firstFooterColumn = asObject(footerColumns[0]);
-  const footerColumnLinks = Array.isArray(firstFooterColumn.links) ? firstFooterColumn.links.map((item) => asObject(item)) : [];
-  const footerLegalLinks = Array.isArray(footerShell.legalLinks) ? footerShell.legalLinks.map((item) => asObject(item)) : [];
+  const normalizedHomeWebConfig = normalizeHomeWebSurfaceConfig(asObject(homeWebSurface.config), {
+    brandId: detail.brand.brandId,
+    displayName: detail.brand.displayName,
+  });
   const buildHomeWebDraft = () => ({
+    ...normalizedHomeWebConfig,
     enabled: homeWebSurface.enabled !== false,
-    templateKey: stringValue(homeWebConfig.templateKey),
-    headerEnabled: asObject(homeWebConfig.siteShell).header ? asObject(asObject(homeWebConfig.siteShell).header).enabled !== false : true,
-    headerVariant: stringValue(asObject(asObject(homeWebConfig.siteShell).header).variant),
-    headerBrandLabel: stringValue(headerShell.brandLabel || homeWebsite.brandLabel),
-    headerSubline: stringValue(headerShell.subline),
-    headerNavItemsText: formatLines(Array.isArray(headerShell.navItems) ? headerShell.navItems.map((item) => asObject(item)) : []),
-    headerPrimaryCtaLabel: stringValue(asObject(headerShell.primaryCta).label || homeWebsite.topCtaLabel),
-    headerPrimaryCtaHref: stringValue(asObject(headerShell.primaryCta).href),
-    footerEnabled: asObject(homeWebConfig.siteShell).footer ? asObject(asObject(homeWebConfig.siteShell).footer).enabled !== false : true,
-    footerVariant: stringValue(asObject(asObject(homeWebConfig.siteShell).footer).variant),
-    footerColumnsText: formatLines(footerColumnLinks),
-    footerLegalLinksText: formatLines(footerLegalLinks),
-    footerCopyrightText: stringValue(footerShell.copyrightText),
-    footerIcpText: stringValue(footerShell.icpText),
-    homeSeoTitle: stringValue(asObject(homePage.seo).title || homeWebsite.homeTitle),
-    homeSeoDescription: stringValue(asObject(homePage.seo).description || homeWebsite.metaDescription),
-    heroEyebrow: stringValue(asObject(heroBlock.props).eyebrow || homeWebsite.kicker),
-    heroTitlePre: stringValue(asObject(heroBlock.props).titlePre || homeWebsite.heroTitlePre),
-    heroTitleMain: stringValue(asObject(heroBlock.props).titleMain || homeWebsite.heroTitleMain),
-    heroDescription: stringValue(asObject(heroBlock.props).description || homeWebsite.heroDescription),
-    downloadTitle: stringValue(asObject(downloadBlock.props).title || homeWebsite.downloadTitle),
-    privacyTitle: stringValue(asObject(privacyBlock.props).title),
-    privacyContent: stringValue(asObject(privacyBlock.props).content),
-    termsTitle: stringValue(asObject(termsBlock.props).title),
-    termsContent: stringValue(asObject(termsBlock.props).content),
   });
   const [homeWebDraft, setHomeWebDraft] = useState(buildHomeWebDraft);
   const inputSurface = asObject(asObject(detail.appConfig.surfaces).input);
-  const inputConfig = asObject(inputSurface.config);
   const buildInputDraft = () => ({
     enabled: inputSurface.enabled !== false,
-    placeholderText: stringValue(
-      inputConfig.placeholder_text ||
-        inputConfig.placeholderText ||
-        inputConfig.composer_placeholder ||
-        inputConfig.composerPlaceholder,
-    ),
+    ...normalizeInputSurfaceConfig(asObject(inputSurface.config)),
   });
   const [inputDraft, setInputDraft] = useState(buildInputDraft);
+  const [composerControlDraft, setComposerControlDraft] = useState<
+    Array<{ controlKey: string; enabled: boolean; displayName: string; allowedOptionValues: string[] }>
+  >(
+    detail.composerControlBindings.map((item) => {
+      const config = asObject(item.config);
+      return {
+        controlKey: stringValue(item.controlKey || item.control_key),
+        enabled: item.enabled !== false,
+        displayName: stringValue(config.display_name || config.displayName),
+        allowedOptionValues: Array.isArray(config.allowed_option_values)
+          ? config.allowed_option_values.map((entry) => String(entry || ''))
+          : Array.isArray(config.allowedOptionValues)
+            ? config.allowedOptionValues.map((entry) => String(entry || ''))
+            : [],
+      };
+    }).filter((item) => item.controlKey),
+  );
+  const [composerShortcutDraft, setComposerShortcutDraft] = useState<
+    Array<{ shortcutKey: string; enabled: boolean; displayName: string; description: string; template: string }>
+  >(
+    detail.composerShortcutBindings.map((item) => {
+      const config = asObject(item.config);
+      return {
+        shortcutKey: stringValue(item.shortcutKey || item.shortcut_key),
+        enabled: item.enabled !== false,
+        displayName: stringValue(config.display_name || config.displayName),
+        description: stringValue(config.description),
+        template: stringValue(config.template || config.template_text),
+      };
+    }).filter((item) => item.shortcutKey),
+  );
   const welcomeSurface = asObject(asObject(detail.appConfig.surfaces).welcome);
-  const welcomeConfig = asObject(welcomeSurface.config);
+  const welcomeAvatarAssetUrl = resolveDetailAssetUrl(detail, 'welcomeAvatar');
+  const welcomeBackgroundAssetUrl = resolveDetailAssetUrl(detail, 'welcomeBackground');
+  const assistantAvatarAssetUrl = resolveDetailAssetUrl(detail, 'assistantAvatar');
+  const logoMasterAssetUrl = resolveDetailAssetUrl(detail, 'logoMaster');
+  const installerHeroAssetUrl = resolveDetailAssetUrl(detail, 'installerHero');
+  const normalizedWelcomeConfig = normalizeWelcomeSurfaceConfig(asObject(welcomeSurface.config));
   const buildWelcomeDraft = () => ({
     enabled: welcomeSurface.enabled !== false,
-    entryLabel: stringValue(welcomeConfig.entry_label || welcomeConfig.entryLabel),
-    kolName: stringValue(welcomeConfig.kol_name || welcomeConfig.kolName),
-    expertName: stringValue(welcomeConfig.expert_name || welcomeConfig.expertName),
-    slogan: stringValue(welcomeConfig.slogan),
-    avatarUrl: stringValue(welcomeConfig.avatar_url || welcomeConfig.avatarUrl || welcomeConfig.avatar),
-    backgroundImageUrl: stringValue(welcomeConfig.background_image_url || welcomeConfig.backgroundImageUrl || welcomeConfig.backgroundImage),
-    primaryColor: stringValue(welcomeConfig.primary_color || welcomeConfig.primaryColor),
-    description: stringValue(welcomeConfig.description),
-    expertiseAreas: Array.isArray(welcomeConfig.expertise_areas)
-      ? welcomeConfig.expertise_areas.map((item) => String(item || ''))
-      : Array.isArray(welcomeConfig.expertiseAreas)
-        ? welcomeConfig.expertiseAreas.map((item) => String(item || ''))
-        : [],
-    targetAudience: stringValue(welcomeConfig.target_audience || welcomeConfig.targetAudience),
-    disclaimer: stringValue(welcomeConfig.disclaimer),
-    quickActions: Array.from({ length: 4 }, (_, index) => {
-      const actionList = Array.isArray(welcomeConfig.quick_actions)
-        ? welcomeConfig.quick_actions
-        : Array.isArray(welcomeConfig.quickActions)
-          ? welcomeConfig.quickActions
-          : [];
-      const entry = asObject(actionList[index]);
-      return {
-        label: stringValue(entry.label),
-        prompt: stringValue(entry.prompt),
-        iconKey: stringValue(entry.icon_key || entry.iconKey || entry.icon),
-      };
-    }),
+    ...normalizedWelcomeConfig,
+    avatarUrl:
+      normalizedWelcomeConfig.avatarUrl ||
+      welcomeAvatarAssetUrl ||
+      assistantAvatarAssetUrl ||
+      logoMasterAssetUrl,
+    backgroundImageUrl:
+      normalizedWelcomeConfig.backgroundImageUrl ||
+      welcomeBackgroundAssetUrl ||
+      installerHeroAssetUrl,
   });
   const [welcomeDraft, setWelcomeDraft] = useState(buildWelcomeDraft);
   const [themeDraft, setThemeDraft] = useState<{
@@ -714,6 +718,21 @@ export function BrandDetailPanel({
       .filter((item) => item.enabled !== false)
       .map((item) => stringValue(item.packageId || item.package_id))
       .filter(Boolean),
+  );
+  const [modelDraft, setModelDraft] = useState<
+    Array<{ modelRef: string; enabled: boolean; recommended: boolean; default: boolean }>
+  >(
+    detail.modelBindings
+      .map((item) => {
+        const config = asObject(item.config);
+        return {
+          modelRef: stringValue(item.modelRef || item.model_ref),
+          enabled: item.enabled !== false,
+          recommended: config.recommended === true,
+          default: config.default === true,
+        };
+      })
+      .filter((item) => item.modelRef),
   );
   const [menuDraft, setMenuDraft] = useState<
     Array<{ menuKey: string; enabled: boolean; displayName: string; group: string }>
@@ -759,18 +778,50 @@ export function BrandDetailPanel({
   }, [detail]);
 
   useEffect(() => {
+    setComposerControlDraft(
+      detail.composerControlBindings.map((item) => {
+        const config = asObject(item.config);
+        return {
+          controlKey: stringValue(item.controlKey || item.control_key),
+          enabled: item.enabled !== false,
+          displayName: stringValue(config.display_name || config.displayName),
+          allowedOptionValues: Array.isArray(config.allowed_option_values)
+            ? config.allowed_option_values.map((entry) => String(entry || ''))
+            : Array.isArray(config.allowedOptionValues)
+              ? config.allowedOptionValues.map((entry) => String(entry || ''))
+              : [],
+        };
+      }).filter((item) => item.controlKey),
+    );
+  }, [detail]);
+
+  useEffect(() => {
+    setComposerShortcutDraft(
+      detail.composerShortcutBindings.map((item) => {
+        const config = asObject(item.config);
+        return {
+          shortcutKey: stringValue(item.shortcutKey || item.shortcut_key),
+          enabled: item.enabled !== false,
+          displayName: stringValue(config.display_name || config.displayName),
+          description: stringValue(config.description),
+          template: stringValue(config.template || config.template_text),
+        };
+      }).filter((item) => item.shortcutKey),
+    );
+  }, [detail]);
+
+  useEffect(() => {
     setWelcomeDraft(buildWelcomeDraft());
   }, [detail]);
 
   useEffect(() => {
     setSidebarDraft({
       enabled: sidebarSurface.enabled !== false,
-      variant: stringValue(sidebarConfig.variant),
-      brandTitle: stringValue(sidebarBrandBlock.title),
-      brandSubtitle: stringValue(sidebarBrandBlock.subtitle),
-      sectionStyle: stringValue(sidebarLayout.sectionStyle || sidebarLayout.section_style),
-      emphasizeActiveItem:
-        sidebarLayout.emphasizeActiveItem !== false && sidebarLayout.emphasize_active_item !== false,
+      variant: sidebarConfig.variant,
+      brandTitle: sidebarConfig.brandTitle,
+      brandSubtitle: sidebarConfig.brandSubtitle,
+      sectionStyle: sidebarConfig.sectionStyle,
+      emphasizeActiveItem: sidebarConfig.emphasizeActiveItem,
     });
   }, [detail]);
 
@@ -815,6 +866,22 @@ export function BrandDetailPanel({
         .filter((item) => item.enabled !== false)
         .map((item) => stringValue(item.packageId || item.package_id))
         .filter(Boolean),
+    );
+  }, [detail]);
+
+  useEffect(() => {
+    setModelDraft(
+      detail.modelBindings
+        .map((item) => {
+          const config = asObject(item.config);
+          return {
+            modelRef: stringValue(item.modelRef || item.model_ref),
+            enabled: item.enabled !== false,
+            recommended: config.recommended === true,
+            default: config.default === true,
+          };
+        })
+        .filter((item) => item.modelRef),
     );
   }, [detail]);
 
@@ -984,6 +1051,128 @@ export function BrandDetailPanel({
               </div>
             </section>
           )
+          : activeTab === 'models'
+            ? (
+              <section className="fig-card fig-card--subtle">
+                <div className="fig-card__head">
+                  <h3>模型 Allowlist</h3>
+                  <span>按 OEM 控制可见模型、推荐模型和默认模型</span>
+                </div>
+                <div className="form-grid" style={{ marginBottom: 16 }}>
+                  <label className="field field--wide">
+                    <span>默认模型</span>
+                    <select
+                      className="field-select"
+                      value={modelDraft.find((item) => item.default)?.modelRef || ''}
+                      onChange={(event) =>
+                        setModelDraft((current) =>
+                          current.map((entry) => ({
+                            ...entry,
+                            default: entry.enabled && entry.modelRef === event.target.value,
+                          })),
+                        )
+                      }
+                    >
+                      <option value="">请选择默认模型</option>
+                      {modelDraft.filter((item) => item.enabled).map((item) => {
+                        const model = availableModels.find((entry) => entry.ref === item.modelRef);
+                        return (
+                          <option key={item.modelRef} value={item.modelRef}>
+                            {model?.label || item.modelRef}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
+                </div>
+                <div className="fig-list">
+                  {(availableModels.length ? availableModels : modelDraft.map((item) => ({ ref: item.modelRef, label: item.modelRef, providerId: '', modelId: '' }))).map((item) => {
+                    const existing = modelDraft.find((entry) => entry.modelRef === item.ref) || {
+                      modelRef: item.ref,
+                      enabled: false,
+                      recommended: false,
+                      default: false,
+                    };
+                    return (
+                      <div key={item.ref} className="fig-list-item">
+                        <div style={{ width: '100%' }}>
+                          <div className="fig-list-item__title">{item.label}</div>
+                          <div className="fig-list-item__meta">
+                            <span>{item.ref}</span>
+                            {item.providerId ? <span>{item.providerId}</span> : null}
+                            {item.modelId ? <span>{item.modelId}</span> : null}
+                          </div>
+                          <div className="fig-release-card__actions" style={{ marginTop: 12 }}>
+                            <label className="toggle fig-toggle">
+                              <input
+                                type="checkbox"
+                                checked={existing.enabled}
+                                onChange={(event) =>
+                                  setModelDraft((current) => {
+                                    const has = current.some((entry) => entry.modelRef === item.ref);
+                                    if (!has) {
+                                      return [...current, { modelRef: item.ref, enabled: event.target.checked, recommended: false, default: false }];
+                                    }
+                                    return current.map((entry) =>
+                                      entry.modelRef === item.ref
+                                        ? {
+                                            ...entry,
+                                            enabled: event.target.checked,
+                                            default: event.target.checked ? entry.default : false,
+                                            recommended: event.target.checked ? entry.recommended : false,
+                                          }
+                                        : entry,
+                                    );
+                                  })
+                                }
+                              />
+                              <span>启用</span>
+                            </label>
+                            <label className="toggle fig-toggle">
+                              <input
+                                type="checkbox"
+                                checked={existing.enabled && existing.recommended}
+                                disabled={!existing.enabled}
+                                onChange={(event) =>
+                                  setModelDraft((current) =>
+                                    current.map((entry) =>
+                                      entry.modelRef === item.ref ? { ...entry, recommended: event.target.checked } : entry,
+                                    ),
+                                  )
+                                }
+                              />
+                              <span>推荐</span>
+                            </label>
+                            <label className="toggle fig-toggle">
+                              <input
+                                type="radio"
+                                name="brand_default_model"
+                                checked={existing.enabled && existing.default}
+                                disabled={!existing.enabled}
+                                onChange={() =>
+                                  setModelDraft((current) =>
+                                    current.map((entry) => ({
+                                      ...entry,
+                                      default: entry.enabled && entry.modelRef === item.ref,
+                                    })),
+                                  )
+                                }
+                              />
+                              <span>默认</span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="fig-release-card__actions">
+                  <button className="solid-button" type="button" disabled={savingModels} onClick={() => onSaveModels?.(modelDraft)}>
+                    {savingModels ? '保存中…' : '保存模型绑定'}
+                  </button>
+                </div>
+              </section>
+            )
           : activeTab === 'menus'
             ? (
               <section className="fig-card fig-card--subtle">
@@ -1101,7 +1290,50 @@ export function BrandDetailPanel({
                   <section className="fig-card fig-card--subtle">
                     <div className="fig-card__head">
                       <h3>上传资源</h3>
-                      <span>React 版可直接上传并登记品牌资源</span>
+                      <span>补齐旧版能力：预设 asset key 快速填充、品牌资源上传与 Welcome / Logo 高质量资源统一在这里维护</span>
+                    </div>
+                    <div className="fig-assets-grid" style={{ marginBottom: 16 }}>
+                      {BRAND_ASSET_SLOTS.map((slot) => {
+                        const current = resolveDetailAsset(detail, slot.assetKey);
+                        const previewUrl = current
+                          ? resolveAssetUrl({
+                              publicUrl: stringValue(current.publicUrl),
+                              appName: stringValue(current.appName || detail.brand.brandId),
+                              brandId: detail.brand.brandId,
+                              assetKey: stringValue(current.assetKey),
+                            })
+                          : '';
+                        return (
+                          <article key={slot.assetKey} className="fig-asset-card">
+                            <div className="fig-asset-card__preview">
+                              {previewUrl && isImageLike(stringValue(current?.contentType), previewUrl, stringValue(current?.objectKey)) ? (
+                                <img className="fig-asset-card__image" src={previewUrl} alt={slot.assetKey} />
+                              ) : (
+                                <div className="asset-thumb asset-thumb--placeholder">No Asset</div>
+                              )}
+                            </div>
+                            <div className="fig-asset-card__body">
+                              <div className="fig-asset-card__title">{slot.label}</div>
+                              <div className="fig-asset-card__meta">{slot.assetKey}</div>
+                              <div className="fig-release-card__actions" style={{ marginTop: 12 }}>
+                                <button
+                                  className="ghost-button"
+                                  type="button"
+                                  onClick={() =>
+                                    setAssetDraft((currentDraft) => ({
+                                      ...currentDraft,
+                                      assetKey: slot.assetKey,
+                                      kind: slot.kind,
+                                    }))
+                                  }
+                                >
+                                  使用此槽位
+                                </button>
+                              </div>
+                            </div>
+                          </article>
+                        );
+                      })}
                     </div>
                     <div className="form-grid form-grid--two">
                       <label className="field">
@@ -1128,7 +1360,7 @@ export function BrandDetailPanel({
                       </button>
                     </div>
                   </section>
-                  {renderAssets(detail)}
+                  {renderAssets(detail, savingAsset, (assetKey) => { void onDeleteAsset?.(assetKey); })}
                 </>
               )
               : activeTab === 'auth'
@@ -1364,7 +1596,7 @@ export function BrandDetailPanel({
                   <section className="fig-card fig-card--subtle">
                     <div className="fig-card__head">
                       <h3>Welcome页</h3>
-                      <span>React 版可直接保存欢迎页核心文案、视觉字段和 quick actions</span>
+                      <span>补齐旧版能力：文案、资源回填、高清预览和 Welcome 资源替换都在这里维护</span>
                     </div>
                     <div className="form-grid">
                       <label className="field" style={{ maxWidth: 180 }}>
@@ -1391,6 +1623,18 @@ export function BrandDetailPanel({
                         <span>Primary Color</span>
                         <input className="field-input" value={welcomeDraft.primaryColor} onChange={(event) => setWelcomeDraft((current) => ({ ...current, primaryColor: event.target.value }))} />
                       </label>
+                      {renderWelcomeAssetCard({
+                        title: '欢迎头像预览',
+                        assetKey: 'welcomeAvatar',
+                        previewUrl: welcomeDraft.avatarUrl,
+                        emptyLabel: '未设置欢迎头像',
+                      })}
+                      {renderWelcomeAssetCard({
+                        title: '欢迎背景图预览',
+                        assetKey: 'welcomeBackground',
+                        previewUrl: welcomeDraft.backgroundImageUrl,
+                        emptyLabel: '未设置欢迎背景图',
+                      })}
                       <label className="field field--wide">
                         <span>Avatar URL</span>
                         <input className="field-input" value={welcomeDraft.avatarUrl} onChange={(event) => setWelcomeDraft((current) => ({ ...current, avatarUrl: event.target.value }))} />
@@ -1416,6 +1660,90 @@ export function BrandDetailPanel({
                         <textarea className="field-textarea" rows={3} value={welcomeDraft.disclaimer} onChange={(event) => setWelcomeDraft((current) => ({ ...current, disclaimer: event.target.value }))} />
                       </label>
                     </div>
+                    <section className="fig-card fig-card--subtle">
+                      <div className="fig-card__head">
+                        <h3>资源回填与高清兜底</h3>
+                        <span>优先使用 Welcome 专属 slot；如果没配，会回退到品牌高清资源。</span>
+                      </div>
+                      <div className="chip-grid" style={{ marginBottom: 16 }}>
+                        {[
+                          ['welcomeAvatar', welcomeAvatarAssetUrl],
+                          ['assistantAvatar', assistantAvatarAssetUrl],
+                          ['logoMaster', logoMasterAssetUrl],
+                          ['welcomeBackground', welcomeBackgroundAssetUrl],
+                          ['installerHero', installerHeroAssetUrl],
+                        ]
+                          .filter(([, url]) => Boolean(url))
+                          .map(([assetKey, url]) => (
+                            <button
+                              key={assetKey}
+                              className="chip chip--interactive"
+                              type="button"
+                              onClick={() =>
+                                setWelcomeDraft((current) => ({
+                                  ...current,
+                                  avatarUrl:
+                                    assetKey === 'welcomeAvatar' || assetKey === 'assistantAvatar' || assetKey === 'logoMaster'
+                                      ? String(url)
+                                      : current.avatarUrl,
+                                  backgroundImageUrl:
+                                    assetKey === 'welcomeBackground' || assetKey === 'installerHero'
+                                      ? String(url)
+                                      : current.backgroundImageUrl,
+                                }))
+                              }
+                            >
+                              {assetKey}
+                            </button>
+                          ))}
+                      </div>
+                      <div className="form-grid form-grid--two">
+                        <label className="field field--wide">
+                          <span>替换欢迎头像</span>
+                          <input
+                            className="field-input"
+                            type="file"
+                            accept="image/*"
+                            onChange={async (event) => {
+                              const file = event.target.files?.[0];
+                              if (!file) return;
+                              await onUploadAsset?.({
+                                assetKey: 'welcomeAvatar',
+                                kind: 'welcome-avatar',
+                                file,
+                              });
+                              setWelcomeDraft((current) => ({
+                                ...current,
+                                avatarUrl: buildPortalAssetUrl(detail.brand.brandId, 'welcomeAvatar'),
+                              }));
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </label>
+                        <label className="field field--wide">
+                          <span>替换欢迎背景图</span>
+                          <input
+                            className="field-input"
+                            type="file"
+                            accept="image/*"
+                            onChange={async (event) => {
+                              const file = event.target.files?.[0];
+                              if (!file) return;
+                              await onUploadAsset?.({
+                                assetKey: 'welcomeBackground',
+                                kind: 'welcome-background',
+                                file,
+                              });
+                              setWelcomeDraft((current) => ({
+                                ...current,
+                                backgroundImageUrl: buildPortalAssetUrl(detail.brand.brandId, 'welcomeBackground'),
+                              }));
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </section>
                     <section className="fig-card fig-card--subtle">
                       <div className="fig-card__head">
                         <h3>Quick Actions</h3>
@@ -1447,27 +1775,186 @@ export function BrandDetailPanel({
                 )
               : activeTab === 'input'
                 ? (
-                  <section className="fig-card fig-card--subtle">
-                    <div className="fig-card__head">
-                      <h3>输入框</h3>
-                      <span>React 版可直接保存输入框启用状态和占位文案</span>
-                    </div>
-                    <div className="form-grid">
-                      <label className="field" style={{ maxWidth: 180 }}>
-                        <span>Enabled</span>
-                        <input type="checkbox" checked={inputDraft.enabled} onChange={(event) => setInputDraft((current) => ({ ...current, enabled: event.target.checked }))} />
-                      </label>
-                      <label className="field field--wide">
-                        <span>Placeholder</span>
-                        <textarea className="field-textarea" rows={3} value={inputDraft.placeholderText} onChange={(event) => setInputDraft((current) => ({ ...current, placeholderText: event.target.value }))} />
-                      </label>
-                    </div>
-                    <div className="fig-release-card__actions">
-                      <button className="solid-button" type="button" disabled={savingInput} onClick={() => onSaveInput?.(inputDraft)}>
-                        {savingInput ? '保存中…' : '保存输入框'}
-                      </button>
-                    </div>
-                  </section>
+                  <>
+                    <section className="fig-card fig-card--subtle">
+                      <div className="fig-card__head">
+                        <h3>输入框</h3>
+                        <span>React 版可直接保存输入框启用状态和占位文案</span>
+                      </div>
+                      <div className="form-grid">
+                        <label className="field" style={{ maxWidth: 180 }}>
+                          <span>Enabled</span>
+                          <input type="checkbox" checked={inputDraft.enabled} onChange={(event) => setInputDraft((current) => ({ ...current, enabled: event.target.checked }))} />
+                        </label>
+                        <label className="field field--wide">
+                          <span>Placeholder</span>
+                          <textarea className="field-textarea" rows={3} value={inputDraft.placeholderText} onChange={(event) => setInputDraft((current) => ({ ...current, placeholderText: event.target.value }))} />
+                        </label>
+                      </div>
+                      <div className="fig-release-card__actions">
+                        <button className="solid-button" type="button" disabled={savingInput} onClick={() => onSaveInput?.(inputDraft)}>
+                          {savingInput ? '保存中…' : '保存输入框'}
+                        </button>
+                      </div>
+                    </section>
+                    <section className="fig-card fig-card--subtle">
+                      <div className="fig-card__head">
+                        <h3>顶部快捷控件</h3>
+                        <span>控制专家、技能、模式等输入控件的显隐、排序与文案</span>
+                      </div>
+                      <div className="fig-list">
+                        {(availableComposerControls.length ? availableComposerControls : composerControlDraft.map((item) => ({ controlKey: item.controlKey, displayName: item.controlKey, controlType: 'static', options: [] }))).map((item, index, list) => {
+                          const existing = composerControlDraft.find((entry) => entry.controlKey === item.controlKey) || {
+                            controlKey: item.controlKey,
+                            enabled: false,
+                            displayName: item.displayName,
+                            allowedOptionValues: [],
+                          };
+                          return (
+                            <div key={item.controlKey} className="fig-list-item">
+                              <div style={{ width: '100%' }}>
+                                <div className="fig-list-item__title">{item.displayName}</div>
+                                <div className="fig-list-item__meta">
+                                  <span>{item.controlKey}</span>
+                                  <span>{item.controlType}</span>
+                                </div>
+                                <div className="form-grid" style={{ marginTop: 12 }}>
+                                  <label className="field" style={{ maxWidth: 160 }}>
+                                    <span>启用</span>
+                                    <input
+                                      type="checkbox"
+                                      checked={existing.enabled}
+                                      onChange={(event) =>
+                                        setComposerControlDraft((current) => {
+                                          const has = current.some((entry) => entry.controlKey === item.controlKey);
+                                          if (!has) {
+                                            return [...current, { controlKey: item.controlKey, enabled: event.target.checked, displayName: item.displayName, allowedOptionValues: [] }];
+                                          }
+                                          return current.map((entry) => entry.controlKey === item.controlKey ? { ...entry, enabled: event.target.checked } : entry);
+                                        })
+                                      }
+                                    />
+                                  </label>
+                                  <label className="field">
+                                    <span>显示名称</span>
+                                    <input className="field-input" value={existing.displayName} onChange={(event) => setComposerControlDraft((current) => current.map((entry) => entry.controlKey === item.controlKey ? { ...entry, displayName: event.target.value } : entry))} />
+                                  </label>
+                                  <label className="field field--wide">
+                                    <span>允许选项</span>
+                                    <input className="field-input" value={existing.allowedOptionValues.join(', ')} onChange={(event) => setComposerControlDraft((current) => current.map((entry) => entry.controlKey === item.controlKey ? { ...entry, allowedOptionValues: event.target.value.split(',').map((v) => v.trim()).filter(Boolean) } : entry))} placeholder={item.options.map((option) => option.optionValue).join(', ')} />
+                                  </label>
+                                </div>
+                                <div className="fig-release-card__actions" style={{ marginTop: 12 }}>
+                                  <button className="ghost-button" type="button" disabled={index === 0} onClick={() => setComposerControlDraft((current) => {
+                                    const next = [...current];
+                                    const from = next.findIndex((entry) => entry.controlKey === item.controlKey);
+                                    if (from <= 0) return current;
+                                    const [moved] = next.splice(from, 1);
+                                    next.splice(from - 1, 0, moved);
+                                    return next;
+                                  })}>上移</button>
+                                  <button className="ghost-button" type="button" disabled={index === list.length - 1} onClick={() => setComposerControlDraft((current) => {
+                                    const next = [...current];
+                                    const from = next.findIndex((entry) => entry.controlKey === item.controlKey);
+                                    if (from < 0 || from >= next.length - 1) return current;
+                                    const [moved] = next.splice(from, 1);
+                                    next.splice(from + 1, 0, moved);
+                                    return next;
+                                  })}>下移</button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="fig-release-card__actions">
+                        <button className="solid-button" type="button" disabled={savingComposerControls} onClick={() => onSaveComposerControls?.(composerControlDraft)}>
+                          {savingComposerControls ? '保存中…' : '保存快捷控件'}
+                        </button>
+                      </div>
+                    </section>
+                    <section className="fig-card fig-card--subtle">
+                      <div className="fig-card__head">
+                        <h3>底部快捷方式</h3>
+                        <span>控制快捷 chip 的显隐、排序、名称和模板内容</span>
+                      </div>
+                      <div className="fig-list">
+                        {(availableComposerShortcuts.length ? availableComposerShortcuts : composerShortcutDraft.map((item) => ({ shortcutKey: item.shortcutKey, displayName: item.shortcutKey, description: '', template: '', tone: '' }))).map((item, index, list) => {
+                          const existing = composerShortcutDraft.find((entry) => entry.shortcutKey === item.shortcutKey) || {
+                            shortcutKey: item.shortcutKey,
+                            enabled: false,
+                            displayName: item.displayName,
+                            description: item.description,
+                            template: item.template,
+                          };
+                          return (
+                            <div key={item.shortcutKey} className="fig-list-item">
+                              <div style={{ width: '100%' }}>
+                                <div className="fig-list-item__title">{item.displayName}</div>
+                                <div className="fig-list-item__meta">
+                                  <span>{item.shortcutKey}</span>
+                                  {item.tone ? <span>{item.tone}</span> : null}
+                                </div>
+                                <div className="form-grid" style={{ marginTop: 12 }}>
+                                  <label className="field" style={{ maxWidth: 160 }}>
+                                    <span>启用</span>
+                                    <input
+                                      type="checkbox"
+                                      checked={existing.enabled}
+                                      onChange={(event) =>
+                                        setComposerShortcutDraft((current) => {
+                                          const has = current.some((entry) => entry.shortcutKey === item.shortcutKey);
+                                          if (!has) {
+                                            return [...current, { shortcutKey: item.shortcutKey, enabled: event.target.checked, displayName: item.displayName, description: item.description, template: item.template }];
+                                          }
+                                          return current.map((entry) => entry.shortcutKey === item.shortcutKey ? { ...entry, enabled: event.target.checked } : entry);
+                                        })
+                                      }
+                                    />
+                                  </label>
+                                  <label className="field">
+                                    <span>显示名称</span>
+                                    <input className="field-input" value={existing.displayName} onChange={(event) => setComposerShortcutDraft((current) => current.map((entry) => entry.shortcutKey === item.shortcutKey ? { ...entry, displayName: event.target.value } : entry))} />
+                                  </label>
+                                  <label className="field">
+                                    <span>说明</span>
+                                    <input className="field-input" value={existing.description} onChange={(event) => setComposerShortcutDraft((current) => current.map((entry) => entry.shortcutKey === item.shortcutKey ? { ...entry, description: event.target.value } : entry))} />
+                                  </label>
+                                  <label className="field field--wide">
+                                    <span>快捷模板</span>
+                                    <textarea className="field-textarea" rows={3} value={existing.template} onChange={(event) => setComposerShortcutDraft((current) => current.map((entry) => entry.shortcutKey === item.shortcutKey ? { ...entry, template: event.target.value } : entry))} />
+                                  </label>
+                                </div>
+                                <div className="fig-release-card__actions" style={{ marginTop: 12 }}>
+                                  <button className="ghost-button" type="button" disabled={index === 0} onClick={() => setComposerShortcutDraft((current) => {
+                                    const next = [...current];
+                                    const from = next.findIndex((entry) => entry.shortcutKey === item.shortcutKey);
+                                    if (from <= 0) return current;
+                                    const [moved] = next.splice(from, 1);
+                                    next.splice(from - 1, 0, moved);
+                                    return next;
+                                  })}>上移</button>
+                                  <button className="ghost-button" type="button" disabled={index === list.length - 1} onClick={() => setComposerShortcutDraft((current) => {
+                                    const next = [...current];
+                                    const from = next.findIndex((entry) => entry.shortcutKey === item.shortcutKey);
+                                    if (from < 0 || from >= next.length - 1) return current;
+                                    const [moved] = next.splice(from, 1);
+                                    next.splice(from + 1, 0, moved);
+                                    return next;
+                                  })}>下移</button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="fig-release-card__actions">
+                        <button className="solid-button" type="button" disabled={savingComposerShortcuts} onClick={() => onSaveComposerShortcuts?.(composerShortcutDraft)}>
+                          {savingComposerShortcuts ? '保存中…' : '保存快捷方式'}
+                        </button>
+                      </div>
+                    </section>
+                  </>
                 )
               : activeTab === 'sidebar'
                 ? (
