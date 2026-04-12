@@ -117,7 +117,7 @@
 
 建议同时维护一份目录外模板：
 
-- `docs/version-record-template.md`
+- `docs/release/version-record-template.md`
 
 每份发布单至少包含：
 
@@ -387,8 +387,8 @@ Windows 补充规则：
 
 ## 13. 关联文档
 
-- [release-checklist.md](/Users/xingkaihan/Documents/Code/iClaw/docs/release-checklist.md)
-- [release-matrix.md](/Users/xingkaihan/Documents/Code/iClaw/docs/release-matrix.md)
-- [windows-desktop-release-sop.md](/D:/code/iClaw/docs/windows-desktop-release-sop.md)
-- [prod-infra-inventory.md](/Users/xingkaihan/Documents/Code/iClaw/docs/prod-infra-inventory.md)
-- [version-record-template.md](/Users/xingkaihan/Documents/Code/iClaw/docs/version-record-template.md)
+- [release-checklist.md](./release-checklist.md)
+- [release-matrix.md](./release-matrix.md)
+- [windows-desktop-release-sop.md](./windows-desktop-release-sop.md)
+- [prod-infra-inventory.md](../ops/prod-infra-inventory.md)
+- [version-record-template.md](./version-record-template.md)

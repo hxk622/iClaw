@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "dev": "pnpm dev:all",
+    "docs:check": "node scripts/check-docs-organization.mjs",
     "tmp-tests:harvest": "node scripts/harvest-tmp-tests.mjs",
     "sync:clawhub:top": "pnpm --filter @iclaw/control-plane sync:clawhub:top",
     "upload:cloud-skill-artifacts": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane upload:cloud-skill-artifacts",

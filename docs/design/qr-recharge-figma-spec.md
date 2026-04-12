@@ -6,10 +6,10 @@
 
 配套文档：
 
-- [credit-technical-design.md](/Users/xingkaihan/Documents/Code/iClaw/docs/credit-technical-design.md)
-- [api-contract.md](/Users/xingkaihan/Documents/Code/iClaw/docs/api-contract.md)
-- [desktop-visual-design-system.md](/Users/xingkaihan/Documents/Code/iClaw/docs/desktop-visual-design-system.md)
-- [desktop-ui-interaction-guidelines.md](/Users/xingkaihan/Documents/Code/iClaw/docs/desktop-ui-interaction-guidelines.md)
+- [credit-technical-design.md](./credit-technical-design.md)
+- [api-contract.md](../reference/api-contract.md)
+- [desktop-visual-design-system.md](./desktop-visual-design-system.md)
+- [desktop-ui-interaction-guidelines.md](./desktop-ui-interaction-guidelines.md)
 
 ## 1. 设计目标
 

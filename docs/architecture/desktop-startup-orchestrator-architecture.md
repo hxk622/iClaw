@@ -276,8 +276,8 @@
 
 ## 10. 参考实现与文档
 
-- [desktop-lifecycle-session-architecture.md](/D:/code/iClaw/docs/desktop-lifecycle-session-architecture.md)
-- [openclaw-wrapper-architecture.md](/D:/code/iClaw/docs/openclaw-wrapper-architecture.md)
+- [desktop-lifecycle-session-architecture.md](./desktop-lifecycle-session-architecture.md)
+- [openclaw-wrapper-architecture.md](./openclaw-wrapper-architecture.md)
 - [startup-orchestrator.ts](/D:/code/iClaw/apps/desktop/src/app/lib/startup-orchestrator.ts)
 - [use-desktop-startup-controller.ts](/D:/code/iClaw/apps/desktop/src/app/lib/use-desktop-startup-controller.ts)
 - [startup-gate.ts](/D:/code/iClaw/apps/desktop/src/app/lib/startup-gate.ts)

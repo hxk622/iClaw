@@ -14,9 +14,9 @@
 
 本文是执行 SOP，不替代以下架构文档：
 
-- [release-standard.md](/D:/code/iClaw/docs/release-standard.md)
-- [release-checklist.md](/D:/code/iClaw/docs/release-checklist.md)
-- [desktop-auto-update-force-restore-design.md](/D:/code/iClaw/docs/desktop-auto-update-force-restore-design.md)
+- [release-standard.md](./release-standard.md)
+- [release-checklist.md](./release-checklist.md)
+- [desktop-auto-update-force-restore-design.md](../design/desktop-auto-update-force-restore-design.md)
 
 ## 2. 当前冻结口径
 
@@ -282,5 +282,5 @@ pnpm deploy:prod:marketing
 
 ## 10. 关联历史记录
 
-- [1.0.3.202604092345.md](/D:/code/iClaw/docs/version_record/1.0.3.202604092345.md)
-- [1.0.4.202604101315.md](/D:/code/iClaw/docs/version_record/1.0.4.202604101315.md)
+- [1.0.3.202604092345.md](../version_record/1.0.3.202604092345.md)
+- [1.0.4.202604101315.md](../version_record/1.0.4.202604101315.md)

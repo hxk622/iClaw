@@ -4,7 +4,7 @@
 
 补充阅读：
 
-- [desktop-startup-orchestrator-architecture.md](/D:/code/iClaw/docs/desktop-startup-orchestrator-architecture.md)
+- [desktop-startup-orchestrator-architecture.md](./desktop-startup-orchestrator-architecture.md)
 
 ## 1. 目标
 

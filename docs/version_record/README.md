@@ -31,6 +31,6 @@
 
 ## 模板
 
-- 发版文档模板：`docs/version-record-template.md`
+- 发版文档模板：`docs/release/version-record-template.md`
 - 测试报告模板：`docs/version_record/test_report/_template.md`
-- Windows 桌面正式发版 SOP：`docs/windows-desktop-release-sop.md`
+- Windows 桌面正式发版 SOP：`docs/release/windows-desktop-release-sop.md`

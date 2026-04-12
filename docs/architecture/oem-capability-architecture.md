@@ -26,7 +26,7 @@ OEM 需要支持的不只是：
 
 官网 / 营销站的具体落地设计见：
 
-- [marketing-site-shell-design.md](/Users/xingkaihan/Documents/Code/iClaw/docs/marketing-site-shell-design.md)
+- [marketing-site-shell-design.md](../design/marketing-site-shell-design.md)
 
 ## 2. 总原则
 

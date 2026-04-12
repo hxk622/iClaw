@@ -4,7 +4,7 @@
 
 ## 1. 文档目的
 
-本文是 [desktop-command-authorization-architecture.md](/D:/code/iClaw/docs/desktop-command-authorization-architecture.md) 的实施层补充，面向产品、设计、桌面端、control-plane、admin-web 联合评审。
+本文是 [desktop-command-authorization-architecture.md](../architecture/desktop-command-authorization-architecture.md) 的实施层补充，面向产品、设计、桌面端、control-plane、admin-web 联合评审。
 
 本文回答 5 个问题：
 

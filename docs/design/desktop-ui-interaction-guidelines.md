@@ -4,7 +4,7 @@
 
 配套视觉规范位于：
 
-- [desktop-visual-design-system.md](/Users/xingkaihan/Documents/Code/iClaw/docs/desktop-visual-design-system.md)
+- [desktop-visual-design-system.md](./desktop-visual-design-system.md)
 
 ## 目标
 

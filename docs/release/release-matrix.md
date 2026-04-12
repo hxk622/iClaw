@@ -159,4 +159,4 @@ bash scripts/publish-downloads.sh prod
 - 前端 / Nginx / DNS 落点：`113.44.132.75`
 - 后端 / control-plane / PM2：`115.191.6.179`
 - 详细清单见：
-  - [prod-infra-inventory.md](/Users/xingkaihan/Documents/Code/iClaw/docs/prod-infra-inventory.md)
+  - [prod-infra-inventory.md](../ops/prod-infra-inventory.md)
