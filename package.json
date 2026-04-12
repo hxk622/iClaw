@@ -9,6 +9,7 @@
     "docs:check": "node scripts/check-docs-organization.mjs",
     "tmp-tests:harvest": "node scripts/harvest-tmp-tests.mjs",
     "sync:clawhub:top": "pnpm --filter @iclaw/control-plane sync:clawhub:top",
+    "publish:github-skill-repos": "node scripts/publish-github-skill-repos.mjs",
     "upload:cloud-skill-artifacts": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane upload:cloud-skill-artifacts",
     "publish:external-cloud-skill": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane publish:external-cloud-skill",
     "env:dev": "node scripts/run-bash.mjs scripts/env.sh dev",

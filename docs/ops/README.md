@@ -7,6 +7,7 @@
 ## 当前内容
 
 - `aliyun-procurement.md`
+- `github-skill-publish-sop.md`
 - `nginx-iclaw.conf`
 - `openclaw-sidecar-ci.md`
 - `prod-infra-inventory.md`
@@ -18,5 +19,6 @@
 ## 推荐阅读顺序
 
 1. `prod-infra-inventory.md`
-2. `openclaw-sidecar-ci.md`
-3. `nginx-iclaw.conf`
+2. `github-skill-publish-sop.md`
+3. `openclaw-sidecar-ci.md`
+4. `nginx-iclaw.conf`
