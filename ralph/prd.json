@@ -1,0 +1,202 @@
+{
+  "project": "iClaw Client Metrics Monitoring",
+  "branchName": "ralph/client-metrics-monitoring",
+  "description": "Build the first production-ready client metrics monitoring pipeline for the iClaw desktop app across desktop, control-plane, PostgreSQL, S3/MinIO, and admin-web.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add raw client metrics event schema",
+      "description": "As a platform engineer, I need PostgreSQL tables for raw client metric events so that install, launch, login, and core action events can be stored durably.",
+      "acceptanceCriteria": [
+        "Add migration for `client_metric_events` with fields from the client metrics schema doc",
+        "Add indexes for event name, app version, platform, and device time-based queries",
+        "Migration is idempotent and compatible with existing control-plane schema bootstrapping",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Add crash and performance sample schemas",
+      "description": "As a platform engineer, I need dedicated PostgreSQL tables for crash events and performance samples so that stability and performance data are queryable independently from general business events.",
+      "acceptanceCriteria": [
+        "Add migration for `client_crash_events` and `client_perf_samples`",
+        "Add indexes for app version, platform, device, and metric/crash time queries",
+        "Schema bootstrapping loads the new tables without affecting existing migrations",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Add control-plane event ingestion API",
+      "description": "As a desktop client, I need to POST batched metric events to control-plane so that install, launch, login, and core action events are recorded centrally.",
+      "acceptanceCriteria": [
+        "Add domain, store, service, and server route support for `POST /portal/client-metrics/events`",
+        "API accepts batched items with common client metric fields and validates required dimensions",
+        "Events persist to `client_metric_events` and are queryable in tests",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Add control-plane crash ingestion API",
+      "description": "As a desktop client, I need to POST crash and fatal error payloads to control-plane so that stability failures are recorded with the correct app and platform dimensions.",
+      "acceptanceCriteria": [
+        "Add domain, store, service, and server route support for `POST /portal/client-metrics/crash`",
+        "API validates crash type, event time, device ID, app version, platform, and error summary fields",
+        "Crash events persist to `client_crash_events` and are queryable in tests",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Add control-plane performance ingestion API",
+      "description": "As a desktop client, I need to POST performance samples to control-plane so that startup and runtime performance metrics are captured centrally.",
+      "acceptanceCriteria": [
+        "Add domain, store, service, and server route support for `POST /portal/client-metrics/perf`",
+        "API accepts batched metric samples with metric name, value, unit, app version, platform, and device dimensions",
+        "Performance samples persist to `client_perf_samples` and are queryable in tests",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Build desktop client metrics transport module",
+      "description": "As a desktop engineer, I need one shared client metrics module so that all monitoring events use the same queueing, payload shaping, and flush behavior.",
+      "acceptanceCriteria": [
+        "Add a shared desktop client metrics library with `trackClientMetricEvent`, `trackClientCrash`, and `flushClientMetricQueue` entry points",
+        "Library attaches common dimensions including app version, platform, arch, brand, and device context",
+        "Library supports batched event flushes to the new control-plane APIs",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Instrument install and launch lifecycle events",
+      "description": "As an operator, I want install and app launch events instrumented so that I can measure installation success and startup success by version and platform.",
+      "acceptanceCriteria": [
+        "Emit `install_start`, `install_success`, and `install_failed` from the desktop startup/install flow",
+        "Emit `app_launch_start`, `app_launch_success`, `app_launch_failed`, and `runtime_healthcheck_failed` from the desktop lifecycle flow",
+        "Event payloads include install session ID, failure stage, and duration where applicable",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Instrument login and core action success/failure events",
+      "description": "As an operator, I want login and core action metrics so that I can see business conversion and key workflow success rates in the client.",
+      "acceptanceCriteria": [
+        "Emit `login_success` and `login_failed` from desktop auth flows with provider metadata when available",
+        "Emit `core_action_success` and `core_action_failed` for one or more agreed critical desktop flows",
+        "Payloads include action name, result, and error code for failure cases",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Instrument crash and unhandled exception reporting",
+      "description": "As an operator, I want desktop crash and fatal error reporting so that renderer and runtime failures are visible in monitoring without relying only on manual fault reports.",
+      "acceptanceCriteria": [
+        "Report unhandled renderer exceptions through the shared desktop crash metrics path",
+        "Capture crash type, error title, message, and stack summary when available",
+        "Crash reports are sent to `POST /portal/client-metrics/crash` with desktop dimensions",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Add daily metrics aggregation storage and job",
+      "description": "As an operator, I need daily aggregated metrics so that admin-web dashboards do not have to scan raw event tables for common KPIs.",
+      "acceptanceCriteria": [
+        "Add schema for `client_metric_daily_agg`",
+        "Implement control-plane aggregation logic for install success, launch success, crash rate, and fault report volume",
+        "Aggregated rows are grouped by date, app, brand, app version, and platform",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Build admin-web install and stability metrics page",
+      "description": "As an operator, I want an admin-web dashboard for installation and stability health so that I can spot version regressions quickly.",
+      "acceptanceCriteria": [
+        "Add an admin-web page that shows install success rate, launch success rate, crash rate, and fault report counts",
+        "Page supports filtering by app version and platform",
+        "Data is sourced from the new control-plane metrics APIs or aggregation views",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add performance sampling ingestion and admin-web performance page",
+      "description": "As an operator, I want startup and runtime performance distributions visible in admin-web so that I can detect regressions in cold start and resource usage.",
+      "acceptanceCriteria": [
+        "Desktop emits `cold_start_ms`, `warm_start_ms`, and at least one runtime performance metric through the perf ingestion API",
+        "Admin-web shows a performance page with startup percentile metrics and basic filtering by platform and app version",
+        "Control-plane exposes the data needed for the performance page without scanning arbitrary raw payloads in the browser",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Add alert storage and threshold scanning for release health",
+      "description": "As an operator, I want automated metric threshold alerts so that severe installation, launch, or crash regressions are surfaced without manual dashboard review.",
+      "acceptanceCriteria": [
+        "Add schema for `client_metric_alerts` and `client_release_health_snapshots`",
+        "Implement control-plane threshold scanning for install success rate, launch success rate, crash rate, and core action success rate",
+        "Alert records capture metric name, scope, threshold, current value, severity, and status",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
