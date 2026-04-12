@@ -4729,11 +4729,13 @@ fn prepare_desktop_fault_report_archive(
         "runtime_installable": input
             .runtime_installable
             .unwrap_or(runtime_diagnosis.runtime_installable),
-        "runtime_version": input.runtime_version.or(runtime_diagnosis.runtime_version),
-        "runtime_path": input.runtime_path.or(runtime_diagnosis.runtime_path),
-        "work_dir": input.work_dir.or(Some(runtime_diagnosis.work_dir)),
-        "log_dir": input.log_dir.or(Some(runtime_diagnosis.log_dir)),
-        "runtime_download_url": input.runtime_download_url.or(runtime_diagnosis.runtime_download_url),
+        "runtime_version": input.runtime_version.or(runtime_diagnosis.runtime_version.clone()),
+        "runtime_path": input.runtime_path.or(runtime_diagnosis.runtime_path.clone()),
+        "work_dir": input.work_dir.or(Some(runtime_diagnosis.work_dir.clone())),
+        "log_dir": input.log_dir.or(Some(runtime_diagnosis.log_dir.clone())),
+        "runtime_download_url": input
+            .runtime_download_url
+            .or(runtime_diagnosis.runtime_download_url.clone()),
         "install_progress_phase": input.install_progress_phase,
         "install_progress_percent": input.install_progress_percent,
     });

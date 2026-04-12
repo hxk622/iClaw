@@ -30,19 +30,54 @@ function Invoke-Checked {
     [Parameter()][string]$WorkingDirectory = $RootDir
   )
 
-  $mergedEnv = @{}
-  Get-ChildItem Env: | ForEach-Object {
-    $mergedEnv[$_.Name] = $_.Value
-  }
-  foreach ($entry in $Environment.GetEnumerator()) {
-    $mergedEnv[$entry.Key] = [string]$entry.Value
-  }
-
   $argumentList = @($Arguments)
   Write-Host "> $FilePath $($argumentList -join ' ')"
-  $process = Start-Process -FilePath $FilePath -ArgumentList $argumentList -WorkingDirectory $WorkingDirectory -NoNewWindow -Wait -PassThru -Environment $mergedEnv
-  if ($process.ExitCode -ne 0) {
-    throw "Command failed with exit code $($process.ExitCode): $FilePath $($argumentList -join ' ')"
+
+  $startProcessSupportsEnvironment = (Get-Command Start-Process).Parameters.ContainsKey('Environment')
+  if ($startProcessSupportsEnvironment) {
+    $mergedEnv = @{}
+    Get-ChildItem Env: | ForEach-Object {
+      $mergedEnv[$_.Name] = $_.Value
+    }
+    foreach ($entry in $Environment.GetEnumerator()) {
+      $mergedEnv[$entry.Key] = [string]$entry.Value
+    }
+
+    $process = Start-Process -FilePath $FilePath -ArgumentList $argumentList -WorkingDirectory $WorkingDirectory -NoNewWindow -Wait -PassThru -Environment $mergedEnv
+    if ($process.ExitCode -ne 0) {
+      throw "Command failed with exit code $($process.ExitCode): $FilePath $($argumentList -join ' ')"
+    }
+    return
+  }
+
+  $previousValues = @{}
+  foreach ($entry in $Environment.GetEnumerator()) {
+    $name = [string]$entry.Key
+    if (Test-Path "Env:$name") {
+      $previousValues[$name] = (Get-Item "Env:$name").Value
+    } else {
+      $previousValues[$name] = $null
+    }
+    Set-Item "Env:$name" -Value ([string]$entry.Value)
+  }
+
+  $originalLocation = Get-Location
+  try {
+    Set-Location -LiteralPath $WorkingDirectory
+    & $FilePath @argumentList
+    if ($LASTEXITCODE -ne 0) {
+      throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($argumentList -join ' ')"
+    }
+  }
+  finally {
+    Set-Location -LiteralPath $originalLocation
+    foreach ($entry in $previousValues.GetEnumerator()) {
+      if ($null -eq $entry.Value) {
+        Remove-Item "Env:$($entry.Key)" -ErrorAction SilentlyContinue
+      } else {
+        Set-Item "Env:$($entry.Key)" -Value $entry.Value
+      }
+    }
   }
 }
 

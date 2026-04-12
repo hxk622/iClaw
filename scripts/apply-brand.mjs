@@ -363,11 +363,13 @@ async function main() {
   const homeHeroLayer2 = brand.assets.homeHeroLayer2 ? resolveBrandPath(brandDir, brand.assets.homeHeroLayer2) : null;
   const homeHeroPhoto = brand.assets.homeHeroPhoto ? resolveBrandPath(brandDir, brand.assets.homeHeroPhoto) : null;
 
-  if (tauriIconsDir) {
+  if (tauriIconsDir && process.platform === 'darwin') {
     execFileSync(path.join(rootDir, 'scripts', 'generate-icons.sh'), [brand.brandId], {
       cwd: rootDir,
       stdio: 'inherit',
     });
+  } else if (tauriIconsDir) {
+    process.stdout.write(`[brand] reuse existing tauri icons for ${brand.brandId} on ${process.platform}\n`);
   }
 
   await fs.mkdir(outputBrandDir, { recursive: true });
