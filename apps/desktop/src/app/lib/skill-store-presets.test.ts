@@ -66,8 +66,8 @@ test('foundation skill is defined as skill-store minus finance skills', () => {
     tags: ['A股', '数据工具'],
   });
   const unlabeledGeneralSkill = makeSkill({
-    slug: 'rtk-awareness',
-    name: 'RTK Awareness',
+    slug: 'developer-cli-awareness',
+    name: 'Developer CLI Awareness',
     tags: ['cli', 'developer-tools'],
   });
 

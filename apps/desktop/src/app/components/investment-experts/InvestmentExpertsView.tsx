@@ -8,10 +8,12 @@ import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
 import { STORE_SHELF_GRID_CLASS } from '@/app/components/ui/store-shelf';
 import { cn } from '@/app/lib/cn';
 import {
-  INVESTMENT_EXPERT_CATEGORIES,
   hydrateInvestmentExperts,
+  resolveVisibleInvestmentExpertCategories,
+  resolveVisibleInvestmentExpertStyles,
   type InvestmentExpert,
   type InvestmentExpertFilter,
+  type InvestmentExpertStyleFilter,
   type InvestmentExpertTab,
 } from '@/app/lib/investment-experts';
 import { installLobsterAgent, loadLobsterAgents, uninstallLobsterAgent } from '@/app/lib/lobster-store';
@@ -55,6 +57,7 @@ export function InvestmentExpertsView({
 }) {
   const [activeTab, setActiveTab] = useState<InvestmentExpertTab>('all');
   const [activeFilter, setActiveFilter] = useState<InvestmentExpertFilter>('all');
+  const [activeStyleFilter, setActiveStyleFilter] = useState<InvestmentExpertStyleFilter>('all');
   const [query, setQuery] = useState('');
   const [experts, setExperts] = useState<InvestmentExpert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +75,7 @@ export function InvestmentExpertsView({
     setRefreshing(showRefreshing);
     setError(null);
     try {
-      const agents = await loadLobsterAgents({client, accessToken});
+      const agents = await loadLobsterAgents({client, accessToken, forceRefresh: true});
       setExperts(hydrateInvestmentExperts(agents));
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : '加载智能投资专家失败');
@@ -93,36 +96,90 @@ export function InvestmentExpertsView({
 
   const shopExperts = useMemo(() => {
     return experts.filter((expert) => {
-      const matchesCategory = activeFilter === 'all' || expert.category === activeFilter;
-      return matchesCategory && matchesQuery(expert, normalizedQuery);
+      const matchesDomain = activeFilter === 'all' || expert.domain === activeFilter;
+      const matchesStyle = activeStyleFilter === 'all' || expert.style === activeStyleFilter;
+      return matchesDomain && matchesStyle && matchesQuery(expert, normalizedQuery);
     });
-  }, [activeFilter, experts, normalizedQuery]);
+  }, [activeFilter, activeStyleFilter, experts, normalizedQuery]);
 
   const myExperts = useMemo(() => {
     return experts.filter((expert) => {
       if (!expert.installed) {
         return false;
       }
-      const matchesCategory = activeFilter === 'all' || expert.category === activeFilter;
-      return matchesCategory && matchesQuery(expert, normalizedQuery);
+      const matchesDomain = activeFilter === 'all' || expert.domain === activeFilter;
+      const matchesStyle = activeStyleFilter === 'all' || expert.style === activeStyleFilter;
+      return matchesDomain && matchesStyle && matchesQuery(expert, normalizedQuery);
     });
-  }, [activeFilter, experts, normalizedQuery]);
+  }, [activeFilter, activeStyleFilter, experts, normalizedQuery]);
+
+  const visibleCategories = useMemo(() => resolveVisibleInvestmentExpertCategories(experts), [experts]);
+  const styleScopedExperts = useMemo(
+    () => experts.filter((expert) => activeFilter === 'all' || expert.domain === activeFilter),
+    [activeFilter, experts],
+  );
+  const visibleStyles = useMemo(() => resolveVisibleInvestmentExpertStyles(styleScopedExperts), [styleScopedExperts]);
 
   const groupedExperts = useMemo(() => {
-    return INVESTMENT_EXPERT_CATEGORIES.filter((category) => category.id !== 'all')
-      .map((category) => ({
-        id: category.id,
-        label: category.label,
-        color: category.color,
-        experts: shopExperts.filter((expert) => expert.category === category.id),
-      }))
-      .filter((group) => group.experts.length > 0);
-  }, [shopExperts]);
+    if (activeFilter === 'all') {
+      return visibleCategories
+        .filter((category) => category.id !== 'all')
+        .map((category) => ({
+          id: category.id,
+          label: category.label,
+          color: category.color,
+          experts: shopExperts.filter((expert) => expert.domain === category.id),
+        }))
+        .filter((group) => group.experts.length > 0);
+    }
+
+    if (activeStyleFilter === 'all') {
+      return visibleStyles
+        .filter((style) => style.id !== 'all')
+        .map((style) => ({
+          id: style.id,
+          label: style.label,
+          color: style.color,
+          experts: shopExperts.filter((expert) => expert.style === style.id),
+        }))
+        .filter((group) => group.experts.length > 0);
+    }
+
+    const selectedStyle = visibleStyles.find((style) => style.id === activeStyleFilter);
+    return selectedStyle
+      ? [
+          {
+            id: selectedStyle.id,
+            label: selectedStyle.label,
+            color: selectedStyle.color,
+            experts: shopExperts,
+          },
+        ].filter((group) => group.experts.length > 0)
+      : [];
+  }, [activeFilter, activeStyleFilter, shopExperts, visibleCategories, visibleStyles]);
 
   const installedCount = useMemo(
     () => experts.filter((expert) => expert.installed).length,
     [experts],
   );
+
+  useEffect(() => {
+    if (activeFilter === 'all') {
+      return;
+    }
+    if (!visibleCategories.some((category) => category.id === activeFilter)) {
+      setActiveFilter('all');
+    }
+  }, [activeFilter, visibleCategories]);
+
+  useEffect(() => {
+    if (activeStyleFilter === 'all') {
+      return;
+    }
+    if (!visibleStyles.some((style) => style.id === activeStyleFilter)) {
+      setActiveStyleFilter('all');
+    }
+  }, [activeStyleFilter, visibleStyles]);
 
   const handleInstall = async (target: InvestmentExpert) => {
     if (!accessToken || !authenticated) {
@@ -133,7 +190,7 @@ export function InvestmentExpertsView({
     setInstallBusySlug(target.slug);
     setError(null);
     try {
-      await installLobsterAgent({client, accessToken, slug: target.slug});
+      await installLobsterAgent({client, accessToken, agent: target});
       await refresh();
     } catch (installError) {
       setError(installError instanceof Error ? installError.message : '安装失败');
@@ -178,7 +235,7 @@ export function InvestmentExpertsView({
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索专家、策略、市场方向…"
+                  placeholder="搜索专家、人物、资产类别…"
                   className="h-11 w-full rounded-[12px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] pl-10 pr-4 text-[14px] text-[var(--lobster-text-primary)] outline-none transition placeholder:text-[var(--lobster-text-muted)] focus:border-[var(--lobster-gold-border-strong)] focus:ring-2 focus:ring-[rgba(168,140,93,0.14)]"
                 />
               </label>
@@ -226,13 +283,13 @@ export function InvestmentExpertsView({
         </div>
 
         <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
-          {INVESTMENT_EXPERT_CATEGORIES.map((category) => {
+          {visibleCategories.map((category) => {
             const active = activeFilter === category.id;
             return (
               <button
                 key={category.id}
                 type="button"
-                onClick={() => setActiveFilter(category.id)}
+                  onClick={() => setActiveFilter(category.id)}
                 className={cn(
                   'inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-medium transition cursor-pointer',
                   SPRING_PRESSABLE,
@@ -252,9 +309,36 @@ export function InvestmentExpertsView({
           })}
         </div>
 
-        <div className="mt-4 flex items-start gap-3 rounded-[14px] border border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] px-4 py-3 text-[13px] leading-7 text-[var(--lobster-text-secondary)]">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--lobster-text-muted)]" />
-          <span>每位智能投资专家都是独立AI智能体，可接受指令、自主完成投研任务并输出结构化结果。</span>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
+          {visibleStyles.map((style) => {
+            const active = activeStyleFilter === style.id;
+            return (
+              <button
+                key={style.id}
+                type="button"
+                onClick={() => setActiveStyleFilter(style.id)}
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-[12px] font-medium transition cursor-pointer',
+                  SPRING_PRESSABLE,
+                  INTERACTIVE_FOCUS_RING,
+                  active
+                    ? 'border border-[rgba(168,140,93,0.42)] bg-[rgba(168,140,93,0.16)] text-[var(--lobster-text-primary)]'
+                    : 'border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] text-[var(--lobster-text-secondary)] hover:bg-[color:color-mix(in_srgb,var(--lobster-card-elevated)_82%,white)]',
+                )}
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: active ? '#b49154' : style.color }}
+                />
+                <span>{style.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-3.5 flex items-center gap-2.5 rounded-[12px] border border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] px-3.5 py-2 text-[12px] leading-5 text-[var(--lobster-text-secondary)]">
+          <Info className="h-3.5 w-3.5 shrink-0 self-center text-[var(--lobster-text-muted)]" />
+          <span className="block flex-1 leading-5">一级看金融大类，二级看风格/方法。每位智能投资专家都是独立AI智能体，可接受指令、自主完成投研任务并输出结构化结果。</span>
         </div>
 
         {loading ? (

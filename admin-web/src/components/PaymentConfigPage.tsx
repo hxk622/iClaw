@@ -44,6 +44,13 @@ function getRechargePaymentMethodOptionLabel(provider: string, fallbackLabel = '
   return provider;
 }
 
+function getPaymentGatewaySourceLabel(source: string) {
+  if (source === 'admin') return 'admin-web';
+  if (source === 'platform_inherited') return '继承平台';
+  if (source === 'env_fallback') return 'env fallback';
+  return '未配置';
+}
+
 function getRawRechargePaymentMethodEntries(config: Record<string, unknown>) {
   const surfaces = (config.surfaces && typeof config.surfaces === 'object' ? config.surfaces : {}) as Record<string, unknown>;
   const rechargeSurface = (surfaces.recharge && typeof surfaces.recharge === 'object' ? surfaces.recharge : {}) as Record<string, unknown>;
@@ -218,6 +225,9 @@ export function PaymentConfigPage({
 
   const gatewayFieldsDisabled = Boolean(selectedBrand && gatewayDraft.mode === 'inherit_platform');
   const enabledPaymentMethods = providerDraft.paymentMethods.filter((item) => item.enabled);
+  const gatewayMissingFields = gatewayConfig?.missingFields || [];
+  const providerMissingFields = providerProfile?.missingFields || [];
+  const gatewaySourceLabel = getPaymentGatewaySourceLabel(gatewayConfig?.source || 'unset');
 
   return (
     <div className="fig-page">
@@ -282,10 +292,19 @@ export function PaymentConfigPage({
               ) : null}
             </div>
             <div className="payment-provider-summary">
-              <div className="payment-provider-summary__item"><span>当前来源</span><strong>{gatewayConfig?.source || 'unset'}</strong></div>
+              <div className="payment-provider-summary__item"><span>当前来源</span><strong>{gatewaySourceLabel}</strong></div>
               <div className="payment-provider-summary__item"><span>完整度</span><strong>{gatewayConfig?.completenessStatus === 'configured' ? '已配置完整' : '配置缺失'}</strong></div>
               <div className="payment-provider-summary__item"><span>已录入密钥</span><strong>{(gatewayConfig?.configuredSecretKeys || []).join(' / ') || '无'}</strong></div>
               <div className="payment-provider-summary__item"><span>更新时间</span><strong>{gatewayConfig?.updatedAt || '未保存'}</strong></div>
+            </div>
+            <div className="fig-card fig-card--subtle" style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.78 }}>
+                {selectedBrand
+                  ? gatewayDraft.mode === 'inherit_platform'
+                    ? `当前已选择继承平台。来源：${gatewaySourceLabel}；保存后会继续跟随平台支付网关。`
+                    : `缺失字段：${gatewayMissingFields.join(' / ') || '无'}。当前来源是 ${gatewaySourceLabel}；保存后只更新当前 OEM 的独立网关。`
+                  : `缺失字段：${gatewayMissingFields.join(' / ') || '无'}。平台网关保存后将成为 OEM 默认来源。`}
+              </div>
             </div>
             <div className="form-grid form-grid--two">
               <label className="field">
@@ -346,7 +365,16 @@ export function PaymentConfigPage({
               <div className="payment-provider-summary__item"><span>当前状态</span><strong>{providerProfile?.completenessStatus === 'configured' ? '已配置完整' : '配置缺失'}</strong></div>
               <div className="payment-provider-summary__item"><span>启用状态</span><strong>{providerDraft.enabled ? '已启用' : '已禁用'}</strong></div>
               <div className="payment-provider-summary__item"><span>已录入密钥</span><strong>{(providerProfile?.configuredSecretKeys || []).join(' / ') || '无'}</strong></div>
-              <div className="payment-provider-summary__item"><span>缺失字段</span><strong>{(providerProfile?.missingFields || []).join(' / ') || '无'}</strong></div>
+              <div className="payment-provider-summary__item"><span>缺失字段</span><strong>{providerMissingFields.join(' / ') || '无'}</strong></div>
+            </div>
+            <div className="fig-card fig-card--subtle" style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.78 }}>
+                {selectedBrand
+                  ? providerDraft.mode === 'use_app_profile'
+                    ? `当前这个 OEM 已切到自己的服务商配置。缺失字段：${providerMissingFields.join(' / ') || '无'}。`
+                    : `当前这个 OEM 跟随平台服务商。填写并保存下方配置后，会切到 OEM 自己的服务商。`
+                  : `平台服务商是所有 OEM 的默认回落配置。缺失字段：${providerMissingFields.join(' / ') || '无'}。`}
+              </div>
             </div>
             <div className="form-grid form-grid--two">
               <label className="field">

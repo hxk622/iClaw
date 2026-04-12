@@ -15,12 +15,18 @@ import {
   downloadUserFile as downloadStoredUserFile,
   uploadUserFile as storeUserFile,
 } from './user-file-storage.ts';
+import {
+  downloadDesktopFaultReportFile as downloadStoredDesktopFaultReportFile,
+  uploadDesktopFaultReportFile,
+} from './desktop-fault-report-storage.ts';
 
 import type {
   AdminDesktopActionApprovalGrantView,
   AdminDesktopActionAuditEventView,
   AdminDesktopActionPolicyRuleView,
   AdminDesktopDiagnosticUploadView,
+  AdminDesktopFaultReportDetailView,
+  AdminDesktopFaultReportSummaryView,
   AdminRefundPaymentOrderInput,
   AdminMarkPaymentOrderPaidInput,
   AdminPaymentOrderDetailView,
@@ -44,6 +50,7 @@ import type {
   CreateDesktopActionApprovalGrantInput,
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
+  CreateDesktopFaultReportInput,
   DesktopActionAccessMode,
   DesktopActionApprovalGrantRecord,
   DesktopActionAuditDecision,
@@ -58,6 +65,9 @@ import type {
   DesktopActionRiskClass,
   DesktopActionRiskLevel,
   DesktopDiagnosticUploadRecord,
+  DesktopFaultReportAccountState,
+  DesktopFaultReportEntry,
+  DesktopFaultReportRecord,
   DesktopDiagnosticUploadSourceType,
   ExtensionInstallTarget,
   ExtensionSetupStatus,
@@ -188,6 +198,8 @@ const DESKTOP_DIAGNOSTIC_UPLOAD_SOURCE_TYPES = new Set<DesktopDiagnosticUploadSo
   'approval_flow',
 ]);
 const DESKTOP_DIAGNOSTIC_SENSITIVITY_LEVELS = new Set(['customer', 'internal', 'redacted']);
+const DESKTOP_FAULT_REPORT_ENTRIES = new Set<DesktopFaultReportEntry>(['installer', 'exception-dialog']);
+const DESKTOP_FAULT_REPORT_ACCOUNT_STATES = new Set<DesktopFaultReportAccountState>(['anonymous', 'authenticated']);
 
 function resolvePublicApiBaseUrl(): string {
   if (config.apiUrl.trim()) {
@@ -605,6 +617,56 @@ function toAdminDesktopDiagnosticUploadView(record: DesktopDiagnosticUploadRecor
     sensitivity_level: record.sensitivityLevel,
     linked_intent_id: record.linkedIntentId,
     created_at: record.createdAt,
+  };
+}
+
+function toAdminDesktopFaultReportSummaryView(
+  record: DesktopFaultReportRecord,
+): AdminDesktopFaultReportSummaryView {
+  return {
+    id: record.id,
+    report_id: record.reportId,
+    entry: record.entry,
+    account_state: record.accountState,
+    user_id: record.userId,
+    device_id: record.deviceId,
+    install_session_id: record.installSessionId,
+    app_name: record.appName,
+    brand_id: record.brandId,
+    app_version: record.appVersion,
+    release_channel: record.releaseChannel,
+    platform: record.platform,
+    platform_version: record.platformVersion,
+    arch: record.arch,
+    failure_stage: record.failureStage,
+    error_title: record.errorTitle,
+    error_message: record.errorMessage,
+    error_code: record.errorCode,
+    file_name: record.fileName,
+    file_size_bytes: record.fileSizeBytes,
+    file_sha256: record.fileSha256,
+    created_at: record.createdAt,
+  };
+}
+
+function toAdminDesktopFaultReportDetailView(
+  record: DesktopFaultReportRecord,
+  baseUrl: string,
+): AdminDesktopFaultReportDetailView {
+  return {
+    ...toAdminDesktopFaultReportSummaryView(record),
+    runtime_found: record.runtimeFound,
+    runtime_installable: record.runtimeInstallable,
+    runtime_version: record.runtimeVersion,
+    runtime_path: record.runtimePath,
+    work_dir: record.workDir,
+    log_dir: record.logDir,
+    runtime_download_url: record.runtimeDownloadUrl,
+    install_progress_phase: record.installProgressPhase,
+    install_progress_percent: record.installProgressPercent,
+    upload_bucket: record.uploadBucket,
+    upload_key: record.uploadKey,
+    download_url: `${baseUrl.replace(/\/$/, '')}/admin/desktop/fault-reports/${encodeURIComponent(record.id)}/download`,
   };
 }
 
@@ -1079,6 +1141,30 @@ function normalizeDesktopDiagnosticUploadSourceType(
   const resolved = (normalized || fallback || '') as DesktopDiagnosticUploadSourceType;
   if (!DESKTOP_DIAGNOSTIC_UPLOAD_SOURCE_TYPES.has(resolved)) {
     throw new HttpError(400, 'BAD_REQUEST', 'source_type must be manual, auto_error_capture, or approval_flow');
+  }
+  return resolved;
+}
+
+function normalizeDesktopFaultReportEntry(
+  value: unknown,
+  fallback?: DesktopFaultReportEntry,
+): DesktopFaultReportEntry {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as DesktopFaultReportEntry;
+  if (!DESKTOP_FAULT_REPORT_ENTRIES.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'entry must be installer or exception-dialog');
+  }
+  return resolved;
+}
+
+function normalizeDesktopFaultReportAccountState(
+  value: unknown,
+  fallback?: DesktopFaultReportAccountState,
+): DesktopFaultReportAccountState {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as DesktopFaultReportAccountState;
+  if (!DESKTOP_FAULT_REPORT_ACCOUNT_STATES.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'account_state must be anonymous or authenticated');
   }
   return resolved;
 }
@@ -3166,6 +3252,69 @@ export class ControlPlaneService {
     return {items: items.map(toAdminDesktopDiagnosticUploadView)};
   }
 
+  async listAdminDesktopFaultReports(
+    accessToken: string,
+    input: {
+      report_id?: string | null;
+      user_id?: string | null;
+      device_id?: string | null;
+      app_name?: string | null;
+      platform?: string | null;
+      entry?: string | null;
+      account_state?: string | null;
+      app_version?: string | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminDesktopFaultReportSummaryView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listDesktopFaultReports({
+      reportId: input.report_id || null,
+      userId: input.user_id || null,
+      deviceId: input.device_id || null,
+      appName: input.app_name || null,
+      platform: input.platform || null,
+      entry: input.entry || null,
+      accountState: input.account_state || null,
+      appVersion: input.app_version || null,
+      limit: input.limit,
+    });
+    return {items: items.map(toAdminDesktopFaultReportSummaryView)};
+  }
+
+  async getAdminDesktopFaultReport(
+    accessToken: string,
+    idInput: string,
+    baseUrl: string,
+  ): Promise<AdminDesktopFaultReportDetailView> {
+    await this.requireAdminUser(accessToken);
+    const id = String(idInput || '').trim();
+    if (!id) {
+      throw new HttpError(400, 'BAD_REQUEST', 'id is required');
+    }
+    const record = await this.store.getDesktopFaultReportById(id);
+    if (!record) {
+      throw new HttpError(404, 'NOT_FOUND', 'desktop fault report not found');
+    }
+    return toAdminDesktopFaultReportDetailView(record, baseUrl);
+  }
+
+  async downloadAdminDesktopFaultReport(
+    accessToken: string,
+    idInput: string,
+  ): Promise<{record: DesktopFaultReportRecord; file: {buffer: Buffer; contentType: string}}> {
+    await this.requireAdminUser(accessToken);
+    const id = String(idInput || '').trim();
+    if (!id) {
+      throw new HttpError(400, 'BAD_REQUEST', 'id is required');
+    }
+    const record = await this.store.getDesktopFaultReportById(id);
+    if (!record) {
+      throw new HttpError(404, 'NOT_FOUND', 'desktop fault report not found');
+    }
+    const file = await downloadStoredDesktopFaultReportFile(record.uploadKey);
+    return {record, file};
+  }
+
   async getRuntimeDesktopActionPolicySnapshot(
     accessToken: string,
     appNameInput: string,
@@ -3418,6 +3567,139 @@ export class ControlPlaneService {
       created_at: createdAt,
     });
     return toAdminDesktopDiagnosticUploadView(record);
+  }
+
+  async uploadDesktopFaultReport(
+    accessToken: string | null,
+    input: {
+      metadata: CreateDesktopFaultReportInput;
+      fileName: string;
+      contentType?: string | null;
+      content: Buffer;
+    },
+  ): Promise<AdminDesktopFaultReportDetailView> {
+    const user = await this.getOptionalUserForAccessToken(accessToken);
+    const reportId =
+      normalizeOptionalCatalogString(input.metadata.report_id, 'report_id', {allowNull: true, trimToNull: true}) ||
+      `FR-${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
+    const entry = normalizeDesktopFaultReportEntry(input.metadata.entry, 'installer');
+    const requestedAccountState = normalizeDesktopFaultReportAccountState(
+      input.metadata.account_state,
+      user ? 'authenticated' : 'anonymous',
+    );
+    const accountState = user ? 'authenticated' : requestedAccountState;
+    const deviceId = String(input.metadata.device_id || '').trim();
+    const appName = String(input.metadata.app_name || '')
+      .trim()
+      .toLowerCase();
+    const brandId = String(input.metadata.brand_id || '')
+      .trim()
+      .toLowerCase();
+    const appVersion = String(input.metadata.app_version || '').trim();
+    const platform = String(input.metadata.platform || '')
+      .trim()
+      .toLowerCase();
+    const arch = String(input.metadata.arch || '')
+      .trim()
+      .toLowerCase();
+    const failureStage = String(input.metadata.failure_stage || '').trim();
+    const errorTitle = String(input.metadata.error_title || '').trim();
+    const errorMessage = String(input.metadata.error_message || '').trim();
+    if (!deviceId || !appName || !brandId || !appVersion || !platform || !arch || !failureStage || !errorTitle || !errorMessage) {
+      throw new HttpError(
+        400,
+        'BAD_REQUEST',
+        'device_id, app_name, brand_id, app_version, platform, arch, failure_stage, error_title, error_message are required',
+      );
+    }
+    const upload = await uploadDesktopFaultReportFile({
+      reportId,
+      fileName: input.fileName,
+      contentType: input.contentType,
+      content: input.content,
+    });
+    const createdAt = String(input.metadata.created_at || '').trim() || new Date().toISOString();
+    if (Number.isNaN(Date.parse(createdAt))) {
+      throw new HttpError(400, 'BAD_REQUEST', 'created_at must be a valid ISO timestamp');
+    }
+    const installProgressPercent = normalizeOptionalIntegerField(
+      input.metadata.install_progress_percent,
+      'install_progress_percent',
+      {min: 0, allowNull: true},
+    );
+    if (typeof installProgressPercent === 'number' && installProgressPercent > 100) {
+      throw new HttpError(400, 'BAD_REQUEST', 'install_progress_percent must be 100 or smaller');
+    }
+    const record = await this.store.createDesktopFaultReport({
+      id:
+        normalizeOptionalCatalogString(input.metadata.id, 'id', {allowNull: true, trimToNull: true}) || randomUUID(),
+      report_id: reportId,
+      entry,
+      account_state: accountState,
+      user_id: user?.id || null,
+      device_id: deviceId,
+      install_session_id:
+        normalizeOptionalCatalogString(input.metadata.install_session_id, 'install_session_id', {
+          allowNull: true,
+          trimToNull: true,
+        }) ?? null,
+      app_name: appName,
+      brand_id: brandId,
+      app_version: appVersion,
+      release_channel:
+        normalizeOptionalCatalogString(input.metadata.release_channel, 'release_channel', {
+          allowNull: true,
+          trimToNull: true,
+        }) ?? null,
+      platform,
+      platform_version:
+        normalizeOptionalCatalogString(input.metadata.platform_version, 'platform_version', {
+          allowNull: true,
+          trimToNull: true,
+        }) ?? null,
+      arch,
+      failure_stage: failureStage,
+      error_title: errorTitle,
+      error_message: errorMessage,
+      error_code:
+        normalizeOptionalCatalogString(input.metadata.error_code, 'error_code', {allowNull: true, trimToNull: true}) ??
+        null,
+      runtime_found: normalizeOptionalBoolean(input.metadata.runtime_found, 'runtime_found') ?? false,
+      runtime_installable: normalizeOptionalBoolean(input.metadata.runtime_installable, 'runtime_installable') ?? false,
+      runtime_version:
+        normalizeOptionalCatalogString(input.metadata.runtime_version, 'runtime_version', {
+          allowNull: true,
+          trimToNull: true,
+        }) ?? null,
+      runtime_path:
+        normalizeOptionalCatalogString(input.metadata.runtime_path, 'runtime_path', {
+          allowNull: true,
+          trimToNull: true,
+        }) ?? null,
+      work_dir:
+        normalizeOptionalCatalogString(input.metadata.work_dir, 'work_dir', {allowNull: true, trimToNull: true}) ??
+        null,
+      log_dir:
+        normalizeOptionalCatalogString(input.metadata.log_dir, 'log_dir', {allowNull: true, trimToNull: true}) ?? null,
+      runtime_download_url:
+        normalizeOptionalCatalogString(input.metadata.runtime_download_url, 'runtime_download_url', {
+          allowNull: true,
+          trimToNull: true,
+        }) ?? null,
+      install_progress_phase:
+        normalizeOptionalCatalogString(input.metadata.install_progress_phase, 'install_progress_phase', {
+          allowNull: true,
+          trimToNull: true,
+        }) ?? null,
+      install_progress_percent: installProgressPercent ?? null,
+      upload_bucket: upload.bucket,
+      upload_key: upload.objectKey,
+      file_name: upload.originalFileName,
+      file_size_bytes: upload.sizeBytes,
+      file_sha256: upload.sha256,
+      created_at: createdAt,
+    });
+    return toAdminDesktopFaultReportDetailView(record, resolvePublicApiBaseUrl());
   }
 
   async getWorkspaceBackup(accessToken: string): Promise<WorkspaceBackupView | null> {
@@ -4763,6 +5045,21 @@ export class ControlPlaneService {
       throw new HttpError(401, 'UNAUTHORIZED', 'user not found');
     }
     return this.ensureBootstrapRole(user);
+  }
+
+  private async getOptionalUserForAccessToken(accessToken?: string | null) {
+    const token = accessToken?.trim() || '';
+    if (!token) {
+      return null;
+    }
+    try {
+      return await this.getUserForAccessToken(token);
+    } catch (error) {
+      if (error instanceof HttpError && error.statusCode === 401) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   private async issueTokens(userId: string, clientType = 'desktop'): Promise<{payload: AuthTokens; refreshToken: string}> {

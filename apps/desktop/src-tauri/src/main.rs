@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::{Cursor, Read, Write};
 use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -32,6 +32,7 @@ use tauri::{
 };
 use tauri_plugin_updater::UpdaterExt;
 use zip::ZipArchive;
+use zip::write::SimpleFileOptions;
 
 use rfd::FileDialog;
 
@@ -720,6 +721,47 @@ struct StartupDiagnosticsSnapshot {
     bootstrap_tail: Option<String>,
     sidecar_stdout_tail: Option<String>,
     sidecar_stderr_tail: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct DesktopFaultReportPrepareInput {
+    report_id: Option<String>,
+    entry: String,
+    install_session_id: Option<String>,
+    app_name: Option<String>,
+    brand_id: Option<String>,
+    app_version: Option<String>,
+    release_channel: Option<String>,
+    failure_stage: String,
+    error_title: String,
+    error_message: String,
+    error_code: Option<String>,
+    runtime_found: Option<bool>,
+    runtime_installable: Option<bool>,
+    runtime_version: Option<String>,
+    runtime_path: Option<String>,
+    work_dir: Option<String>,
+    log_dir: Option<String>,
+    runtime_download_url: Option<String>,
+    install_progress_phase: Option<String>,
+    install_progress_percent: Option<i64>,
+    extra_diagnostics: Option<serde_json::Value>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PreparedDesktopFaultReportArchive {
+    report_id: String,
+    device_id: String,
+    platform: String,
+    platform_version: Option<String>,
+    arch: String,
+    file_name: String,
+    file_size_bytes: usize,
+    file_sha256: String,
+    archive_base64: String,
+    payload: serde_json::Value,
 }
 
 #[derive(Serialize)]
@@ -4442,6 +4484,15 @@ fn chrono_like_timestamp() -> String {
     format!("[{}]", seconds)
 }
 
+fn random_hex_string(byte_len: usize) -> String {
+    let mut bytes = vec![0u8; byte_len.max(1)];
+    OsRng.fill_bytes(&mut bytes);
+    bytes
+        .iter()
+        .map(|value| format!("{value:02x}"))
+        .collect::<String>()
+}
+
 fn sidecar_log_paths(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
     let paths = ensure_runtime_dirs(app)?;
     let log_dir = PathBuf::from(paths.log_dir);
@@ -4469,6 +4520,150 @@ fn read_log_tail(path: &Path, max_chars: usize) -> Option<String> {
     )
 }
 
+fn redact_sensitive_segment(value: &str, marker: &str) -> String {
+    let mut output = String::new();
+    let mut cursor = 0usize;
+    while let Some(relative) = value[cursor..].find(marker) {
+        let start = cursor + relative;
+        output.push_str(&value[cursor..start]);
+        output.push_str(marker);
+        let secret_start = start + marker.len();
+        let secret_end = value[secret_start..]
+            .find(|ch: char| ch.is_whitespace() || ch == '"' || ch == '\'' || ch == '&' || ch == ',' || ch == ';')
+            .map(|offset| secret_start + offset)
+            .unwrap_or(value.len());
+        if secret_end > secret_start {
+            output.push_str("[REDACTED]");
+        }
+        cursor = secret_end;
+    }
+    output.push_str(&value[cursor..]);
+    output
+}
+
+fn redact_sensitive_lines(value: &str) -> String {
+    value.lines()
+        .map(|line| {
+            let mut current = line.to_string();
+            current = redact_sensitive_segment(&current, "Bearer ");
+            current = redact_sensitive_segment(&current, "token=");
+            current = redact_sensitive_segment(&current, "api_key=");
+            current = redact_sensitive_segment(&current, "apiKey=");
+            current = redact_sensitive_segment(&current, "Authorization: ");
+            current
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn trim_log_by_lines_and_bytes(value: &str, max_lines: usize, max_bytes: usize) -> String {
+    let lines: Vec<&str> = value.lines().collect();
+    let start = lines.len().saturating_sub(max_lines);
+    let joined = lines[start..].join("\n");
+    if joined.len() <= max_bytes {
+        return joined;
+    }
+    let start_byte = joined.len().saturating_sub(max_bytes);
+    let mut boundary = 0usize;
+    for (index, _) in joined.char_indices() {
+        if index >= start_byte {
+            boundary = index;
+            break;
+        }
+    }
+    joined[boundary..].to_string()
+}
+
+fn read_fault_report_log(path: &Path) -> Option<String> {
+    let raw = fs::read_to_string(path).ok()?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let redacted = redact_sensitive_lines(trimmed);
+    let limited = trim_log_by_lines_and_bytes(&redacted, 1000, 300 * 1024);
+    Some(limited)
+}
+
+fn desktop_fault_report_device_id_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app_data_base_dir(app)?.join("config").join("desktop-device-id"))
+}
+
+fn load_or_create_desktop_fault_report_device_id(app: &AppHandle) -> Result<String, String> {
+    let path = desktop_fault_report_device_id_path(app)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "failed to create desktop device id dir {}: {e}",
+                parent.to_string_lossy()
+            )
+        })?;
+    }
+    if path.exists() {
+        let value = fs::read_to_string(&path)
+            .map_err(|e| format!("failed to read desktop device id {}: {e}", path.to_string_lossy()))?;
+        let normalized = value.trim().to_string();
+        if !normalized.is_empty() {
+            return Ok(normalized);
+        }
+    }
+    let value = format!("D-{}", random_hex_string(6).to_uppercase());
+    fs::write(&path, format!("{value}\n"))
+        .map_err(|e| format!("failed to write desktop device id {}: {e}", path.to_string_lossy()))?;
+    #[cfg(unix)]
+    {
+        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+    }
+    Ok(value)
+}
+
+fn current_platform_label() -> String {
+    if cfg!(target_os = "macos") {
+        String::from("macos")
+    } else if cfg!(target_os = "windows") {
+        String::from("windows")
+    } else if cfg!(target_os = "linux") {
+        String::from("linux")
+    } else {
+        env::consts::OS.to_string()
+    }
+}
+
+fn current_platform_version() -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        let output = Command::new("sw_vers").arg("-productVersion").output().ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return if value.is_empty() { None } else { Some(value) };
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let output = Command::new("cmd").args(["/C", "ver"]).output().ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return if value.is_empty() { None } else { Some(value) };
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        None
+    }
+}
+
+fn current_arch_label() -> String {
+    if cfg!(target_arch = "aarch64") {
+        String::from("aarch64")
+    } else if cfg!(target_arch = "x86_64") {
+        String::from("x64")
+    } else {
+        env::consts::ARCH.to_string()
+    }
+}
+
 #[tauri::command]
 fn load_startup_diagnostics(app: AppHandle) -> Result<StartupDiagnosticsSnapshot, String> {
     let paths = ensure_runtime_dirs(&app)?;
@@ -4482,6 +4677,144 @@ fn load_startup_diagnostics(app: AppHandle) -> Result<StartupDiagnosticsSnapshot
         bootstrap_tail: read_log_tail(&bootstrap_log_path, 1200),
         sidecar_stdout_tail: read_log_tail(&sidecar_stdout_log_path, 1200),
         sidecar_stderr_tail: read_log_tail(&sidecar_stderr_log_path, 1200),
+    })
+}
+
+#[tauri::command]
+fn prepare_desktop_fault_report_archive(
+    app: AppHandle,
+    input: DesktopFaultReportPrepareInput,
+) -> Result<PreparedDesktopFaultReportArchive, String> {
+    let report_id = input
+        .report_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(String::from)
+        .unwrap_or_else(|| {
+            format!(
+                "FR-{}",
+                random_hex_string(6).to_uppercase()
+            )
+        });
+    let device_id = load_or_create_desktop_fault_report_device_id(&app)?;
+    let runtime_diagnosis = diagnose_runtime(app.clone())?;
+    let startup_diagnostics = load_startup_diagnostics(app.clone())?;
+    let bootstrap_log_path = PathBuf::from(&startup_diagnostics.bootstrap_log_path);
+    let stdout_log_path = PathBuf::from(&startup_diagnostics.sidecar_stdout_log_path);
+    let stderr_log_path = PathBuf::from(&startup_diagnostics.sidecar_stderr_log_path);
+    let logs = vec![
+        ("logs/desktop-bootstrap.log", read_fault_report_log(&bootstrap_log_path)),
+        ("logs/sidecar-stdout.log", read_fault_report_log(&stdout_log_path)),
+        ("logs/sidecar-stderr.log", read_fault_report_log(&stderr_log_path)),
+    ];
+
+    let payload = json!({
+        "report_id": report_id,
+        "entry": input.entry,
+        "install_session_id": input.install_session_id,
+        "app_name": input.app_name.unwrap_or_else(|| String::from(DESKTOP_BRAND_ID)),
+        "brand_id": input.brand_id.unwrap_or_else(|| String::from(DESKTOP_BRAND_ID)),
+        "app_version": input.app_version.unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string()),
+        "release_channel": input.release_channel,
+        "device_id": device_id,
+        "platform": current_platform_label(),
+        "platform_version": current_platform_version(),
+        "arch": current_arch_label(),
+        "failure_stage": input.failure_stage,
+        "error_title": input.error_title,
+        "error_message": input.error_message,
+        "error_code": input.error_code,
+        "runtime_found": input.runtime_found.unwrap_or(runtime_diagnosis.runtime_found),
+        "runtime_installable": input
+            .runtime_installable
+            .unwrap_or(runtime_diagnosis.runtime_installable),
+        "runtime_version": input.runtime_version.or(runtime_diagnosis.runtime_version),
+        "runtime_path": input.runtime_path.or(runtime_diagnosis.runtime_path),
+        "work_dir": input.work_dir.or(Some(runtime_diagnosis.work_dir)),
+        "log_dir": input.log_dir.or(Some(runtime_diagnosis.log_dir)),
+        "runtime_download_url": input.runtime_download_url.or(runtime_diagnosis.runtime_download_url),
+        "install_progress_phase": input.install_progress_phase,
+        "install_progress_percent": input.install_progress_percent,
+    });
+    let runtime_diagnostics_json = json!({
+        "runtimeDiagnosis": runtime_diagnosis,
+        "startupDiagnostics": startup_diagnostics,
+        "extraDiagnostics": input.extra_diagnostics.unwrap_or(serde_json::Value::Null),
+    });
+    let manifest_json = json!({
+        "report_id": payload["report_id"],
+        "entry": payload["entry"],
+        "device_id": payload["device_id"],
+        "platform": payload["platform"],
+        "arch": payload["arch"],
+        "created_at": timestamp_string(),
+        "files": logs
+            .iter()
+            .filter_map(|(name, content)| content.as_ref().map(|value| json!({
+                "name": name,
+                "size_bytes": value.as_bytes().len(),
+                "truncated": value.lines().count() >= 1000 || value.as_bytes().len() >= 300 * 1024
+            })))
+            .collect::<Vec<_>>(),
+    });
+
+    let cursor = Cursor::new(Vec::<u8>::new());
+    let mut archive = zip::ZipWriter::new(cursor);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let files = vec![
+        (
+            "manifest.json",
+            serde_json::to_vec_pretty(&manifest_json)
+                .map_err(|e| format!("failed to serialize fault report manifest: {e}"))?,
+        ),
+        (
+            "error-summary.json",
+            serde_json::to_vec_pretty(&payload)
+                .map_err(|e| format!("failed to serialize fault report summary: {e}"))?,
+        ),
+        (
+            "runtime-diagnostics.json",
+            serde_json::to_vec_pretty(&runtime_diagnostics_json)
+                .map_err(|e| format!("failed to serialize fault report diagnostics: {e}"))?,
+        ),
+    ];
+    for (name, bytes) in files {
+        archive
+            .start_file(name, options)
+            .map_err(|e| format!("failed to add fault report file {name}: {e}"))?;
+        archive
+            .write_all(&bytes)
+            .map_err(|e| format!("failed to write fault report file {name}: {e}"))?;
+    }
+    for (name, content) in logs {
+        if let Some(value) = content {
+            archive
+                .start_file(name, options)
+                .map_err(|e| format!("failed to add fault report log {name}: {e}"))?;
+            archive
+                .write_all(value.as_bytes())
+                .map_err(|e| format!("failed to write fault report log {name}: {e}"))?;
+        }
+    }
+    let cursor = archive
+        .finish()
+        .map_err(|e| format!("failed to finalize fault report archive: {e}"))?;
+    let bytes = cursor.into_inner();
+    let file_sha256 = sha256_hex(&bytes);
+    let file_name = format!("fault-report-{report_id}.zip");
+
+    Ok(PreparedDesktopFaultReportArchive {
+        report_id,
+        device_id: payload["device_id"].as_str().unwrap_or_default().to_string(),
+        platform: payload["platform"].as_str().unwrap_or_default().to_string(),
+        platform_version: payload["platform_version"].as_str().map(String::from),
+        arch: payload["arch"].as_str().unwrap_or_default().to_string(),
+        file_name,
+        file_size_bytes: bytes.len(),
+        file_sha256,
+        archive_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
+        payload,
     })
 }
 
@@ -7194,6 +7527,7 @@ fn main() {
             install_runtime,
             diagnose_runtime,
             load_startup_diagnostics,
+            prepare_desktop_fault_report_archive,
             load_bundled_skills_catalog,
             load_bundled_mcp_catalog,
             list_managed_skills,

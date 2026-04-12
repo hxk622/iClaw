@@ -1,6 +1,7 @@
+import { useRef } from 'react';
 import { actionLabel, formatDateTime, formatRelative, statusLabel } from '../lib/adminFormat';
 import type { BrandDetailData } from '../lib/adminTypes';
-import { BrandDetailPanel } from './BrandDetailPanel';
+import { BrandDetailPanel, type BrandDetailPanelHandle } from './BrandDetailPanel';
 
 type BrandDetailTabId =
   | 'desktop'
@@ -263,11 +264,12 @@ export function BrandDetailPage({
   }) => Promise<void> | void;
   onDeleteAsset?: (assetKey: string) => Promise<void> | void;
   savingReleaseAction?: boolean;
-  onPublish?: () => Promise<void> | void;
+  onPublish?: (options?: { force?: boolean }) => Promise<void> | void;
   onRestoreVersion?: (version: string) => Promise<void> | void;
   onBack: () => void;
   onOpenAudit: () => void;
 }) {
+  const panelRef = useRef<BrandDetailPanelHandle | null>(null);
   const tabs = [
     { id: 'desktop', label: '桌面端' },
     { id: 'home-web', label: 'Home官网' },
@@ -311,8 +313,27 @@ export function BrandDetailPage({
             </div>
           </div>
           <div className="fig-brand-detail__actions">
-            <button className="ghost-button fig-button" type="button" disabled={savingReleaseAction} onClick={() => void onPublish?.()}>
+            <button
+              className="ghost-button fig-button"
+              type="button"
+              disabled={savingReleaseAction}
+              onClick={async () => {
+                if (onDirtyChange) {
+                  await panelRef.current?.saveActiveTab();
+                }
+                await onPublish?.({ force: true });
+              }}
+            >
               {savingReleaseAction ? '处理中…' : '发布快照'}
+            </button>
+            <button
+              className="fig-icon-button"
+              type="button"
+              disabled={savingReleaseAction || !detail?.versions?.[0]?.version}
+              aria-label="恢复到最近发布版本"
+              onClick={() => void onRestoreVersion?.(String(detail?.versions?.[0]?.version || ''))}
+            >
+              ↺
             </button>
           </div>
         </div>
@@ -353,6 +374,7 @@ export function BrandDetailPage({
         ) : (
           <>
             <BrandDetailPanel
+              ref={panelRef}
               detail={detail}
               activeTab={activeTab}
               onDirtyChange={onDirtyChange}
@@ -428,7 +450,7 @@ export function BrandDetailPage({
               <article className="fig-card">
                 <div className="fig-card__head">
                   <h3>最近审计</h3>
-                  <span>{`${detail.audit.length} 条记录`}</span>
+                  <button className="text-button" type="button" onClick={onOpenAudit}>全部日志</button>
                 </div>
                 <div className="fig-list">
                   {detail.audit.length ? detail.audit.slice(0, 6).map((item, index) => (

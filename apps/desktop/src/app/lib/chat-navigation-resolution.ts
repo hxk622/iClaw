@@ -13,6 +13,10 @@ export function resolveRequestedPrimaryViewFromUrl(input?: string | URL | Locati
   }
 
   const pathname = url.pathname.trim().toLowerCase();
+  const queryView = (url.searchParams.get('view') || '').trim().toLowerCase();
+  if (queryView) {
+    return queryView;
+  }
   if (pathname === '/chat') {
     return 'chat';
   }

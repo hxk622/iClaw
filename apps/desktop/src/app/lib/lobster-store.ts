@@ -1,5 +1,9 @@
 import type { AgentCatalogEntryData, IClawClient, UserAgentLibraryItemData } from '@iclaw/sdk';
 import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
+import {
+  reconcileNativeAgentsLocally,
+  removeNativeAgentsLocally,
+} from './native-agent-registry';
 
 export type LobsterStoreTab = 'shop' | 'my-lobster';
 export type LobsterStoreCategory = AgentCatalogEntryData['category'];
@@ -390,6 +394,46 @@ function buildPortraitAvatar(item: AgentCatalogEntryData): string {
   return encodeSvg(svg);
 }
 
+function resolvePersonaMonogram(name: string): string {
+  const normalized = String(name || '').trim();
+  if (!normalized) {
+    return '?';
+  }
+  const chineseMatch = normalized.match(/[\p{Script=Han}]/u);
+  if (chineseMatch?.[0]) {
+    return chineseMatch[0];
+  }
+  const firstWord = normalized.split(/\s+/).find(Boolean) || normalized;
+  return firstWord.charAt(0).toUpperCase();
+}
+
+function buildMonogramAvatar(item: AgentCatalogEntryData): string {
+  const palette = avatarPalette(item.category);
+  const monogram = resolvePersonaMonogram(item.name);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" fill="none">
+      <defs>
+        <linearGradient id="bg" x1="18" y1="18" x2="142" y2="142" gradientUnits="userSpaceOnUse">
+          <stop stop-color="${palette.start}" />
+          <stop offset="1" stop-color="${palette.end}" />
+        </linearGradient>
+      </defs>
+      <rect width="160" height="160" rx="40" fill="url(#bg)" />
+      <circle cx="80" cy="80" r="54" fill="rgba(255,255,255,0.08)" />
+      <text
+        x="80"
+        y="92"
+        text-anchor="middle"
+        font-size="58"
+        font-weight="700"
+        fill="rgba(255,255,255,0.92)"
+        font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif"
+      >${monogram}</text>
+    </svg>
+  `;
+  return encodeSvg(svg);
+}
+
 export function resolveLobsterAgentAvatar(
   item: AgentCatalogEntryData,
   options?: {
@@ -397,8 +441,10 @@ export function resolveLobsterAgentAvatar(
   },
 ): string {
   const preferMetadataAvatar = options?.preferMetadataAvatar !== false;
+  const isRealPersona = readMetadataString(item.metadata, 'persona_type') === 'real-persona';
   return (
     (preferMetadataAvatar ? readMetadataString(item.metadata, 'avatar_url') : null) ||
+    (isRealPersona ? buildMonogramAvatar(item) : null) ||
     AVATAR_BY_SLUG[item.slug] ||
     pickPortraitAvatar(item) ||
     buildPortraitAvatar(item) ||
@@ -485,12 +531,17 @@ function persistLobsterCatalogSnapshot(items: AgentCatalogEntryData[]): void {
   } satisfies LobsterCatalogCacheSnapshot);
 }
 
-async function loadLobsterCatalog(client: IClawClient): Promise<AgentCatalogEntryData[]> {
-  const cached = readLobsterCatalogSnapshot() || inMemoryCatalogSnapshot;
+async function loadLobsterCatalog(
+  client: IClawClient,
+  options?: {
+    forceRefresh?: boolean;
+  },
+): Promise<AgentCatalogEntryData[]> {
+  const cached = options?.forceRefresh ? null : readLobsterCatalogSnapshot() || inMemoryCatalogSnapshot;
   if (cached) {
     return cached;
   }
-  if (inFlightCatalogLoad) {
+  if (!options?.forceRefresh && inFlightCatalogLoad) {
     return inFlightCatalogLoad;
   }
 
@@ -518,20 +569,30 @@ export function readCachedLobsterAgents(): LobsterAgent[] | null {
 export async function loadLobsterAgents(input: {
   client: IClawClient;
   accessToken: string | null;
+  forceRefresh?: boolean;
 }): Promise<LobsterAgent[]> {
   const [catalog, library] = await Promise.all([
-    loadLobsterCatalog(input.client),
+    loadLobsterCatalog(input.client, {forceRefresh: input.forceRefresh}),
     input.accessToken ? input.client.getAgentLibrary(input.accessToken).catch(() => []) : Promise.resolve([]),
   ]);
-  return hydrateLobsterAgents(catalog, library);
+  const hydrated = hydrateLobsterAgents(catalog, library);
+  void reconcileNativeAgentsLocally(hydrated.filter((agent) => agent.installed)).catch((error) => {
+    console.error('[native-agent] failed to reconcile installed agents locally', error);
+  });
+  return hydrated;
 }
 
 export async function installLobsterAgent(input: {
   client: IClawClient;
   accessToken: string;
-  slug: string;
+  agent: Pick<AgentCatalogEntryData, 'slug' | 'name' | 'description' | 'category' | 'metadata'>;
 }): Promise<UserAgentLibraryItemData> {
-  const result = await input.client.installAgent(input.accessToken, input.slug);
+  const result = await input.client.installAgent(input.accessToken, input.agent.slug);
+  try {
+    await reconcileNativeAgentsLocally([input.agent]);
+  } catch (error) {
+    console.error(`[native-agent] failed to activate local agent ${input.agent.slug}`, error);
+  }
   emitWindowEvent(LOBSTER_STORE_UPDATED_EVENT);
   return result;
 }
@@ -543,6 +604,11 @@ export async function uninstallLobsterAgent(input: {
 }): Promise<{ removed: boolean }> {
   const result = await input.client.removeAgentFromLibrary(input.accessToken, input.slug);
   if (result.removed) {
+    try {
+      await removeNativeAgentsLocally([input.slug]);
+    } catch (error) {
+      console.error(`[native-agent] failed to remove local agent ${input.slug}`, error);
+    }
     emitWindowEvent(LOBSTER_STORE_UPDATED_EVENT);
   }
   return result;

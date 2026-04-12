@@ -15,7 +15,7 @@ export const BRAND = {
     "faviconIcoSrc": "/brand/favicon.ico",
     "faviconPngSrc": "/brand/favicon.png",
     "appleTouchIconSrc": "/brand/apple-touch-icon.png",
-    "installerHeroSrc": "/brand/installer-hero.png",
+    "installerHeroSrc": "/brand/installer-hero.webp",
     "assistantAvatarSrc": "/brand/assistant-avatar.png",
     "logoAlt": "理财客 logo"
   },

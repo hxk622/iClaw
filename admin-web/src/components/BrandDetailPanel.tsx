@@ -1,5 +1,5 @@
 import { asObject, stringValue } from '../lib/adminApi';
-import { useEffect, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import {
   actionLabel,
   buildPortalAssetUrl,
@@ -18,6 +18,7 @@ import {
   normalizeSidebarSurfaceConfig,
   normalizeWelcomeSurfaceConfig,
 } from '../lib/brandSurfaceDrafts';
+import { usePointerSortableList } from '../lib/usePointerSortableList';
 import type { BrandDetailData } from '../lib/adminTypes';
 
 const HOME_WEB_PREVIEW_BASE_URL = ((import.meta.env.VITE_HOME_WEB_BASE_URL || 'http://127.0.0.1:1477') + '').trim().replace(/\/+$/, '');
@@ -37,6 +38,10 @@ type BrandDetailTabId =
   | 'menus'
   | 'assets'
   | 'theme';
+
+export type BrandDetailPanelHandle = {
+  saveActiveTab: () => Promise<void>;
+};
 
 function resolveDetailAsset(detail: BrandDetailData, assetKey: string) {
   return detail.assets.find((item) => stringValue(item.assetKey) === assetKey) || null;
@@ -369,55 +374,7 @@ function renderRechargeBindings(detail: BrandDetailData) {
   );
 }
 
-export function BrandDetailPanel({
-  detail,
-  activeTab,
-  onDirtyChange,
-  savingBaseInfo = false,
-  onSaveBaseInfo,
-  savingDesktopShell = false,
-  onSaveDesktopShell,
-  savingAuthExperience = false,
-  onSaveAuthExperience,
-  savingHeader = false,
-  onSaveHeader,
-  savingHomeWeb = false,
-  onSaveHomeWeb,
-  savingInput = false,
-  onSaveInput,
-  availableComposerControls = [],
-  savingComposerControls = false,
-  onSaveComposerControls,
-  availableComposerShortcuts = [],
-  savingComposerShortcuts = false,
-  onSaveComposerShortcuts,
-  savingSidebar = false,
-  onSaveSidebar,
-  savingWelcome = false,
-  onSaveWelcome,
-  savingTheme = false,
-  onSaveTheme,
-  availableSkills = [],
-  inheritedPlatformSkills = [],
-  savingSkills = false,
-  onSaveSkills,
-  availableModels = [],
-  savingModels = false,
-  onSaveModels,
-  availableMcps = [],
-  inheritedPlatformMcps = [],
-  savingMcps = false,
-  onSaveMcps,
-  availableRechargePackages = [],
-  savingRechargePackages = false,
-  onSaveRechargePackages,
-  availableMenus = [],
-  savingMenus = false,
-  onSaveMenus,
-  savingAsset = false,
-  onUploadAsset,
-  onDeleteAsset,
-}: {
+type BrandDetailPanelProps = {
   detail: BrandDetailData;
   activeTab: BrandDetailTabId;
   onDirtyChange?: (dirty: boolean) => void;
@@ -604,7 +561,57 @@ export function BrandDetailPanel({
     file: File;
   }) => Promise<void> | void;
   onDeleteAsset?: (assetKey: string) => Promise<void> | void;
-}) {
+};
+
+export const BrandDetailPanel = forwardRef<BrandDetailPanelHandle, BrandDetailPanelProps>(function BrandDetailPanel({
+  detail,
+  activeTab,
+  savingBaseInfo = false,
+  onSaveBaseInfo,
+  savingDesktopShell = false,
+  onSaveDesktopShell,
+  savingAuthExperience = false,
+  onSaveAuthExperience,
+  savingHeader = false,
+  onSaveHeader,
+  savingHomeWeb = false,
+  onSaveHomeWeb,
+  savingInput = false,
+  onSaveInput,
+  availableComposerControls = [],
+  savingComposerControls = false,
+  onSaveComposerControls,
+  availableComposerShortcuts = [],
+  savingComposerShortcuts = false,
+  onSaveComposerShortcuts,
+  savingSidebar = false,
+  onSaveSidebar,
+  savingWelcome = false,
+  onSaveWelcome,
+  savingTheme = false,
+  onSaveTheme,
+  availableSkills = [],
+  inheritedPlatformSkills = [],
+  savingSkills = false,
+  onSaveSkills,
+  availableModels = [],
+  savingModels = false,
+  onSaveModels,
+  availableMcps = [],
+  inheritedPlatformMcps = [],
+  savingMcps = false,
+  onSaveMcps,
+  availableRechargePackages = [],
+  savingRechargePackages = false,
+  onSaveRechargePackages,
+  availableMenus = [],
+  savingMenus = false,
+  onSaveMenus,
+  savingAsset = false,
+  onUploadAsset,
+  onDeleteAsset,
+  onDirtyChange,
+}, ref) {
   const surface = asObject(asObject(detail.appConfig.surfaces)[activeTab] || {});
   const surfaceConfig = asObject(surface.config || surface);
   const theme = asObject(detail.appConfig.theme);
@@ -739,12 +746,14 @@ export function BrandDetailPanel({
       .map((item) => stringValue(item.skillSlug))
       .filter(Boolean),
   );
+  const [selectedSkillSlug, setSelectedSkillSlug] = useState('');
   const [mcpDraft, setMcpDraft] = useState<string[]>(
     detail.mcpBindings
       .filter((item) => item.enabled !== false)
       .map((item) => stringValue(item.mcpKey))
       .filter(Boolean),
   );
+  const [selectedMcpKey, setSelectedMcpKey] = useState('');
   const [rechargeDraft, setRechargeDraft] = useState<string[]>(
     detail.rechargePackageBindings
       .filter((item) => item.enabled !== false)
@@ -796,15 +805,6 @@ export function BrandDetailPanel({
     })),
   );
   const [selectedMenuKey, setSelectedMenuKey] = useState(menuDraft[0]?.menuKey || '');
-  const [menuDragState, setMenuDragState] = useState<{
-    sourceKey: string;
-    overKey: string;
-    placement: 'before' | 'after';
-  }>({
-    sourceKey: '',
-    overKey: '',
-    placement: 'before',
-  });
   const [assetDraft, setAssetDraft] = useState({
     assetKey: '',
     kind: '',
@@ -910,6 +910,7 @@ export function BrandDetailPanel({
         .map((item) => stringValue(item.skillSlug))
         .filter(Boolean),
     );
+    setSelectedSkillSlug((current) => current || availableSkills[0]?.slug || '');
   }, [detail]);
 
   useEffect(() => {
@@ -919,6 +920,7 @@ export function BrandDetailPanel({
         .map((item) => stringValue(item.mcpKey))
         .filter(Boolean),
     );
+    setSelectedMcpKey((current) => current || availableMcps[0]?.key || '');
   }, [detail]);
 
   useEffect(() => {
@@ -972,6 +974,11 @@ export function BrandDetailPanel({
     }
   }, [menuDraft, selectedMenuKey]);
 
+  const selectedSkillItem =
+    availableSkills.find((item) => item.slug === selectedSkillSlug) || availableSkills[0] || null;
+  const selectedMcpItem =
+    availableMcps.find((item) => item.key === selectedMcpKey) || availableMcps[0] || null;
+
   const reorderMenuDraft = (sourceKey: string, targetKey: string, placement: 'before' | 'after') => {
     if (!sourceKey || !targetKey || sourceKey === targetKey) {
       return;
@@ -991,6 +998,10 @@ export function BrandDetailPanel({
     });
     setSelectedMenuKey(sourceKey);
   };
+  const menuSortable = usePointerSortableList({
+    ids: menuDraft.map((item) => item.menuKey).filter(Boolean),
+    onReorder: reorderMenuDraft,
+  });
 
   const selectedMenu = menuDraft.find((item) => item.menuKey === selectedMenuKey) || menuDraft[0] || null;
   const selectedMenuCatalog = selectedMenu
@@ -1142,6 +1153,108 @@ export function BrandDetailPanel({
     modelDraft,
   ]);
 
+  useImperativeHandle(ref, () => ({
+    saveActiveTab: async () => {
+      if (activeTab === 'desktop') {
+        await onSaveDesktopShell?.(desktopShellDraft);
+        return;
+      }
+      if (activeTab === 'home-web') {
+        await onSaveHomeWeb?.(homeWebDraft);
+        return;
+      }
+      if (activeTab === 'welcome') {
+        await onSaveWelcome?.(welcomeDraft);
+        return;
+      }
+      if (activeTab === 'auth') {
+        await onSaveAuthExperience?.(authDraft);
+        return;
+      }
+      if (activeTab === 'header') {
+        await onSaveHeader?.(headerDraft);
+        return;
+      }
+      if (activeTab === 'sidebar') {
+        await onSaveSidebar?.(sidebarDraft);
+        return;
+      }
+      if (activeTab === 'input') {
+        await onSaveInput?.(inputDraft);
+        await onSaveComposerControls?.(composerControlDraft);
+        await onSaveComposerShortcuts?.(composerShortcutDraft);
+        return;
+      }
+      if (activeTab === 'skills') {
+        await onSaveSkills?.(skillDraft);
+        return;
+      }
+      if (activeTab === 'models') {
+        await onSaveModels?.(modelDraft);
+        return;
+      }
+      if (activeTab === 'mcps') {
+        await onSaveMcps?.(mcpDraft);
+        return;
+      }
+      if (activeTab === 'recharge') {
+        await onSaveRechargePackages?.(rechargeDraft);
+        return;
+      }
+      if (activeTab === 'menus') {
+        await onSaveMenus?.(menuDraft);
+        return;
+      }
+      if (activeTab === 'theme') {
+        await onSaveTheme?.(themeDraft);
+        return;
+      }
+      if (activeTab === 'assets' && assetDraft.file) {
+        const metadata = asObject(assetDraft.metadataText ? JSON.parse(assetDraft.metadataText) : {});
+        await onUploadAsset?.({
+          assetKey: assetDraft.assetKey,
+          kind: assetDraft.kind,
+          metadata,
+          file: assetDraft.file,
+        });
+      }
+    },
+  }), [
+    activeTab,
+    assetDraft,
+    authDraft,
+    composerControlDraft,
+    composerShortcutDraft,
+    desktopShellDraft,
+    headerDraft,
+    homeWebDraft,
+    inputDraft,
+    mcpDraft,
+    menuDraft,
+    modelDraft,
+    onSaveAuthExperience,
+    onSaveComposerControls,
+    onSaveComposerShortcuts,
+    onSaveDesktopShell,
+    onSaveHeader,
+    onSaveHomeWeb,
+    onSaveInput,
+    onSaveMcps,
+    onSaveMenus,
+    onSaveModels,
+    onSaveRechargePackages,
+    onSaveSidebar,
+    onSaveSkills,
+    onSaveTheme,
+    onSaveWelcome,
+    onUploadAsset,
+    rechargeDraft,
+    sidebarDraft,
+    skillDraft,
+    themeDraft,
+    welcomeDraft,
+  ]);
+
   return (
     <>
       <section className="fig-card fig-brand-meta-editor">
@@ -1188,111 +1301,181 @@ export function BrandDetailPanel({
 
       {activeTab === 'skills'
         ? (
-          <section className="fig-card fig-card--subtle">
-            <div className="fig-card__head">
-              <h3>技能装配</h3>
-              <span>平台级 Skill 为继承层；这里只保存 OEM 增量绑定</span>
-            </div>
-            {inheritedPlatformSkills.length ? (
-              <div className="chip-grid" style={{ marginBottom: 16 }}>
-                {inheritedPlatformSkills.map((item) => (
-                  <span key={item.slug} className="chip">
-                    {`${item.name} · 平台继承`}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            <div className="fig-list">
-              {availableSkills.length ? (
-                availableSkills.map((item) => {
-                  const checked = skillDraft.includes(item.slug);
-                  return (
-                    <label key={item.slug} className="fig-list-item fig-list-item--spread" style={{ cursor: 'pointer' }}>
-                      <div>
-                        <div className="fig-list-item__title">{item.name}</div>
-                        <div className="fig-list-item__meta">
-                          <span>{item.slug}</span>
-                          {item.category ? <span>{item.category}</span> : null}
-                        </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(event) =>
-                          setSkillDraft((current) =>
-                            event.target.checked
-                              ? Array.from(new Set([...current, item.slug]))
-                              : current.filter((slug) => slug !== item.slug),
-                          )
-                        }
-                      />
-                    </label>
-                  );
-                })
-              ) : (
-                <div className="empty-state">当前没有可装配的云技能。</div>
-              )}
-            </div>
-            <div className="fig-release-card__actions">
-              <button className="solid-button" type="button" disabled={savingSkills} onClick={() => onSaveSkills?.(skillDraft)}>
-                {savingSkills ? '保存中…' : '保存技能装配'}
-              </button>
-            </div>
-          </section>
-        )
-        : activeTab === 'mcps'
-          ? (
+          <>
             <section className="fig-card fig-card--subtle">
               <div className="fig-card__head">
-                <h3>MCP 装配</h3>
-                <span>平台级 MCP 为继承层；这里只保存 OEM 增量装配</span>
+                <h3>技能装配</h3>
+                <span>平台级 Skill 为继承层；这里维护 OEM 增量绑定</span>
               </div>
-              {inheritedPlatformMcps.length ? (
-                <div className="chip-grid" style={{ marginBottom: 16 }}>
-                  {inheritedPlatformMcps.map((item) => (
-                    <span key={item.key} className="chip">
+              <div className="fig-meta-cards">
+                <div className="fig-meta-card"><span>可用 Skill</span><strong>{String(availableSkills.length)}</strong></div>
+                <div className="fig-meta-card"><span>平台继承</span><strong>{String(inheritedPlatformSkills.length)}</strong></div>
+                <div className="fig-meta-card"><span>OEM 启用</span><strong>{String(skillDraft.length)}</strong></div>
+                <div className="fig-meta-card"><span>当前选中</span><strong>{selectedSkillItem?.name || '未选择'}</strong></div>
+              </div>
+              {inheritedPlatformSkills.length ? (
+                <div className="chip-grid" style={{ marginTop: 16 }}>
+                  {inheritedPlatformSkills.map((item) => (
+                    <span key={item.slug} className="chip">
                       {`${item.name} · 平台继承`}
                     </span>
                   ))}
                 </div>
               ) : null}
-              <div className="fig-list">
-                {availableMcps.length ? (
-                  availableMcps.map((item) => {
-                    const checked = mcpDraft.includes(item.key);
-                    return (
-                      <label key={item.key} className="fig-list-item fig-list-item--spread" style={{ cursor: 'pointer' }}>
-                        <div>
-                          <div className="fig-list-item__title">{item.name}</div>
-                          <div className="fig-list-item__meta">
-                            <span>{item.key}</span>
-                            {item.transport ? <span>{item.transport}</span> : null}
-                          </div>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(event) =>
+            </section>
+            <div className="fig-workspace fig-workspace--drawer">
+              <section className="fig-workspace__list">
+                <div className="fig-card fig-card--subtle">
+                  <div className="fig-card__head">
+                    <h3>Skill 列表</h3>
+                    <span>列表卡片用于选择当前 Skill</span>
+                  </div>
+                  <div className="fig-capability-list">
+                    {availableSkills.length ? (
+                      availableSkills.map((item) => {
+                        const checked = skillDraft.includes(item.slug);
+                        return (
+                          <button key={item.slug} className={`capability-card${selectedSkillItem?.slug === item.slug ? ' is-active' : ''}`} type="button" onClick={() => setSelectedSkillSlug(item.slug)}>
+                            <strong>{item.name}</strong>
+                            <span>{`${item.slug}${item.category ? ` • ${item.category}` : ''}${checked ? ' • 已启用' : ''}`}</span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="empty-state">当前没有可装配的云技能。</div>
+                    )}
+                  </div>
+                </div>
+              </section>
+              <aside className="fig-workspace__drawer">
+                {selectedSkillItem ? (
+                  <section className="fig-card fig-card--subtle">
+                    <div className="fig-card__head">
+                      <h3>{selectedSkillItem.name}</h3>
+                      <span>{selectedSkillItem.slug}</span>
+                    </div>
+                    <div className="fig-meta-cards">
+                      <div className="fig-meta-card"><span>Slug</span><strong>{selectedSkillItem.slug}</strong></div>
+                      <div className="fig-meta-card"><span>分类</span><strong>{selectedSkillItem.category || '未分类'}</strong></div>
+                      <div className="fig-meta-card"><span>平台继承</span><strong>{inheritedPlatformSkills.some((item) => item.slug === selectedSkillItem.slug) ? '是' : '否'}</strong></div>
+                      <div className="fig-meta-card"><span>OEM 状态</span><strong>{skillDraft.includes(selectedSkillItem.slug) ? '已启用' : '未启用'}</strong></div>
+                    </div>
+                    <div className="fig-release-card__actions">
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={() =>
+                          setSkillDraft((current) =>
+                            current.includes(selectedSkillItem.slug)
+                              ? current.filter((slug) => slug !== selectedSkillItem.slug)
+                              : Array.from(new Set([...current, selectedSkillItem.slug])),
+                          )
+                        }
+                      >
+                        {skillDraft.includes(selectedSkillItem.slug) ? '移出 OEM 装配' : '加入 OEM 装配'}
+                      </button>
+                    </div>
+                    <div className="fig-release-card__actions">
+                      <button className="solid-button" type="button" disabled={savingSkills} onClick={() => onSaveSkills?.(skillDraft)}>
+                        {savingSkills ? '保存中…' : '保存技能装配'}
+                      </button>
+                    </div>
+                  </section>
+                ) : (
+                  <div className="fig-card fig-card--detail-empty"><div className="empty-state">当前没有可编辑的 Skill。</div></div>
+                )}
+              </aside>
+            </div>
+          </>
+        )
+        : activeTab === 'mcps'
+          ? (
+            <>
+              <section className="fig-card fig-card--subtle">
+                <div className="fig-card__head">
+                  <h3>MCP 装配</h3>
+                  <span>平台级 MCP 为继承层；这里维护 OEM 增量装配</span>
+                </div>
+                <div className="fig-meta-cards">
+                  <div className="fig-meta-card"><span>可用 MCP</span><strong>{String(availableMcps.length)}</strong></div>
+                  <div className="fig-meta-card"><span>平台继承</span><strong>{String(inheritedPlatformMcps.length)}</strong></div>
+                  <div className="fig-meta-card"><span>OEM 启用</span><strong>{String(mcpDraft.length)}</strong></div>
+                  <div className="fig-meta-card"><span>当前选中</span><strong>{selectedMcpItem?.name || '未选择'}</strong></div>
+                </div>
+                {inheritedPlatformMcps.length ? (
+                  <div className="chip-grid" style={{ marginTop: 16 }}>
+                    {inheritedPlatformMcps.map((item) => (
+                      <span key={item.key} className="chip">
+                        {`${item.name} · 平台继承`}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+              <div className="fig-workspace fig-workspace--drawer">
+                <section className="fig-workspace__list">
+                  <div className="fig-card fig-card--subtle">
+                    <div className="fig-card__head">
+                      <h3>MCP 列表</h3>
+                      <span>列表卡片用于选择当前 MCP</span>
+                    </div>
+                    <div className="fig-capability-list">
+                      {availableMcps.length ? (
+                        availableMcps.map((item) => {
+                          const checked = mcpDraft.includes(item.key);
+                          return (
+                            <button key={item.key} className={`capability-card${selectedMcpItem?.key === item.key ? ' is-active' : ''}`} type="button" onClick={() => setSelectedMcpKey(item.key)}>
+                              <strong>{item.name}</strong>
+                              <span>{`${item.key}${item.transport ? ` • ${item.transport}` : ''}${checked ? ' • 已启用' : ''}`}</span>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="empty-state">当前没有可装配的云MCP。</div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+                <aside className="fig-workspace__drawer">
+                  {selectedMcpItem ? (
+                    <section className="fig-card fig-card--subtle">
+                      <div className="fig-card__head">
+                        <h3>{selectedMcpItem.name}</h3>
+                        <span>{selectedMcpItem.key}</span>
+                      </div>
+                      <div className="fig-meta-cards">
+                        <div className="fig-meta-card"><span>Key</span><strong>{selectedMcpItem.key}</strong></div>
+                        <div className="fig-meta-card"><span>Transport</span><strong>{selectedMcpItem.transport || '未声明'}</strong></div>
+                        <div className="fig-meta-card"><span>平台继承</span><strong>{inheritedPlatformMcps.some((item) => item.key === selectedMcpItem.key) ? '是' : '否'}</strong></div>
+                        <div className="fig-meta-card"><span>OEM 状态</span><strong>{mcpDraft.includes(selectedMcpItem.key) ? '已启用' : '未启用'}</strong></div>
+                      </div>
+                      <div className="fig-release-card__actions">
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          onClick={() =>
                             setMcpDraft((current) =>
-                              event.target.checked
-                                ? Array.from(new Set([...current, item.key]))
-                                : current.filter((key) => key !== item.key),
+                              current.includes(selectedMcpItem.key)
+                                ? current.filter((key) => key !== selectedMcpItem.key)
+                                : Array.from(new Set([...current, selectedMcpItem.key])),
                             )
                           }
-                        />
-                      </label>
-                    );
-                  })
-                ) : (
-                  <div className="empty-state">当前没有可装配的云MCP。</div>
-                )}
+                        >
+                          {mcpDraft.includes(selectedMcpItem.key) ? '移出 OEM 装配' : '加入 OEM 装配'}
+                        </button>
+                      </div>
+                      <div className="fig-release-card__actions">
+                        <button className="solid-button" type="button" disabled={savingMcps} onClick={() => onSaveMcps?.(mcpDraft)}>
+                          {savingMcps ? '保存中…' : '保存 MCP 装配'}
+                        </button>
+                      </div>
+                    </section>
+                  ) : (
+                    <div className="fig-card fig-card--detail-empty"><div className="empty-state">当前没有可编辑的 MCP。</div></div>
+                  )}
+                </aside>
               </div>
-              <div className="fig-release-card__actions">
-                <button className="solid-button" type="button" disabled={savingMcps} onClick={() => onSaveMcps?.(mcpDraft)}>
-                  {savingMcps ? '保存中…' : '保存 MCP 装配'}
-                </button>
-              </div>
-            </section>
+            </>
           )
           : activeTab === 'models'
             ? (
@@ -1421,88 +1604,66 @@ export function BrandDetailPanel({
               <section className="fig-card fig-card--subtle">
                 <div className="fig-card__head">
                   <h3>左菜单栏</h3>
-                  <span>左侧拖拽排序，右侧编辑当前选中的菜单项</span>
+                  <span>列表卡片 + 右侧详情抽屉。左边排布与筛选，右边沉浸式编辑当前对象。</span>
                 </div>
-                <div className="fig-layout">
-                  <section className="menu-assembly-list">
+                <div className="fig-meta-cards" style={{ marginBottom: 16 }}>
+                  <div className="fig-meta-card">
+                    <span>菜单总数</span>
+                    <strong>{String(menuDraft.length)}</strong>
+                  </div>
+                  <div className="fig-meta-card">
+                    <span>已启用</span>
+                    <strong>{String(menuDraft.filter((item) => item.enabled).length)}</strong>
+                  </div>
+                  <div className="fig-meta-card">
+                    <span>当前选中</span>
+                    <strong>{selectedMenuLabel || '未选择'}</strong>
+                  </div>
+                  <div className="fig-meta-card">
+                    <span>当前分组</span>
+                    <strong>{selectedMenu?.group?.trim() || '未分组'}</strong>
+                  </div>
+                </div>
+                <div className="fig-workspace fig-workspace--drawer">
+                  <section className="fig-workspace__list menu-assembly-list">
                     <div className="fig-card fig-card--subtle">
                       <div className="fig-card__head">
                         <h3>菜单列表</h3>
-                        <span>拖动卡片排序，点击卡片切换右侧配置</span>
+                        <span>拖动卡片排序，点击卡片切换右侧抽屉配置</span>
                       </div>
                       <div className="menu-assembly-list__stack">
                         {menuDraft.map((item, index) => {
                           const catalog = availableMenus.find((entry) => entry.key === item.menuKey) || null;
                           const displayName = item.displayName.trim() || catalog?.label || item.menuKey;
                           const isActive = selectedMenu?.menuKey === item.menuKey;
-                          const isDragging = menuDragState.sourceKey === item.menuKey;
+                          const isDragging = menuSortable.dragState.activeId === item.menuKey && menuSortable.dragState.dragging;
                           const isDropBefore =
-                            menuDragState.overKey === item.menuKey &&
-                            menuDragState.sourceKey !== item.menuKey &&
-                            menuDragState.placement === 'before';
+                            menuSortable.dragState.overId === item.menuKey &&
+                            menuSortable.dragState.activeId !== item.menuKey &&
+                            menuSortable.dragState.placement === 'before';
                           const isDropAfter =
-                            menuDragState.overKey === item.menuKey &&
-                            menuDragState.sourceKey !== item.menuKey &&
-                            menuDragState.placement === 'after';
+                            menuSortable.dragState.overId === item.menuKey &&
+                            menuSortable.dragState.activeId !== item.menuKey &&
+                            menuSortable.dragState.placement === 'after';
                           return (
                             <div
                               key={item.menuKey || index}
+                              ref={(node) => menuSortable.setItemRef(item.menuKey, node)}
                               className={`menu-assembly-card${isActive ? ' is-active' : ''}${isDragging ? ' is-dragging' : ''}${isDropBefore ? ' is-drop-before' : ''}${isDropAfter ? ' is-drop-after' : ''}`}
                               role="button"
                               tabIndex={0}
-                              draggable
-                              onClick={() => setSelectedMenuKey(item.menuKey)}
+                              onClick={() => {
+                                if (menuSortable.isClickSuppressed()) {
+                                  return;
+                                }
+                                setSelectedMenuKey(item.menuKey);
+                              }}
                               onKeyDown={(event) => {
                                 if (event.key === 'Enter' || event.key === ' ') {
                                   event.preventDefault();
                                   setSelectedMenuKey(item.menuKey);
                                 }
                               }}
-                              onDragStart={(event) => {
-                                event.dataTransfer.effectAllowed = 'move';
-                                event.dataTransfer.setData('text/plain', item.menuKey);
-                                setMenuDragState({
-                                  sourceKey: item.menuKey,
-                                  overKey: '',
-                                  placement: 'before',
-                                });
-                              }}
-                              onDragOver={(event) => {
-                                if (!menuDragState.sourceKey || menuDragState.sourceKey === item.menuKey) {
-                                  return;
-                                }
-                                event.preventDefault();
-                                const rect = event.currentTarget.getBoundingClientRect();
-                                const placement = event.clientY >= rect.top + rect.height / 2 ? 'after' : 'before';
-                                setMenuDragState((current) =>
-                                  current.overKey === item.menuKey && current.placement === placement
-                                    ? current
-                                    : {
-                                      ...current,
-                                      overKey: item.menuKey,
-                                      placement,
-                                    },
-                                );
-                              }}
-                              onDrop={(event) => {
-                                event.preventDefault();
-                                const sourceKey = menuDragState.sourceKey || event.dataTransfer.getData('text/plain');
-                                const rect = event.currentTarget.getBoundingClientRect();
-                                const placement = event.clientY >= rect.top + rect.height / 2 ? 'after' : 'before';
-                                reorderMenuDraft(sourceKey, item.menuKey, placement);
-                                setMenuDragState({
-                                  sourceKey: '',
-                                  overKey: '',
-                                  placement: 'before',
-                                });
-                              }}
-                              onDragEnd={() =>
-                                setMenuDragState({
-                                  sourceKey: '',
-                                  overKey: '',
-                                  placement: 'before',
-                                })
-                              }
                             >
                               <span className="menu-assembly-card__icon">
                                 <span className="menu-assembly-card__svg menu-assembly-card__glyph" aria-hidden="true">
@@ -1551,7 +1712,11 @@ export function BrandDetailPanel({
                                 </span>
                                 <span className="switch__label">{item.enabled ? '开' : '关'}</span>
                               </button>
-                              <span className="menu-assembly-card__drag" aria-hidden="true" title="拖动排序">
+                              <span
+                                className="menu-assembly-card__drag"
+                                aria-hidden="true"
+                                title="拖动排序"
+                              >
                                 <span></span>
                                 <span></span>
                                 <span></span>
@@ -1565,7 +1730,7 @@ export function BrandDetailPanel({
                       </div>
                     </div>
                   </section>
-                  <section className="menu-assembly-detail">
+                  <aside className="fig-workspace__drawer menu-assembly-detail">
                     {selectedMenu ? (
                       <div className="fig-card fig-card--subtle">
                         <div className="fig-card__head">
@@ -1631,7 +1796,7 @@ export function BrandDetailPanel({
                         <div className="empty-state">当前没有可编辑的菜单项。</div>
                       </div>
                     )}
-                  </section>
+                  </aside>
                 </div>
                 <div className="fig-release-card__actions">
                   <button className="solid-button" type="button" disabled={savingMenus} onClick={() => onSaveMenus?.(menuDraft)}>
@@ -2568,4 +2733,4 @@ export function BrandDetailPanel({
                       )}
     </>
   );
-}
+});

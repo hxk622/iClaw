@@ -22,6 +22,8 @@ export type ChatConversationKind =
 
 export type ChatConversationHandoffRecord = {
   id: string;
+  fromAgentId: string | null;
+  toAgentId: string | null;
   fromSessionKey: string;
   toSessionKey: string;
   reason: string;
@@ -34,6 +36,7 @@ export type ChatConversationRecord = {
   kind: ChatConversationKind;
   title: string | null;
   summary: string | null;
+  activeAgentId: string | null;
   activeSessionKey: string;
   sessionKeys: string[];
   createdAt: string;
@@ -61,7 +64,17 @@ type LinkConversationSessionInput = {
   conversationId: string;
   fromSessionKey: string;
   toSessionKey: string;
+  fromAgentId?: string | null;
+  toAgentId?: string | null;
   reason: string;
+  summary?: string | null;
+};
+
+type SyncConversationActiveAgentInput = {
+  conversationId?: string | null;
+  sessionKey: string;
+  agentId?: string | null;
+  reason?: string | null;
   summary?: string | null;
 };
 
@@ -162,6 +175,8 @@ function normalizeConversationRecord(value: unknown): ChatConversationRecord | n
       }
       const entry = item as Record<string, unknown>;
       const handoffId = normalizeText(entry.id);
+      const fromAgentId = normalizeText(entry.fromAgentId);
+      const toAgentId = normalizeText(entry.toAgentId);
       const fromSessionKey = normalizeSessionKey(entry.fromSessionKey);
       const toSessionKey = normalizeSessionKey(entry.toSessionKey);
       const reason = normalizeText(entry.reason);
@@ -170,6 +185,8 @@ function normalizeConversationRecord(value: unknown): ChatConversationRecord | n
       }
       return {
         id: handoffId,
+        fromAgentId,
+        toAgentId,
         fromSessionKey,
         toSessionKey,
         reason,
@@ -185,6 +202,7 @@ function normalizeConversationRecord(value: unknown): ChatConversationRecord | n
     kind: normalizeKind(raw.kind),
     title: normalizeText(raw.title),
     summary: normalizeText(raw.summary),
+    activeAgentId: normalizeText(raw.activeAgentId),
     activeSessionKey,
     sessionKeys,
     createdAt: normalizeText(raw.createdAt) || new Date().toISOString(),
@@ -448,6 +466,7 @@ function repairConversationList(records: ChatConversationRecord[]): ChatConversa
       ...record,
       title: nextTitle,
       summary: nextSummary,
+      activeAgentId: record.activeAgentId,
       activeSessionKey: nextActiveSessionKey,
       sessionKeys: nextSessionKeys,
       updatedAt: nextUpdatedAt,
@@ -477,6 +496,7 @@ function repairConversationList(records: ChatConversationRecord[]): ChatConversa
       kind: 'general',
       title: latestTurn?.title || snapshotMetadata?.title || null,
       summary: latestTurn?.summary || snapshotMetadata?.summary || null,
+      activeAgentId: null,
       activeSessionKey: sessionKey,
       sessionKeys: dedupeSessionKeys(
         [latestTurn?.sessionKey ?? null, snapshotMetadata?.sessionKey ?? null].filter(
@@ -610,6 +630,7 @@ export function ensureChatConversation(input: EnsureConversationInput): ChatConv
       kind,
       title,
       summary,
+      activeAgentId: null,
       activeSessionKey: sessionKey,
       sessionKeys: [sessionKey],
       createdAt: new Date().toISOString(),
@@ -648,6 +669,8 @@ export function linkSessionToConversation(input: LinkConversationSessionInput): 
         : [
             {
               id: createId('handoff'),
+              fromAgentId: normalizeText(input.fromAgentId),
+              toAgentId: normalizeText(input.toAgentId),
               fromSessionKey,
               toSessionKey,
               reason,
@@ -659,6 +682,7 @@ export function linkSessionToConversation(input: LinkConversationSessionInput): 
 
       return {
         ...record,
+        activeAgentId: normalizeText(input.toAgentId) ?? record.activeAgentId,
         activeSessionKey: toSessionKey,
         sessionKeys: dedupeSessionKeys(record.sessionKeys, toSessionKey),
         handoffs: nextHandoffs,
@@ -698,6 +722,7 @@ export function syncChatConversationMetadata(input: SyncConversationMetadataInpu
         kind,
         title,
         summary,
+        activeAgentId: null,
         activeSessionKey: sessionKey,
         sessionKeys: [sessionKey],
         createdAt,
@@ -757,6 +782,65 @@ export function renameChatConversation(conversationId: string, title: string): C
   );
 
   return updated.find((record) => record.id === normalizedConversationId) ?? null;
+}
+
+export function syncChatConversationActiveAgent(input: SyncConversationActiveAgentInput): ChatConversationRecord | null {
+  const sessionKey = normalizeSessionKey(input.sessionKey);
+  if (!sessionKey) {
+    return null;
+  }
+
+  const conversationId = normalizeText(input.conversationId);
+  const nextAgentId = normalizeText(input.agentId);
+  const reason = normalizeText(input.reason) || 'agent-switch';
+  const summary = normalizeText(input.summary);
+  let resolvedConversationId: string | null = null;
+
+  const updated = updateConversationList((current) => {
+    const matched =
+      (conversationId ? current.find((record) => record.id === conversationId) ?? null : null) ??
+      current.find((record) => record.sessionKeys.includes(sessionKey)) ??
+      null;
+
+    if (!matched) {
+      return current;
+    }
+
+    resolvedConversationId = matched.id;
+    if ((matched.activeAgentId || null) === nextAgentId) {
+      return current;
+    }
+
+    const nextHandoffs =
+      matched.activeAgentId || nextAgentId
+        ? [
+            {
+              id: createId('handoff'),
+              fromAgentId: matched.activeAgentId || null,
+              toAgentId: nextAgentId,
+              fromSessionKey: matched.activeSessionKey,
+              toSessionKey: sessionKey,
+              reason,
+              summary,
+              createdAt: new Date().toISOString(),
+            },
+            ...matched.handoffs,
+          ].slice(0, MAX_HANDOFFS_PER_CONVERSATION)
+        : matched.handoffs;
+
+    const nextRecord: ChatConversationRecord = {
+      ...matched,
+      activeAgentId: nextAgentId,
+      activeSessionKey: sessionKey,
+      sessionKeys: dedupeSessionKeys(matched.sessionKeys, sessionKey),
+      handoffs: nextHandoffs,
+      updatedAt: new Date().toISOString(),
+    };
+
+    return [nextRecord, ...current.filter((record) => record.id !== matched.id)];
+  });
+
+  return updated.find((record) => record.id === resolvedConversationId) ?? null;
 }
 
 export function deleteChatConversation(conversationId: string): void {

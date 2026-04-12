@@ -46,7 +46,9 @@ import {
 } from './lib/oem-runtime';
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
+import { FaultReportModal } from './components/FaultReportModal';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
+import { GlobalExceptionDialog, type GlobalExceptionState } from './components/GlobalExceptionDialog';
 import { IClawHeader } from './components/IClawHeader';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { CronTaskResultSync } from './components/CronTaskResultSync';
@@ -308,6 +310,7 @@ const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' =
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
 const DESKTOP_UPDATE_REVALIDATE_TTL_MS = 15 * 60 * 1000;
 const ACTIVE_CHAT_ROUTE_STORAGE_KEY = 'iclaw.desktop.active-chat-route.v1';
+const ACTIVE_CHAT_ROUTE_GLOBAL_STORAGE_KEY = 'iclaw.desktop.active-chat-route.global.v1';
 const DESKTOP_RUNTIME_PLATFORM: 'windows' | 'macos' | 'linux' | 'web' =
   typeof navigator === 'undefined'
     ? 'web'
@@ -426,7 +429,9 @@ function normalizePersistedStockContext(value: unknown): ComposerStockContext | 
 }
 
 function readPersistedActiveChatRoute(): ActiveChatRoute | null {
-  const snapshot = readCacheJson<PersistedChatRouteSnapshot>(buildChatScopedStorageKey(ACTIVE_CHAT_ROUTE_STORAGE_KEY));
+  const snapshot =
+    readCacheJson<PersistedChatRouteSnapshot>(ACTIVE_CHAT_ROUTE_GLOBAL_STORAGE_KEY) ??
+    readCacheJson<PersistedChatRouteSnapshot>(buildChatScopedStorageKey(ACTIVE_CHAT_ROUTE_STORAGE_KEY));
   if (!snapshot || typeof snapshot !== 'object') {
     return null;
   }
@@ -454,9 +459,20 @@ function readPersistedActiveChatRoute(): ActiveChatRoute | null {
 
 function writePersistedActiveChatRoute(route: ActiveChatRoute | null): void {
   if (!route) {
+    writeCacheJson(ACTIVE_CHAT_ROUTE_GLOBAL_STORAGE_KEY, null);
     writeCacheJson(buildChatScopedStorageKey(ACTIVE_CHAT_ROUTE_STORAGE_KEY), null);
     return;
   }
+  writeCacheJson(ACTIVE_CHAT_ROUTE_GLOBAL_STORAGE_KEY, {
+    conversationId: route.conversationId,
+    sessionKey: route.sessionKey,
+    initialPrompt: route.initialPrompt,
+    initialPromptKey: route.initialPromptKey,
+    initialAgentSlug: route.initialAgentSlug,
+    initialSkillSlug: route.initialSkillSlug,
+    initialSkillOption: route.initialSkillOption,
+    initialStockContext: route.initialStockContext,
+  });
   writeCacheJson(buildChatScopedStorageKey(ACTIVE_CHAT_ROUTE_STORAGE_KEY), {
     conversationId: route.conversationId,
     sessionKey: route.sessionKey,
@@ -952,8 +968,11 @@ export default function App() {
         gatewaySessionKey: IM_BOT_TEST_SESSION_KEY,
         preferGatewayWs: true,
         disableGatewayDeviceIdentity: DISABLE_GATEWAY_DEVICE_IDENTITY,
-      }),
+    }),
     [gatewayAuth.password, gatewayAuth.token],
+  );
+  const installSessionIdRef = useRef(
+    `install-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
   );
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [sessionAuthed, setSessionAuthed] = useState(false);
@@ -988,6 +1007,8 @@ export default function App() {
   const [desktopUpdateDetail, setDesktopUpdateDetail] = useState<string | null>(null);
   const [desktopUpdateStatusMessage, setDesktopUpdateStatusMessage] = useState<string | null>(null);
   const [chatSurfaceBusy, setChatSurfaceBusy] = useState(false);
+  const [installerFaultReportOpen, setInstallerFaultReportOpen] = useState(false);
+  const [globalException, setGlobalException] = useState<GlobalExceptionState | null>(null);
   const [brandRuntimeReady, setBrandRuntimeReady] = useState(!IS_TAURI_RUNTIME);
   const [brandShellConfig, setBrandShellConfig] = useState<Record<string, unknown> | null>(null);
   const authExperienceConfig = useMemo(() => resolveAuthExperienceConfig(brandShellConfig), [brandShellConfig]);
@@ -1473,8 +1494,40 @@ export default function App() {
     installerView,
     shouldShowStartupGate,
     retrySetup,
+    runtimeDiagnosis,
+    startupDiagnostics,
+    runtimeInstallProgress,
   } = useDesktopStartupController(startupControllerConfig);
   const shouldShowAuthBootstrapHint = !shouldShowStartupGate && !authBootstrapReady;
+
+  useEffect(() => {
+    const onError = (event: ErrorEvent) => {
+      const detail = event.error instanceof Error ? event.error : null;
+      setGlobalException({
+        title: '应用异常',
+        message: detail?.message || event.message || '应用在运行过程中遇到意外错误',
+        stack: detail?.stack || null,
+      });
+    };
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason instanceof Error ? event.reason : null;
+      setGlobalException({
+        title: '应用异常',
+        message:
+          reason?.message ||
+          (typeof event.reason === 'string' && event.reason.trim()
+            ? event.reason.trim()
+            : '应用在运行过程中遇到未处理的 Promise 异常'),
+        stack: reason?.stack || null,
+      });
+    };
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onUnhandledRejection);
+    };
+  }, []);
 
   useEffect(() => {
     if (!shouldShowAuthBootstrapHint) {
@@ -1825,9 +1878,37 @@ export default function App() {
               errorTitle={installerView.errorTitle}
               diagnosticItems={installerView.diagnosticItems}
               onRetry={retrySetup}
+              onReportFault={installerView.state === 'error' ? () => setInstallerFaultReportOpen(true) : undefined}
             />
           </div>
         ) : null}
+        <FaultReportModal
+          open={installerFaultReportOpen}
+          source="installer"
+          client={client}
+          accessToken={accessToken}
+          accountState={accessToken ? 'authenticated' : 'anonymous'}
+          installSessionId={installSessionIdRef.current}
+          failureStage={runtimeInstallProgress?.phase || 'runtime_install'}
+          errorTitle={installerView.errorTitle || '首次启动初始化失败'}
+          errorMessage={installerView.errorMessage || installerView.stepDetail}
+          installProgressPhase={runtimeInstallProgress?.phase || null}
+          installProgressPercent={runtimeInstallProgress?.progress ?? installerView.progress}
+          extraDiagnostics={{
+            installerView,
+            runtimeDiagnosis,
+            startupDiagnostics,
+          }}
+          onClose={() => setInstallerFaultReportOpen(false)}
+        />
+        <GlobalExceptionDialog
+          exception={globalException}
+          client={client}
+          accessToken={accessToken}
+          accountState={accessToken ? 'authenticated' : 'anonymous'}
+          installSessionId={installSessionIdRef.current}
+          onClose={() => setGlobalException(null)}
+        />
         {authModalOpen ? (
           <AuthPanel
             open={authModalOpen}
@@ -2692,7 +2773,7 @@ function AuthedView({
       initialPromptKey: null,
       focusedTurnId: null,
       focusedTurnKey: null,
-      initialAgentSlug: null,
+      initialAgentSlug: conversation.activeAgentId ?? null,
       initialSkillSlug: null,
       initialSkillOption: null,
       initialStockContext: null,

@@ -72,6 +72,14 @@ import { CloudMcpPage } from './components/CloudMcpPage';
 import { ModelCenterPage } from './components/ModelCenterPage';
 import { PaymentConfigPage } from './components/PaymentConfigPage';
 import { RechargePackagesPage } from './components/RechargePackagesPage';
+import {
+  adminFilterControlStyle,
+  AdminFilterStack,
+  AdminSearchRow,
+  AdminSearchWithObjectRow,
+  AdminSelectorRow,
+} from './components/AdminFilterLayout';
+import { DesktopFaultReportsPage } from './components/DesktopFaultReportsPage';
 import { UserActionAuditPage } from './components/UserActionAuditPage';
 import {
   actionLabel,
@@ -115,6 +123,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   { id: 'audit-log', label: '审计日志' },
   { id: 'user-action-audit', label: '用户Action审计' },
+  { id: 'fault-reports', label: '故障上报' },
 ];
 
 const BRAND_DETAIL_TABS = [
@@ -2425,6 +2434,8 @@ export default function App() {
                   loading={userActionAuditLoading}
                   onRefresh={() => void handleRefreshUserActionAudit()}
                 />
+              ) : route === 'fault-reports' ? (
+                <DesktopFaultReportsPage />
               ) : route === 'brand-detail' ? (
                 <BrandDetailPage
                   detail={brandDetailData}
@@ -2529,22 +2540,24 @@ export default function App() {
                         <h3>筛选与当前对象</h3>
                         <span>筛选后直接在当前页编辑平台 Skill。</span>
                       </div>
-                      <div className="form-grid form-grid--two">
-                        <label className="fig-search field">
-                          <span>搜索平台级 Skill</span>
-                          <input className="field-input fig-search__input" placeholder="搜索名称 / slug / 分类..." value={capabilityQuery} onChange={(event) => setCapabilityQuery(event.target.value)} />
-                        </label>
-                        <label className="field">
-                          <span>当前对象</span>
-                          <select className="field-select" value={selectedPlatformSkill?.slug || filteredPlatformSkills[0]?.slug || ''} onChange={(event) => setSelectedPlatformSkillSlug(event.target.value)}>
-                            {filteredPlatformSkills.map((item) => (
-                              <option key={item.slug} value={item.slug}>
-                                {item.name} · {item.category || '未分类'}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
+                      <AdminFilterStack>
+                        <AdminSearchWithObjectRow>
+                          <label className="field">
+                            <span>搜索平台级 Skill</span>
+                            <input className="field-input" placeholder="搜索名称 / slug / 分类..." value={capabilityQuery} onChange={(event) => setCapabilityQuery(event.target.value)} style={adminFilterControlStyle()} />
+                          </label>
+                          <label className="field">
+                            <span>当前对象</span>
+                            <select className="field-select" style={adminFilterControlStyle()} value={selectedPlatformSkill?.slug || filteredPlatformSkills[0]?.slug || ''} onChange={(event) => setSelectedPlatformSkillSlug(event.target.value)}>
+                              {filteredPlatformSkills.map((item) => (
+                                <option key={item.slug} value={item.slug}>
+                                  {item.name} · {item.category || '未分类'}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </AdminSearchWithObjectRow>
+                      </AdminFilterStack>
                       <div className="fig-release-card__actions">
                         <span>{`${filteredPlatformSkills.length} 个平台预装 Skill`}</span>
                         <button className="ghost-button" type="button" onClick={() => setCapabilityQuery('')}>重置筛选</button>
@@ -2728,22 +2741,24 @@ export default function App() {
                         <h3>筛选与当前对象</h3>
                         <span>筛选后直接在当前页编辑平台 MCP。</span>
                       </div>
-                      <div className="form-grid form-grid--two">
-                        <label className="fig-search field">
-                          <span>搜索平台级 MCP</span>
-                          <input className="field-input fig-search__input" placeholder="搜索名称 / key / transport..." value={capabilityQuery} onChange={(event) => setCapabilityQuery(event.target.value)} />
-                        </label>
-                        <label className="field">
-                          <span>当前对象</span>
-                          <select className="field-select" value={selectedPlatformMcp?.key || filteredPlatformMcps[0]?.key || ''} onChange={(event) => setSelectedPlatformMcpKey(event.target.value)}>
-                            {filteredPlatformMcps.map((item) => (
-                              <option key={item.key} value={item.key}>
-                                {item.name} · {item.transport}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
+                      <AdminFilterStack>
+                        <AdminSearchWithObjectRow>
+                          <label className="field">
+                            <span>搜索平台级 MCP</span>
+                            <input className="field-input" placeholder="搜索名称 / key / transport..." value={capabilityQuery} onChange={(event) => setCapabilityQuery(event.target.value)} style={adminFilterControlStyle()} />
+                          </label>
+                          <label className="field">
+                            <span>当前对象</span>
+                            <select className="field-select" style={adminFilterControlStyle()} value={selectedPlatformMcp?.key || filteredPlatformMcps[0]?.key || ''} onChange={(event) => setSelectedPlatformMcpKey(event.target.value)}>
+                              {filteredPlatformMcps.map((item) => (
+                                <option key={item.key} value={item.key}>
+                                  {item.name} · {item.transport}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </AdminSearchWithObjectRow>
+                      </AdminFilterStack>
                       <div className="fig-release-card__actions">
                         <span>{`${filteredPlatformMcps.length} 个平台级 MCP`}</span>
                         <button className="ghost-button" type="button" onClick={() => setCapabilityQuery('')}>重置筛选</button>
@@ -3413,28 +3428,31 @@ export default function App() {
                               <h3>云技能列表</h3>
                               <span>{String(cloudSkillMeta.total || 0)} 个</span>
                             </div>
-                            <div className="fig-toolbar">
-                              <label className="fig-search fig-search--grow">
+                            <AdminFilterStack>
+                              <AdminSearchRow>
                                 <input
-                                  className="field-input fig-search__input"
+                                  className="field-input"
                                   placeholder="搜索 slug / 名称 / 分类 / 发布者 / 标签..."
                                   value={cloudSkillQuery}
                                   onChange={(event) => setCloudSkillQuery(event.target.value)}
+                                  style={adminFilterControlStyle()}
                                 />
-                              </label>
-                              <button className="ghost-button" type="button" disabled={savingCloudSkill} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: 0 })}>
-                                搜索
-                              </button>
-                              <button className="ghost-button" type="button" onClick={() => { setCloudSkillQuery(''); void handleLoadCloudSkillsPage({ query: '', offset: 0 }); }}>
-                                清空
-                              </button>
-                              <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.offset <= 0} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: Math.max(0, cloudSkillMeta.offset - cloudSkillMeta.limit) })}>
-                                上一页
-                              </button>
-                              <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.hasMore !== true} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: cloudSkillMeta.nextOffset || (cloudSkillMeta.offset + cloudSkillMeta.limit) })}>
-                                下一页
-                              </button>
-                            </div>
+                              </AdminSearchRow>
+                              <div className="fig-release-card__actions">
+                                <button className="ghost-button" type="button" disabled={savingCloudSkill} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: 0 })}>
+                                  搜索
+                                </button>
+                                <button className="ghost-button" type="button" onClick={() => { setCloudSkillQuery(''); void handleLoadCloudSkillsPage({ query: '', offset: 0 }); }}>
+                                  清空
+                                </button>
+                                <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.offset <= 0} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: Math.max(0, cloudSkillMeta.offset - cloudSkillMeta.limit) })}>
+                                  上一页
+                                </button>
+                                <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.hasMore !== true} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: cloudSkillMeta.nextOffset || (cloudSkillMeta.offset + cloudSkillMeta.limit) })}>
+                                  下一页
+                                </button>
+                              </div>
+                            </AdminFilterStack>
                             <div className="fig-capability-list">
                               {filteredCloudSkills.length ? (
                                 filteredCloudSkills.map((item) => (
@@ -3559,24 +3577,27 @@ export default function App() {
                           <p className="fig-page__description">品牌资源库，真实读写 portal assets 和对象存储</p>
                         </div>
                       </div>
-                      <div className="fig-toolbar">
-                        <label className="fig-search">
+                      <AdminFilterStack>
+                        <AdminSearchRow>
                           <input
-                            className="field-input fig-search__input"
+                            className="field-input"
                             placeholder="搜索资源..."
                             value={assetQuery}
                             onChange={(event) => setAssetQuery(event.target.value)}
+                            style={adminFilterControlStyle()}
                           />
-                        </label>
-                        <select className="field-select fig-filter" value={assetBrand} onChange={(event) => setAssetBrand(event.target.value)}>
-                          <option value="all">全部品牌</option>
-                          {(overviewData?.brands || []).map((brand) => (
-                            <option key={brand.brandId} value={brand.brandId}>
-                              {brand.displayName}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                        </AdminSearchRow>
+                        <AdminSelectorRow>
+                          <select className="field-select" style={adminFilterControlStyle()} value={assetBrand} onChange={(event) => setAssetBrand(event.target.value)}>
+                            <option value="all">全部品牌</option>
+                            {(overviewData?.brands || []).map((brand) => (
+                              <option key={brand.brandId} value={brand.brandId}>
+                                {brand.displayName}
+                              </option>
+                            ))}
+                          </select>
+                        </AdminSelectorRow>
+                      </AdminFilterStack>
                     </div>
                   </div>
                   <div className="fig-page__body">
@@ -3747,20 +3768,22 @@ export default function App() {
                         ))}
                       </div>
                     </section>
-                    <div className="fig-toolbar">
-                      <select className="field-select fig-filter" value={releaseBrand} onChange={(event) => setReleaseBrand(event.target.value)}>
-                        <option value="all">全部品牌</option>
-                        {(overviewData?.brands || []).map((brand) => (
-                          <option key={brand.brandId} value={brand.brandId}>
-                            {brand.displayName}
-                          </option>
-                        ))}
-                      </select>
-                      <select className="field-select fig-filter" value={selectedDesktopReleaseChannel} onChange={(event) => setSelectedDesktopReleaseChannel(event.target.value === 'dev' ? 'dev' : 'prod')}>
-                        <option value="prod">prod</option>
-                        <option value="dev">dev</option>
-                      </select>
-                    </div>
+                    <AdminFilterStack>
+                      <AdminSelectorRow>
+                        <select className="field-select" style={adminFilterControlStyle()} value={releaseBrand} onChange={(event) => setReleaseBrand(event.target.value)}>
+                          <option value="all">全部品牌</option>
+                          {(overviewData?.brands || []).map((brand) => (
+                            <option key={brand.brandId} value={brand.brandId}>
+                              {brand.displayName}
+                            </option>
+                          ))}
+                        </select>
+                        <select className="field-select" style={adminFilterControlStyle()} value={selectedDesktopReleaseChannel} onChange={(event) => setSelectedDesktopReleaseChannel(event.target.value === 'dev' ? 'dev' : 'prod')}>
+                          <option value="prod">prod</option>
+                          <option value="dev">dev</option>
+                        </select>
+                      </AdminSelectorRow>
+                    </AdminFilterStack>
                     <section className="fig-card fig-card--subtle">
                       <div className="fig-card__head">
                         <h3>桌面发布中心</h3>
@@ -3944,43 +3967,48 @@ export default function App() {
                         <h1>订单中心</h1>
                         <p className="fig-page__description">查看充值订单、来源 OEM app、到账链路与基础技术明细</p>
                       </div>
-                      <div className="fig-toolbar fig-toolbar--audit">
-                        <button className="ghost-button" type="button" onClick={handleExportPaymentOrders}>
-                          导出 CSV
-                        </button>
-                        <label className="fig-search">
+                      <AdminFilterStack>
+                        <div className="fig-page__header-row">
+                          <button className="ghost-button" type="button" onClick={handleExportPaymentOrders}>
+                            导出 CSV
+                          </button>
+                        </div>
+                        <AdminSearchRow>
                           <input
-                            className="field-input fig-search__input"
+                            className="field-input"
                             placeholder="搜索订单号 / user / app / provider order id..."
                             value={paymentQuery}
                             onChange={(event) => setPaymentQuery(event.target.value)}
+                            style={adminFilterControlStyle()}
                           />
-                        </label>
-                        <select className="field-select fig-filter" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value)}>
-                          <option value="all">所有状态</option>
-                          {['pending', 'paid', 'failed', 'expired', 'refunded'].map((status) => (
-                            <option key={status} value={status}>
-                              {paymentStatusLabel(status)}
-                            </option>
-                          ))}
-                        </select>
-                        <select className="field-select fig-filter" value={paymentProvider} onChange={(event) => setPaymentProvider(event.target.value)}>
-                          <option value="all">所有渠道</option>
-                          {['wechat_qr', 'alipay_qr', 'mock'].map((provider) => (
-                            <option key={provider} value={provider}>
-                              {paymentProviderLabel(provider)}
-                            </option>
-                          ))}
-                        </select>
-                        <select className="field-select fig-filter" value={paymentApp} onChange={(event) => setPaymentApp(event.target.value)}>
-                          <option value="all">所有 OEM App</option>
-                          {paymentApps.map((appName) => (
-                            <option key={appName} value={appName}>
-                              {appName}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                        </AdminSearchRow>
+                        <AdminSelectorRow>
+                          <select className="field-select" style={adminFilterControlStyle()} value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value)}>
+                            <option value="all">所有状态</option>
+                            {['pending', 'paid', 'failed', 'expired', 'refunded'].map((status) => (
+                              <option key={status} value={status}>
+                                {paymentStatusLabel(status)}
+                              </option>
+                            ))}
+                          </select>
+                          <select className="field-select" style={adminFilterControlStyle()} value={paymentProvider} onChange={(event) => setPaymentProvider(event.target.value)}>
+                            <option value="all">所有渠道</option>
+                            {['wechat_qr', 'alipay_qr', 'mock'].map((provider) => (
+                              <option key={provider} value={provider}>
+                                {paymentProviderLabel(provider)}
+                              </option>
+                            ))}
+                          </select>
+                          <select className="field-select" style={adminFilterControlStyle()} value={paymentApp} onChange={(event) => setPaymentApp(event.target.value)}>
+                            <option value="all">所有 OEM App</option>
+                            {paymentApps.map((appName) => (
+                              <option key={appName} value={appName}>
+                                {appName}
+                              </option>
+                            ))}
+                          </select>
+                        </AdminSelectorRow>
+                      </AdminFilterStack>
                     </div>
                   </div>
                   <div className="fig-page__body">
@@ -4180,32 +4208,35 @@ export default function App() {
                         <h1>审计日志</h1>
                         <p className="fig-page__description">portal app 的完整操作审计记录</p>
                       </div>
-                      <div className="fig-toolbar fig-toolbar--audit">
-                        <label className="fig-search">
+                      <AdminFilterStack>
+                        <AdminSearchRow>
                           <input
-                            className="field-input fig-search__input"
+                            className="field-input"
                             placeholder="搜索审计日志..."
                             value={auditQuery}
                             onChange={(event) => setAuditQuery(event.target.value)}
+                            style={adminFilterControlStyle()}
                           />
-                        </label>
-                        <select className="field-select fig-filter" value={auditBrand} onChange={(event) => setAuditBrand(event.target.value)}>
-                          <option value="all">所有品牌</option>
-                          {(overviewData?.brands || []).map((brand) => (
-                            <option key={brand.brandId} value={brand.brandId}>
-                              {brand.displayName}
-                            </option>
-                          ))}
-                        </select>
-                        <select className="field-select fig-filter" value={auditAction} onChange={(event) => setAuditAction(event.target.value)}>
-                          <option value="all">所有操作</option>
-                          {auditActions.map((action) => (
-                            <option key={action} value={action}>
-                              {actionLabel(action)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                        </AdminSearchRow>
+                        <AdminSelectorRow>
+                          <select className="field-select" style={adminFilterControlStyle()} value={auditBrand} onChange={(event) => setAuditBrand(event.target.value)}>
+                            <option value="all">所有品牌</option>
+                            {(overviewData?.brands || []).map((brand) => (
+                              <option key={brand.brandId} value={brand.brandId}>
+                                {brand.displayName}
+                              </option>
+                            ))}
+                          </select>
+                          <select className="field-select" style={adminFilterControlStyle()} value={auditAction} onChange={(event) => setAuditAction(event.target.value)}>
+                            <option value="all">所有操作</option>
+                            {auditActions.map((action) => (
+                              <option key={action} value={action}>
+                                {actionLabel(action)}
+                              </option>
+                            ))}
+                          </select>
+                        </AdminSelectorRow>
+                      </AdminFilterStack>
                     </div>
                   </div>
                   <div className="fig-page__body">

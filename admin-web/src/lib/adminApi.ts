@@ -1,6 +1,8 @@
 import type {
   AuthTokens,
   BrandDetailData,
+  DesktopFaultReportDetailRecord,
+  DesktopFaultReportSummaryRecord,
   OverviewData,
   UserActionAuditRecord,
   UserActionDiagnosticUploadRecord,
@@ -924,6 +926,96 @@ export async function loadUserActionAuditData(): Promise<{
       linkedIntentId: stringValue(item.linked_intent_id || item.linkedIntentId),
       createdAt: stringValue(item.created_at || item.createdAt),
     })),
+  };
+}
+
+export async function loadDesktopFaultReports(input: {
+  q?: string;
+  platform?: string;
+  entry?: string;
+  accountState?: string;
+  deviceId?: string;
+  appVersion?: string;
+  limit?: number;
+} = {}): Promise<DesktopFaultReportSummaryRecord[]> {
+  const params = new URLSearchParams();
+  if (input.q?.trim()) params.set('report_id', input.q.trim());
+  if (input.platform?.trim()) params.set('platform', input.platform.trim());
+  if (input.entry?.trim()) params.set('entry', input.entry.trim());
+  if (input.accountState?.trim()) params.set('account_state', input.accountState.trim());
+  if (input.deviceId?.trim()) params.set('device_id', input.deviceId.trim());
+  if (input.appVersion?.trim()) params.set('app_version', input.appVersion.trim());
+  params.set('limit', String(input.limit && input.limit > 0 ? input.limit : 500));
+  const data = await apiFetch(`/admin/desktop/fault-reports?${params.toString()}`, { method: 'GET' });
+  return toArray<Record<string, unknown>>(asObject(data).items).map((item) => ({
+    id: stringValue(item.id),
+    reportId: stringValue(item.report_id || item.reportId),
+    entry: (stringValue(item.entry) || 'installer') as DesktopFaultReportSummaryRecord['entry'],
+    accountState: (stringValue(item.account_state || item.accountState) || 'anonymous') as DesktopFaultReportSummaryRecord['accountState'],
+    userId: stringValue(item.user_id || item.userId),
+    deviceId: stringValue(item.device_id || item.deviceId),
+    installSessionId: stringValue(item.install_session_id || item.installSessionId),
+    appName: stringValue(item.app_name || item.appName),
+    brandId: stringValue(item.brand_id || item.brandId),
+    appVersion: stringValue(item.app_version || item.appVersion),
+    releaseChannel: stringValue(item.release_channel || item.releaseChannel),
+    platform: stringValue(item.platform),
+    platformVersion: stringValue(item.platform_version || item.platformVersion),
+    arch: stringValue(item.arch),
+    failureStage: stringValue(item.failure_stage || item.failureStage),
+    errorTitle: stringValue(item.error_title || item.errorTitle),
+    errorMessage: stringValue(item.error_message || item.errorMessage),
+    errorCode: stringValue(item.error_code || item.errorCode),
+    fileName: stringValue(item.file_name || item.fileName),
+    fileSizeBytes: numberValue(item.file_size_bytes || item.fileSizeBytes),
+    fileSha256: stringValue(item.file_sha256 || item.fileSha256),
+    createdAt: stringValue(item.created_at || item.createdAt),
+  }));
+}
+
+export async function getDesktopFaultReportDetail(id: string): Promise<DesktopFaultReportDetailRecord> {
+  const data = await apiFetch(`/admin/desktop/fault-reports/${encodeURIComponent(id)}`, { method: 'GET' });
+  const item = asObject(data);
+  return {
+    id: stringValue(item.id),
+    reportId: stringValue(item.report_id || item.reportId),
+    entry: (stringValue(item.entry) || 'installer') as DesktopFaultReportDetailRecord['entry'],
+    accountState: (stringValue(item.account_state || item.accountState) || 'anonymous') as DesktopFaultReportDetailRecord['accountState'],
+    userId: stringValue(item.user_id || item.userId),
+    deviceId: stringValue(item.device_id || item.deviceId),
+    installSessionId: stringValue(item.install_session_id || item.installSessionId),
+    appName: stringValue(item.app_name || item.appName),
+    brandId: stringValue(item.brand_id || item.brandId),
+    appVersion: stringValue(item.app_version || item.appVersion),
+    releaseChannel: stringValue(item.release_channel || item.releaseChannel),
+    platform: stringValue(item.platform),
+    platformVersion: stringValue(item.platform_version || item.platformVersion),
+    arch: stringValue(item.arch),
+    failureStage: stringValue(item.failure_stage || item.failureStage),
+    errorTitle: stringValue(item.error_title || item.errorTitle),
+    errorMessage: stringValue(item.error_message || item.errorMessage),
+    errorCode: stringValue(item.error_code || item.errorCode),
+    fileName: stringValue(item.file_name || item.fileName),
+    fileSizeBytes: numberValue(item.file_size_bytes || item.fileSizeBytes),
+    fileSha256: stringValue(item.file_sha256 || item.fileSha256),
+    createdAt: stringValue(item.created_at || item.createdAt),
+    runtimeFound: Boolean(item.runtime_found ?? item.runtimeFound),
+    runtimeInstallable: Boolean(item.runtime_installable ?? item.runtimeInstallable),
+    runtimeVersion: stringValue(item.runtime_version || item.runtimeVersion),
+    runtimePath: stringValue(item.runtime_path || item.runtimePath),
+    workDir: stringValue(item.work_dir || item.workDir),
+    logDir: stringValue(item.log_dir || item.logDir),
+    runtimeDownloadUrl: stringValue(item.runtime_download_url || item.runtimeDownloadUrl),
+    installProgressPhase: stringValue(item.install_progress_phase || item.installProgressPhase),
+    installProgressPercent:
+      typeof item.install_progress_percent === 'number'
+        ? item.install_progress_percent
+        : typeof item.installProgressPercent === 'number'
+          ? item.installProgressPercent
+          : null,
+    uploadBucket: stringValue(item.upload_bucket || item.uploadBucket),
+    uploadKey: stringValue(item.upload_key || item.uploadKey),
+    downloadUrl: stringValue(item.download_url || item.downloadUrl),
   };
 }
 

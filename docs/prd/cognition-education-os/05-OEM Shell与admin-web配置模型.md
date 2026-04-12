@@ -8,7 +8,7 @@ OEM 不是 UI 分叉，而是平台能力。
 
 ## 与当前仓库的关系
 
-当前 `admin-web/main.js` 已存在这些 shell surface 概念：
+当前 `admin-web` 的 React 配置编辑器已存在这些 shell surface 概念：
 - `home-web`
 - `header`
 - `sidebar`

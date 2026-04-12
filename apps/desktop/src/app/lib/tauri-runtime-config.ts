@@ -42,6 +42,43 @@ export interface RuntimeInstallProgress {
   detail: string;
 }
 
+export interface DesktopFaultReportPrepareInput {
+  report_id?: string | null;
+  entry: 'installer' | 'exception-dialog';
+  install_session_id?: string | null;
+  app_name?: string | null;
+  brand_id?: string | null;
+  app_version?: string | null;
+  release_channel?: string | null;
+  failure_stage: string;
+  error_title: string;
+  error_message: string;
+  error_code?: string | null;
+  runtime_found?: boolean | null;
+  runtime_installable?: boolean | null;
+  runtime_version?: string | null;
+  runtime_path?: string | null;
+  work_dir?: string | null;
+  log_dir?: string | null;
+  runtime_download_url?: string | null;
+  install_progress_phase?: string | null;
+  install_progress_percent?: number | null;
+  extra_diagnostics?: Record<string, unknown> | null;
+}
+
+export interface PreparedDesktopFaultReportArchive {
+  report_id: string;
+  device_id: string;
+  platform: string;
+  platform_version: string | null;
+  arch: string;
+  file_name: string;
+  file_size_bytes: number;
+  file_sha256: string;
+  archive_base64: string;
+  payload: Record<string, unknown>;
+}
+
 export interface OemRuntimeSnapshot {
   brandId: string;
   publishedVersion: number;
@@ -75,6 +112,13 @@ export async function diagnoseRuntime(): Promise<RuntimeDiagnosis | null> {
 export async function loadStartupDiagnostics(): Promise<StartupDiagnosticsSnapshot | null> {
   if (!isTauriRuntime()) return null;
   return invoke<StartupDiagnosticsSnapshot>('load_startup_diagnostics');
+}
+
+export async function prepareDesktopFaultReportArchive(
+  input: DesktopFaultReportPrepareInput,
+): Promise<PreparedDesktopFaultReportArchive | null> {
+  if (!isTauriRuntime()) return null;
+  return invoke<PreparedDesktopFaultReportArchive>('prepare_desktop_fault_report_archive', { input });
 }
 
 export async function listenRuntimeInstallProgress(

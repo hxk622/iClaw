@@ -3,6 +3,7 @@ import { CheckCircle, Star, Trash2, UserPlus, Users, X } from 'lucide-react';
 
 import { cn } from '@/app/lib/cn';
 import { ConversationActionButton } from '@/app/components/ui/ConversationActionButton';
+import { AvatarSurface } from '@/app/components/ui/AvatarSurface';
 import type { InvestmentExpert } from '@/app/lib/investment-experts';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
@@ -82,11 +83,7 @@ export function InvestmentExpertDetailDialog({
         <div className="sticky top-0 z-10 flex items-start justify-between gap-6 border-b border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] px-7 py-6">
           <div className="flex min-w-0 items-start gap-5">
             <div className="relative shrink-0">
-              <img
-                src={expert.avatar}
-                alt={expert.name}
-                className="h-24 w-24 rounded-full border-[3px] border-[var(--lobster-border)] object-cover"
-              />
+              <AvatarSurface src={expert.avatar} alt={expert.name} sizeClassName="h-24 w-24" halo />
               <span
                 className={cn(
                   'absolute bottom-1 right-1 h-5 w-5 rounded-full border-2 border-[var(--lobster-card-elevated)]',

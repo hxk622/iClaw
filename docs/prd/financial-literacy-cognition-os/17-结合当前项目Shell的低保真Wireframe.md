@@ -10,7 +10,7 @@
 
 1. **桌面壳已存在**：`apps/desktop/` 是当前主应用壳。
 2. **Home 官网已存在**：`home-web/` 是独立官网/落地页入口。
-3. **OEM shell surfaces 已存在配置模型**：`admin-web/main.js` 已包含 `home-web`、`header`、`sidebar`、`input` 等 surface 配置概念。
+3. **OEM shell surfaces 已存在配置模型**：`admin-web/src/App.tsx` 与 `admin-web/src/components/BrandDetailPanel.tsx` 已包含 `home-web`、`header`、`sidebar`、`input` 等 surface 配置编辑能力。
 4. **桌面 v0 左侧菜单当前仍偏占位**：`apps/desktop/README.md` 明确写明左侧菜单和设置相关能力在 v0 为静态占位。
 
 因此，新的“金融财商认知操作系统”最合理的落地方式不是另起一套完全独立壳，而是：

@@ -24,7 +24,8 @@ export type AdminRoute =
   | 'payments-config'
   | 'payments-packages'
   | 'payments-orders'
-  | 'audit-log';
+  | 'audit-log'
+  | 'fault-reports';
 
 export type NavItem = {
   id: AdminRoute | 'payments';
@@ -566,6 +567,46 @@ export type UserActionDiagnosticUploadRecord = {
   sensitivityLevel: 'customer' | 'internal' | 'redacted';
   linkedIntentId: string;
   createdAt: string;
+};
+
+export type DesktopFaultReportSummaryRecord = {
+  id: string;
+  reportId: string;
+  entry: 'installer' | 'exception-dialog';
+  accountState: 'anonymous' | 'authenticated';
+  userId: string;
+  deviceId: string;
+  installSessionId: string;
+  appName: string;
+  brandId: string;
+  appVersion: string;
+  releaseChannel: string;
+  platform: string;
+  platformVersion: string;
+  arch: string;
+  failureStage: string;
+  errorTitle: string;
+  errorMessage: string;
+  errorCode: string;
+  fileName: string;
+  fileSizeBytes: number;
+  fileSha256: string;
+  createdAt: string;
+};
+
+export type DesktopFaultReportDetailRecord = DesktopFaultReportSummaryRecord & {
+  runtimeFound: boolean;
+  runtimeInstallable: boolean;
+  runtimeVersion: string;
+  runtimePath: string;
+  workDir: string;
+  logDir: string;
+  runtimeDownloadUrl: string;
+  installProgressPhase: string;
+  installProgressPercent: number | null;
+  uploadBucket: string;
+  uploadKey: string;
+  downloadUrl: string;
 };
 
 export type BrandDetailData = {

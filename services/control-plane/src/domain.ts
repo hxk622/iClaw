@@ -19,6 +19,9 @@ export type DesktopActionAuditStage =
   | 'execution_finished';
 export type DesktopDiagnosticUploadSourceType = 'manual' | 'auto_error_capture' | 'approval_flow';
 
+export type DesktopFaultReportEntry = 'installer' | 'exception-dialog';
+export type DesktopFaultReportAccountState = 'anonymous' | 'authenticated';
+
 export type DesktopActionNetworkDestination = {
   scheme: string;
   host: string;
@@ -529,6 +532,42 @@ export type DesktopDiagnosticUploadRecord = {
   createdAt: string;
 };
 
+export type DesktopFaultReportRecord = {
+  id: string;
+  reportId: string;
+  entry: DesktopFaultReportEntry;
+  accountState: DesktopFaultReportAccountState;
+  userId: string | null;
+  deviceId: string;
+  installSessionId: string | null;
+  appName: string;
+  brandId: string;
+  appVersion: string;
+  releaseChannel: string | null;
+  platform: string;
+  platformVersion: string | null;
+  arch: string;
+  failureStage: string;
+  errorTitle: string;
+  errorMessage: string;
+  errorCode: string | null;
+  runtimeFound: boolean;
+  runtimeInstallable: boolean;
+  runtimeVersion: string | null;
+  runtimePath: string | null;
+  workDir: string | null;
+  logDir: string | null;
+  runtimeDownloadUrl: string | null;
+  installProgressPhase: string | null;
+  installProgressPercent: number | null;
+  uploadBucket: string;
+  uploadKey: string;
+  fileName: string;
+  fileSizeBytes: number;
+  fileSha256: string | null;
+  createdAt: string;
+};
+
 export type AdminDesktopActionPolicyRuleView = {
   id: string;
   scope: DesktopActionPolicyScope;
@@ -627,6 +666,46 @@ export type AdminDesktopDiagnosticUploadView = {
   created_at: string;
 };
 
+export type AdminDesktopFaultReportSummaryView = {
+  id: string;
+  report_id: string;
+  entry: DesktopFaultReportEntry;
+  account_state: DesktopFaultReportAccountState;
+  user_id: string | null;
+  device_id: string;
+  install_session_id: string | null;
+  app_name: string;
+  brand_id: string;
+  app_version: string;
+  release_channel: string | null;
+  platform: string;
+  platform_version: string | null;
+  arch: string;
+  failure_stage: string;
+  error_title: string;
+  error_message: string;
+  error_code: string | null;
+  file_name: string;
+  file_size_bytes: number;
+  file_sha256: string | null;
+  created_at: string;
+};
+
+export type AdminDesktopFaultReportDetailView = AdminDesktopFaultReportSummaryView & {
+  runtime_found: boolean;
+  runtime_installable: boolean;
+  runtime_version: string | null;
+  runtime_path: string | null;
+  work_dir: string | null;
+  log_dir: string | null;
+  runtime_download_url: string | null;
+  install_progress_phase: string | null;
+  install_progress_percent: number | null;
+  upload_bucket: string;
+  upload_key: string;
+  download_url: string;
+};
+
 export type UpsertDesktopActionPolicyRuleInput = {
   id?: string | null;
   scope?: DesktopActionPolicyScope | null;
@@ -717,6 +796,42 @@ export type CreateDesktopDiagnosticUploadInput = {
   contains_customer_logs?: boolean | null;
   sensitivity_level?: 'customer' | 'internal' | 'redacted' | null;
   linked_intent_id?: string | null;
+  created_at?: string | null;
+};
+
+export type CreateDesktopFaultReportInput = {
+  id?: string | null;
+  report_id?: string | null;
+  entry?: DesktopFaultReportEntry | null;
+  account_state?: DesktopFaultReportAccountState | null;
+  user_id?: string | null;
+  device_id?: string | null;
+  install_session_id?: string | null;
+  app_name?: string | null;
+  brand_id?: string | null;
+  app_version?: string | null;
+  release_channel?: string | null;
+  platform?: string | null;
+  platform_version?: string | null;
+  arch?: string | null;
+  failure_stage?: string | null;
+  error_title?: string | null;
+  error_message?: string | null;
+  error_code?: string | null;
+  runtime_found?: boolean | null;
+  runtime_installable?: boolean | null;
+  runtime_version?: string | null;
+  runtime_path?: string | null;
+  work_dir?: string | null;
+  log_dir?: string | null;
+  runtime_download_url?: string | null;
+  install_progress_phase?: string | null;
+  install_progress_percent?: number | null;
+  upload_bucket?: string | null;
+  upload_key?: string | null;
+  file_name?: string | null;
+  file_size_bytes?: number | null;
+  file_sha256?: string | null;
   created_at?: string | null;
 };
 

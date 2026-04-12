@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { OverviewData } from '../lib/adminTypes';
+import {
+  adminFilterControlStyle,
+  AdminFilterStack,
+  AdminSearchWithObjectRow,
+  AdminSelectorRow,
+} from './AdminFilterLayout';
 
 type AgentItem = OverviewData['agentCatalog'][number];
 
@@ -227,70 +233,124 @@ export function AgentCenterPage({
             ))}
           </div>
         </section>
-        <div className="fig-capability-screen">
-          <aside className="fig-capability-sidebar">
-            <div className="fig-capability-sidebar__toolbar">
-              <label className="fig-search">
-                <input className="field-input fig-search__input" placeholder="搜索 agent..." value={query} onChange={(event) => setQuery(event.target.value)} />
-              </label>
-              <div className="fig-capability-filter-row">
-                <select className="field-select fig-filter" value={status} onChange={(event) => setStatus(event.target.value as 'all' | 'active' | 'disabled')}>
-                  <option value="all">全部状态</option>
-                  <option value="active">仅启用</option>
-                  <option value="disabled">仅禁用</option>
-                </select>
-                <select className="field-select fig-filter" value={surface} onChange={(event) => setSurface(event.target.value)}>
-                  <option value="all">全部 Surface</option>
-                  {surfaces.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-                <select className="field-select fig-filter" value={sourceRepo} onChange={(event) => setSourceRepo(event.target.value)}>
-                  <option value="all">全部来源仓库</option>
-                  {sourceRepos.map((item) => (
-                    <option key={item} value={item}>
-                      {getAgentSourceLabel(item)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="fig-capability-filter-meta">
-                <span>{`${filteredItems.length} 个 Agent`}</span>
-                <button
-                  className="text-button"
-                  type="button"
-                  onClick={() => {
-                    setQuery('');
-                    setStatus('all');
-                    setSurface('all');
-                    setSourceRepo('all');
-                  }}
-                >
-                  重置筛选
-                </button>
-              </div>
+        <div className="fig-detail-stack">
+          <section className="fig-card fig-card--subtle">
+            <div className="fig-card__head">
+              <h3>筛选与当前对象</h3>
+              <span>筛选后直接在当前页编辑 Agent。</span>
             </div>
-            <div className="fig-capability-list">
-              {filteredItems.length ? (
-                filteredItems.map((item) => (
-                  <button key={item.slug} className={`capability-card${selectedItem?.slug === item.slug ? ' is-active' : ''}`} type="button" onClick={() => handleSelect(item)}>
-                    <strong>{item.name}</strong>
-                    <span>{`${getAgentSurface(item)} • ${item.active !== false ? 'active' : 'disabled'} • ${getAgentSourceLabel(getAgentSourceRepo(item))}`}</span>
-                  </button>
-                ))
-              ) : (
-                <div className="empty-state">没有匹配的 Agent。</div>
-              )}
-              <button className={`capability-card${selectedSlug === '__new__' ? ' is-active' : ''}`} type="button" onClick={resetForNew}>
-                <strong>新建 Agent</strong>
-                <span>新增一个可投放到前台的 agent</span>
+            <AdminFilterStack>
+              <AdminSearchWithObjectRow>
+                <label className="field">
+                  <span>搜索 Agent</span>
+                  <input className="field-input" placeholder="搜索 agent..." value={query} onChange={(event) => setQuery(event.target.value)} style={adminFilterControlStyle()} />
+                </label>
+                <label className="field">
+                  <span>当前对象</span>
+                  <select className="field-select" style={adminFilterControlStyle()} value={selectedSlug || filteredItems[0]?.slug || '__new__'} onChange={(event) => {
+                    if (event.target.value === '__new__') {
+                      resetForNew();
+                      return;
+                    }
+                    const target = filteredItems.find((item) => item.slug === event.target.value);
+                    if (target) handleSelect(target);
+                  }}>
+                    {filteredItems.map((item) => (
+                      <option key={item.slug} value={item.slug}>
+                        {item.name} · {getAgentSurface(item)}
+                      </option>
+                    ))}
+                    <option value="__new__">新建 Agent</option>
+                  </select>
+                </label>
+              </AdminSearchWithObjectRow>
+              <AdminSelectorRow>
+                <label className="field">
+                  <span>状态</span>
+                  <select className="field-select" style={adminFilterControlStyle()} value={status} onChange={(event) => setStatus(event.target.value as 'all' | 'active' | 'disabled')}>
+                    <option value="all">全部状态</option>
+                    <option value="active">仅启用</option>
+                    <option value="disabled">仅禁用</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Surface</span>
+                  <select className="field-select" style={adminFilterControlStyle()} value={surface} onChange={(event) => setSurface(event.target.value)}>
+                    <option value="all">全部 Surface</option>
+                    {surfaces.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>来源仓库</span>
+                  <select className="field-select" style={adminFilterControlStyle()} value={sourceRepo} onChange={(event) => setSourceRepo(event.target.value)}>
+                    <option value="all">全部来源仓库</option>
+                    {sourceRepos.map((item) => (
+                      <option key={item} value={item}>
+                        {getAgentSourceLabel(item)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </AdminSelectorRow>
+            </AdminFilterStack>
+            <div className="fig-release-card__actions">
+              <span>{`${filteredItems.length} 个 Agent`}</span>
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  setStatus('all');
+                  setSurface('all');
+                  setSourceRepo('all');
+                }}
+              >
+                重置筛选
               </button>
             </div>
-          </aside>
-          <section className="fig-capability-detail">
-            <div className="fig-detail-stack">
+          </section>
+          <section className="fig-card fig-card--subtle">
+            <div className="fig-card__head">
+              <h3>统计区域</h3>
+              <span>帮助运营快速判断当前 Agent 目录状态</span>
+            </div>
+            <div className="fig-meta-cards">
+              <div className="fig-meta-card"><span>Agent 总数</span><strong>{String(filteredItems.length)}</strong></div>
+              <div className="fig-meta-card"><span>已启用</span><strong>{String(filteredItems.filter((item) => item.active !== false).length)}</strong></div>
+              <div className="fig-meta-card"><span>当前选中</span><strong>{selectedItem?.name || '新建 Agent'}</strong></div>
+              <div className="fig-meta-card"><span>当前 Surface</span><strong>{selectedItem ? getAgentSurface(selectedItem) : draft.surface || 'general'}</strong></div>
+            </div>
+          </section>
+          <div className="fig-workspace fig-workspace--drawer">
+            <section className="fig-workspace__list">
+              <div className="fig-card fig-card--subtle">
+                <div className="fig-card__head">
+                  <h3>Agent 列表</h3>
+                  <span>列表卡片用于选择当前 Agent</span>
+                </div>
+                <div className="fig-capability-list">
+                  {filteredItems.length ? (
+                    filteredItems.map((item) => (
+                      <button key={item.slug} className={`capability-card${selectedItem?.slug === item.slug ? ' is-active' : ''}`} type="button" onClick={() => handleSelect(item)}>
+                        <strong>{item.name}</strong>
+                        <span>{`${getAgentSurface(item)} • ${item.active !== false ? 'active' : 'disabled'} • ${getAgentSourceLabel(getAgentSourceRepo(item))}`}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="empty-state">没有匹配的 Agent。</div>
+                  )}
+                  <button className={`capability-card${selectedSlug === '__new__' ? ' is-active' : ''}`} type="button" onClick={resetForNew}>
+                    <strong>新建 Agent</strong>
+                    <span>新增一个可投放到前台的 agent</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+            <aside className="fig-workspace__drawer">
               {selectedItem ? (
                 <div className="fig-card">
                   <div className="fig-card__head">
@@ -431,8 +491,8 @@ export function AgentCenterPage({
                   </button>
                 </div>
               </section>
-            </div>
-          </section>
+            </aside>
+          </div>
         </div>
       </div>
     </div>

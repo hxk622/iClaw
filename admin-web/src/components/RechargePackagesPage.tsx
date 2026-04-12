@@ -23,6 +23,7 @@ export function RechargePackagesPage({
   onSelectPackage,
   onSave,
   onDelete,
+  onRestoreRecommended,
   saving,
 }: {
   items: RechargeItem[];
@@ -30,6 +31,7 @@ export function RechargePackagesPage({
   onSelectPackage: (packageId: string) => void;
   onSave: (input: RechargeItem) => Promise<void> | void;
   onDelete: (packageId: string) => Promise<void> | void;
+  onRestoreRecommended?: () => Promise<void> | void;
   saving: boolean;
 }) {
   const selected = items.find((item) => item.packageId === selectedPackageId) || items[0] || null;
@@ -80,6 +82,9 @@ export function RechargePackagesPage({
             <p className="fig-page__description">维护平台级套餐主数据。OEM 默认继承这里，只有显式覆盖时才切到 OEM 自己的套餐集合。</p>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
+            <button className="ghost-button fig-button" type="button" disabled={saving} onClick={() => void onRestoreRecommended?.()}>
+              恢复超值推荐三挡
+            </button>
             <button className="solid-button fig-button" type="button" onClick={() => onSelectPackage('__new__')}>
               新增套餐
             </button>

@@ -18,6 +18,7 @@ interface FirstRunSetupPanelProps {
     value: string;
   }>;
   onRetry: () => Promise<void>;
+  onReportFault?: () => void;
   presentation?: 'fullscreen' | 'embedded';
 }
 
@@ -84,6 +85,7 @@ export function FirstRunSetupPanel({
   errorTitle = null,
   diagnosticItems = [],
   onRetry,
+  onReportFault,
   presentation = 'fullscreen',
 }: FirstRunSetupPanelProps) {
   const [theme, setTheme] = useState<ResolvedTheme>(() => getResolvedThemeFromDom());
@@ -267,6 +269,16 @@ export function FirstRunSetupPanel({
             >
               重新尝试
             </Button>
+            {onReportFault ? (
+              <Button variant="secondary" size="md" block onClick={onReportFault}>
+                故障上报
+              </Button>
+            ) : null}
+            {onReportFault ? (
+              <div className={`px-1 text-center text-xs leading-6 ${palette.detail}`}>
+                上传最近的安装日志与诊断信息，便于我们排查问题。不会上传账号密钥或无关文件。
+              </div>
+            ) : null}
           </div>
         )}
       </div>

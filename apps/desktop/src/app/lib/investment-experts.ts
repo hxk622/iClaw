@@ -7,7 +7,20 @@ import {
   type LobsterAgent,
 } from './lobster-store';
 
-export type InvestmentExpertCategory =
+export type InvestmentExpertDomain =
+  | 'stock'
+  | 'fund'
+  | 'gold'
+  | 'bond'
+  | 'futures'
+  | 'public-fund'
+  | 'private-fund'
+  | 'vc-pe'
+  | 'macro'
+  | 'portfolio'
+  | 'other';
+
+export type InvestmentExpertStyle =
   | 'value'
   | 'income'
   | 'event'
@@ -20,7 +33,8 @@ export type InvestmentExpertCategory =
   | 'quant'
   | 'other';
 
-export type InvestmentExpertFilter = 'all' | InvestmentExpertCategory;
+export type InvestmentExpertFilter = 'all' | InvestmentExpertDomain;
+export type InvestmentExpertStyleFilter = 'all' | InvestmentExpertStyle;
 export type InvestmentExpertTab = 'all' | 'mine';
 
 export interface InvestmentExpertSkill {
@@ -38,9 +52,12 @@ export interface InvestmentExpert {
   slug: string;
   name: string;
   subtitle: string;
-  category: InvestmentExpertCategory;
-  categoryLabel: string;
-  categoryColor: string;
+  domain: InvestmentExpertDomain;
+  domainLabel: string;
+  domainColor: string;
+  style: InvestmentExpertStyle;
+  styleLabel: string;
+  styleColor: string;
   description: string;
   tags: string[];
   avatar: string;
@@ -63,43 +80,102 @@ export const INVESTMENT_EXPERT_CATEGORIES: Array<{
   color: string;
 }> = [
   {id: 'all', label: '全部', color: '#7b8190'},
-  {id: 'value', label: '价值投资', color: '#2563eb'},
-  {id: 'income', label: '红利收益', color: '#059669'},
-  {id: 'quant', label: '量化策略', color: '#7c3aed'},
-  {id: 'macro', label: '宏观轮动', color: '#0891b2'},
-  {id: 'event', label: '事件驱动', color: '#ea580c'},
-  {id: 'sentiment', label: '情绪背离', color: '#db2777'},
-  {id: 'signal', label: '内部信号', color: '#dc2626'},
-  {id: 'growth', label: '成长挖掘', color: '#16a34a'},
-  {id: 'technology', label: '科技估值', color: '#4f46e5'},
-  {id: 'portfolio', label: '组合诊断', color: '#b45309'},
+  {id: 'stock', label: '股票', color: '#2563eb'},
+  {id: 'fund', label: '基金', color: '#0f766e'},
+  {id: 'gold', label: '黄金', color: '#ca8a04'},
+  {id: 'bond', label: '债券', color: '#059669'},
+  {id: 'futures', label: '期货', color: '#ea580c'},
+  {id: 'public-fund', label: '公募', color: '#7c3aed'},
+  {id: 'private-fund', label: '私募', color: '#dc2626'},
+  {id: 'vc-pe', label: 'VC/PE', color: '#db2777'},
+  {id: 'macro', label: '宏观', color: '#0891b2'},
+  {id: 'portfolio', label: '组合配置', color: '#b45309'},
   {id: 'other', label: '其他', color: '#6b7280'},
 ];
 
-const CATEGORY_LOOKUP: Record<InvestmentExpertCategory, {label: string; color: string}> = {
-  value: {label: '价值投资', color: '#2563eb'},
-  income: {label: '红利收益', color: '#059669'},
-  event: {label: '事件驱动', color: '#ea580c'},
-  sentiment: {label: '情绪背离', color: '#db2777'},
-  signal: {label: '内部信号', color: '#dc2626'},
-  growth: {label: '成长挖掘', color: '#16a34a'},
-  technology: {label: '科技估值', color: '#4f46e5'},
-  portfolio: {label: '组合诊断', color: '#b45309'},
-  macro: {label: '宏观轮动', color: '#0891b2'},
-  quant: {label: '量化策略', color: '#7c3aed'},
+export const INVESTMENT_EXPERT_STYLES: Array<{
+  id: InvestmentExpertStyleFilter;
+  label: string;
+  color: string;
+}> = [
+  {id: 'all', label: '全部风格', color: '#7b8190'},
+  {id: 'value', label: '价值', color: '#2563eb'},
+  {id: 'income', label: '红利收益', color: '#059669'},
+  {id: 'quant', label: '量化', color: '#7c3aed'},
+  {id: 'macro', label: '宏观', color: '#0891b2'},
+  {id: 'event', label: '事件驱动', color: '#ea580c'},
+  {id: 'sentiment', label: '情绪', color: '#db2777'},
+  {id: 'signal', label: '信号', color: '#dc2626'},
+  {id: 'growth', label: '成长', color: '#16a34a'},
+  {id: 'technology', label: '科技', color: '#4f46e5'},
+  {id: 'portfolio', label: '组合', color: '#b45309'},
+  {id: 'other', label: '其他', color: '#6b7280'},
+];
+
+const DOMAIN_LOOKUP: Record<InvestmentExpertDomain, {label: string; color: string}> = {
+  stock: {label: '股票', color: '#2563eb'},
+  fund: {label: '基金', color: '#0f766e'},
+  gold: {label: '黄金', color: '#ca8a04'},
+  bond: {label: '债券', color: '#059669'},
+  futures: {label: '期货', color: '#ea580c'},
+  'public-fund': {label: '公募', color: '#7c3aed'},
+  'private-fund': {label: '私募', color: '#dc2626'},
+  'vc-pe': {label: 'VC/PE', color: '#db2777'},
+  macro: {label: '宏观', color: '#0891b2'},
+  portfolio: {label: '组合配置', color: '#b45309'},
   other: {label: '其他', color: '#6b7280'},
 };
 
-const LEGACY_CATEGORY_ALIASES: Record<string, InvestmentExpertCategory> = {
-  stock: 'value',
-  fund: 'portfolio',
-  bond: 'income',
-  futures: 'event',
+const STYLE_LOOKUP: Record<InvestmentExpertStyle, {label: string; color: string}> = {
+  value: {label: '价值', color: '#2563eb'},
+  income: {label: '红利收益', color: '#059669'},
+  event: {label: '事件驱动', color: '#ea580c'},
+  sentiment: {label: '情绪', color: '#db2777'},
+  signal: {label: '信号', color: '#dc2626'},
+  growth: {label: '成长', color: '#16a34a'},
+  technology: {label: '科技', color: '#4f46e5'},
+  portfolio: {label: '组合', color: '#b45309'},
+  macro: {label: '宏观', color: '#0891b2'},
+  quant: {label: '量化', color: '#7c3aed'},
+  other: {label: '其他', color: '#6b7280'},
+};
+
+const LEGACY_CATEGORY_ALIASES: Record<string, InvestmentExpertDomain> = {
+  stock: 'stock',
+  value: 'stock',
+  growth: 'stock',
+  technology: 'stock',
+  event: 'stock',
+  sentiment: 'stock',
+  signal: 'stock',
+  quant: 'stock',
+  fund: 'fund',
+  'public-fund': 'public-fund',
+  'private-fund': 'private-fund',
+  bond: 'bond',
+  income: 'bond',
+  futures: 'futures',
   forex: 'macro',
-  reits: 'income',
-  global: 'value',
+  reits: 'fund',
+  global: 'macro',
+  gold: 'gold',
+  portfolio: 'portfolio',
+  macro: 'macro',
   comprehensive: 'other',
 };
+
+const DOMAIN_KEYWORDS: Array<{domain: InvestmentExpertDomain; patterns: RegExp[]}> = [
+  {domain: 'gold', patterns: [/黄金|gold|贵金属/i]},
+  {domain: 'bond', patterns: [/债券|固收|bond|credit|利差|久期/i]},
+  {domain: 'futures', patterns: [/期货|futures|商品|cta\b/i]},
+  {domain: 'public-fund', patterns: [/公募|mutual fund|fund manager|基金经理/i]},
+  {domain: 'private-fund', patterns: [/私募|hedge fund|对冲基金|私募基金/i]},
+  {domain: 'vc-pe', patterns: [/\bvc\b|\bpe\b|venture|private equity|一级市场|创投|风投|并购基金/i]},
+  {domain: 'macro', patterns: [/宏观|macro|大类资产|资产配置|bridgewater|利率|通胀|美元/i]},
+  {domain: 'fund', patterns: [/基金|etf|fof|qdii|基金投顾/i]},
+  {domain: 'stock', patterns: [/股票|a股|港股|美股|选股|value|growth|quality|dividend|红利|股息|科技|价值投资/i]},
+  {domain: 'portfolio', patterns: [/组合|portfolio|配置|allocation|风险管理|再平衡/i]},
+];
 
 function readMetadataString(value: unknown): string | null {
   if (typeof value !== 'string') {
@@ -140,14 +216,52 @@ function readMetadataStringArray(value: unknown): string[] {
     .filter(Boolean);
 }
 
-function normalizeCategory(value: string | null): InvestmentExpertCategory {
-  if (value && value in CATEGORY_LOOKUP) {
-    return value as InvestmentExpertCategory;
+function normalizeCategory(value: string | null): InvestmentExpertDomain {
+  if (value && value in DOMAIN_LOOKUP) {
+    return value as InvestmentExpertDomain;
   }
   if (value && value in LEGACY_CATEGORY_ALIASES) {
     return LEGACY_CATEGORY_ALIASES[value];
   }
   return 'other';
+}
+
+function normalizeStyle(value: string | null): InvestmentExpertStyle {
+  if (value && value in STYLE_LOOKUP) {
+    return value as InvestmentExpertStyle;
+  }
+  return 'other';
+}
+
+function inferDomainFromMetadata(agent: LobsterAgent, metadata: Record<string, unknown>): InvestmentExpertDomain {
+  const explicitDomain = normalizeCategory(
+    readMetadataString(metadata.financial_domain) ||
+      readMetadataString(metadata.asset_domain) ||
+      readMetadataString(metadata.market_domain),
+  );
+  if (explicitDomain !== 'other') {
+    return explicitDomain;
+  }
+
+  const legacyCategory = normalizeCategory(readMetadataString(metadata.investment_category));
+  const haystack = [
+    agent.name,
+    agent.description,
+    readMetadataString(metadata.subtitle) || '',
+    readMetadataString(metadata.source_person) || '',
+    ...agent.tags,
+    ...readMetadataStringArray(metadata.task_examples),
+  ]
+    .join(' ')
+    .toLowerCase();
+
+  for (const rule of DOMAIN_KEYWORDS) {
+    if (rule.patterns.some((pattern) => pattern.test(haystack))) {
+      return rule.domain;
+    }
+  }
+
+  return legacyCategory;
 }
 
 function readSkillHighlights(value: unknown): InvestmentExpertSkill[] {
@@ -196,22 +310,25 @@ export function toInvestmentExpert(agent: LobsterAgent): InvestmentExpert | null
   }
 
   const metadata = agent.metadata || {};
-  const category = normalizeCategory(readMetadataString(metadata.investment_category));
-  const categoryMeta = CATEGORY_LOOKUP[category];
+  const domain = inferDomainFromMetadata(agent, metadata);
+  const domainMeta = DOMAIN_LOOKUP[domain];
+  const style = normalizeStyle(readMetadataString(metadata.investment_category));
+  const styleMeta = STYLE_LOOKUP[style];
 
   return {
     id: agent.slug,
     slug: agent.slug,
     name: agent.name,
     subtitle: readMetadataString(metadata.subtitle) || agent.description,
-    category,
-    categoryLabel: categoryMeta.label,
-    categoryColor: categoryMeta.color,
+    domain,
+    domainLabel: domainMeta.label,
+    domainColor: domainMeta.color,
+    style,
+    styleLabel: styleMeta.label,
+    styleColor: styleMeta.color,
     description: agent.description,
     tags: [...agent.tags],
-    // Investment experts should visually align with the Lobster store avatar system
-    // instead of preserving legacy expert-specific avatar URLs.
-    avatar: resolveLobsterAgentAvatar(agent, {preferMetadataAvatar: false}),
+    avatar: resolveLobsterAgentAvatar(agent),
     isOnline: readMetadataBoolean(metadata.is_online) ?? true,
     usageCount: readMetadataNumber(metadata.usage_count) ?? 0,
     taskCount: readMetadataNumber(metadata.task_count) ?? 0,
@@ -239,6 +356,20 @@ export function hydrateInvestmentExperts(agents: LobsterAgent[]): InvestmentExpe
       }
       return right.usageCount - left.usageCount || left.name.localeCompare(right.name, 'zh-CN');
     });
+}
+
+export function resolveVisibleInvestmentExpertCategories(
+  experts: InvestmentExpert[],
+): Array<{id: InvestmentExpertFilter; label: string; color: string}> {
+  const present = new Set<InvestmentExpertDomain>(experts.map((expert) => expert.domain));
+  return INVESTMENT_EXPERT_CATEGORIES.filter((category) => category.id === 'all' || present.has(category.id));
+}
+
+export function resolveVisibleInvestmentExpertStyles(
+  experts: InvestmentExpert[],
+): Array<{id: InvestmentExpertStyleFilter; label: string; color: string}> {
+  const present = new Set<InvestmentExpertStyle>(experts.map((expert) => expert.style));
+  return INVESTMENT_EXPERT_STYLES.filter((style) => style.id === 'all' || present.has(style.id));
 }
 
 export async function loadInvestmentExperts(input: {

@@ -21,6 +21,7 @@ import type {
   CreateDesktopActionApprovalGrantInput,
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
+  CreateDesktopFaultReportInput,
   ChangePasswordInput,
   CreatePaymentOrderInput,
   ImportUserPrivateSkillInput,
@@ -301,6 +302,16 @@ function requireBearerToken(headers: Record<string, string | string[] | undefine
     throw new HttpError(401, 'UNAUTHORIZED', 'missing bearer token');
   }
   return value.slice('Bearer '.length).trim();
+}
+
+function readBearerToken(headers: Record<string, string | string[] | undefined>): string | null {
+  const authHeader = headers.authorization;
+  const value = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+  if (!value || !value.startsWith('Bearer ')) {
+    return null;
+  }
+  const token = value.slice('Bearer '.length).trim();
+  return token || null;
 }
 
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, key: string): string {
@@ -1420,6 +1431,43 @@ const server = createJsonServer([
       }),
   },
   {
+    method: 'GET',
+    path: '/admin/desktop/fault-reports',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminDesktopFaultReports(requireBearerToken(headers), {
+        report_id: (url.searchParams.get('report_id') || url.searchParams.get('reportId') || '').trim() || null,
+        user_id: (url.searchParams.get('user_id') || url.searchParams.get('userId') || '').trim() || null,
+        device_id: (url.searchParams.get('device_id') || url.searchParams.get('deviceId') || '').trim() || null,
+        app_name: (url.searchParams.get('app_name') || url.searchParams.get('appName') || '').trim() || null,
+        platform: (url.searchParams.get('platform') || '').trim() || null,
+        entry: (url.searchParams.get('entry') || '').trim() || null,
+        account_state: (url.searchParams.get('account_state') || url.searchParams.get('accountState') || '').trim() || null,
+        app_version: (url.searchParams.get('app_version') || url.searchParams.get('appVersion') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/admin/desktop/fault-reports/:id',
+    handler: ({headers, params}: HandlerContext) =>
+      service.getAdminDesktopFaultReport(requireBearerToken(headers), params.id || '', resolvePublicBaseUrl(headers)),
+  },
+  {
+    method: 'GET',
+    path: '/admin/desktop/fault-reports/:id/download',
+    handler: async ({headers, params}: HandlerContext) => {
+      const {record, file} = await service.downloadAdminDesktopFaultReport(requireBearerToken(headers), params.id || '');
+      return createRawResponse(file.buffer, {
+        headers: {
+          'Content-Type': file.contentType,
+          'Content-Length': String(file.buffer.length),
+          'Cache-Control': 'private, max-age=300',
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(record.fileName)}"`,
+        },
+      });
+    },
+  },
+  {
     method: 'PUT',
     path: '/admin/payments/gateway-config',
     handler: ({headers, body}: HandlerContext) =>
@@ -1939,6 +1987,35 @@ const server = createJsonServer([
         requireBearerToken(headers),
         (body || {}) as CreateDesktopDiagnosticUploadInput,
       ),
+  },
+  {
+    method: 'POST',
+    path: '/portal/desktop/fault-reports/upload',
+    bodyType: 'raw',
+    handler: async ({headers, body}: HandlerContext<Buffer>) => {
+      const formData = await parseMultipartFormData(Buffer.isBuffer(body) ? body : Buffer.alloc(0), headers);
+      const fileEntry = formData.get('file');
+      if (!(fileEntry instanceof File)) {
+        throw new HttpError(400, 'BAD_REQUEST', 'file is required');
+      }
+      const payloadRaw = getFormDataString(formData, 'payload');
+      if (!payloadRaw) {
+        throw new HttpError(400, 'BAD_REQUEST', 'payload is required');
+      }
+      let payload: CreateDesktopFaultReportInput;
+      try {
+        payload = JSON.parse(payloadRaw) as CreateDesktopFaultReportInput;
+      } catch {
+        throw new HttpError(400, 'BAD_REQUEST', 'payload must be valid JSON');
+      }
+      const content = Buffer.from(await fileEntry.arrayBuffer());
+      return service.uploadDesktopFaultReport(readBearerToken(headers), {
+        metadata: payload,
+        fileName: fileEntry.name || 'fault-report.zip',
+        contentType: fileEntry.type || null,
+        content,
+      });
+    },
   },
   {
     method: 'GET',

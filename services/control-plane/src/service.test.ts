@@ -416,6 +416,72 @@ test('desktop action security flow persists policies, grants, audit events, and 
   });
 });
 
+test('desktop fault reports support anonymous upload records and admin detail/download metadata', async () => {
+  await withBootstrapRoles({adminEmails: ['fault-admin@example.com']}, async () => {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+
+    const admin = await service.register({
+      username: 'fault-admin',
+      email: 'fault-admin@example.com',
+      password: 'password123',
+      name: 'Fault Admin',
+    });
+
+    await store.createDesktopFaultReport({
+      id: 'fault-record-001',
+      report_id: 'FR-TEST-001',
+      entry: 'installer',
+      account_state: 'anonymous',
+      user_id: null,
+      device_id: 'device-fault-001',
+      install_session_id: 'install-session-001',
+      app_name: 'iclaw',
+      brand_id: 'iclaw',
+      app_version: '1.2.3',
+      release_channel: 'prod',
+      platform: 'windows',
+      platform_version: 'Windows 11',
+      arch: 'x64',
+      failure_stage: 'runtime_install',
+      error_title: 'Runtime Installation Failed',
+      error_message: 'permission denied',
+      error_code: 'EACCES',
+      runtime_found: false,
+      runtime_installable: true,
+      runtime_version: '1.0.0',
+      runtime_path: 'C:\\runtime',
+      work_dir: 'C:\\work',
+      log_dir: 'C:\\logs',
+      runtime_download_url: 'https://downloads.example.com/runtime.zip',
+      install_progress_phase: 'extract',
+      install_progress_percent: 42,
+      upload_bucket: 'iclaw-user-assets',
+      upload_key: 'tenants/iclaw/desktop-fault-reports/FR-TEST-001/fault-report-FR-TEST-001.zip',
+      file_name: 'fault-report-FR-TEST-001.zip',
+      file_size_bytes: 2048,
+      file_sha256: 'sha256-001',
+      created_at: '2026-04-12T00:00:00.000Z',
+    });
+
+    const list = await service.listAdminDesktopFaultReports(admin.tokens.access_token, {
+      device_id: 'device-fault-001',
+    });
+    assert.equal(list.items.length, 1);
+    assert.equal(list.items[0]?.report_id, 'FR-TEST-001');
+    assert.equal(list.items[0]?.account_state, 'anonymous');
+
+    const detail = await service.getAdminDesktopFaultReport(
+      admin.tokens.access_token,
+      'fault-record-001',
+      'https://control.example.com',
+    );
+    assert.equal(detail.runtime_found, false);
+    assert.match(detail.download_url, /\/admin\/desktop\/fault-reports\/fault-record-001\/download$/);
+    assert.equal(detail.upload_key, 'tenants/iclaw/desktop-fault-reports/FR-TEST-001/fault-report-FR-TEST-001.zip');
+  });
+});
+
 test('desktop action policy invariants reject unsafe shell whitelist and elevated reusable grants', async () => {
   await withBootstrapRoles({adminEmails: ['security-admin@example.com']}, async () => {
     const store = new InMemoryControlPlaneStore();

@@ -20,6 +20,7 @@ import type {
   CreateDesktopActionApprovalGrantInput,
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
+  CreateDesktopFaultReportInput,
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
@@ -32,6 +33,7 @@ import type {
   DesktopActionAuditEventRecord,
   DesktopActionPolicyRuleRecord,
   DesktopDiagnosticUploadRecord,
+  DesktopFaultReportRecord,
   ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
@@ -651,6 +653,42 @@ type DesktopDiagnosticUploadRow = {
   created_at: Date;
 };
 
+type DesktopFaultReportRow = {
+  id: string;
+  report_id: string;
+  entry: 'installer' | 'exception-dialog';
+  account_state: 'anonymous' | 'authenticated';
+  user_id: string | null;
+  device_id: string;
+  install_session_id: string | null;
+  app_name: string;
+  brand_id: string;
+  app_version: string;
+  release_channel: string | null;
+  platform: string;
+  platform_version: string | null;
+  arch: string;
+  failure_stage: string;
+  error_title: string;
+  error_message: string;
+  error_code: string | null;
+  runtime_found: boolean;
+  runtime_installable: boolean;
+  runtime_version: string | null;
+  runtime_path: string | null;
+  work_dir: string | null;
+  log_dir: string | null;
+  runtime_download_url: string | null;
+  install_progress_phase: string | null;
+  install_progress_percent: number | null;
+  upload_bucket: string;
+  upload_key: string;
+  file_name: string;
+  file_size_bytes: string | number;
+  file_sha256: string | null;
+  created_at: Date;
+};
+
 function mapUserRow(row: UserRow): UserRecord {
   return {
     id: row.id,
@@ -971,6 +1009,44 @@ function mapDesktopDiagnosticUploadRow(row: DesktopDiagnosticUploadRow): Desktop
     containsCustomerLogs: row.contains_customer_logs,
     sensitivityLevel: row.sensitivity_level,
     linkedIntentId: row.linked_intent_id,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapDesktopFaultReportRow(row: DesktopFaultReportRow): DesktopFaultReportRecord {
+  return {
+    id: row.id,
+    reportId: row.report_id,
+    entry: row.entry,
+    accountState: row.account_state,
+    userId: row.user_id,
+    deviceId: row.device_id,
+    installSessionId: row.install_session_id,
+    appName: row.app_name,
+    brandId: row.brand_id,
+    appVersion: row.app_version,
+    releaseChannel: row.release_channel,
+    platform: row.platform,
+    platformVersion: row.platform_version,
+    arch: row.arch,
+    failureStage: row.failure_stage,
+    errorTitle: row.error_title,
+    errorMessage: row.error_message,
+    errorCode: row.error_code,
+    runtimeFound: row.runtime_found,
+    runtimeInstallable: row.runtime_installable,
+    runtimeVersion: row.runtime_version,
+    runtimePath: row.runtime_path,
+    workDir: row.work_dir,
+    logDir: row.log_dir,
+    runtimeDownloadUrl: row.runtime_download_url,
+    installProgressPhase: row.install_progress_phase,
+    installProgressPercent: row.install_progress_percent,
+    uploadBucket: row.upload_bucket,
+    uploadKey: row.upload_key,
+    fileName: row.file_name,
+    fileSizeBytes: parseDbNumber(row.file_size_bytes),
+    fileSha256: row.file_sha256,
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -3456,6 +3532,178 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return mapDesktopDiagnosticUploadRow(result.rows[0]);
   }
 
+  async listDesktopFaultReports(input?: {
+    reportId?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    platform?: string | null;
+    entry?: string | null;
+    accountState?: string | null;
+    appVersion?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopFaultReportRecord[]> {
+    const values: unknown[] = [];
+    const where: string[] = [];
+    if (input?.reportId) {
+      values.push(input.reportId);
+      where.push(`report_id = $${values.length}`);
+    }
+    if (input?.userId) {
+      values.push(input.userId);
+      where.push(`user_id = $${values.length}`);
+    }
+    if (input?.deviceId) {
+      values.push(input.deviceId);
+      where.push(`device_id = $${values.length}`);
+    }
+    if (input?.appName) {
+      values.push(input.appName);
+      where.push(`app_name = $${values.length}`);
+    }
+    if (input?.platform) {
+      values.push(input.platform);
+      where.push(`platform = $${values.length}`);
+    }
+    if (input?.entry) {
+      values.push(input.entry);
+      where.push(`entry = $${values.length}`);
+    }
+    if (input?.accountState) {
+      values.push(input.accountState);
+      where.push(`account_state = $${values.length}`);
+    }
+    if (input?.appVersion) {
+      values.push(input.appVersion);
+      where.push(`app_version = $${values.length}`);
+    }
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    values.push(limit);
+    const result = await this.pool.query<DesktopFaultReportRow>(
+      `
+        select
+          id, report_id, entry, account_state, user_id, device_id, install_session_id,
+          app_name, brand_id, app_version, release_channel, platform, platform_version, arch,
+          failure_stage, error_title, error_message, error_code,
+          runtime_found, runtime_installable, runtime_version, runtime_path, work_dir, log_dir,
+          runtime_download_url, install_progress_phase, install_progress_percent,
+          upload_bucket, upload_key, file_name, file_size_bytes, file_sha256, created_at
+        from desktop_fault_reports
+        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+        order by created_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapDesktopFaultReportRow);
+  }
+
+  async getDesktopFaultReportById(id: string): Promise<DesktopFaultReportRecord | null> {
+    const result = await this.pool.query<DesktopFaultReportRow>(
+      `
+        select
+          id, report_id, entry, account_state, user_id, device_id, install_session_id,
+          app_name, brand_id, app_version, release_channel, platform, platform_version, arch,
+          failure_stage, error_title, error_message, error_code,
+          runtime_found, runtime_installable, runtime_version, runtime_path, work_dir, log_dir,
+          runtime_download_url, install_progress_phase, install_progress_percent,
+          upload_bucket, upload_key, file_name, file_size_bytes, file_sha256, created_at
+        from desktop_fault_reports
+        where id = $1
+        limit 1
+      `,
+      [id],
+    );
+    return result.rows[0] ? mapDesktopFaultReportRow(result.rows[0]) : null;
+  }
+
+  async getDesktopFaultReportByReportId(reportId: string): Promise<DesktopFaultReportRecord | null> {
+    const result = await this.pool.query<DesktopFaultReportRow>(
+      `
+        select
+          id, report_id, entry, account_state, user_id, device_id, install_session_id,
+          app_name, brand_id, app_version, release_channel, platform, platform_version, arch,
+          failure_stage, error_title, error_message, error_code,
+          runtime_found, runtime_installable, runtime_version, runtime_path, work_dir, log_dir,
+          runtime_download_url, install_progress_phase, install_progress_percent,
+          upload_bucket, upload_key, file_name, file_size_bytes, file_sha256, created_at
+        from desktop_fault_reports
+        where report_id = $1
+        limit 1
+      `,
+      [reportId],
+    );
+    return result.rows[0] ? mapDesktopFaultReportRow(result.rows[0]) : null;
+  }
+
+  async createDesktopFaultReport(
+    input: Required<CreateDesktopFaultReportInput> & {id: string; created_at: string},
+  ): Promise<DesktopFaultReportRecord> {
+    const result = await this.pool.query<DesktopFaultReportRow>(
+      `
+        insert into desktop_fault_reports (
+          id, report_id, entry, account_state, user_id, device_id, install_session_id,
+          app_name, brand_id, app_version, release_channel, platform, platform_version, arch,
+          failure_stage, error_title, error_message, error_code,
+          runtime_found, runtime_installable, runtime_version, runtime_path, work_dir, log_dir,
+          runtime_download_url, install_progress_phase, install_progress_percent,
+          upload_bucket, upload_key, file_name, file_size_bytes, file_sha256, created_at
+        )
+        values (
+          $1, $2, $3, $4, $5::uuid, $6, $7,
+          $8, $9, $10, $11, $12, $13, $14,
+          $15, $16, $17, $18,
+          $19, $20, $21, $22, $23, $24,
+          $25, $26, $27,
+          $28, $29, $30, $31, $32, $33
+        )
+        returning
+          id, report_id, entry, account_state, user_id, device_id, install_session_id,
+          app_name, brand_id, app_version, release_channel, platform, platform_version, arch,
+          failure_stage, error_title, error_message, error_code,
+          runtime_found, runtime_installable, runtime_version, runtime_path, work_dir, log_dir,
+          runtime_download_url, install_progress_phase, install_progress_percent,
+          upload_bucket, upload_key, file_name, file_size_bytes, file_sha256, created_at
+      `,
+      [
+        input.id,
+        input.report_id,
+        input.entry,
+        input.account_state,
+        input.user_id || null,
+        input.device_id,
+        input.install_session_id || null,
+        input.app_name,
+        input.brand_id,
+        input.app_version,
+        input.release_channel || null,
+        input.platform,
+        input.platform_version || null,
+        input.arch,
+        input.failure_stage,
+        input.error_title,
+        input.error_message,
+        input.error_code || null,
+        input.runtime_found,
+        input.runtime_installable,
+        input.runtime_version || null,
+        input.runtime_path || null,
+        input.work_dir || null,
+        input.log_dir || null,
+        input.runtime_download_url || null,
+        input.install_progress_phase || null,
+        input.install_progress_percent ?? null,
+        input.upload_bucket,
+        input.upload_key,
+        input.file_name,
+        input.file_size_bytes,
+        input.file_sha256 || null,
+        input.created_at,
+      ],
+    );
+    return mapDesktopFaultReportRow(result.rows[0]);
+  }
+
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {
     const client = await this.pool.connect();
     try {
@@ -4575,7 +4823,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         updated_at
         from agent_catalog_entries
         where active = true
-        order by sort_order asc, name asc
+        order by updated_at desc, sort_order asc, name asc
       `,
     );
     return result.rows.map(mapAgentCatalogRow);
@@ -4601,7 +4849,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           created_at,
           updated_at
         from agent_catalog_entries
-        order by sort_order asc, name asc
+        order by updated_at desc, sort_order asc, name asc
       `,
     );
     return result.rows.map(mapAgentCatalogRow);

@@ -87,6 +87,7 @@ import {
 import {
   findChatConversationBySessionKey,
   readChatConversation,
+  syncChatConversationActiveAgent,
 } from '../lib/chat-conversations';
 import {
   clearCacheKeysByPrefix,
@@ -391,6 +392,14 @@ function buildSkillScopedPrompt(payload: ComposerSendPayload): string {
   ].filter((line): line is string => Boolean(line));
 
   return `${instructionParts.join('\n')}\n\n已选控制项：${controlLines.join('｜')}\n\n用户任务：${prompt}`;
+}
+
+function buildNativeAgentSessionKey(agentSlug: string | null | undefined): string | null {
+  const normalized = typeof agentSlug === 'string' ? agentSlug.trim() : '';
+  if (!normalized) {
+    return null;
+  }
+  return canonicalizeChatSessionKey(`agent:${normalized}:main`);
 }
 
 type SelectionMenuState = {
@@ -7921,10 +7930,23 @@ export function OpenClawChatSurface({
       }
     }
 
+    const runtimeSessionKey =
+      buildNativeAgentSessionKey(payload.selectedAgentSlug) || effectiveGatewaySessionKey;
+
     const turn = startChatTurn({
       prompt: payload.prompt,
       conversationId,
-      sessionKey,
+      sessionKey: runtimeSessionKey,
+      agentId: payload.selectedAgentSlug,
+    });
+    syncChatConversationActiveAgent({
+      conversationId: turn.conversationId,
+      sessionKey: runtimeSessionKey,
+      agentId: payload.selectedAgentSlug,
+      reason: payload.selectedAgentSlug ? 'agent-selected-for-send' : 'agent-cleared-for-send',
+      summary: payload.selectedAgentName
+        ? `当前对话切换到 ${payload.selectedAgentName} 接手。`
+        : '当前对话恢复为未指定专家的主执行上下文。',
     });
 
     activeChatTurnRunRef.current = {
@@ -7946,7 +7968,6 @@ export function OpenClawChatSurface({
 
       runId = createDesktopRunId();
       const startedAt = Date.now();
-      const runtimeSessionKey = effectiveGatewaySessionKey;
       stageOutgoingChatMessage({
         app,
         prompt: normalizedPrompt,

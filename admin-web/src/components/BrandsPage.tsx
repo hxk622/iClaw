@@ -1,5 +1,6 @@
 import { formatRelative, statusLabel } from '../lib/adminFormat';
 import { useState } from 'react';
+import { adminFilterControlStyle, AdminFilterStack, AdminSearchRow, AdminSelectorRow } from './AdminFilterLayout';
 
 export function BrandsPage({
   brands,
@@ -56,21 +57,29 @@ export function BrandsPage({
               {showCreateForm ? '收起' : '创建品牌'}
             </button>
           </div>
-          <div className="fig-toolbar">
-            <label className="fig-search">
+          <AdminFilterStack>
+            <AdminSearchRow>
               <input
-                className="field-input fig-search__input"
+                className="field-input"
                 placeholder="搜索品牌..."
                 value={brandQuery}
                 onChange={(event) => setBrandQuery(event.target.value)}
+                style={adminFilterControlStyle()}
               />
-            </label>
-            <select className="field-select fig-filter" value={brandStatus} onChange={(event) => setBrandStatus(event.target.value)}>
-              <option value="all">所有状态</option>
-              <option value="active">已启用</option>
-              <option value="disabled">已停用</option>
-            </select>
-          </div>
+            </AdminSearchRow>
+            <AdminSelectorRow>
+              <select
+                className="field-select"
+                value={brandStatus}
+                onChange={(event) => setBrandStatus(event.target.value)}
+                style={adminFilterControlStyle()}
+              >
+                <option value="all">所有状态</option>
+                <option value="active">已启用</option>
+                <option value="disabled">已停用</option>
+              </select>
+            </AdminSelectorRow>
+          </AdminFilterStack>
         </div>
       </div>
       <div className="fig-page__body">

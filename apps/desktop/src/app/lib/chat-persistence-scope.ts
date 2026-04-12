@@ -1,5 +1,5 @@
-import { readCacheString, writeCacheString } from './persistence/cache-store';
-import { buildStorageKey } from './storage';
+import { readCacheString, writeCacheString } from './persistence/cache-store.ts';
+import { buildStorageKey } from './storage.ts';
 
 const CHAT_PERSISTENCE_USER_SCOPE_STORAGE_KEY = buildStorageKey('chat.user_scope');
 const GUEST_CHAT_PERSISTENCE_SCOPE = 'guest';

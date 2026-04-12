@@ -5,6 +5,7 @@ import { AlertCircle, LoaderCircle, RefreshCw, Search, Sparkles } from 'lucide-r
 import type { AppUserAvatarSource } from '@/app/lib/user-avatar';
 import { Chip } from '@/app/components/ui/Chip';
 import { Button } from '@/app/components/ui/Button';
+import { STORE_SHELF_GRID_CLASS } from '@/app/components/ui/store-shelf';
 import {
   isLobsterStoreAgent,
   readCachedLobsterAgents,
@@ -78,7 +79,7 @@ export function LobsterStoreView({
     setRefreshing(agents.length > 0);
     setError(null);
     try {
-      const nextAgents = await loadLobsterAgents({ client, accessToken });
+      const nextAgents = await loadLobsterAgents({ client, accessToken, forceRefresh: true });
       setAgents(nextAgents.filter((agent) => isLobsterStoreAgent(agent)));
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : '加载龙虾商店失败');
@@ -222,7 +223,7 @@ export function LobsterStoreView({
     setInstallBusySlug(agent.slug);
     setError(null);
     try {
-      await installLobsterAgent({ client, accessToken, slug: agent.slug });
+      await installLobsterAgent({ client, accessToken, agent });
       await refresh();
     } catch (installError) {
       setError(installError instanceof Error ? installError.message : '添加失败');
@@ -331,7 +332,7 @@ export function LobsterStoreView({
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+            <div className={STORE_SHELF_GRID_CLASS}>
               {Array.from({ length: 6 }).map((_, index) => (
                 <div
                   key={index}
@@ -431,7 +432,7 @@ export function LobsterStoreView({
                     {featuredAgents.length} 个精选
                   </Chip>
                 </div>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+                <div className={STORE_SHELF_GRID_CLASS}>
                   {featuredAgents.map((agent) => (
                     <LobsterAgentCard
                       key={`featured-${agent.slug}`}
@@ -471,7 +472,7 @@ export function LobsterStoreView({
                           </div>
                           <div className="text-[12px] text-[var(--lobster-text-muted)]">{group.agents.length} 个</div>
                         </div>
-                        <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+                        <div className={STORE_SHELF_GRID_CLASS}>
                           {group.agents.map((agent) => (
                             <LobsterAgentCard
                               key={agent.slug}
@@ -487,7 +488,7 @@ export function LobsterStoreView({
                     ))}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+                  <div className={STORE_SHELF_GRID_CLASS}>
                     {shelfAgents.map((agent) => (
                       <LobsterAgentCard
                         key={agent.slug}

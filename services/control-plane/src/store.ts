@@ -21,6 +21,7 @@ import type {
   CreateDesktopActionApprovalGrantInput,
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
+  CreateDesktopFaultReportInput,
   CreatePaymentOrderInput,
   CreateUserInput,
   CreditAccountRecord,
@@ -29,6 +30,7 @@ import type {
   DesktopActionAuditEventRecord,
   DesktopActionPolicyRuleRecord,
   DesktopDiagnosticUploadRecord,
+  DesktopFaultReportRecord,
   ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
@@ -244,6 +246,22 @@ export interface ControlPlaneStore {
   createDesktopDiagnosticUpload(
     input: Required<CreateDesktopDiagnosticUploadInput> & {id: string; created_at: string},
   ): Promise<DesktopDiagnosticUploadRecord>;
+  listDesktopFaultReports(input?: {
+    reportId?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    platform?: string | null;
+    entry?: string | null;
+    accountState?: string | null;
+    appVersion?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopFaultReportRecord[]>;
+  getDesktopFaultReportById(id: string): Promise<DesktopFaultReportRecord | null>;
+  getDesktopFaultReportByReportId(reportId: string): Promise<DesktopFaultReportRecord | null>;
+  createDesktopFaultReport(
+    input: Required<CreateDesktopFaultReportInput> & {id: string; created_at: string},
+  ): Promise<DesktopFaultReportRecord>;
   applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null>;
   getRunGrantById(grantId: string): Promise<RunGrantRecord | null>;
   getRunBillingSummary(grantId: string): Promise<RunBillingSummaryRecord | null>;
@@ -425,6 +443,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly desktopActionApprovalGrantsById = new Map<string, DesktopActionApprovalGrantRecord>();
   private readonly desktopActionAuditEventsById = new Map<string, DesktopActionAuditEventRecord>();
   private readonly desktopDiagnosticUploadsById = new Map<string, DesktopDiagnosticUploadRecord>();
+  private readonly desktopFaultReportsById = new Map<string, DesktopFaultReportRecord>();
   private readonly paymentOrdersById = new Map<string, PaymentOrderRecord>();
   private readonly rechargePaymentMethodConfigsByApp = new Map<string, Record<string, unknown>>();
   private readonly systemStateByKey = new Map<string, Record<string, unknown>>();
@@ -1456,6 +1475,87 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return record;
   }
 
+  async listDesktopFaultReports(input?: {
+    reportId?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    platform?: string | null;
+    entry?: string | null;
+    accountState?: string | null;
+    appVersion?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopFaultReportRecord[]> {
+    const items = Array.from(this.desktopFaultReportsById.values())
+      .filter((item) => (!input?.reportId ? true : item.reportId === input.reportId))
+      .filter((item) => (!input?.userId ? true : item.userId === input.userId))
+      .filter((item) => (!input?.deviceId ? true : item.deviceId === input.deviceId))
+      .filter((item) => (!input?.appName ? true : item.appName === input.appName))
+      .filter((item) => (!input?.platform ? true : item.platform === input.platform))
+      .filter((item) => (!input?.entry ? true : item.entry === input.entry))
+      .filter((item) => (!input?.accountState ? true : item.accountState === input.accountState))
+      .filter((item) => (!input?.appVersion ? true : item.appVersion === input.appVersion))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const limit = input?.limit && input.limit > 0 ? input.limit : items.length;
+    return items.slice(0, limit);
+  }
+
+  async getDesktopFaultReportById(id: string): Promise<DesktopFaultReportRecord | null> {
+    return this.desktopFaultReportsById.get(id) || null;
+  }
+
+  async getDesktopFaultReportByReportId(reportId: string): Promise<DesktopFaultReportRecord | null> {
+    for (const item of this.desktopFaultReportsById.values()) {
+      if (item.reportId === reportId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  async createDesktopFaultReport(
+    input: Required<CreateDesktopFaultReportInput> & {id: string; created_at: string},
+  ): Promise<DesktopFaultReportRecord> {
+    const record: DesktopFaultReportRecord = {
+      id: input.id,
+      reportId: input.report_id || '',
+      entry: input.entry || 'installer',
+      accountState: input.account_state || 'anonymous',
+      userId: input.user_id || null,
+      deviceId: input.device_id || '',
+      installSessionId: input.install_session_id || null,
+      appName: input.app_name || '',
+      brandId: input.brand_id || '',
+      appVersion: input.app_version || '',
+      releaseChannel: input.release_channel || null,
+      platform: input.platform || '',
+      platformVersion: input.platform_version || null,
+      arch: input.arch || '',
+      failureStage: input.failure_stage || '',
+      errorTitle: input.error_title || '',
+      errorMessage: input.error_message || '',
+      errorCode: input.error_code || null,
+      runtimeFound: input.runtime_found === true,
+      runtimeInstallable: input.runtime_installable === true,
+      runtimeVersion: input.runtime_version || null,
+      runtimePath: input.runtime_path || null,
+      workDir: input.work_dir || null,
+      logDir: input.log_dir || null,
+      runtimeDownloadUrl: input.runtime_download_url || null,
+      installProgressPhase: input.install_progress_phase || null,
+      installProgressPercent:
+        typeof input.install_progress_percent === 'number' ? input.install_progress_percent : null,
+      uploadBucket: input.upload_bucket || '',
+      uploadKey: input.upload_key || '',
+      fileName: input.file_name || '',
+      fileSizeBytes: Number(input.file_size_bytes || 0),
+      fileSha256: input.file_sha256 || null,
+      createdAt: input.created_at,
+    };
+    this.desktopFaultReportsById.set(record.id, record);
+    return record;
+  }
+
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {
     const order = this.paymentOrdersById.get(input.order_id || '');
     if (!order || order.provider !== provider) {
@@ -1801,12 +1901,20 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {
     return Array.from(this.agentCatalog.values())
       .filter((item) => item.active)
-      .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, 'zh-CN'));
+      .sort(
+        (left, right) =>
+          new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime() ||
+          left.sortOrder - right.sortOrder ||
+          left.name.localeCompare(right.name, 'zh-CN'),
+      );
   }
 
   async listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]> {
     return Array.from(this.agentCatalog.values()).sort(
-      (left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, 'zh-CN'),
+      (left, right) =>
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime() ||
+        left.sortOrder - right.sortOrder ||
+        left.name.localeCompare(right.name, 'zh-CN'),
     );
   }
 

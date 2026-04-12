@@ -2,6 +2,7 @@ import type {
   CreateDesktopActionApprovalGrantInput,
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
+  CreateDesktopFaultReportInput,
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
@@ -39,6 +40,7 @@ import type {
   DesktopActionAuditEventRecord,
   DesktopActionPolicyRuleRecord,
   DesktopDiagnosticUploadRecord,
+  DesktopFaultReportRecord,
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentProviderProfileInput,
@@ -502,6 +504,34 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     input: Required<CreateDesktopDiagnosticUploadInput> & {id: string; created_at: string},
   ): Promise<DesktopDiagnosticUploadRecord> {
     return this.base.createDesktopDiagnosticUpload(input);
+  }
+
+  async listDesktopFaultReports(input?: {
+    reportId?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    platform?: string | null;
+    entry?: string | null;
+    accountState?: string | null;
+    appVersion?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopFaultReportRecord[]> {
+    return this.base.listDesktopFaultReports(input);
+  }
+
+  async getDesktopFaultReportById(id: string): Promise<DesktopFaultReportRecord | null> {
+    return this.base.getDesktopFaultReportById(id);
+  }
+
+  async getDesktopFaultReportByReportId(reportId: string): Promise<DesktopFaultReportRecord | null> {
+    return this.base.getDesktopFaultReportByReportId(reportId);
+  }
+
+  async createDesktopFaultReport(
+    input: Required<CreateDesktopFaultReportInput> & {id: string; created_at: string},
+  ): Promise<DesktopFaultReportRecord> {
+    return this.base.createDesktopFaultReport(input);
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {

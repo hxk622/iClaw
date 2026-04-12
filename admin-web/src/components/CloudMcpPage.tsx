@@ -34,6 +34,7 @@ export function CloudMcpPage({
     argsText: string;
     httpUrl: string;
     envText: string;
+    metadataText: string;
   }) => Promise<void> | void;
   onDelete: (key: string) => Promise<void> | void;
   onTest: (input: {
@@ -47,6 +48,7 @@ export function CloudMcpPage({
     argsText: string;
     httpUrl: string;
     envText: string;
+    metadataText: string;
   }) => Promise<void> | void;
   saving: boolean;
   testResult?: { ok?: boolean; message?: string } | null;
@@ -63,6 +65,7 @@ export function CloudMcpPage({
     argsText: '',
     httpUrl: '',
     envText: '',
+    metadataText: '{}',
   });
 
   useEffect(() => {
@@ -79,6 +82,7 @@ export function CloudMcpPage({
             argsText: '',
             httpUrl: '',
             envText: '',
+            metadataText: JSON.stringify(selected.metadata || {}, null, 2),
           }
         : {
             key: '',
@@ -91,6 +95,7 @@ export function CloudMcpPage({
             argsText: '',
             httpUrl: '',
             envText: '',
+            metadataText: '{}',
           },
     );
   }, [selected]);
@@ -110,34 +115,30 @@ export function CloudMcpPage({
           </div>
         </div>
       </div>
-      <div className="fig-layout">
-        <aside className="fig-sidebar">
+      <div className="fig-page__body">
+        <div className="fig-detail-stack">
           <section className="fig-card fig-card--subtle">
             <div className="fig-card__head">
-              <h3>云MCP列表</h3>
+              <h3>当前对象</h3>
+              <span>直接在当前页切换并编辑云MCP对象。</span>
+            </div>
+            <div className="form-grid form-grid--two">
+              <label className="field">
+                <span>当前编辑对象</span>
+                <select className="field-select" value={selected?.key || '__new__'} onChange={(event) => onSelectKey(event.target.value)}>
+                  {items.map((item) => (
+                    <option key={item.key} value={item.key}>
+                      {item.name} · {item.transport}
+                    </option>
+                  ))}
+                  <option value="__new__">新建云MCP</option>
+                </select>
+              </label>
+            </div>
+            <div className="fig-release-card__actions">
               <span>{String(items.length)} 个</span>
             </div>
-            <div className="fig-capability-list">
-              {items.length ? (
-                items.map((item) => (
-                  <button
-                    key={item.key}
-                    className={`capability-card${selected?.key === item.key ? ' is-active' : ''}`}
-                    type="button"
-                    onClick={() => onSelectKey(item.key)}
-                  >
-                    <strong>{item.name}</strong>
-                    <span>{`${item.transport} • ${item.enabled ? '已启用' : '已关闭'}`}</span>
-                  </button>
-                ))
-              ) : (
-                <div className="empty-state">还没有云MCP。</div>
-              )}
-            </div>
           </section>
-        </aside>
-        <section className="fig-capability-detail">
-          <div className="fig-detail-stack">
             <div className="fig-card">
               <div className="fig-card__head">
                 <div>
@@ -193,6 +194,10 @@ export function CloudMcpPage({
                   <span>Env</span>
                   <textarea className="field-textarea" rows={4} value={draft.envText} onChange={(event) => setDraft((current) => ({ ...current, envText: event.target.value }))} />
                 </label>
+                <label className="field field--wide">
+                  <span>Metadata JSON</span>
+                  <textarea className="code-input code-input--tall" rows={6} value={draft.metadataText} onChange={(event) => setDraft((current) => ({ ...current, metadataText: event.target.value }))} />
+                </label>
                 <label className="field">
                   <span>Object Key</span>
                   <input className="field-input" value={draft.objectKey} onChange={(event) => setDraft((current) => ({ ...current, objectKey: event.target.value }))} />
@@ -217,8 +222,7 @@ export function CloudMcpPage({
                 </div>
               ) : null}
             </section>
-          </div>
-        </section>
+        </div>
       </div>
     </div>
   );

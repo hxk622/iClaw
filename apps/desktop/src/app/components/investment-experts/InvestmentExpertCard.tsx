@@ -2,6 +2,7 @@ import { Flame, Plus, Sparkles, Trash2, Users } from 'lucide-react';
 
 import { cn } from '@/app/lib/cn';
 import { ConversationActionButton } from '@/app/components/ui/ConversationActionButton';
+import { AvatarSurface } from '@/app/components/ui/AvatarSurface';
 import type { InvestmentExpert } from '@/app/lib/investment-experts';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
@@ -93,11 +94,7 @@ export function InvestmentExpertCard({
       ) : null}
 
       <div className="relative mb-4">
-        <img
-          src={expert.avatar}
-          alt={expert.name}
-          className="h-16 w-16 rounded-full border-2 border-[var(--lobster-border)] object-cover"
-        />
+        <AvatarSurface src={expert.avatar} alt={expert.name} sizeClassName="h-16 w-16" />
         <span
           className={cn(
             'absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-[var(--lobster-card-elevated)]',

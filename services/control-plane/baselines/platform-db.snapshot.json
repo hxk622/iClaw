@@ -1278,7 +1278,7 @@
           "config": {
             "group_label": "商店"
           },
-          "enabled": false,
+          "enabled": true,
           "menuKey": "lobster-store",
           "sortOrder": 40
         },
