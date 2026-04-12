@@ -249,16 +249,26 @@ async function findTargetArtifacts({ releaseDir, artifactBaseName, channel, appV
   const signatureName = `${updaterName}.sig`;
   const hasUpdater = files.includes(updaterName);
   const hasSignature = files.includes(signatureName);
-  if (hasUpdater !== hasSignature) {
+  const treatUpdaterAsOptional = target.platform === 'windows';
+  if (hasUpdater !== hasSignature && !treatUpdaterAsOptional) {
     throw new Error(`Incomplete release files for ${target.platform}/${target.arch}: updater and signature must either both exist or both be omitted for ${latestInstaller.releaseVersion}`);
   }
+  if (hasUpdater !== hasSignature && treatUpdaterAsOptional) {
+    process.stderr.write(
+      [
+        `[desktop-release] windows updater artifacts are partial for ${target.platform}/${target.arch}/${latestInstaller.releaseVersion};`,
+        'installer-driven release flow will continue with installer only.',
+      ].join(' ') + '\n',
+    );
+  }
+  const useUpdaterArtifacts = hasUpdater && hasSignature;
 
   return {
     platform: target.platform,
     arch: target.arch,
     installerPath: path.join(releaseDir, latestInstaller.fileName),
-    updaterPath: hasUpdater ? path.join(releaseDir, updaterName) : null,
-    signaturePath: hasSignature ? path.join(releaseDir, signatureName) : null,
+    updaterPath: useUpdaterArtifacts ? path.join(releaseDir, updaterName) : null,
+    signaturePath: useUpdaterArtifacts ? path.join(releaseDir, signatureName) : null,
   };
 }
 

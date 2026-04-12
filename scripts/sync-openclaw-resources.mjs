@@ -22,6 +22,34 @@ async function syncMcpConfig() {
   await syncFileOrRemove(sourcePath, outputPath);
 }
 
+async function removeBrokenPythonSitePackagesSymlink() {
+  const sitePackagesPath = path.join(
+    resourcesDstDir,
+    'openclaw-runtime',
+    'python',
+    'Python.framework',
+    'Versions',
+    '3.11',
+    'lib',
+    'python3.11',
+    'site-packages',
+  );
+  try {
+    const stat = await fs.lstat(sitePackagesPath);
+    if (!stat.isSymbolicLink()) {
+      return;
+    }
+    const realPath = await fs.realpath(sitePackagesPath).catch(() => null);
+    if (realPath) {
+      return;
+    }
+    await fs.rm(sitePackagesPath, {force: true});
+    process.stdout.write(`[sync-openclaw-resources] removed broken site-packages symlink: ${sitePackagesPath}\n`);
+  } catch {
+    // ignore when path is absent
+  }
+}
+
 async function main() {
   await fs.mkdir(resourcesDstDir, { recursive: true });
   await Promise.all([
@@ -49,6 +77,7 @@ async function main() {
     ),
     syncMcpConfig(),
   ]);
+  await removeBrokenPythonSitePackagesSymlink();
 
   process.stdout.write(`Synced OpenClaw resources from ${resourcesSrcDir} to ${resourcesDstDir}\n`);
 }

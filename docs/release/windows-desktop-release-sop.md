@@ -28,6 +28,7 @@
   - 发布到下载站的 installer / manifest
 - Windows 不再把 `native updater` 作为正式发版前置门槛
 - `updater/signature` 对 Windows 来说属于可选增强，不是强更是否成立的前提
+- 发布脚本遇到 `.nsis.zip/.sig` 缺失或只存在一半时，不应阻断 `exe` 正式发布；最多记录 warning
 
 ### 2.2 厚包口径
 

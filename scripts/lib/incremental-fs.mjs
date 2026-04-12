@@ -30,7 +30,10 @@ async function syncFileIncremental(sourcePath, destinationPath) {
   }
 
   await fs.mkdir(path.dirname(destinationPath), { recursive: true });
-  await fs.copyFile(sourcePath, destinationPath);
+  await fs.rm(destinationPath, { force: true });
+  const content = await fs.readFile(sourcePath);
+  await fs.writeFile(destinationPath, content);
+  await fs.chmod(destinationPath, sourceStat.mode);
   await fs.utimes(destinationPath, sourceStat.atime, sourceStat.mtime);
 }
 

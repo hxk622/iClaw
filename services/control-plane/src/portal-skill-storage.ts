@@ -21,6 +21,30 @@ const MAX_ARTIFACT_BYTES = 200 * 1024 * 1024;
 let s3Client: S3Client | null = null;
 let bucketReady: Promise<void> | null = null;
 
+function portalSkillStorageTimeoutMs(): number {
+  const parsed = Number(process.env.ICLAW_PORTAL_SKILL_STORAGE_TIMEOUT_MS || 8000);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 8000;
+}
+
+async function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  const timeoutMs = portalSkillStorageTimeoutMs();
+  let timer: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
 function hasS3Config(): boolean {
   return Boolean(config.s3AccessKey && config.s3SecretKey);
 }
@@ -145,15 +169,21 @@ export async function downloadPortalSkillArtifact(objectKeyInput: string): Promi
   const objectKey = assertSupportedObjectKey(objectKeyInput);
   const client = getS3Client();
   try {
-    const head = await client.send(new HeadObjectCommand({Bucket: getBucket(), Key: objectKey}));
-    const response = await client.send(new GetObjectCommand({Bucket: getBucket(), Key: objectKey}));
+    const head = await withTimeout(
+      client.send(new HeadObjectCommand({Bucket: getBucket(), Key: objectKey})),
+      `portal skill head ${objectKey}`,
+    );
+    const response = await withTimeout(
+      client.send(new GetObjectCommand({Bucket: getBucket(), Key: objectKey})),
+      `portal skill get ${objectKey}`,
+    );
     if (!response.Body) {
       throw new HttpError(404, 'NOT_FOUND', 'portal skill artifact not found');
     }
     const body =
       response.Body instanceof Readable
-        ? await toBuffer(response.Body)
-        : Buffer.from(await response.Body.transformToByteArray());
+        ? await withTimeout(toBuffer(response.Body), `portal skill stream ${objectKey}`)
+        : Buffer.from(await withTimeout(response.Body.transformToByteArray(), `portal skill bytes ${objectKey}`));
     return {
       buffer: body,
       contentType: head.ContentType || response.ContentType || 'application/octet-stream',
