@@ -22,6 +22,8 @@ import type {
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
   CreateDesktopFaultReportInput,
+  CreateClientMetricEventInput,
+  CreateClientCrashEventInput,
   ChangePasswordInput,
   CreatePaymentOrderInput,
   ImportUserPrivateSkillInput,
@@ -1468,6 +1470,37 @@ const server = createJsonServer([
     },
   },
   {
+    method: 'GET',
+    path: '/admin/client-metrics/events',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminClientMetricEvents(requireBearerToken(headers), {
+        event_name: (url.searchParams.get('event_name') || url.searchParams.get('eventName') || '').trim() || null,
+        user_id: (url.searchParams.get('user_id') || url.searchParams.get('userId') || '').trim() || null,
+        device_id: (url.searchParams.get('device_id') || url.searchParams.get('deviceId') || '').trim() || null,
+        app_name: (url.searchParams.get('app_name') || url.searchParams.get('appName') || '').trim() || null,
+        brand_id: (url.searchParams.get('brand_id') || url.searchParams.get('brandId') || '').trim() || null,
+        app_version: (url.searchParams.get('app_version') || url.searchParams.get('appVersion') || '').trim() || null,
+        platform: (url.searchParams.get('platform') || '').trim() || null,
+        result: (url.searchParams.get('result') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/admin/client-metrics/crashes',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminClientCrashEvents(requireBearerToken(headers), {
+        crash_type: (url.searchParams.get('crash_type') || url.searchParams.get('crashType') || '').trim() || null,
+        user_id: (url.searchParams.get('user_id') || url.searchParams.get('userId') || '').trim() || null,
+        device_id: (url.searchParams.get('device_id') || url.searchParams.get('deviceId') || '').trim() || null,
+        app_name: (url.searchParams.get('app_name') || url.searchParams.get('appName') || '').trim() || null,
+        brand_id: (url.searchParams.get('brand_id') || url.searchParams.get('brandId') || '').trim() || null,
+        app_version: (url.searchParams.get('app_version') || url.searchParams.get('appVersion') || '').trim() || null,
+        platform: (url.searchParams.get('platform') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
     method: 'PUT',
     path: '/admin/payments/gateway-config',
     handler: ({headers, body}: HandlerContext) =>
@@ -2016,6 +2049,22 @@ const server = createJsonServer([
         content,
       });
     },
+  },
+  {
+    method: 'POST',
+    path: '/portal/client-metrics/events',
+    handler: ({headers, body}: HandlerContext) =>
+      service.recordClientMetricEvents(
+        readBearerToken(headers),
+        ((body || {}) as { items?: CreateClientMetricEventInput[] }).items ||
+          ((body || {}) as CreateClientMetricEventInput | CreateClientMetricEventInput[]),
+      ),
+  },
+  {
+    method: 'POST',
+    path: '/portal/client-metrics/crash',
+    handler: ({headers, body}: HandlerContext) =>
+      service.recordClientCrashEvent(readBearerToken(headers), (body || {}) as CreateClientCrashEventInput),
   },
   {
     method: 'GET',

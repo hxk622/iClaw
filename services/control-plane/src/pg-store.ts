@@ -21,6 +21,8 @@ import type {
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
   CreateDesktopFaultReportInput,
+  CreateClientMetricEventInput,
+  CreateClientCrashEventInput,
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
@@ -34,6 +36,8 @@ import type {
   DesktopActionPolicyRuleRecord,
   DesktopDiagnosticUploadRecord,
   DesktopFaultReportRecord,
+  ClientMetricEventRecord,
+  ClientCrashEventRecord,
   ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
@@ -689,6 +693,49 @@ type DesktopFaultReportRow = {
   created_at: Date;
 };
 
+type ClientMetricEventRow = {
+  id: string;
+  event_name: string;
+  event_time: Date;
+  user_id: string | null;
+  device_id: string;
+  session_id: string | null;
+  install_id: string | null;
+  app_name: string;
+  brand_id: string;
+  app_version: string;
+  release_channel: string | null;
+  platform: string;
+  os_version: string | null;
+  arch: string;
+  page: string | null;
+  result: 'success' | 'failed' | null;
+  error_code: string | null;
+  duration_ms: number | null;
+  payload_json: Record<string, unknown> | null;
+  created_at: Date;
+};
+
+type ClientCrashEventRow = {
+  id: string;
+  crash_type: 'native' | 'renderer' | 'sidecar';
+  event_time: Date;
+  user_id: string | null;
+  device_id: string;
+  app_name: string;
+  brand_id: string;
+  app_version: string;
+  platform: string;
+  os_version: string | null;
+  arch: string;
+  error_title: string | null;
+  error_message: string | null;
+  stack_summary: string | null;
+  file_bucket: string | null;
+  file_key: string | null;
+  created_at: Date;
+};
+
 function mapUserRow(row: UserRow): UserRecord {
   return {
     id: row.id,
@@ -1047,6 +1094,53 @@ function mapDesktopFaultReportRow(row: DesktopFaultReportRow): DesktopFaultRepor
     fileName: row.file_name,
     fileSizeBytes: parseDbNumber(row.file_size_bytes),
     fileSha256: row.file_sha256,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapClientMetricEventRow(row: ClientMetricEventRow): ClientMetricEventRecord {
+  return {
+    id: row.id,
+    eventName: row.event_name,
+    eventTime: row.event_time.toISOString(),
+    userId: row.user_id,
+    deviceId: row.device_id,
+    sessionId: row.session_id,
+    installId: row.install_id,
+    appName: row.app_name,
+    brandId: row.brand_id,
+    appVersion: row.app_version,
+    releaseChannel: row.release_channel,
+    platform: row.platform,
+    osVersion: row.os_version,
+    arch: row.arch,
+    page: row.page,
+    result: row.result,
+    errorCode: row.error_code,
+    durationMs: row.duration_ms,
+    payload: row.payload_json || {},
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapClientCrashEventRow(row: ClientCrashEventRow): ClientCrashEventRecord {
+  return {
+    id: row.id,
+    crashType: row.crash_type,
+    eventTime: row.event_time.toISOString(),
+    userId: row.user_id,
+    deviceId: row.device_id,
+    appName: row.app_name,
+    brandId: row.brand_id,
+    appVersion: row.app_version,
+    platform: row.platform,
+    osVersion: row.os_version,
+    arch: row.arch,
+    errorTitle: row.error_title,
+    errorMessage: row.error_message,
+    stackSummary: row.stack_summary,
+    fileBucket: row.file_bucket,
+    fileKey: row.file_key,
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -3702,6 +3796,220 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       ],
     );
     return mapDesktopFaultReportRow(result.rows[0]);
+  }
+
+  async listClientMetricEvents(input?: {
+    eventName?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    brandId?: string | null;
+    appVersion?: string | null;
+    platform?: string | null;
+    result?: string | null;
+    limit?: number | null;
+  }): Promise<ClientMetricEventRecord[]> {
+    const values: unknown[] = [];
+    const where: string[] = [];
+    if (input?.eventName) {
+      values.push(input.eventName);
+      where.push(`event_name = $${values.length}`);
+    }
+    if (input?.userId) {
+      values.push(input.userId);
+      where.push(`user_id = $${values.length}`);
+    }
+    if (input?.deviceId) {
+      values.push(input.deviceId);
+      where.push(`device_id = $${values.length}`);
+    }
+    if (input?.appName) {
+      values.push(input.appName);
+      where.push(`app_name = $${values.length}`);
+    }
+    if (input?.brandId) {
+      values.push(input.brandId);
+      where.push(`brand_id = $${values.length}`);
+    }
+    if (input?.appVersion) {
+      values.push(input.appVersion);
+      where.push(`app_version = $${values.length}`);
+    }
+    if (input?.platform) {
+      values.push(input.platform);
+      where.push(`platform = $${values.length}`);
+    }
+    if (input?.result) {
+      values.push(input.result);
+      where.push(`result = $${values.length}`);
+    }
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    values.push(limit);
+    const result = await this.pool.query<ClientMetricEventRow>(
+      `
+        select
+          id, event_name, event_time, user_id, device_id, session_id, install_id, app_name, brand_id,
+          app_version, release_channel, platform, os_version, arch, page, result, error_code,
+          duration_ms, payload_json, created_at
+        from client_metric_events
+        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+        order by event_time desc, created_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapClientMetricEventRow);
+  }
+
+  async createClientMetricEvents(
+    input: Array<Required<CreateClientMetricEventInput> & {id: string; created_at: string}>,
+  ): Promise<ClientMetricEventRecord[]> {
+    const created: ClientMetricEventRecord[] = [];
+    for (const item of input) {
+      const result = await this.pool.query<ClientMetricEventRow>(
+        `
+          insert into client_metric_events (
+            id, event_name, event_time, user_id, device_id, session_id, install_id, app_name, brand_id,
+            app_version, release_channel, platform, os_version, arch, page, result, error_code,
+            duration_ms, payload_json, created_at
+          )
+          values (
+            $1, $2, $3, $4::uuid, $5, $6, $7, $8, $9,
+            $10, $11, $12, $13, $14, $15, $16, $17,
+            $18, $19::jsonb, $20
+          )
+          returning
+            id, event_name, event_time, user_id, device_id, session_id, install_id, app_name, brand_id,
+            app_version, release_channel, platform, os_version, arch, page, result, error_code,
+            duration_ms, payload_json, created_at
+        `,
+        [
+          item.id,
+          item.event_name,
+          item.event_time,
+          item.user_id || null,
+          item.device_id,
+          item.session_id || null,
+          item.install_id || null,
+          item.app_name,
+          item.brand_id,
+          item.app_version,
+          item.release_channel || null,
+          item.platform,
+          item.os_version || null,
+          item.arch,
+          item.page || null,
+          item.result || null,
+          item.error_code || null,
+          item.duration_ms ?? null,
+          JSON.stringify(item.payload_json || {}),
+          item.created_at,
+        ],
+      );
+      created.push(mapClientMetricEventRow(result.rows[0]));
+    }
+    return created;
+  }
+
+  async listClientCrashEvents(input?: {
+    crashType?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    brandId?: string | null;
+    appVersion?: string | null;
+    platform?: string | null;
+    limit?: number | null;
+  }): Promise<ClientCrashEventRecord[]> {
+    const values: unknown[] = [];
+    const where: string[] = [];
+    if (input?.crashType) {
+      values.push(input.crashType);
+      where.push(`crash_type = $${values.length}`);
+    }
+    if (input?.userId) {
+      values.push(input.userId);
+      where.push(`user_id = $${values.length}`);
+    }
+    if (input?.deviceId) {
+      values.push(input.deviceId);
+      where.push(`device_id = $${values.length}`);
+    }
+    if (input?.appName) {
+      values.push(input.appName);
+      where.push(`app_name = $${values.length}`);
+    }
+    if (input?.brandId) {
+      values.push(input.brandId);
+      where.push(`brand_id = $${values.length}`);
+    }
+    if (input?.appVersion) {
+      values.push(input.appVersion);
+      where.push(`app_version = $${values.length}`);
+    }
+    if (input?.platform) {
+      values.push(input.platform);
+      where.push(`platform = $${values.length}`);
+    }
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    values.push(limit);
+    const result = await this.pool.query<ClientCrashEventRow>(
+      `
+        select
+          id, crash_type, event_time, user_id, device_id, app_name, brand_id, app_version,
+          platform, os_version, arch, error_title, error_message, stack_summary,
+          file_bucket, file_key, created_at
+        from client_crash_events
+        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+        order by event_time desc, created_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapClientCrashEventRow);
+  }
+
+  async createClientCrashEvent(
+    input: Required<CreateClientCrashEventInput> & {id: string; created_at: string},
+  ): Promise<ClientCrashEventRecord> {
+    const result = await this.pool.query<ClientCrashEventRow>(
+      `
+        insert into client_crash_events (
+          id, crash_type, event_time, user_id, device_id, app_name, brand_id, app_version,
+          platform, os_version, arch, error_title, error_message, stack_summary,
+          file_bucket, file_key, created_at
+        )
+        values (
+          $1, $2, $3, $4::uuid, $5, $6, $7, $8,
+          $9, $10, $11, $12, $13, $14,
+          $15, $16, $17
+        )
+        returning
+          id, crash_type, event_time, user_id, device_id, app_name, brand_id, app_version,
+          platform, os_version, arch, error_title, error_message, stack_summary,
+          file_bucket, file_key, created_at
+      `,
+      [
+        input.id,
+        input.crash_type,
+        input.event_time,
+        input.user_id || null,
+        input.device_id,
+        input.app_name,
+        input.brand_id,
+        input.app_version,
+        input.platform,
+        input.os_version || null,
+        input.arch,
+        input.error_title || null,
+        input.error_message || null,
+        input.stack_summary || null,
+        input.file_bucket || null,
+        input.file_key || null,
+        input.created_at,
+      ],
+    );
+    return mapClientCrashEventRow(result.rows[0]);
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {

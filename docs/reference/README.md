@@ -8,6 +8,8 @@
 
 - `DECISIONS.md`
 - `api-contract.md`
+- `client-metrics-event-dictionary-v1.md`
+- `client-metrics-schema-and-api-v1.md`
 
 ## 使用建议
 
@@ -17,3 +19,5 @@
 
 1. `DECISIONS.md`
 2. `api-contract.md`
+3. `client-metrics-event-dictionary-v1.md`
+4. `client-metrics-schema-and-api-v1.md`

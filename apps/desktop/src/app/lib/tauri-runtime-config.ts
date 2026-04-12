@@ -79,6 +79,15 @@ export interface PreparedDesktopFaultReportArchive {
   payload: Record<string, unknown>;
 }
 
+export interface DesktopClientMetricsContext {
+  device_id: string;
+  platform: string;
+  platform_version: string | null;
+  arch: string;
+  app_version: string;
+  brand_id: string;
+}
+
 export interface OemRuntimeSnapshot {
   brandId: string;
   publishedVersion: number;
@@ -119,6 +128,11 @@ export async function prepareDesktopFaultReportArchive(
 ): Promise<PreparedDesktopFaultReportArchive | null> {
   if (!isTauriRuntime()) return null;
   return invoke<PreparedDesktopFaultReportArchive>('prepare_desktop_fault_report_archive', { input });
+}
+
+export async function loadDesktopClientMetricsContext(): Promise<DesktopClientMetricsContext | null> {
+  if (!isTauriRuntime()) return null;
+  return invoke<DesktopClientMetricsContext>('load_desktop_client_metrics_context');
 }
 
 export async function listenRuntimeInstallProgress(

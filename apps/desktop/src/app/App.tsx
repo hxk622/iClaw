@@ -13,6 +13,7 @@ import {
 import { IClawClient, type CreditBalanceData, type DesktopUpdateHint, type MarketStockData } from '@iclaw/sdk';
 import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
+import { flushClientMetricQueue, trackClientCrash, trackClientMetricEvent } from './lib/client-metrics';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
 import {
   detectPortConflicts,
@@ -1009,6 +1010,11 @@ export default function App() {
   const [chatSurfaceBusy, setChatSurfaceBusy] = useState(false);
   const [installerFaultReportOpen, setInstallerFaultReportOpen] = useState(false);
   const [globalException, setGlobalException] = useState<GlobalExceptionState | null>(null);
+  const launchStartTrackedRef = useRef(false);
+  const launchSuccessTrackedRef = useRef(false);
+  const installStartTrackedRef = useRef(false);
+  const lastInstallFailureSignatureRef = useRef('');
+  const lastLaunchFailureSignatureRef = useRef('');
   const [brandRuntimeReady, setBrandRuntimeReady] = useState(!IS_TAURI_RUNTIME);
   const [brandShellConfig, setBrandShellConfig] = useState<Record<string, unknown> | null>(null);
   const authExperienceConfig = useMemo(() => resolveAuthExperienceConfig(brandShellConfig), [brandShellConfig]);
@@ -1349,10 +1355,24 @@ export default function App() {
         postAuthSyncContext: 'login session sync',
         resetWorkspaceOnFailure: true,
       });
+      void recordMetric('login_success', {
+        result: 'success',
+        payload: {
+          auth_provider: 'password',
+        },
+      });
     } catch (e) {
       void clearAuth();
       void clearManagedProviderAuth();
       setAuthError(resolveAuthErrorMessage(e, '登录失败'));
+      void recordMetric('login_failed', {
+        result: 'failed',
+        errorCode: e instanceof Error ? e.name : 'LOGIN_FAILED',
+        payload: {
+          auth_provider: 'password',
+          error_message: e instanceof Error ? e.message : '登录失败',
+        },
+      });
     } finally {
       setAuthLoading(false);
     }
@@ -1391,12 +1411,26 @@ export default function App() {
         postAuthSyncContext: `${provider} session sync`,
         resetWorkspaceOnFailure: true,
       });
+      void recordMetric('login_success', {
+        result: 'success',
+        payload: {
+          auth_provider: provider,
+        },
+      });
     } catch (error) {
       const message = resolveAuthErrorMessage(error, '社交登录失败');
       if (message !== '授权已取消') {
         void clearAuth();
         void clearManagedProviderAuth();
         setAuthError(message);
+        void recordMetric('login_failed', {
+          result: 'failed',
+          errorCode: error instanceof Error ? error.name : 'LOGIN_FAILED',
+          payload: {
+            auth_provider: provider,
+            error_message: message,
+          },
+        });
       }
     } finally {
       setSocialLoadingProvider(null);
@@ -1500,9 +1534,119 @@ export default function App() {
   } = useDesktopStartupController(startupControllerConfig);
   const shouldShowAuthBootstrapHint = !shouldShowStartupGate && !authBootstrapReady;
 
+  const recordMetric = useCallback(
+    async (
+      eventName: string,
+      options: {
+        result?: 'success' | 'failed' | null;
+        errorCode?: string | null;
+        durationMs?: number | null;
+        payload?: Record<string, unknown>;
+      } = {},
+    ) => {
+      await trackClientMetricEvent({
+        client,
+        accessToken,
+        eventName,
+        installId: installSessionIdRef.current,
+        result: options.result ?? null,
+        errorCode: options.errorCode || null,
+        durationMs: options.durationMs ?? null,
+        payload: options.payload || {},
+      });
+      await flushClientMetricQueue({ client, accessToken });
+    },
+    [accessToken, client],
+  );
+
+  useEffect(() => {
+    if (launchStartTrackedRef.current) {
+      return;
+    }
+    launchStartTrackedRef.current = true;
+    void recordMetric('app_launch_start', {
+      payload: { launch_type: 'cold' },
+    });
+  }, [recordMetric]);
+
+  useEffect(() => {
+    if (!IS_TAURI_RUNTIME || !shouldShowStartupGate || installStartTrackedRef.current) {
+      return;
+    }
+    installStartTrackedRef.current = true;
+    void recordMetric('install_start', {
+      payload: {
+        failure_stage: runtimeInstallProgress?.phase || 'prepare',
+      },
+    });
+  }, [IS_TAURI_RUNTIME, recordMetric, runtimeInstallProgress?.phase, shouldShowStartupGate]);
+
+  useEffect(() => {
+    if (!IS_TAURI_RUNTIME || !healthy || launchSuccessTrackedRef.current) {
+      return;
+    }
+    launchSuccessTrackedRef.current = true;
+    void recordMetric('app_launch_success', {
+      result: 'success',
+      payload: { launch_type: 'cold' },
+    });
+  }, [IS_TAURI_RUNTIME, healthy, recordMetric]);
+
+  useEffect(() => {
+    if (installerView.state !== 'error') {
+      return;
+    }
+    const signature = `${installerView.errorTitle || ''}::${installerView.errorMessage || ''}::${runtimeInstallProgress?.phase || ''}`;
+    if (!signature.trim() || lastInstallFailureSignatureRef.current === signature) {
+      return;
+    }
+    lastInstallFailureSignatureRef.current = signature;
+    void recordMetric('install_failed', {
+      result: 'failed',
+      payload: {
+        failure_stage: runtimeInstallProgress?.phase || 'runtime_install',
+        error_title: installerView.errorTitle || null,
+        error_message: installerView.errorMessage || null,
+      },
+    });
+  }, [installerView.errorMessage, installerView.errorTitle, installerView.state, recordMetric, runtimeInstallProgress?.phase]);
+
+  useEffect(() => {
+    if (!healthError) {
+      return;
+    }
+    const signature = `${healthError}::${runtimeDiagnosis?.runtime_path || ''}`;
+    if (lastLaunchFailureSignatureRef.current === signature) {
+      return;
+    }
+    lastLaunchFailureSignatureRef.current = signature;
+    void recordMetric('app_launch_failed', {
+      result: 'failed',
+      payload: {
+        failure_stage: 'startup_healthcheck',
+        error_message: healthError,
+      },
+    });
+    void recordMetric('runtime_healthcheck_failed', {
+      result: 'failed',
+      payload: {
+        failure_stage: 'startup_healthcheck',
+        error_message: healthError,
+      },
+    });
+  }, [healthError, recordMetric, runtimeDiagnosis?.runtime_path]);
+
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
       const detail = event.error instanceof Error ? event.error : null;
+      void trackClientCrash({
+        client,
+        accessToken,
+        crashType: 'renderer',
+        errorTitle: 'Unhandled Error',
+        errorMessage: detail?.message || event.message || '应用异常',
+        stackSummary: detail?.stack || null,
+      }).catch(() => undefined);
       setGlobalException({
         title: '应用异常',
         message: detail?.message || event.message || '应用在运行过程中遇到意外错误',
@@ -1511,6 +1655,18 @@ export default function App() {
     };
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason instanceof Error ? event.reason : null;
+      void trackClientCrash({
+        client,
+        accessToken,
+        crashType: 'renderer',
+        errorTitle: 'Unhandled Promise Rejection',
+        errorMessage:
+          reason?.message ||
+          (typeof event.reason === 'string' && event.reason.trim()
+            ? event.reason.trim()
+            : '应用在运行过程中遇到未处理的 Promise 异常'),
+        stackSummary: reason?.stack || null,
+      }).catch(() => undefined);
       setGlobalException({
         title: '应用异常',
         message:
@@ -1527,7 +1683,7 @@ export default function App() {
       window.removeEventListener('error', onError);
       window.removeEventListener('unhandledrejection', onUnhandledRejection);
     };
-  }, []);
+  }, [accessToken, client]);
 
   useEffect(() => {
     if (!shouldShowAuthBootstrapHint) {

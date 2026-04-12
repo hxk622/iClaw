@@ -1,6 +1,8 @@
 import type {
   AuthTokens,
   BrandDetailData,
+  ClientCrashEventRecord,
+  ClientMetricEventRecord,
   DesktopFaultReportDetailRecord,
   DesktopFaultReportSummaryRecord,
   OverviewData,
@@ -1017,6 +1019,82 @@ export async function getDesktopFaultReportDetail(id: string): Promise<DesktopFa
     uploadKey: stringValue(item.upload_key || item.uploadKey),
     downloadUrl: stringValue(item.download_url || item.downloadUrl),
   };
+}
+
+export async function loadClientMetricEvents(input: {
+  eventName?: string;
+  appVersion?: string;
+  platform?: string;
+  result?: string;
+  limit?: number;
+} = {}): Promise<ClientMetricEventRecord[]> {
+  const params = new URLSearchParams();
+  if (input.eventName?.trim()) params.set('event_name', input.eventName.trim());
+  if (input.appVersion?.trim()) params.set('app_version', input.appVersion.trim());
+  if (input.platform?.trim()) params.set('platform', input.platform.trim());
+  if (input.result?.trim()) params.set('result', input.result.trim());
+  params.set('limit', String(input.limit && input.limit > 0 ? input.limit : 500));
+  const data = await apiFetch(`/admin/client-metrics/events?${params.toString()}`, { method: 'GET' });
+  return toArray<Record<string, unknown>>(asObject(data).items).map((item) => ({
+    id: stringValue(item.id),
+    eventName: stringValue(item.event_name || item.eventName),
+    eventTime: stringValue(item.event_time || item.eventTime),
+    userId: stringValue(item.user_id || item.userId),
+    deviceId: stringValue(item.device_id || item.deviceId),
+    sessionId: stringValue(item.session_id || item.sessionId),
+    installId: stringValue(item.install_id || item.installId),
+    appName: stringValue(item.app_name || item.appName),
+    brandId: stringValue(item.brand_id || item.brandId),
+    appVersion: stringValue(item.app_version || item.appVersion),
+    releaseChannel: stringValue(item.release_channel || item.releaseChannel),
+    platform: stringValue(item.platform),
+    osVersion: stringValue(item.os_version || item.osVersion),
+    arch: stringValue(item.arch),
+    page: stringValue(item.page),
+    result: (stringValue(item.result) || null) as ClientMetricEventRecord['result'],
+    errorCode: stringValue(item.error_code || item.errorCode),
+    durationMs:
+      typeof item.duration_ms === 'number'
+        ? item.duration_ms
+        : typeof item.durationMs === 'number'
+          ? item.durationMs
+          : null,
+    payload: asObject(item.payload),
+    createdAt: stringValue(item.created_at || item.createdAt),
+  }));
+}
+
+export async function loadClientCrashEvents(input: {
+  appVersion?: string;
+  platform?: string;
+  crashType?: string;
+  limit?: number;
+} = {}): Promise<ClientCrashEventRecord[]> {
+  const params = new URLSearchParams();
+  if (input.appVersion?.trim()) params.set('app_version', input.appVersion.trim());
+  if (input.platform?.trim()) params.set('platform', input.platform.trim());
+  if (input.crashType?.trim()) params.set('crash_type', input.crashType.trim());
+  params.set('limit', String(input.limit && input.limit > 0 ? input.limit : 200));
+  const data = await apiFetch(`/admin/client-metrics/crashes?${params.toString()}`, { method: 'GET' });
+  return toArray<Record<string, unknown>>(asObject(data).items).map((item) => ({
+    id: stringValue(item.id),
+    crashType: (stringValue(item.crash_type || item.crashType) || 'renderer') as ClientCrashEventRecord['crashType'],
+    eventTime: stringValue(item.event_time || item.eventTime),
+    userId: stringValue(item.user_id || item.userId),
+    deviceId: stringValue(item.device_id || item.deviceId),
+    appName: stringValue(item.app_name || item.appName),
+    brandId: stringValue(item.brand_id || item.brandId),
+    appVersion: stringValue(item.app_version || item.appVersion),
+    platform: stringValue(item.platform),
+    osVersion: stringValue(item.os_version || item.osVersion),
+    arch: stringValue(item.arch),
+    errorTitle: stringValue(item.error_title || item.errorTitle),
+    errorMessage: stringValue(item.error_message || item.errorMessage),
+    stackSummary: stringValue(item.stack_summary || item.stackSummary),
+    fileBucket: stringValue(item.file_bucket || item.fileBucket),
+    fileKey: stringValue(item.file_key || item.fileKey),
+    createdAt: stringValue(item.created_at || item.createdAt),
+  }));
 }
 
 export async function saveBrandTheme(

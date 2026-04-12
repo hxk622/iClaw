@@ -27,6 +27,8 @@ import type {
   AdminDesktopDiagnosticUploadView,
   AdminDesktopFaultReportDetailView,
   AdminDesktopFaultReportSummaryView,
+  AdminClientMetricEventView,
+  AdminClientCrashEventView,
   AdminRefundPaymentOrderInput,
   AdminMarkPaymentOrderPaidInput,
   AdminPaymentOrderDetailView,
@@ -51,6 +53,8 @@ import type {
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
   CreateDesktopFaultReportInput,
+  CreateClientMetricEventInput,
+  CreateClientCrashEventInput,
   DesktopActionAccessMode,
   DesktopActionApprovalGrantRecord,
   DesktopActionAuditDecision,
@@ -69,6 +73,10 @@ import type {
   DesktopFaultReportEntry,
   DesktopFaultReportRecord,
   DesktopDiagnosticUploadSourceType,
+  ClientMetricEventRecord,
+  ClientMetricEventResult,
+  ClientCrashEventRecord,
+  ClientCrashType,
   ExtensionInstallTarget,
   ExtensionSetupStatus,
   ImportUserPrivateSkillInput,
@@ -200,6 +208,8 @@ const DESKTOP_DIAGNOSTIC_UPLOAD_SOURCE_TYPES = new Set<DesktopDiagnosticUploadSo
 const DESKTOP_DIAGNOSTIC_SENSITIVITY_LEVELS = new Set(['customer', 'internal', 'redacted']);
 const DESKTOP_FAULT_REPORT_ENTRIES = new Set<DesktopFaultReportEntry>(['installer', 'exception-dialog']);
 const DESKTOP_FAULT_REPORT_ACCOUNT_STATES = new Set<DesktopFaultReportAccountState>(['anonymous', 'authenticated']);
+const CLIENT_METRIC_EVENT_RESULTS = new Set<ClientMetricEventResult>(['success', 'failed']);
+const CLIENT_CRASH_TYPES = new Set<ClientCrashType>(['native', 'renderer', 'sidecar']);
 
 function resolvePublicApiBaseUrl(): string {
   if (config.apiUrl.trim()) {
@@ -667,6 +677,53 @@ function toAdminDesktopFaultReportDetailView(
     upload_bucket: record.uploadBucket,
     upload_key: record.uploadKey,
     download_url: `${baseUrl.replace(/\/$/, '')}/admin/desktop/fault-reports/${encodeURIComponent(record.id)}/download`,
+  };
+}
+
+function toAdminClientMetricEventView(record: ClientMetricEventRecord): AdminClientMetricEventView {
+  return {
+    id: record.id,
+    event_name: record.eventName,
+    event_time: record.eventTime,
+    user_id: record.userId,
+    device_id: record.deviceId,
+    session_id: record.sessionId,
+    install_id: record.installId,
+    app_name: record.appName,
+    brand_id: record.brandId,
+    app_version: record.appVersion,
+    release_channel: record.releaseChannel,
+    platform: record.platform,
+    os_version: record.osVersion,
+    arch: record.arch,
+    page: record.page,
+    result: record.result,
+    error_code: record.errorCode,
+    duration_ms: record.durationMs,
+    payload: record.payload,
+    created_at: record.createdAt,
+  };
+}
+
+function toAdminClientCrashEventView(record: ClientCrashEventRecord): AdminClientCrashEventView {
+  return {
+    id: record.id,
+    crash_type: record.crashType,
+    event_time: record.eventTime,
+    user_id: record.userId,
+    device_id: record.deviceId,
+    app_name: record.appName,
+    brand_id: record.brandId,
+    app_version: record.appVersion,
+    platform: record.platform,
+    os_version: record.osVersion,
+    arch: record.arch,
+    error_title: record.errorTitle,
+    error_message: record.errorMessage,
+    stack_summary: record.stackSummary,
+    file_bucket: record.fileBucket,
+    file_key: record.fileKey,
+    created_at: record.createdAt,
   };
 }
 
@@ -1165,6 +1222,30 @@ function normalizeDesktopFaultReportAccountState(
   const resolved = (normalized || fallback || '') as DesktopFaultReportAccountState;
   if (!DESKTOP_FAULT_REPORT_ACCOUNT_STATES.has(resolved)) {
     throw new HttpError(400, 'BAD_REQUEST', 'account_state must be anonymous or authenticated');
+  }
+  return resolved;
+}
+
+function normalizeClientMetricEventResult(
+  value: unknown,
+  fallback?: ClientMetricEventResult | null,
+): ClientMetricEventResult | null {
+  if (value === undefined || value === null || value === '') {
+    return fallback ?? null;
+  }
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = normalized as ClientMetricEventResult;
+  if (!CLIENT_METRIC_EVENT_RESULTS.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'result must be success or failed');
+  }
+  return resolved;
+}
+
+function normalizeClientCrashType(value: unknown, fallback?: ClientCrashType): ClientCrashType {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as ClientCrashType;
+  if (!CLIENT_CRASH_TYPES.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'crash_type must be native, renderer, or sidecar');
   }
   return resolved;
 }
@@ -3315,6 +3396,62 @@ export class ControlPlaneService {
     return {record, file};
   }
 
+  async listAdminClientMetricEvents(
+    accessToken: string,
+    input: {
+      event_name?: string | null;
+      user_id?: string | null;
+      device_id?: string | null;
+      app_name?: string | null;
+      brand_id?: string | null;
+      app_version?: string | null;
+      platform?: string | null;
+      result?: string | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminClientMetricEventView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listClientMetricEvents({
+      eventName: input.event_name || null,
+      userId: input.user_id || null,
+      deviceId: input.device_id || null,
+      appName: input.app_name || null,
+      brandId: input.brand_id || null,
+      appVersion: input.app_version || null,
+      platform: input.platform || null,
+      result: input.result || null,
+      limit: input.limit,
+    });
+    return { items: items.map(toAdminClientMetricEventView) };
+  }
+
+  async listAdminClientCrashEvents(
+    accessToken: string,
+    input: {
+      crash_type?: string | null;
+      user_id?: string | null;
+      device_id?: string | null;
+      app_name?: string | null;
+      brand_id?: string | null;
+      app_version?: string | null;
+      platform?: string | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminClientCrashEventView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listClientCrashEvents({
+      crashType: input.crash_type || null,
+      userId: input.user_id || null,
+      deviceId: input.device_id || null,
+      appName: input.app_name || null,
+      brandId: input.brand_id || null,
+      appVersion: input.app_version || null,
+      platform: input.platform || null,
+      limit: input.limit,
+    });
+    return { items: items.map(toAdminClientCrashEventView) };
+  }
+
   async getRuntimeDesktopActionPolicySnapshot(
     accessToken: string,
     appNameInput: string,
@@ -3700,6 +3837,124 @@ export class ControlPlaneService {
       created_at: createdAt,
     });
     return toAdminDesktopFaultReportDetailView(record, resolvePublicApiBaseUrl());
+  }
+
+  async recordClientMetricEvents(
+    accessToken: string | null,
+    input: CreateClientMetricEventInput | CreateClientMetricEventInput[],
+  ): Promise<{items: ClientMetricEventRecord[]}> {
+    const user = await this.getOptionalUserForAccessToken(accessToken);
+    const items = Array.isArray(input) ? input : [input];
+    if (items.length === 0) {
+      return { items: [] };
+    }
+    const records = await this.store.createClientMetricEvents(
+      items.map((item) => {
+        const eventName = String(item.event_name || '').trim().toLowerCase();
+        const eventTime = String(item.event_time || '').trim() || new Date().toISOString();
+        const deviceId = String(item.device_id || '').trim();
+        const appName = String(item.app_name || '').trim().toLowerCase();
+        const brandId = String(item.brand_id || '').trim().toLowerCase();
+        const appVersion = String(item.app_version || '').trim();
+        const platform = String(item.platform || '').trim().toLowerCase();
+        const arch = String(item.arch || '').trim().toLowerCase();
+        if (!eventName || !deviceId || !appName || !brandId || !appVersion || !platform || !arch) {
+          throw new HttpError(
+            400,
+            'BAD_REQUEST',
+            'event_name, device_id, app_name, brand_id, app_version, platform, arch are required',
+          );
+        }
+        if (Number.isNaN(Date.parse(eventTime))) {
+          throw new HttpError(400, 'BAD_REQUEST', 'event_time must be a valid ISO timestamp');
+        }
+        return {
+          id: normalizeOptionalCatalogString(item.id, 'id', { allowNull: true, trimToNull: true }) || randomUUID(),
+          event_name: eventName,
+          event_time: eventTime,
+          user_id: user?.id || null,
+          device_id: deviceId,
+          session_id:
+            normalizeOptionalCatalogString(item.session_id, 'session_id', { allowNull: true, trimToNull: true }) ?? null,
+          install_id:
+            normalizeOptionalCatalogString(item.install_id, 'install_id', { allowNull: true, trimToNull: true }) ?? null,
+          app_name: appName,
+          brand_id: brandId,
+          app_version: appVersion,
+          release_channel:
+            normalizeOptionalCatalogString(item.release_channel, 'release_channel', {
+              allowNull: true,
+              trimToNull: true,
+            }) ?? null,
+          platform,
+          os_version:
+            normalizeOptionalCatalogString(item.os_version, 'os_version', { allowNull: true, trimToNull: true }) ?? null,
+          arch,
+          page: normalizeOptionalCatalogString(item.page, 'page', { allowNull: true, trimToNull: true }) ?? null,
+          result: normalizeClientMetricEventResult(item.result, null),
+          error_code:
+            normalizeOptionalCatalogString(item.error_code, 'error_code', { allowNull: true, trimToNull: true }) ?? null,
+          duration_ms: normalizeOptionalIntegerField(item.duration_ms, 'duration_ms', { min: 0, allowNull: true }) ?? null,
+          payload_json: (item.payload_json && typeof item.payload_json === 'object' && !Array.isArray(item.payload_json))
+            ? item.payload_json
+            : {},
+          created_at: normalizeOptionalCatalogString(item.created_at, 'created_at', { allowNull: true, trimToNull: true }) ||
+            new Date().toISOString(),
+        };
+      }),
+    );
+    return { items: records };
+  }
+
+  async recordClientCrashEvent(
+    accessToken: string | null,
+    input: CreateClientCrashEventInput,
+  ): Promise<ClientCrashEventRecord> {
+    const user = await this.getOptionalUserForAccessToken(accessToken);
+    const eventTime = String(input.event_time || '').trim() || new Date().toISOString();
+    const deviceId = String(input.device_id || '').trim();
+    const appName = String(input.app_name || '').trim().toLowerCase();
+    const brandId = String(input.brand_id || '').trim().toLowerCase();
+    const appVersion = String(input.app_version || '').trim();
+    const platform = String(input.platform || '').trim().toLowerCase();
+    const arch = String(input.arch || '').trim().toLowerCase();
+    if (!deviceId || !appName || !brandId || !appVersion || !platform || !arch) {
+      throw new HttpError(
+        400,
+        'BAD_REQUEST',
+        'device_id, app_name, brand_id, app_version, platform, arch are required',
+      );
+    }
+    if (Number.isNaN(Date.parse(eventTime))) {
+      throw new HttpError(400, 'BAD_REQUEST', 'event_time must be a valid ISO timestamp');
+    }
+    return this.store.createClientCrashEvent({
+      id: normalizeOptionalCatalogString(input.id, 'id', { allowNull: true, trimToNull: true }) || randomUUID(),
+      crash_type: normalizeClientCrashType(input.crash_type, 'renderer'),
+      event_time: eventTime,
+      user_id: user?.id || null,
+      device_id: deviceId,
+      app_name: appName,
+      brand_id: brandId,
+      app_version: appVersion,
+      platform,
+      os_version:
+        normalizeOptionalCatalogString(input.os_version, 'os_version', { allowNull: true, trimToNull: true }) ?? null,
+      arch,
+      error_title:
+        normalizeOptionalCatalogString(input.error_title, 'error_title', { allowNull: true, trimToNull: true }) ?? null,
+      error_message:
+        normalizeOptionalCatalogString(input.error_message, 'error_message', { allowNull: true, trimToNull: true }) ?? null,
+      stack_summary:
+        normalizeOptionalCatalogString(input.stack_summary, 'stack_summary', { allowNull: true, trimToNull: true }) ?? null,
+      file_bucket:
+        normalizeOptionalCatalogString(input.file_bucket, 'file_bucket', { allowNull: true, trimToNull: true }) ?? null,
+      file_key:
+        normalizeOptionalCatalogString(input.file_key, 'file_key', { allowNull: true, trimToNull: true }) ?? null,
+      created_at:
+        normalizeOptionalCatalogString(input.created_at, 'created_at', { allowNull: true, trimToNull: true }) ||
+        new Date().toISOString(),
+    });
   }
 
   async getWorkspaceBackup(accessToken: string): Promise<WorkspaceBackupView | null> {

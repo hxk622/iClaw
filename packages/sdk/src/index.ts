@@ -140,6 +140,16 @@ interface UploadDesktopFaultReportInput {
   onProgress?: (progress: { loaded: number; total: number | null; percent: number | null }) => void;
 }
 
+interface RecordClientMetricEventsInput {
+  token?: string | null;
+  items: Array<Record<string, unknown>>;
+}
+
+interface RecordClientCrashEventInput {
+  token?: string | null;
+  item: Record<string, unknown>;
+}
+
 interface InstallSkillLibraryInput {
   token: string;
   slug: string;
@@ -218,6 +228,49 @@ export interface DesktopFaultReportData {
   file_size_bytes: number;
   file_sha256: string | null;
   download_url: string;
+  created_at: string;
+}
+
+export interface ClientMetricEventData {
+  id: string;
+  event_name: string;
+  event_time: string;
+  user_id: string | null;
+  device_id: string;
+  session_id: string | null;
+  install_id: string | null;
+  app_name: string;
+  brand_id: string;
+  app_version: string;
+  release_channel: string | null;
+  platform: string;
+  os_version: string | null;
+  arch: string;
+  page: string | null;
+  result: 'success' | 'failed' | null;
+  error_code: string | null;
+  duration_ms: number | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ClientCrashEventData {
+  id: string;
+  crash_type: 'native' | 'renderer' | 'sidecar';
+  event_time: string;
+  user_id: string | null;
+  device_id: string;
+  app_name: string;
+  brand_id: string;
+  app_version: string;
+  platform: string;
+  os_version: string | null;
+  arch: string;
+  error_title: string | null;
+  error_message: string | null;
+  stack_summary: string | null;
+  file_bucket: string | null;
+  file_key: string | null;
   created_at: string;
 }
 
@@ -1646,6 +1699,38 @@ export class IClawClient {
     });
 
     return data;
+  }
+
+  async recordClientMetricEvents(input: RecordClientMetricEventsInput): Promise<ClientMetricEventData[]> {
+    const res = await this.fetchAuth('/portal/client-metrics/events', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        ...(input.token?.trim() ? { Authorization: `Bearer ${input.token.trim()}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        items: input.items,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as { data: { items: ClientMetricEventData[] } };
+    return Array.isArray(json.data?.items) ? json.data.items : [];
+  }
+
+  async recordClientCrashEvent(input: RecordClientCrashEventInput): Promise<ClientCrashEventData> {
+    const res = await this.fetchAuth('/portal/client-metrics/crash', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        ...(input.token?.trim() ? { Authorization: `Bearer ${input.token.trim()}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input.item || {}),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as { data: ClientCrashEventData };
+    return json.data;
   }
 
   async listMarketStocksPage(options?: {

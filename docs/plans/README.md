@@ -6,6 +6,7 @@
 
 ## 当前内容
 
+- `client-metrics-monitoring-implementation-plan.md`
 - `desktop-command-authorization-implementation-plan.md`
 - `native-agent-store-implementation-plan.md`
 
@@ -15,5 +16,6 @@
 
 ## 推荐阅读顺序
 
-1. `desktop-command-authorization-implementation-plan.md`
-2. `native-agent-store-implementation-plan.md`
+1. `client-metrics-monitoring-implementation-plan.md`
+2. `desktop-command-authorization-implementation-plan.md`
+3. `native-agent-store-implementation-plan.md`

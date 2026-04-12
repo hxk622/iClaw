@@ -22,6 +22,8 @@ import type {
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
   CreateDesktopFaultReportInput,
+  CreateClientMetricEventInput,
+  CreateClientCrashEventInput,
   CreatePaymentOrderInput,
   CreateUserInput,
   CreditAccountRecord,
@@ -31,6 +33,8 @@ import type {
   DesktopActionPolicyRuleRecord,
   DesktopDiagnosticUploadRecord,
   DesktopFaultReportRecord,
+  ClientMetricEventRecord,
+  ClientCrashEventRecord,
   ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
@@ -262,6 +266,33 @@ export interface ControlPlaneStore {
   createDesktopFaultReport(
     input: Required<CreateDesktopFaultReportInput> & {id: string; created_at: string},
   ): Promise<DesktopFaultReportRecord>;
+  listClientMetricEvents(input?: {
+    eventName?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    brandId?: string | null;
+    appVersion?: string | null;
+    platform?: string | null;
+    result?: string | null;
+    limit?: number | null;
+  }): Promise<ClientMetricEventRecord[]>;
+  createClientMetricEvents(
+    input: Array<Required<CreateClientMetricEventInput> & {id: string; created_at: string}>,
+  ): Promise<ClientMetricEventRecord[]>;
+  listClientCrashEvents(input?: {
+    crashType?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    brandId?: string | null;
+    appVersion?: string | null;
+    platform?: string | null;
+    limit?: number | null;
+  }): Promise<ClientCrashEventRecord[]>;
+  createClientCrashEvent(
+    input: Required<CreateClientCrashEventInput> & {id: string; created_at: string},
+  ): Promise<ClientCrashEventRecord>;
   applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null>;
   getRunGrantById(grantId: string): Promise<RunGrantRecord | null>;
   getRunBillingSummary(grantId: string): Promise<RunBillingSummaryRecord | null>;
@@ -444,6 +475,8 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly desktopActionAuditEventsById = new Map<string, DesktopActionAuditEventRecord>();
   private readonly desktopDiagnosticUploadsById = new Map<string, DesktopDiagnosticUploadRecord>();
   private readonly desktopFaultReportsById = new Map<string, DesktopFaultReportRecord>();
+  private readonly clientMetricEventsById = new Map<string, ClientMetricEventRecord>();
+  private readonly clientCrashEventsById = new Map<string, ClientCrashEventRecord>();
   private readonly paymentOrdersById = new Map<string, PaymentOrderRecord>();
   private readonly rechargePaymentMethodConfigsByApp = new Map<string, Record<string, unknown>>();
   private readonly systemStateByKey = new Map<string, Record<string, unknown>>();
@@ -1553,6 +1586,112 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       createdAt: input.created_at,
     };
     this.desktopFaultReportsById.set(record.id, record);
+    return record;
+  }
+
+  async listClientMetricEvents(input?: {
+    eventName?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    brandId?: string | null;
+    appVersion?: string | null;
+    platform?: string | null;
+    result?: string | null;
+    limit?: number | null;
+  }): Promise<ClientMetricEventRecord[]> {
+    const items = Array.from(this.clientMetricEventsById.values())
+      .filter((item) => (!input?.eventName ? true : item.eventName === input.eventName))
+      .filter((item) => (!input?.userId ? true : item.userId === input.userId))
+      .filter((item) => (!input?.deviceId ? true : item.deviceId === input.deviceId))
+      .filter((item) => (!input?.appName ? true : item.appName === input.appName))
+      .filter((item) => (!input?.brandId ? true : item.brandId === input.brandId))
+      .filter((item) => (!input?.appVersion ? true : item.appVersion === input.appVersion))
+      .filter((item) => (!input?.platform ? true : item.platform === input.platform))
+      .filter((item) => (!input?.result ? true : item.result === input.result))
+      .sort((left, right) => right.eventTime.localeCompare(left.eventTime));
+    const limit = input?.limit && input.limit > 0 ? input.limit : items.length;
+    return items.slice(0, limit);
+  }
+
+  async createClientMetricEvents(
+    input: Array<Required<CreateClientMetricEventInput> & {id: string; created_at: string}>,
+  ): Promise<ClientMetricEventRecord[]> {
+    const created: ClientMetricEventRecord[] = input.map((item) => {
+      const record: ClientMetricEventRecord = {
+        id: item.id,
+        eventName: item.event_name || '',
+        eventTime: item.event_time || item.created_at,
+        userId: item.user_id || null,
+        deviceId: item.device_id || '',
+        sessionId: item.session_id || null,
+        installId: item.install_id || null,
+        appName: item.app_name || '',
+        brandId: item.brand_id || '',
+        appVersion: item.app_version || '',
+        releaseChannel: item.release_channel || null,
+        platform: item.platform || '',
+        osVersion: item.os_version || null,
+        arch: item.arch || '',
+        page: item.page || null,
+        result: item.result || null,
+        errorCode: item.error_code || null,
+        durationMs: typeof item.duration_ms === 'number' ? item.duration_ms : null,
+        payload: item.payload_json || {},
+        createdAt: item.created_at,
+      };
+      this.clientMetricEventsById.set(record.id, record);
+      return record;
+    });
+    return created;
+  }
+
+  async listClientCrashEvents(input?: {
+    crashType?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    brandId?: string | null;
+    appVersion?: string | null;
+    platform?: string | null;
+    limit?: number | null;
+  }): Promise<ClientCrashEventRecord[]> {
+    const items = Array.from(this.clientCrashEventsById.values())
+      .filter((item) => (!input?.crashType ? true : item.crashType === input.crashType))
+      .filter((item) => (!input?.userId ? true : item.userId === input.userId))
+      .filter((item) => (!input?.deviceId ? true : item.deviceId === input.deviceId))
+      .filter((item) => (!input?.appName ? true : item.appName === input.appName))
+      .filter((item) => (!input?.brandId ? true : item.brandId === input.brandId))
+      .filter((item) => (!input?.appVersion ? true : item.appVersion === input.appVersion))
+      .filter((item) => (!input?.platform ? true : item.platform === input.platform))
+      .sort((left, right) => right.eventTime.localeCompare(left.eventTime));
+    const limit = input?.limit && input.limit > 0 ? input.limit : items.length;
+    return items.slice(0, limit);
+  }
+
+  async createClientCrashEvent(
+    input: Required<CreateClientCrashEventInput> & {id: string; created_at: string},
+  ): Promise<ClientCrashEventRecord> {
+    const record: ClientCrashEventRecord = {
+      id: input.id,
+      crashType: input.crash_type || 'renderer',
+      eventTime: input.event_time || input.created_at,
+      userId: input.user_id || null,
+      deviceId: input.device_id || '',
+      appName: input.app_name || '',
+      brandId: input.brand_id || '',
+      appVersion: input.app_version || '',
+      platform: input.platform || '',
+      osVersion: input.os_version || null,
+      arch: input.arch || '',
+      errorTitle: input.error_title || null,
+      errorMessage: input.error_message || null,
+      stackSummary: input.stack_summary || null,
+      fileBucket: input.file_bucket || null,
+      fileKey: input.file_key || null,
+      createdAt: input.created_at,
+    };
+    this.clientCrashEventsById.set(record.id, record);
     return record;
   }
 

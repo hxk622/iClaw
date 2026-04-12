@@ -68,6 +68,7 @@ import { AgentCenterPage } from './components/AgentCenterPage';
 import { AdminShell } from './components/AdminShell';
 import { BrandDetailPage } from './components/BrandDetailPage';
 import { BrandsPage } from './components/BrandsPage';
+import { ClientMetricsPage } from './components/ClientMetricsPage';
 import { CloudMcpPage } from './components/CloudMcpPage';
 import { ModelCenterPage } from './components/ModelCenterPage';
 import { PaymentConfigPage } from './components/PaymentConfigPage';
@@ -103,6 +104,7 @@ import type { UserActionAuditRecord, UserActionDiagnosticUploadRecord } from './
 const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: '总览' },
   { id: 'brands', label: '品牌管理' },
+  { id: 'client-metrics', label: '客户端监控' },
   { id: 'agent-center', label: 'Agent中心' },
   { id: 'skill-center', label: '平台级 Skill' },
   { id: 'mcp-center', label: '平台级 MCP' },
@@ -2427,6 +2429,8 @@ export default function App() {
                   onSave={handleSaveAgentCatalog}
                   onDelete={handleDeleteAgentCatalog}
                 />
+              ) : route === 'client-metrics' ? (
+                <ClientMetricsPage />
               ) : route === 'user-action-audit' ? (
                 <UserActionAuditPage
                   items={userActionAuditItems}
@@ -2575,7 +2579,7 @@ export default function App() {
                         <div className="fig-meta-card"><span>当前选中</span><strong>{selectedPlatformSkill?.name || '未选择'}</strong></div>
                       </div>
                     </section>
-                    <div className="fig-workspace fig-workspace--drawer">
+                    <div className="fig-workspace fig-workspace--drawer fig-workspace--cloud-skills">
                       <section className="fig-workspace__list">
                         <div className="fig-card fig-card--subtle">
                           <div className="fig-card__head">
@@ -3340,141 +3344,125 @@ export default function App() {
                         <div className="fig-meta-card"><span>当前页</span><strong>{filteredCloudSkills.length ? `${(cloudSkillMeta.offset || 0) + 1}-${(cloudSkillMeta.offset || 0) + filteredCloudSkills.length}` : '0'}</strong></div>
                       </div>
                     </section>
-                    <div className="fig-detail-stack">
-                      <section className="fig-card fig-card--subtle">
-                        <div className="fig-card__head">
-                          <h3>统计区域</h3>
-                          <span>帮助运营快速判断云技能主库当前状态</span>
+                    <section className="fig-card fig-card--subtle">
+                      <div className="fig-card__head">
+                        <div>
+                          <h3>同步源</h3>
+                          <span>页面级同步配置，不属于左侧技能列表</span>
                         </div>
-                        <div className="fig-meta-cards">
-                          <div className="fig-meta-card"><span>云技能总数</span><strong>{String(cloudSkillMeta.total || 0)}</strong></div>
-                          <div className="fig-meta-card"><span>同步源</span><strong>{String(overviewData?.skillSyncSources.length || 0)}</strong></div>
-                          <div className="fig-meta-card"><span>当前页技能</span><strong>{String(filteredCloudSkills.length)}</strong></div>
-                          <div className="fig-meta-card"><span>当前选中</span><strong>{selectedCloudSkill?.name || '未选择'}</strong></div>
-                        </div>
-                      </section>
-                      <section className="fig-card fig-card--subtle">
-                        <div className="fig-card__head">
-                          <h3>当前对象</h3>
-                          <span>当前页直接切换同步源和云技能对象。</span>
-                        </div>
-                        <div className="form-grid form-grid--two">
-                          <label className="field">
-                            <span>当前同步源</span>
-                            <select className="field-select" value={selectedSkillSyncSource?.id || ''} onChange={(event) => setSelectedSkillSyncSourceId(event.target.value)}>
-                              {(overviewData?.skillSyncSources || []).map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.displayName} · {item.sourceType}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="field">
-                            <span>当前云技能</span>
-                            <select className="field-select" value={selectedCloudSkill?.slug || ''} onChange={(event) => setSelectedCloudSkillSlug(event.target.value)}>
-                              {filteredCloudSkills.map((item) => (
-                                <option key={item.slug} value={item.slug}>
-                                  {item.name} · v{item.version}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
-                      </section>
-                      <div className="fig-workspace fig-workspace--drawer">
-                        <section className="fig-workspace__list">
-                          <section className="fig-card fig-card--subtle">
-                            <div className="fig-card__head">
-                              <h3>同步源编辑</h3>
-                              <span>列表卡片切对象，当前页维护同步源主数据。</span>
-                            </div>
-                            <div className="form-grid form-grid--two">
-                              <label className="field">
-                                <span>Source Type</span>
-                                <select className="field-select" value={skillSyncSourceDraft.sourceType} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceType: event.target.value }))}>
-                                  <option value="github_repo">GitHub Repo</option>
-                                  <option value="clawhub">ClawHub</option>
-                                </select>
-                              </label>
-                              <label className="field">
-                                <span>Source Key</span>
-                                <input className="field-input" value={skillSyncSourceDraft.sourceKey} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceKey: event.target.value }))} />
-                              </label>
-                              <label className="field">
-                                <span>Display Name</span>
-                                <input className="field-input" value={skillSyncSourceDraft.displayName} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, displayName: event.target.value }))} />
-                              </label>
-                              <label className="field">
-                                <span>Source URL</span>
-                                <input className="field-input" value={skillSyncSourceDraft.sourceUrl} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceUrl: event.target.value }))} />
-                              </label>
-                              <label className="field field--wide">
-                                <span>Config JSON</span>
-                                <textarea className="code-input code-input--tall" rows={6} value={skillSyncSourceDraft.configText} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, configText: event.target.value }))} />
-                              </label>
-                              <label className="field" style={{ maxWidth: 180 }}>
-                                <span>Active</span>
-                                <input type="checkbox" checked={skillSyncSourceDraft.active} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, active: event.target.checked }))} />
-                              </label>
-                            </div>
+                        {selectedSkillSyncSource ? (
+                          <button className="solid-button fig-button" type="button" disabled={runningSkillSync} onClick={() => void handleRunSkillSync()}>
+                            {runningSkillSync ? '同步中…' : '同步当前来源'}
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="fig-meta-cards" style={{ marginBottom: 18 }}>
+                        <div className="fig-meta-card"><span>当前同步源</span><strong>{selectedSkillSyncSource?.displayName || '未选择'}</strong></div>
+                        <div className="fig-meta-card"><span>Source Type</span><strong>{selectedSkillSyncSource?.sourceType || '未配置'}</strong></div>
+                        <div className="fig-meta-card"><span>同步记录</span><strong>{String(overviewData?.skillSyncRuns.length || 0)}</strong></div>
+                        <div className="fig-meta-card"><span>当前技能</span><strong>{selectedCloudSkill?.name || '未选择'}</strong></div>
+                      </div>
+                      <div className="form-grid form-grid--two">
+                        <label className="field">
+                          <span>当前同步源</span>
+                          <select className="field-select" value={selectedSkillSyncSource?.id || ''} onChange={(event) => setSelectedSkillSyncSourceId(event.target.value)}>
+                            {(overviewData?.skillSyncSources || []).map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.displayName} · {item.sourceType}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Source Type</span>
+                          <select className="field-select" value={skillSyncSourceDraft.sourceType} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceType: event.target.value }))}>
+                            <option value="github_repo">GitHub Repo</option>
+                            <option value="clawhub">ClawHub</option>
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Source Key</span>
+                          <input className="field-input" value={skillSyncSourceDraft.sourceKey} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceKey: event.target.value }))} />
+                        </label>
+                        <label className="field">
+                          <span>Display Name</span>
+                          <input className="field-input" value={skillSyncSourceDraft.displayName} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, displayName: event.target.value }))} />
+                        </label>
+                        <label className="field field--wide">
+                          <span>Source URL</span>
+                          <input className="field-input" value={skillSyncSourceDraft.sourceUrl} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, sourceUrl: event.target.value }))} />
+                        </label>
+                        <label className="field field--wide">
+                          <span>Config JSON</span>
+                          <textarea className="code-input code-input--tall" rows={6} value={skillSyncSourceDraft.configText} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, configText: event.target.value }))} />
+                        </label>
+                        <label className="field" style={{ maxWidth: 180 }}>
+                          <span>Active</span>
+                          <input type="checkbox" checked={skillSyncSourceDraft.active} onChange={(event) => setSkillSyncSourceDraft((current) => ({ ...current, active: event.target.checked }))} />
+                        </label>
+                      </div>
+                      <div className="fig-release-card__actions">
+                        <button className="solid-button" type="button" disabled={savingSkillSyncSource} onClick={() => void handleSaveSkillSyncSource()}>
+                          {savingSkillSyncSource ? '保存中…' : '保存同步源'}
+                        </button>
+                      </div>
+                    </section>
+
+                    <div className="fig-workspace fig-workspace--drawer">
+                      <section className="fig-workspace__list">
+                        <section className="fig-card fig-card--subtle">
+                          <div className="fig-card__head">
+                            <h3>云技能列表</h3>
+                            <span>{String(cloudSkillMeta.total || 0)} 个</span>
+                          </div>
+                          <AdminFilterStack>
+                            <AdminSearchRow>
+                              <input
+                                className="field-input"
+                                placeholder="搜索 slug / 名称 / 分类 / 发布者 / 标签..."
+                                value={cloudSkillQuery}
+                                onChange={(event) => setCloudSkillQuery(event.target.value)}
+                                style={adminFilterControlStyle()}
+                              />
+                            </AdminSearchRow>
                             <div className="fig-release-card__actions">
-                              <button className="solid-button" type="button" disabled={savingSkillSyncSource} onClick={() => void handleSaveSkillSyncSource()}>
-                                {savingSkillSyncSource ? '保存中…' : '保存同步源'}
+                              <button className="ghost-button" type="button" disabled={savingCloudSkill} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: 0 })}>
+                                搜索
+                              </button>
+                              <button className="ghost-button" type="button" onClick={() => { setCloudSkillQuery(''); void handleLoadCloudSkillsPage({ query: '', offset: 0 }); }}>
+                                清空
+                              </button>
+                              <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.offset <= 0} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: Math.max(0, cloudSkillMeta.offset - cloudSkillMeta.limit) })}>
+                                上一页
+                              </button>
+                              <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.hasMore !== true} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: cloudSkillMeta.nextOffset || (cloudSkillMeta.offset + cloudSkillMeta.limit) })}>
+                                下一页
                               </button>
                             </div>
-                          </section>
-                          <section className="fig-card fig-card--subtle">
-                            <div className="fig-card__head">
-                              <h3>云技能列表</h3>
-                              <span>{String(cloudSkillMeta.total || 0)} 个</span>
-                            </div>
-                            <AdminFilterStack>
-                              <AdminSearchRow>
-                                <input
-                                  className="field-input"
-                                  placeholder="搜索 slug / 名称 / 分类 / 发布者 / 标签..."
-                                  value={cloudSkillQuery}
-                                  onChange={(event) => setCloudSkillQuery(event.target.value)}
-                                  style={adminFilterControlStyle()}
-                                />
-                              </AdminSearchRow>
-                              <div className="fig-release-card__actions">
-                                <button className="ghost-button" type="button" disabled={savingCloudSkill} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: 0 })}>
-                                  搜索
+                          </AdminFilterStack>
+                          <div className="fig-capability-list">
+                            {filteredCloudSkills.length ? (
+                              filteredCloudSkills.map((item) => (
+                                <button
+                                  key={item.slug}
+                                  className={`capability-card${selectedCloudSkill?.slug === item.slug ? ' is-active' : ''}`}
+                                  type="button"
+                                  onClick={() => setSelectedCloudSkillSlug(item.slug)}
+                                >
+                                  <strong>{item.name}</strong>
+                                  <span>{`v${item.version} • ${item.originType}`}</span>
                                 </button>
-                                <button className="ghost-button" type="button" onClick={() => { setCloudSkillQuery(''); void handleLoadCloudSkillsPage({ query: '', offset: 0 }); }}>
-                                  清空
-                                </button>
-                                <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.offset <= 0} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: Math.max(0, cloudSkillMeta.offset - cloudSkillMeta.limit) })}>
-                                  上一页
-                                </button>
-                                <button className="ghost-button" type="button" disabled={savingCloudSkill || cloudSkillMeta.hasMore !== true} onClick={() => void handleLoadCloudSkillsPage({ query: cloudSkillQuery, offset: cloudSkillMeta.nextOffset || (cloudSkillMeta.offset + cloudSkillMeta.limit) })}>
-                                  下一页
-                                </button>
-                              </div>
-                            </AdminFilterStack>
-                            <div className="fig-capability-list">
-                              {filteredCloudSkills.length ? (
-                                filteredCloudSkills.map((item) => (
-                                  <button
-                                    key={item.slug}
-                                    className={`capability-card${selectedCloudSkill?.slug === item.slug ? ' is-active' : ''}`}
-                                    type="button"
-                                    onClick={() => setSelectedCloudSkillSlug(item.slug)}
-                                  >
-                                    <strong>{item.name}</strong>
-                                    <span>{`v${item.version} • ${item.originType}`}</span>
-                                  </button>
-                                ))
-                              ) : (
-                                <div className="empty-state">没有匹配的云技能。</div>
-                              )}
-                            </div>
-                          </section>
+                              ))
+                            ) : (
+                              <div className="empty-state">没有匹配的云技能。</div>
+                            )}
+                          </div>
                         </section>
-                        <aside className="fig-workspace__drawer">
-                          {selectedCloudSkill ? (
-                            <>
+                      </section>
+
+                      <aside className="fig-workspace__drawer">
+                        {selectedCloudSkill ? (
+                          <>
                             <div className="fig-card">
                               <div className="fig-card__head">
                                 <div>
@@ -3551,8 +3539,7 @@ export default function App() {
                         ) : (
                           <div className="fig-card fig-card--detail-empty"><div className="empty-state">还没有云技能。</div></div>
                         )}
-                        </aside>
-                      </div>
+                      </aside>
                     </div>
                   </div>
                 </div>

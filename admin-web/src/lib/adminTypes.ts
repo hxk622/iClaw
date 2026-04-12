@@ -25,6 +25,7 @@ export type AdminRoute =
   | 'payments-packages'
   | 'payments-orders'
   | 'audit-log'
+  | 'client-metrics'
   | 'fault-reports';
 
 export type NavItem = {
@@ -607,6 +608,49 @@ export type DesktopFaultReportDetailRecord = DesktopFaultReportSummaryRecord & {
   uploadBucket: string;
   uploadKey: string;
   downloadUrl: string;
+};
+
+export type ClientMetricEventRecord = {
+  id: string;
+  eventName: string;
+  eventTime: string;
+  userId: string;
+  deviceId: string;
+  sessionId: string;
+  installId: string;
+  appName: string;
+  brandId: string;
+  appVersion: string;
+  releaseChannel: string;
+  platform: string;
+  osVersion: string;
+  arch: string;
+  page: string;
+  result: 'success' | 'failed' | null;
+  errorCode: string;
+  durationMs: number | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type ClientCrashEventRecord = {
+  id: string;
+  crashType: 'native' | 'renderer' | 'sidecar';
+  eventTime: string;
+  userId: string;
+  deviceId: string;
+  appName: string;
+  brandId: string;
+  appVersion: string;
+  platform: string;
+  osVersion: string;
+  arch: string;
+  errorTitle: string;
+  errorMessage: string;
+  stackSummary: string;
+  fileBucket: string;
+  fileKey: string;
+  createdAt: string;
 };
 
 export type BrandDetailData = {

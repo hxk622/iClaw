@@ -637,3 +637,8 @@ control-plane 内增加定时任务：
 5. `admin-web` 提供看板、明细、下载与告警入口
 
 这套方案与当前仓库形态一致，投入最小，能最快形成安装质量、启动质量、稳定性与排障能力的统一闭环。
+
+## 配套文档
+
+- [事件字典 V1](../reference/client-metrics-event-dictionary-v1.md)
+- [表结构与 API 草案 V1](../reference/client-metrics-schema-and-api-v1.md)

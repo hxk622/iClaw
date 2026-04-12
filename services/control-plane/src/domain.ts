@@ -21,6 +21,8 @@ export type DesktopDiagnosticUploadSourceType = 'manual' | 'auto_error_capture' 
 
 export type DesktopFaultReportEntry = 'installer' | 'exception-dialog';
 export type DesktopFaultReportAccountState = 'anonymous' | 'authenticated';
+export type ClientMetricEventResult = 'success' | 'failed';
+export type ClientCrashType = 'native' | 'renderer' | 'sidecar';
 
 export type DesktopActionNetworkDestination = {
   scheme: string;
@@ -568,6 +570,49 @@ export type DesktopFaultReportRecord = {
   createdAt: string;
 };
 
+export type ClientMetricEventRecord = {
+  id: string;
+  eventName: string;
+  eventTime: string;
+  userId: string | null;
+  deviceId: string;
+  sessionId: string | null;
+  installId: string | null;
+  appName: string;
+  brandId: string;
+  appVersion: string;
+  releaseChannel: string | null;
+  platform: string;
+  osVersion: string | null;
+  arch: string;
+  page: string | null;
+  result: ClientMetricEventResult | null;
+  errorCode: string | null;
+  durationMs: number | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type ClientCrashEventRecord = {
+  id: string;
+  crashType: ClientCrashType;
+  eventTime: string;
+  userId: string | null;
+  deviceId: string;
+  appName: string;
+  brandId: string;
+  appVersion: string;
+  platform: string;
+  osVersion: string | null;
+  arch: string;
+  errorTitle: string | null;
+  errorMessage: string | null;
+  stackSummary: string | null;
+  fileBucket: string | null;
+  fileKey: string | null;
+  createdAt: string;
+};
+
 export type AdminDesktopActionPolicyRuleView = {
   id: string;
   scope: DesktopActionPolicyScope;
@@ -706,6 +751,49 @@ export type AdminDesktopFaultReportDetailView = AdminDesktopFaultReportSummaryVi
   download_url: string;
 };
 
+export type AdminClientMetricEventView = {
+  id: string;
+  event_name: string;
+  event_time: string;
+  user_id: string | null;
+  device_id: string;
+  session_id: string | null;
+  install_id: string | null;
+  app_name: string;
+  brand_id: string;
+  app_version: string;
+  release_channel: string | null;
+  platform: string;
+  os_version: string | null;
+  arch: string;
+  page: string | null;
+  result: ClientMetricEventResult | null;
+  error_code: string | null;
+  duration_ms: number | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export type AdminClientCrashEventView = {
+  id: string;
+  crash_type: ClientCrashType;
+  event_time: string;
+  user_id: string | null;
+  device_id: string;
+  app_name: string;
+  brand_id: string;
+  app_version: string;
+  platform: string;
+  os_version: string | null;
+  arch: string;
+  error_title: string | null;
+  error_message: string | null;
+  stack_summary: string | null;
+  file_bucket: string | null;
+  file_key: string | null;
+  created_at: string;
+};
+
 export type UpsertDesktopActionPolicyRuleInput = {
   id?: string | null;
   scope?: DesktopActionPolicyScope | null;
@@ -832,6 +920,49 @@ export type CreateDesktopFaultReportInput = {
   file_name?: string | null;
   file_size_bytes?: number | null;
   file_sha256?: string | null;
+  created_at?: string | null;
+};
+
+export type CreateClientMetricEventInput = {
+  id?: string | null;
+  event_name?: string | null;
+  event_time?: string | null;
+  user_id?: string | null;
+  device_id?: string | null;
+  session_id?: string | null;
+  install_id?: string | null;
+  app_name?: string | null;
+  brand_id?: string | null;
+  app_version?: string | null;
+  release_channel?: string | null;
+  platform?: string | null;
+  os_version?: string | null;
+  arch?: string | null;
+  page?: string | null;
+  result?: ClientMetricEventResult | null;
+  error_code?: string | null;
+  duration_ms?: number | null;
+  payload_json?: Record<string, unknown> | null;
+  created_at?: string | null;
+};
+
+export type CreateClientCrashEventInput = {
+  id?: string | null;
+  crash_type?: ClientCrashType | null;
+  event_time?: string | null;
+  user_id?: string | null;
+  device_id?: string | null;
+  app_name?: string | null;
+  brand_id?: string | null;
+  app_version?: string | null;
+  platform?: string | null;
+  os_version?: string | null;
+  arch?: string | null;
+  error_title?: string | null;
+  error_message?: string | null;
+  stack_summary?: string | null;
+  file_bucket?: string | null;
+  file_key?: string | null;
   created_at?: string | null;
 };
 

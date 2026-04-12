@@ -3,6 +3,8 @@ import type {
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
   CreateDesktopFaultReportInput,
+  CreateClientMetricEventInput,
+  CreateClientCrashEventInput,
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
@@ -41,6 +43,8 @@ import type {
   DesktopActionPolicyRuleRecord,
   DesktopDiagnosticUploadRecord,
   DesktopFaultReportRecord,
+  ClientMetricEventRecord,
+  ClientCrashEventRecord,
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentProviderProfileInput,
@@ -532,6 +536,45 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     input: Required<CreateDesktopFaultReportInput> & {id: string; created_at: string},
   ): Promise<DesktopFaultReportRecord> {
     return this.base.createDesktopFaultReport(input);
+  }
+
+  async listClientMetricEvents(input?: {
+    eventName?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    brandId?: string | null;
+    appVersion?: string | null;
+    platform?: string | null;
+    result?: string | null;
+    limit?: number | null;
+  }): Promise<ClientMetricEventRecord[]> {
+    return this.base.listClientMetricEvents(input);
+  }
+
+  async createClientMetricEvents(
+    input: Array<Required<CreateClientMetricEventInput> & {id: string; created_at: string}>,
+  ): Promise<ClientMetricEventRecord[]> {
+    return this.base.createClientMetricEvents(input);
+  }
+
+  async listClientCrashEvents(input?: {
+    crashType?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    brandId?: string | null;
+    appVersion?: string | null;
+    platform?: string | null;
+    limit?: number | null;
+  }): Promise<ClientCrashEventRecord[]> {
+    return this.base.listClientCrashEvents(input);
+  }
+
+  async createClientCrashEvent(
+    input: Required<CreateClientCrashEventInput> & {id: string; created_at: string},
+  ): Promise<ClientCrashEventRecord> {
+    return this.base.createClientCrashEvent(input);
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {

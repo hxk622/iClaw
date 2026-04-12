@@ -482,6 +482,86 @@ test('desktop fault reports support anonymous upload records and admin detail/do
   });
 });
 
+test('client metrics events and crash ingestion support anonymous and authenticated contexts', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneService(store);
+  const user = await service.register({
+    username: 'metrics-user',
+    email: 'metrics-user@example.com',
+    password: 'password123',
+    name: 'Metrics User',
+  });
+
+  const anonymousEvents = await service.recordClientMetricEvents(null, [
+    {
+      event_name: 'install_start',
+      event_time: '2026-04-12T08:00:00.000Z',
+      device_id: 'device-metrics-001',
+      install_id: 'install-001',
+      app_name: 'iclaw',
+      brand_id: 'iclaw',
+      app_version: '1.0.5',
+      platform: 'windows',
+      arch: 'x64',
+      payload_json: { step: 'begin' },
+    },
+    {
+      event_name: 'install_failed',
+      event_time: '2026-04-12T08:00:08.000Z',
+      device_id: 'device-metrics-001',
+      install_id: 'install-001',
+      app_name: 'iclaw',
+      brand_id: 'iclaw',
+      app_version: '1.0.5',
+      platform: 'windows',
+      arch: 'x64',
+      result: 'failed',
+      error_code: 'EACCES',
+      duration_ms: 8000,
+      payload_json: { failure_stage: 'runtime_install' },
+    },
+  ]);
+  assert.equal(anonymousEvents.items.length, 2);
+  assert.equal(anonymousEvents.items[0]?.userId, null);
+
+  const authedEvents = await service.recordClientMetricEvents(user.tokens.access_token, {
+    event_name: 'login_success',
+    event_time: '2026-04-12T08:01:00.000Z',
+    device_id: 'device-metrics-001',
+    session_id: 'session-001',
+    app_name: 'iclaw',
+    brand_id: 'iclaw',
+    app_version: '1.0.5',
+    platform: 'windows',
+    arch: 'x64',
+    result: 'success',
+    payload_json: { auth_provider: 'password' },
+  });
+  assert.equal(authedEvents.items.length, 1);
+  assert.equal(authedEvents.items[0]?.userId, user.user.id);
+
+  const crash = await service.recordClientCrashEvent(null, {
+    crash_type: 'renderer',
+    event_time: '2026-04-12T08:02:00.000Z',
+    device_id: 'device-metrics-001',
+    app_name: 'iclaw',
+    brand_id: 'iclaw',
+    app_version: '1.0.5',
+    platform: 'windows',
+    arch: 'x64',
+    error_title: 'Unhandled Exception',
+    error_message: 'Cannot read property x of undefined',
+    stack_summary: 'stack...',
+  });
+  assert.equal(crash.userId, null);
+  assert.equal(crash.crashType, 'renderer');
+
+  const storedEvents = await store.listClientMetricEvents({ deviceId: 'device-metrics-001' });
+  assert.equal(storedEvents.length, 3);
+  const storedCrashes = await store.listClientCrashEvents({ deviceId: 'device-metrics-001' });
+  assert.equal(storedCrashes.length, 1);
+});
+
 test('desktop action policy invariants reject unsafe shell whitelist and elevated reusable grants', async () => {
   await withBootstrapRoles({adminEmails: ['security-admin@example.com']}, async () => {
     const store = new InMemoryControlPlaneStore();

@@ -765,6 +765,17 @@ struct PreparedDesktopFaultReportArchive {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopClientMetricsContext {
+    device_id: String,
+    platform: String,
+    platform_version: Option<String>,
+    arch: String,
+    app_version: String,
+    brand_id: String,
+}
+
+#[derive(Serialize)]
 struct BundledSkillCatalogItem {
     slug: String,
     name: String,
@@ -1187,6 +1198,67 @@ fn resource_runtime_dir(app: &AppHandle) -> PathBuf {
         .join("openclaw-runtime")
 }
 
+fn resource_runtime_archive_path(
+    app: &AppHandle,
+    config: &RuntimeBootstrapConfig,
+) -> Result<Option<PathBuf>, String> {
+    let artifact_url = clean_optional(config.artifact_url.clone());
+    let version_label = runtime_version_label(config);
+    let extension = match runtime_archive_format(config, artifact_url.as_deref().unwrap_or_default()) {
+        Ok(value) => {
+            if value == "zip" {
+                "zip"
+            } else {
+                "tar.gz"
+            }
+        }
+        Err(_) => return Ok(None),
+    };
+
+    let direct_name = format!("openclaw-runtime-{version_label}.{extension}");
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let direct = resource_dir.join("resources").join("runtime-archives").join(&direct_name);
+        if direct.exists() {
+            return Ok(Some(direct));
+        }
+    }
+
+    let fallback = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("runtime-archives")
+        .join(&direct_name);
+    if fallback.exists() {
+        return Ok(Some(fallback));
+    }
+
+    if let Some(url) = artifact_url {
+        let artifact_name = url
+            .split('/')
+            .last()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(&direct_name);
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            let direct = resource_dir
+                .join("resources")
+                .join("runtime-archives")
+                .join(artifact_name);
+            if direct.exists() {
+                return Ok(Some(direct));
+            }
+        }
+        let fallback = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join("runtime-archives")
+            .join(artifact_name);
+        if fallback.exists() {
+            return Ok(Some(fallback));
+        }
+    }
+
+    Ok(None)
+}
+
 fn find_runtime_launcher(root: &Path, config: &RuntimeBootstrapConfig) -> Option<PathBuf> {
     let launcher = root.join(runtime_launcher_relative_path(config));
     if launcher.exists() {
@@ -1298,6 +1370,20 @@ fn resolve_runtime_command(app: &AppHandle) -> Result<ResolvedRuntimeCommand, St
             display_path: launcher,
             version: clean_optional(config.version.clone()),
         });
+    }
+
+    if let Some(archive_path) = resource_runtime_archive_path(app, &config)? {
+        let installed_dir = install_runtime_internal(app)?;
+        if installed_runtime_matches(&installed_dir, &config) {
+            let launcher = installed_dir.join(runtime_launcher_relative_path(&config));
+            return Ok(ResolvedRuntimeCommand {
+                args_prefix: Vec::new(),
+                working_dir: launcher.parent().map(|path| path.to_path_buf()),
+                source: format!("bundled-archive:{}", archive_path.to_string_lossy()),
+                display_path: launcher,
+                version: clean_optional(config.version.clone()),
+            });
+        }
     }
 
     Err(String::from(
@@ -4261,12 +4347,22 @@ fn install_runtime_internal(app: &AppHandle) -> Result<PathBuf, String> {
 
     fs::create_dir_all(&staging_dir)
         .map_err(|e| format!("failed to create runtime staging dir: {e}"))?;
-    download_runtime_archive(
-        app,
-        &artifact_url,
-        &archive_path,
-        config.artifact_sha256.clone(),
-    )?;
+    if let Some(bundled_archive) = resource_runtime_archive_path(app, &config)? {
+        fs::copy(&bundled_archive, &archive_path).map_err(|e| {
+            format!(
+                "failed to stage bundled runtime archive {} -> {}: {e}",
+                bundled_archive.to_string_lossy(),
+                archive_path.to_string_lossy()
+            )
+        })?;
+    } else {
+        download_runtime_archive(
+            app,
+            &artifact_url,
+            &archive_path,
+            config.artifact_sha256.clone(),
+        )?;
+    }
 
     emit_runtime_install_progress(
         app,
@@ -4817,6 +4913,18 @@ fn prepare_desktop_fault_report_archive(
         file_sha256,
         archive_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
         payload,
+    })
+}
+
+#[tauri::command]
+fn load_desktop_client_metrics_context(app: AppHandle) -> Result<DesktopClientMetricsContext, String> {
+    Ok(DesktopClientMetricsContext {
+        device_id: load_or_create_desktop_fault_report_device_id(&app)?,
+        platform: current_platform_label(),
+        platform_version: current_platform_version(),
+        arch: current_arch_label(),
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        brand_id: String::from(DESKTOP_BRAND_ID),
     })
 }
 
@@ -7530,6 +7638,7 @@ fn main() {
             diagnose_runtime,
             load_startup_diagnostics,
             prepare_desktop_fault_report_archive,
+            load_desktop_client_metrics_context,
             load_bundled_skills_catalog,
             load_bundled_mcp_catalog,
             list_managed_skills,
