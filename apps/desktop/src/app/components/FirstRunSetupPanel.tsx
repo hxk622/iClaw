@@ -1,4 +1,4 @@
-import { AlertTriangle, RefreshCcw } from 'lucide-react';
+import { AlertTriangle, RefreshCcw, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/app/components/ui/Button';
 import { BRAND } from '@/app/lib/brand';
@@ -281,19 +281,25 @@ export function FirstRunSetupPanel({
                 重新尝试
               </Button>
             ) : null}
-            {onReportFault ? (
-              <Button variant={hasError ? 'secondary' : 'primary'} size="md" block onClick={onReportFault}>
-                故障上报
-              </Button>
-            ) : null}
-            {onReportFault ? (
-              <div className={`px-1 text-center text-xs leading-6 ${palette.detail}`}>
-                上传最近的安装日志与诊断信息，便于我们排查问题。不会上传账号密钥或无关文件。
-              </div>
-            ) : null}
           </div>
         )}
       </div>
+      {onReportFault ? (
+        <div className="absolute bottom-6 right-6 z-20">
+          <Button
+            variant="secondary"
+            size="md"
+            leadingIcon={<Upload className="h-4 w-4" />}
+            onClick={onReportFault}
+            className="min-w-[148px] shadow-[0_14px_34px_rgba(15,23,42,0.22)]"
+          >
+            故障上报
+          </Button>
+          <div className={`mt-2 max-w-[220px] text-right text-[11px] leading-5 ${palette.detail}`}>
+            上传最近日志与诊断信息。不会上传账号密钥或无关文件。
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
