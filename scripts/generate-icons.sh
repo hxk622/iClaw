@@ -44,11 +44,11 @@ normalize_png_rgba() {
 mkdir -p "$ICONS_DIR"
 mkdir -p "$ICONSET_DIR"
 
-# Keep visual balance for Dock/app list: ~84% content + ~16% transparent margin.
+# Keep the desktop icon full-bleed. Dock/App icon masks already add their own
+# visual container, so extra transparent padding makes the logo look shrunken.
 # Re-encode first; some legacy PNGs trip iconutil even when dimensions are valid.
 sips -s format png "$SOURCE_LOGO" --out "$TMP_DIR/source.png" >/dev/null
-sips -z 860 860 "$TMP_DIR/source.png" --out "$TMP_DIR/master-860.png" >/dev/null
-sips --padToHeightWidth 1024 1024 "$TMP_DIR/master-860.png" --out "$TMP_DIR/master-1024.png" >/dev/null
+sips -z 1024 1024 "$TMP_DIR/source.png" --out "$TMP_DIR/master-1024.png" >/dev/null
 
 sips -s format png "$TMP_DIR/master-1024.png" --out "$ICONSET_DIR/icon_512x512@2x.png" >/dev/null
 sips -z 512 512 "$TMP_DIR/master-1024.png" --out "$ICONSET_DIR/icon_512x512.png" >/dev/null
