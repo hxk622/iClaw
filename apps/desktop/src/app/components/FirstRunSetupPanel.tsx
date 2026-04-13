@@ -113,6 +113,7 @@ export function FirstRunSetupPanel({
     presentation === 'embedded'
       ? `relative w-full max-w-[760px] overflow-hidden rounded-[32px] border px-8 py-9 backdrop-blur-2xl md:px-10 md:py-10 ${palette.card}`
       : `relative w-full max-w-[780px] overflow-hidden rounded-[36px] border px-8 py-10 backdrop-blur-2xl md:px-12 md:py-12 ${palette.card}`;
+  const showReportFaultAction = Boolean(onReportFault) && (hasError || clampedProgress >= 90);
 
   return (
     <div className={containerClassName}>
@@ -230,22 +231,31 @@ export function FirstRunSetupPanel({
           </div>
         </div>
 
-        {hasError && (
+        {(hasError || showReportFaultAction) && (
           <div className="mx-auto mt-8 max-w-[560px] space-y-4">
             <div className={`rounded-[24px] border px-5 py-5 ${palette.stepCard}`}>
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(255,101,91,0.12)] text-[#ff6a5f]">
-                  <AlertTriangle className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className={`text-sm font-medium ${palette.info}`}>{errorTitle || '启动过程中断'}</div>
-                  <div className={`mt-2 whitespace-pre-wrap break-words text-sm leading-7 ${palette.detail}`}>
-                    {errorMessage}
+              {hasError ? (
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(255,101,91,0.12)] text-[#ff6a5f]">
+                    <AlertTriangle className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-sm font-medium ${palette.info}`}>{errorTitle || '启动过程中断'}</div>
+                    <div className={`mt-2 whitespace-pre-wrap break-words text-sm leading-7 ${palette.detail}`}>
+                      {errorMessage}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="min-w-0">
+                  <div className={`text-sm font-medium ${palette.info}`}>长时间停留在当前步骤？</div>
+                  <div className={`mt-2 whitespace-pre-wrap break-words text-sm leading-7 ${palette.detail}`}>
+                    可以直接上报当前启动日志与诊断信息，便于排查本地服务卡住、端口冲突或环境异常。
+                  </div>
+                </div>
+              )}
             </div>
-            {diagnosticItems.length ? (
+            {hasError && diagnosticItems.length ? (
               <div className={`rounded-[24px] border px-5 py-5 ${palette.stepCard}`}>
                 <div className={`text-sm font-medium ${palette.info}`}>诊断信息</div>
                 <div className="mt-4 space-y-4">
@@ -260,17 +270,19 @@ export function FirstRunSetupPanel({
                 </div>
               </div>
             ) : null}
-            <Button
-              variant="primary"
-              size="md"
-              block
-              leadingIcon={<RefreshCcw className="h-4 w-4" />}
-              onClick={() => void onRetry()}
-            >
-              重新尝试
-            </Button>
+            {hasError ? (
+              <Button
+                variant="primary"
+                size="md"
+                block
+                leadingIcon={<RefreshCcw className="h-4 w-4" />}
+                onClick={() => void onRetry()}
+              >
+                重新尝试
+              </Button>
+            ) : null}
             {onReportFault ? (
-              <Button variant="secondary" size="md" block onClick={onReportFault}>
+              <Button variant={hasError ? 'secondary' : 'primary'} size="md" block onClick={onReportFault}>
                 故障上报
               </Button>
             ) : null}

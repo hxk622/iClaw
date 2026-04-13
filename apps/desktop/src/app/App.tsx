@@ -311,6 +311,7 @@ const IM_BOT_TEST_SESSION_KEY = 'im-bots-test';
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 const SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS = 60;
 const SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS = 500;
+const SIDECAR_BOOT_HEALTHCHECK_TIMEOUT_MS = 45_000;
 const DESKTOP_APP_VERSION = desktopPackageJson.version;
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' =
   String(import.meta.env.VITE_BUILD_CHANNEL || '').trim().toLowerCase() === 'dev' ? 'dev' : 'prod';
@@ -1516,6 +1517,7 @@ export default function App() {
       sidecarArgs: SIDE_CAR_ARGS,
       sidecarBootHealthcheckAttempts: SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS,
       sidecarBootHealthcheckIntervalMs: SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS,
+      sidecarBootHealthcheckTimeoutMs: SIDECAR_BOOT_HEALTHCHECK_TIMEOUT_MS,
       normalizeText: normalizeBrandRuntimeText,
       diagnoseRuntime,
       installRuntime,
@@ -2078,7 +2080,7 @@ export default function App() {
               errorTitle={installerView.errorTitle}
               diagnosticItems={installerView.diagnosticItems}
               onRetry={retrySetup}
-              onReportFault={installerView.state === 'error' ? () => setInstallerFaultReportOpen(true) : undefined}
+              onReportFault={() => setInstallerFaultReportOpen(true)}
             />
           </div>
         ) : null}

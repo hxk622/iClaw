@@ -25,6 +25,7 @@ type DesktopStartupControllerParams = {
   sidecarArgs: string[];
   sidecarBootHealthcheckAttempts: number;
   sidecarBootHealthcheckIntervalMs: number;
+  sidecarBootHealthcheckTimeoutMs: number;
   normalizeText?: (value: string) => string;
   diagnoseRuntime: () => Promise<RuntimeDiagnosis | null>;
   installRuntime: () => Promise<boolean>;
@@ -72,14 +73,20 @@ export function useDesktopStartupController(
   const [startupDiagnostics, setStartupDiagnostics] = useState<StartupDiagnosticsSnapshot | null>(null);
   const lastRuntimeProgressRef = useRef(0);
 
-  const waitForClientHealth = useCallback(
+  const buildSidecarHealthTimeoutMessage = useCallback(() => {
+    const seconds = Math.max(1, Math.round(params.sidecarBootHealthcheckTimeoutMs / 1000));
+    return `本地服务启动超时：健康检查在 ${seconds}s 内未通过，请使用故障上报上传日志。`;
+  }, [params.sidecarBootHealthcheckTimeoutMs]);
+
+    const waitForClientHealth = useCallback(
     async (options: WaitForClientHealthOptions = {}): Promise<boolean> => {
       const {
         attempts = params.sidecarBootHealthcheckAttempts,
         intervalMs = params.sidecarBootHealthcheckIntervalMs,
         suppressError = false,
       } = options;
-      for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const deadlineAt = Date.now() + Math.max(params.sidecarBootHealthcheckTimeoutMs, intervalMs);
+      for (let attempt = 0; attempt < attempts && Date.now() < deadlineAt; attempt += 1) {
         try {
           await params.healthCheck();
           setHealthy(true);
@@ -95,13 +102,17 @@ export function useDesktopStartupController(
             setHealthError(null);
           }
         }
+        const remainingMs = deadlineAt - Date.now();
+        if (remainingMs <= 0) {
+          break;
+        }
         await new Promise((resolve) => {
-          window.setTimeout(resolve, intervalMs);
+          window.setTimeout(resolve, Math.min(intervalMs, remainingMs));
         });
       }
       return false;
     },
-    [params],
+    [buildSidecarHealthTimeoutMessage, params],
   );
 
   const applyRuntimeDiagnosis = useCallback((diagnosis: RuntimeDiagnosis | null): boolean => {
@@ -177,7 +188,7 @@ export function useDesktopStartupController(
         suppressError: true,
       });
       if (!healthyNow) {
-        throw new Error(`无法连接本地 API，请确认已启动并监听 ${params.apiBaseUrl}`);
+        throw new Error(buildSidecarHealthTimeoutMessage());
       }
       setHealthy(true);
       setHealthError(null);
@@ -189,7 +200,7 @@ export function useDesktopStartupController(
       setHealthChecking(false);
       setInitialHealthResolved(true);
     }
-  }, [handleInstallRuntime, params, runtimeReady, waitForClientHealth]);
+  }, [buildSidecarHealthTimeoutMessage, handleInstallRuntime, params, runtimeReady, waitForClientHealth]);
 
   useEffect(() => {
     if (!params.isTauriRuntime) {
@@ -323,7 +334,14 @@ export function useDesktopStartupController(
     };
 
     const waitForSidecarHealth = async (): Promise<boolean> => {
+      const deadlineAt = Date.now() + Math.max(
+        params.sidecarBootHealthcheckTimeoutMs,
+        params.sidecarBootHealthcheckIntervalMs,
+      );
       for (let attempt = 0; attempt < params.sidecarBootHealthcheckAttempts; attempt += 1) {
+        if (Date.now() >= deadlineAt) {
+          break;
+        }
         const healthyNow = await check({ suppressError: true });
         if (healthyNow || cancelled) {
           return healthyNow;
@@ -332,8 +350,12 @@ export function useDesktopStartupController(
           setHealthy(false);
           setHealthError(null);
         }
+        const remainingMs = deadlineAt - Date.now();
+        if (remainingMs <= 0) {
+          break;
+        }
         await new Promise((resolve) => {
-          window.setTimeout(resolve, params.sidecarBootHealthcheckIntervalMs);
+          window.setTimeout(resolve, Math.min(params.sidecarBootHealthcheckIntervalMs, remainingMs));
         });
       }
       return false;
@@ -372,7 +394,7 @@ export function useDesktopStartupController(
         if (!cancelled && !sidecarHealthy) {
           const portConflictMessage = await params.resolvePortConflictMessage();
           setHealthy(false);
-          setHealthError(portConflictMessage || `无法连接本地 API，请确认已启动并监听 ${params.apiBaseUrl}`);
+          setHealthError(portConflictMessage || buildSidecarHealthTimeoutMessage());
         }
       }
       if (!cancelled) {
@@ -389,7 +411,7 @@ export function useDesktopStartupController(
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [params, runtimeChecking, runtimeInstalling, runtimeReady, waitForClientHealth]);
+  }, [buildSidecarHealthTimeoutMessage, params, runtimeChecking, runtimeInstalling, runtimeReady, waitForClientHealth]);
 
   const installerView = useMemo(
     () =>
