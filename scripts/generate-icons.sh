@@ -44,11 +44,12 @@ normalize_png_rgba() {
 mkdir -p "$ICONS_DIR"
 mkdir -p "$ICONSET_DIR"
 
-# Keep the desktop icon full-bleed. Dock/App icon masks already add their own
-# visual container, so extra transparent padding makes the logo look shrunken.
+# Keep the icon visually full while preserving a slim safe area for the macOS
+# Dock mask and the rounded-square silhouette in the artwork.
 # Re-encode first; some legacy PNGs trip iconutil even when dimensions are valid.
 sips -s format png "$SOURCE_LOGO" --out "$TMP_DIR/source.png" >/dev/null
-sips -z 1024 1024 "$TMP_DIR/source.png" --out "$TMP_DIR/master-1024.png" >/dev/null
+sips -z 960 960 "$TMP_DIR/source.png" --out "$TMP_DIR/master-960.png" >/dev/null
+sips --padToHeightWidth 1024 1024 "$TMP_DIR/master-960.png" --out "$TMP_DIR/master-1024.png" >/dev/null
 
 sips -s format png "$TMP_DIR/master-1024.png" --out "$ICONSET_DIR/icon_512x512@2x.png" >/dev/null
 sips -z 512 512 "$TMP_DIR/master-1024.png" --out "$ICONSET_DIR/icon_512x512.png" >/dev/null
