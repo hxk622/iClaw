@@ -6,13 +6,10 @@
 
 桌面发版按宿主平台拆分：
 
-- macOS 主机当前默认产出 2 个 mac 安装包：
-  - Apple Silicon + dev
+- macOS 主机默认产出当前正式所需的 mac 安装包：
   - Apple Silicon + prod
-- Windows 主机产出 4 个 Windows 安装包：
-  - x64 + dev
+- Windows 主机默认产出当前正式所需的 Windows 安装包：
   - x64 + prod
-  - ARM64 + dev
   - ARM64 + prod
 
 一个宿主只负责自己平台，不做“单机同时出 mac + Windows”。
@@ -72,7 +69,8 @@ bash scripts/build-desktop-matrix.sh
   - 例：`ICLAW_DESKTOP_TARGETS=x86_64-pc-windows-msvc`
 - `ICLAW_DESKTOP_CHANNELS`
   - 逗号分隔，覆盖默认 channel 列表
-  - 例：`ICLAW_DESKTOP_CHANNELS=prod`
+  - 默认值：`prod`
+  - 例：`ICLAW_DESKTOP_CHANNELS=dev`
 
 签名配置：
 
@@ -91,6 +89,7 @@ bash scripts/build-desktop-matrix.sh
 注意：
 
 - `scripts/build-desktop-matrix.sh` 会在每轮构建前调用 `scripts/env.sh`，因此它会切换仓库根目录 `.env`
+- 正式打包默认只打 `prod`，不再默认顺手产出 `dev`
 - 厚包为默认路径：安装包内直接携带 runtime archive，首次启动优先从安装包内解压到本地缓存
 - native updater 默认关闭，不再作为正式发版主链路
 - 只有显式传入 `ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER=1` 时，脚本才会保留 updater 压缩包

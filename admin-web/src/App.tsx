@@ -80,6 +80,7 @@ import {
   AdminSearchWithObjectRow,
   AdminSelectorRow,
 } from './components/AdminFilterLayout';
+import { AutoFaultReportsPage } from './components/AutoFaultReportsPage';
 import { DesktopFaultReportsPage } from './components/DesktopFaultReportsPage';
 import { UserActionAuditPage } from './components/UserActionAuditPage';
 import {
@@ -115,6 +116,14 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'assets', label: '资源管理' },
   { id: 'releases', label: '版本发布' },
   {
+    id: 'fault-center',
+    label: '故障中心',
+    children: [
+      { id: 'fault-reports', label: '手工故障上报' },
+      { id: 'auto-fault-reports', label: '自动故障上报' },
+    ],
+  },
+  {
     id: 'payments',
     label: '支付中心',
     children: [
@@ -125,7 +134,6 @@ const NAV_ITEMS: NavItem[] = [
   },
   { id: 'audit-log', label: '审计日志' },
   { id: 'user-action-audit', label: '用户Action审计' },
-  { id: 'fault-reports', label: '故障上报' },
 ];
 
 const BRAND_DETAIL_TABS = [
@@ -2438,6 +2446,8 @@ export default function App() {
                   loading={userActionAuditLoading}
                   onRefresh={() => void handleRefreshUserActionAudit()}
                 />
+              ) : route === 'auto-fault-reports' ? (
+                <AutoFaultReportsPage />
               ) : route === 'fault-reports' ? (
                 <DesktopFaultReportsPage />
               ) : route === 'brand-detail' ? (

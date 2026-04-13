@@ -4981,24 +4981,6 @@ fn detect_local_service_port_conflicts() -> Vec<u16> {
         .collect()
 }
 
-fn should_reuse_existing_local_sidecar(occupied_ports: &[u16]) -> bool {
-    occupied_ports.len() == 1 && occupied_ports[0] == configured_sidecar_port()
-}
-
-fn is_existing_local_sidecar_healthy(port: u16) -> bool {
-    let Ok(client) = Client::builder()
-        .connect_timeout(Duration::from_secs(1))
-        .timeout(Duration::from_secs(2))
-        .build()
-    else {
-        return false;
-    };
-    let Ok(response) = client.get(format!("http://127.0.0.1:{port}/health")).send() else {
-        return false;
-    };
-    response.status().is_success()
-}
-
 fn listen_port_targets() -> Vec<u16> {
     let mut ports = vec![configured_sidecar_port()];
     ports.sort_unstable();
@@ -5006,6 +4988,7 @@ fn listen_port_targets() -> Vec<u16> {
     ports
 }
 
+#[cfg(not(windows))]
 fn port_listener_pids(port: u16) -> Vec<u32> {
     let output = match Command::new("lsof")
         .args(["-nP", &format!("-iTCP:{port}"), "-sTCP:LISTEN", "-t"])
@@ -5021,6 +5004,38 @@ fn port_listener_pids(port: u16) -> Vec<u32> {
         .collect()
 }
 
+#[cfg(windows)]
+fn port_listener_pids(port: u16) -> Vec<u32> {
+    let output = match Command::new("netstat")
+        .args(["-ano", "-p", "tcp"])
+        .output()
+    {
+        Ok(output) if output.status.success() => output,
+        _ => return Vec::new(),
+    };
+
+    let port_suffix = format!(":{port}");
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if !trimmed.contains("LISTENING") {
+                return None;
+            }
+            let columns: Vec<&str> = trimmed.split_whitespace().collect();
+            if columns.len() < 5 {
+                return None;
+            }
+            let local_addr = columns[1];
+            if !local_addr.ends_with(&port_suffix) {
+                return None;
+            }
+            columns.last()?.trim().parse::<u32>().ok()
+        })
+        .collect()
+}
+
+#[cfg(not(windows))]
 fn managed_listener_pids(app: &AppHandle, ports: &[u16]) -> Vec<u32> {
     let mut pids = Vec::new();
     for port in ports {
@@ -5038,6 +5053,20 @@ fn managed_listener_pids(app: &AppHandle, ports: &[u16]) -> Vec<u32> {
     pids
 }
 
+#[cfg(windows)]
+fn managed_listener_pids(_app: &AppHandle, ports: &[u16]) -> Vec<u32> {
+    let mut pids = Vec::new();
+    for port in ports {
+        for pid in port_listener_pids(*port) {
+            if !pids.contains(&pid) {
+                pids.push(pid);
+            }
+        }
+    }
+    pids
+}
+
+#[cfg(not(windows))]
 fn inspect_process(pid: u32) -> Option<ListeningProcess> {
     let command_output = Command::new("ps")
         .args(["-p", &pid.to_string(), "-o", "command="])
@@ -5071,6 +5100,26 @@ fn inspect_process(pid: u32) -> Option<ListeningProcess> {
     })
 }
 
+#[cfg(windows)]
+fn inspect_process(pid: u32) -> Option<ListeningProcess> {
+    let output = Command::new("tasklist")
+        .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if raw.is_empty() || raw.eq_ignore_ascii_case("INFO: No tasks are running which match the specified criteria.") {
+        return None;
+    }
+    Some(ListeningProcess {
+        pid,
+        command: raw,
+        details: String::new(),
+    })
+}
+
 fn process_is_managed_local_service(process: &ListeningProcess, app: &AppHandle) -> bool {
     let runtime_root = match app_data_base_dir(app) {
         Ok(base) => base.join("runtime"),
@@ -5091,9 +5140,19 @@ fn configure_background_child_process(command: &mut Command) {
 #[cfg(not(windows))]
 fn configure_background_child_process(_command: &mut Command) {}
 
+#[cfg(not(windows))]
 fn terminate_pid(pid: u32) -> bool {
     Command::new("kill")
         .args(["-TERM", &pid.to_string()])
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+#[cfg(windows)]
+fn terminate_pid(pid: u32) -> bool {
+    Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
@@ -5110,6 +5169,43 @@ fn reclaim_managed_local_service_ports(app: &AppHandle) {
     }
 
     for _ in 0..20 {
+        if detect_local_service_port_conflicts().is_empty() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(150));
+    }
+    let _ = clear_persisted_sidecar_state(app);
+}
+
+fn reclaim_any_local_service_ports(app: &AppHandle) {
+    let mut pids = Vec::new();
+    for port in listen_port_targets() {
+        for pid in port_listener_pids(port) {
+            if !pids.contains(&pid) {
+                pids.push(pid);
+            }
+        }
+    }
+    if pids.is_empty() {
+        return;
+    }
+
+    append_desktop_bootstrap_log(
+        app,
+        &format!(
+            "start_sidecar: reclaiming listener pids on configured ports: {}",
+            pids.iter()
+                .map(|pid| pid.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    );
+
+    for pid in pids {
+        let _ = terminate_pid(pid);
+    }
+
+    for _ in 0..30 {
         if detect_local_service_port_conflicts().is_empty() {
             break;
         }
@@ -5644,57 +5740,10 @@ fn start_sidecar(
             &format!("start_sidecar: snapshot sync warning {error}"),
         );
     }
-    let expected_sidecar_state = build_expected_sidecar_state(&app, &runtime.source, &args, None)?;
     let mut occupied_ports = detect_local_service_port_conflicts();
     if !occupied_ports.is_empty() {
-        if should_reuse_existing_local_sidecar(&occupied_ports) {
-            let port = configured_sidecar_port();
-            let managed_pids = managed_listener_pids(&app, &[port]);
-            if is_existing_local_sidecar_healthy(port) {
-                if let Some(existing_state) = load_persisted_sidecar_state(&app)? {
-                    if persisted_sidecar_state_matches(&existing_state, &expected_sidecar_state) {
-                        let mut refreshed_state = expected_sidecar_state.clone();
-                        refreshed_state.pid = managed_pids.first().copied().or(existing_state.pid);
-                        save_persisted_sidecar_state(&app, &refreshed_state)?;
-                        append_desktop_bootstrap_log(
-                            &app,
-                            &format!("start_sidecar: reusing healthy listener on {port}"),
-                        );
-                        return Ok(true);
-                    }
-                    append_desktop_bootstrap_log(
-                        &app,
-                        &format!(
-                            "start_sidecar: existing healthy listener on {port} does not match current app/runtime state"
-                        ),
-                    );
-                }
-                if !managed_pids.is_empty() {
-                    reclaim_managed_local_service_ports(&app);
-                    occupied_ports = detect_local_service_port_conflicts();
-                } else {
-                    return Err(format!(
-                        "检测到 {port} 端口已有健康的 OpenClaw 服务，但它不属于当前应用版本或品牌配置，无法直接复用。"
-                    ));
-                }
-            } else if !managed_pids.is_empty() {
-                append_desktop_bootstrap_log(
-                    &app,
-                    &format!("start_sidecar: reclaiming unhealthy managed listener on {port}"),
-                );
-                reclaim_managed_local_service_ports(&app);
-                occupied_ports = detect_local_service_port_conflicts();
-            } else {
-                append_desktop_bootstrap_log(
-                    &app,
-                    &format!("start_sidecar: unhealthy listener detected on {port}"),
-                );
-                return Err(format!(
-                    "检测到 {port} 端口已有监听，但该服务未通过 OpenClaw 健康检查。请先关闭占用进程后再启动应用。"
-                ));
-            }
-        }
-
+        reclaim_any_local_service_ports(&app);
+        occupied_ports = detect_local_service_port_conflicts();
         if !occupied_ports.is_empty() {
             let ports = occupied_ports
                 .iter()
@@ -5706,6 +5755,7 @@ fn start_sidecar(
             ));
         }
     }
+    let expected_sidecar_state = build_expected_sidecar_state(&app, &runtime.source, &args, None)?;
     let gateway_token = load_or_create_gateway_token(&app)?;
     append_desktop_bootstrap_log(&app, "start_sidecar: gateway token ready");
     ensure_openclaw_workspace_seed(&app)?;

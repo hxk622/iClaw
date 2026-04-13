@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BRAND_ID="${1:-${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-iclaw}}}}"
 RGBA_HELPER="$ROOT_DIR/scripts/ensure-rgba-png.swift"
+ICO_HELPER="$ROOT_DIR/scripts/build-ico.py"
+DESKTOP_VARIANT_HELPER="$ROOT_DIR/scripts/generate-desktop-icon-variants.sh"
+SWIFT_MODULE_CACHE_DIR="${TMPDIR:-/tmp}/swift-module-cache"
+CLANG_MODULE_CACHE_DIR="${TMPDIR:-/tmp}/clang-module-cache"
 
 BRAND_PATHS="$(
   node --input-type=module -e "
@@ -21,9 +25,28 @@ BRAND_PATHS="$(
 
 SOURCE_LOGO="$(printf '%s\n' "$BRAND_PATHS" | sed -n '1p')"
 ICONS_DIR="$(printf '%s\n' "$BRAND_PATHS" | sed -n '2p')"
+ASSETS_DIR="$(dirname "$ICONS_DIR")"
 
-if [[ ! -f "$SOURCE_LOGO" ]]; then
-  echo "Missing source logo: $SOURCE_LOGO"
+if [[ -f "$SOURCE_LOGO" ]]; then
+  bash "$DESKTOP_VARIANT_HELPER" "$BRAND_ID" >/dev/null
+fi
+
+MAC_SOURCE_LOGO="$SOURCE_LOGO"
+WINDOWS_SOURCE_LOGO="$SOURCE_LOGO"
+
+if [[ -f "$ASSETS_DIR/desktop-icon-macos.png" ]]; then
+  MAC_SOURCE_LOGO="$ASSETS_DIR/desktop-icon-macos.png"
+fi
+if [[ -f "$ASSETS_DIR/desktop-icon-windows.png" ]]; then
+  WINDOWS_SOURCE_LOGO="$ASSETS_DIR/desktop-icon-windows.png"
+fi
+
+if [[ ! -f "$MAC_SOURCE_LOGO" ]]; then
+  echo "Missing source logo: $MAC_SOURCE_LOGO"
+  exit 1
+fi
+if [[ ! -f "$WINDOWS_SOURCE_LOGO" ]]; then
+  echo "Missing windows source logo: $WINDOWS_SOURCE_LOGO"
   exit 1
 fi
 
@@ -37,17 +60,21 @@ trap cleanup EXIT
 normalize_png_rgba() {
   local input_path="$1"
   local tmp_output="$TMP_DIR/rgba-$(basename "$input_path")"
-  swift "$RGBA_HELPER" "$input_path" "$tmp_output"
+  env \
+    SWIFTC_MODULECACHE_PATH="$SWIFT_MODULE_CACHE_DIR" \
+    CLANG_MODULE_CACHE_PATH="$CLANG_MODULE_CACHE_DIR" \
+    swift "$RGBA_HELPER" "$input_path" "$tmp_output"
   mv "$tmp_output" "$input_path"
 }
 
 mkdir -p "$ICONS_DIR"
 mkdir -p "$ICONSET_DIR"
+mkdir -p "$SWIFT_MODULE_CACHE_DIR" "$CLANG_MODULE_CACHE_DIR"
 
 # Keep the icon visually full while preserving a slim safe area for the macOS
 # Dock mask and the rounded-square silhouette in the artwork.
 # Re-encode first; some legacy PNGs trip iconutil even when dimensions are valid.
-sips -s format png "$SOURCE_LOGO" --out "$TMP_DIR/source.png" >/dev/null
+sips -s format png "$MAC_SOURCE_LOGO" --out "$TMP_DIR/source.png" >/dev/null
 sips -z 960 960 "$TMP_DIR/source.png" --out "$TMP_DIR/master-960.png" >/dev/null
 sips --padToHeightWidth 1024 1024 "$TMP_DIR/master-960.png" --out "$TMP_DIR/master-1024.png" >/dev/null
 
@@ -122,9 +149,25 @@ for icon_png in \
   normalize_png_rgba "$icon_png"
 done
 
-# Keep current icon.ico if conversion fails (sips can be flaky on some systems).
-if ! sips -s format ico "$TMP_DIR/master-1024.png" --out "$ICONS_DIR/icon.ico" >/dev/null 2>&1; then
-  echo "Warning: icon.ico generation failed, keeping existing icon.ico"
-fi
+cp "$WINDOWS_SOURCE_LOGO" "$TMP_DIR/windows-master-1024.png"
+sips -z 256 256 "$TMP_DIR/windows-master-1024.png" --out "$TMP_DIR/windows-256.png" >/dev/null
+sips -z 128 128 "$TMP_DIR/windows-master-1024.png" --out "$TMP_DIR/windows-128.png" >/dev/null
+sips -z 64 64 "$TMP_DIR/windows-master-1024.png" --out "$TMP_DIR/windows-64.png" >/dev/null
+sips -z 48 48 "$TMP_DIR/windows-master-1024.png" --out "$TMP_DIR/windows-48.png" >/dev/null
+sips -z 32 32 "$TMP_DIR/windows-master-1024.png" --out "$TMP_DIR/windows-32.png" >/dev/null
+for icon_png in \
+  "$TMP_DIR/windows-256.png" \
+  "$TMP_DIR/windows-128.png" \
+  "$TMP_DIR/windows-64.png" \
+  "$TMP_DIR/windows-48.png" \
+  "$TMP_DIR/windows-32.png"; do
+  normalize_png_rgba "$icon_png"
+done
+python3 "$ICO_HELPER" "$ICONS_DIR/icon.ico" \
+  "$TMP_DIR/windows-256.png" \
+  "$TMP_DIR/windows-128.png" \
+  "$TMP_DIR/windows-64.png" \
+  "$TMP_DIR/windows-48.png" \
+  "$TMP_DIR/windows-32.png"
 
-echo "Generated icons for brand '$BRAND_ID' from $SOURCE_LOGO -> $ICONS_DIR"
+echo "Generated icons for brand '$BRAND_ID' from $MAC_SOURCE_LOGO (mac) / $WINDOWS_SOURCE_LOGO (windows) -> $ICONS_DIR"

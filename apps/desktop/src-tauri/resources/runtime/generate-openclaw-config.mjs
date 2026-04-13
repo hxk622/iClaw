@@ -254,10 +254,10 @@ function main() {
     throw new Error('Missing memory embedding API key. Configure Memory Center before launching OpenClaw.');
   }
   const preferredModelRef = trimString(resolvedProviderConfig.defaultModelRef);
-  const activeModelRef = resolvedProviderConfig.models.find((entry) => entry.modelRef === preferredModelRef)?.modelRef ||
-    resolvedProviderConfig.models[0]?.modelRef ||
+  const activeModelId = resolvedProviderConfig.models.find((entry) => entry.modelRef === preferredModelRef)?.modelId ||
+    resolvedProviderConfig.models[0]?.modelId ||
     '';
-  const allowlistModelRefs = resolvedProviderConfig.models.map((entry) => entry.modelRef).filter(Boolean);
+  const allowlistModelIds = resolvedProviderConfig.models.map((entry) => entry.modelId).filter(Boolean);
   const mergedAllowedOrigins = parseAllowedOrigins(mode, process.env.ICLAW_OPENCLAW_ALLOWED_ORIGINS);
   sanitizeLegacySkillEntries(config);
 
@@ -277,13 +277,13 @@ function main() {
 
   const agents = ensureObject(config, 'agents');
   const defaults = ensureObject(agents, 'defaults');
-  if (activeModelRef) {
+  if (activeModelId) {
     const existingModel = defaults.model;
     defaults.model = existingModel && typeof existingModel === 'object' && !Array.isArray(existingModel)
-      ? { ...existingModel, primary: activeModelRef }
-      : { primary: activeModelRef };
+      ? { ...existingModel, primary: activeModelId }
+      : { primary: activeModelId };
   }
-  defaults.models = Object.fromEntries(allowlistModelRefs.map((value) => [value, {}]));
+  defaults.models = Object.fromEntries(allowlistModelIds.map((value) => [value, {}]));
   if (workspaceDir) {
     defaults.workspace = workspaceDir;
   }

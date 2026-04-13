@@ -16,7 +16,9 @@ import {
   uploadUserFile as storeUserFile,
 } from './user-file-storage.ts';
 import {
+  downloadDesktopDiagnosticFile as downloadStoredDesktopDiagnosticFile,
   downloadDesktopFaultReportFile as downloadStoredDesktopFaultReportFile,
+  uploadDesktopDiagnosticFile,
   uploadDesktopFaultReportFile,
 } from './desktop-fault-report-storage.ts';
 
@@ -3380,6 +3382,39 @@ export class ControlPlaneService {
     return {items: items.map(toAdminDesktopDiagnosticUploadView)};
   }
 
+  async getAdminDesktopDiagnosticUpload(
+    accessToken: string,
+    idInput: string,
+  ): Promise<AdminDesktopDiagnosticUploadView> {
+    await this.requireAdminUser(accessToken);
+    const id = String(idInput || '').trim();
+    if (!id) {
+      throw new HttpError(400, 'BAD_REQUEST', 'id is required');
+    }
+    const record = await this.store.getDesktopDiagnosticUploadById(id);
+    if (!record) {
+      throw new HttpError(404, 'NOT_FOUND', 'desktop diagnostic upload not found');
+    }
+    return toAdminDesktopDiagnosticUploadView(record);
+  }
+
+  async downloadAdminDesktopDiagnosticUpload(
+    accessToken: string,
+    idInput: string,
+  ): Promise<{record: DesktopDiagnosticUploadRecord; file: {buffer: Buffer; contentType: string}}> {
+    await this.requireAdminUser(accessToken);
+    const id = String(idInput || '').trim();
+    if (!id) {
+      throw new HttpError(400, 'BAD_REQUEST', 'id is required');
+    }
+    const record = await this.store.getDesktopDiagnosticUploadById(id);
+    if (!record) {
+      throw new HttpError(404, 'NOT_FOUND', 'desktop diagnostic upload not found');
+    }
+    const file = await downloadStoredDesktopDiagnosticFile(record.uploadKey);
+    return {record, file};
+  }
+
   async listAdminDesktopFaultReports(
     accessToken: string,
     input: {
@@ -3723,10 +3758,10 @@ export class ControlPlaneService {
   }
 
   async recordDesktopDiagnosticUpload(
-    accessToken: string,
+    accessToken: string | null,
     input: CreateDesktopDiagnosticUploadInput,
   ): Promise<AdminDesktopDiagnosticUploadView> {
-    const user = await this.getUserForAccessToken(accessToken);
+    const user = await this.getOptionalUserForAccessToken(accessToken);
     const deviceId = String(input.device_id || '').trim();
     const appName = String(input.app_name || '')
       .trim()
@@ -3759,7 +3794,7 @@ export class ControlPlaneService {
     }
     const record = await this.store.createDesktopDiagnosticUpload({
       id: String(input.id || randomUUID()).trim() || randomUUID(),
-      user_id: user.id,
+      user_id: user?.id || null,
       device_id: deviceId,
       app_name: appName,
       upload_bucket: uploadBucket,
@@ -3772,6 +3807,66 @@ export class ControlPlaneService {
       sensitivity_level: sensitivityLevel,
       linked_intent_id:
         normalizeOptionalCatalogString(input.linked_intent_id, 'linked_intent_id', {
+          allowNull: true,
+          trimToNull: true,
+        }) ?? null,
+      created_at: createdAt,
+    });
+    return toAdminDesktopDiagnosticUploadView(record);
+  }
+
+  async uploadDesktopDiagnosticArchive(
+    accessToken: string | null,
+    input: {
+      metadata: CreateDesktopDiagnosticUploadInput;
+      fileName: string;
+      contentType?: string | null;
+      content: Buffer;
+    },
+  ): Promise<AdminDesktopDiagnosticUploadView> {
+    const user = await this.getOptionalUserForAccessToken(accessToken);
+    const uploadId =
+      normalizeOptionalCatalogString(input.metadata.id, 'id', {allowNull: true, trimToNull: true}) || randomUUID();
+    const deviceId = String(input.metadata.device_id || '').trim();
+    const appName = String(input.metadata.app_name || '')
+      .trim()
+      .toLowerCase();
+    if (!deviceId || !appName) {
+      throw new HttpError(400, 'BAD_REQUEST', 'device_id and app_name are required');
+    }
+    const upload = await uploadDesktopDiagnosticFile({
+      uploadId,
+      fileName: input.fileName,
+      contentType: input.contentType,
+      content: input.content,
+    });
+    const createdAt = String(input.metadata.created_at || '').trim() || new Date().toISOString();
+    if (Number.isNaN(Date.parse(createdAt))) {
+      throw new HttpError(400, 'BAD_REQUEST', 'created_at must be a valid ISO timestamp');
+    }
+    const sensitivityLevel =
+      (normalizeOptionalCatalogString(input.metadata.sensitivity_level, 'sensitivity_level', {
+        allowNull: true,
+        trimToNull: true,
+      })?.toLowerCase() as 'customer' | 'internal' | 'redacted' | undefined) || 'customer';
+    if (!DESKTOP_DIAGNOSTIC_SENSITIVITY_LEVELS.has(sensitivityLevel)) {
+      throw new HttpError(400, 'BAD_REQUEST', 'sensitivity_level is invalid');
+    }
+    const record = await this.store.createDesktopDiagnosticUpload({
+      id: uploadId,
+      user_id: user?.id || null,
+      device_id: deviceId,
+      app_name: appName,
+      upload_bucket: upload.bucket,
+      upload_key: upload.objectKey,
+      file_name: upload.originalFileName,
+      file_size_bytes: upload.sizeBytes,
+      sha256: upload.sha256,
+      source_type: normalizeDesktopDiagnosticUploadSourceType(input.metadata.source_type, 'manual'),
+      contains_customer_logs: normalizeOptionalBoolean(input.metadata.contains_customer_logs, 'contains_customer_logs') ?? true,
+      sensitivity_level: sensitivityLevel,
+      linked_intent_id:
+        normalizeOptionalCatalogString(input.metadata.linked_intent_id, 'linked_intent_id', {
           allowNull: true,
           trimToNull: true,
         }) ?? null,

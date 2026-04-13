@@ -932,6 +932,39 @@ export async function loadUserActionAuditData(): Promise<{
   };
 }
 
+export async function loadDesktopDiagnosticUploads(input: {
+  userId?: string;
+  deviceId?: string;
+  appName?: string;
+  sourceType?: string;
+  limit?: number;
+} = {}): Promise<UserActionDiagnosticUploadRecord[]> {
+  const params = new URLSearchParams();
+  if (stringValue(input.userId)) params.set('user_id', stringValue(input.userId));
+  if (stringValue(input.deviceId)) params.set('device_id', stringValue(input.deviceId));
+  if (stringValue(input.appName)) params.set('app_name', stringValue(input.appName));
+  if (stringValue(input.sourceType)) params.set('source_type', stringValue(input.sourceType));
+  params.set('limit', String(Math.max(1, numberValue(input.limit || 500))));
+
+  const data = await apiFetch(`/admin/security/action-diagnostic-uploads?${params.toString()}`, {method: 'GET'});
+  return toArray<Record<string, unknown>>(asObject(data).items).map((item) => ({
+    id: stringValue(item.id),
+    userId: stringValue(item.user_id || item.userId),
+    deviceId: stringValue(item.device_id || item.deviceId),
+    appName: stringValue(item.app_name || item.appName),
+    uploadBucket: stringValue(item.upload_bucket || item.uploadBucket),
+    uploadKey: stringValue(item.upload_key || item.uploadKey),
+    fileName: stringValue(item.file_name || item.fileName),
+    fileSizeBytes: numberValue(item.file_size_bytes || item.fileSizeBytes),
+    sha256: stringValue(item.sha256),
+    sourceType: stringValue(item.source_type || item.sourceType),
+    containsCustomerLogs: Boolean(item.contains_customer_logs ?? item.containsCustomerLogs),
+    sensitivityLevel: (stringValue(item.sensitivity_level || item.sensitivityLevel) || 'internal') as UserActionDiagnosticUploadRecord['sensitivityLevel'],
+    linkedIntentId: stringValue(item.linked_intent_id || item.linkedIntentId),
+    createdAt: stringValue(item.created_at || item.createdAt),
+  }));
+}
+
 export async function loadDesktopFaultReports(input: {
   q?: string;
   platform?: string;

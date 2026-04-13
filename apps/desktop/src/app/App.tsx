@@ -56,6 +56,7 @@ import { AccountPanel } from './components/account/AccountPanel';
 import { FaultReportModal } from './components/FaultReportModal';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { GlobalExceptionDialog, type GlobalExceptionState } from './components/GlobalExceptionDialog';
+import { submitAutoDiagnosticUpload } from './lib/fault-report';
 import { IClawHeader } from './components/IClawHeader';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { CronTaskResultSync } from './components/CronTaskResultSync';
@@ -1017,6 +1018,7 @@ export default function App() {
   const [chatSurfaceBusy, setChatSurfaceBusy] = useState(false);
   const [installerFaultReportOpen, setInstallerFaultReportOpen] = useState(false);
   const [globalException, setGlobalException] = useState<GlobalExceptionState | null>(null);
+  const lastAutoDiagnosticFingerprintRef = useRef('');
   const launchStartTrackedRef = useRef(false);
   const launchSuccessTrackedRef = useRef(false);
   const initialPagePerfTrackedRef = useRef(false);
@@ -1685,6 +1687,31 @@ export default function App() {
   }, [healthError, recordMetric, runtimeDiagnosis?.runtime_path]);
 
   useEffect(() => {
+    const maybeUploadAutoDiagnostics = (input: {
+      kind: 'renderer_error' | 'renderer_rejection';
+      title: string;
+      message: string;
+      stack?: string | null;
+    }) => {
+      const fingerprint = `${input.kind}:${input.title}:${input.message}:${String(input.stack || '').slice(0, 240)}`;
+      if (lastAutoDiagnosticFingerprintRef.current === fingerprint) {
+        return;
+      }
+      lastAutoDiagnosticFingerprintRef.current = fingerprint;
+      void submitAutoDiagnosticUpload({
+        client,
+        accessToken,
+        installSessionId: installSessionIdRef.current,
+        failureStage: input.kind,
+        errorTitle: input.title,
+        errorMessage: input.message,
+        extraDiagnostics: {
+          stack: input.stack || null,
+          source: 'global-exception-listener',
+        },
+      }).catch(() => undefined);
+    };
+
     const onError = (event: ErrorEvent) => {
       const detail = event.error instanceof Error ? event.error : null;
       void trackClientCrash({
@@ -1695,6 +1722,12 @@ export default function App() {
         errorMessage: detail?.message || event.message || '应用异常',
         stackSummary: detail?.stack || null,
       }).catch(() => undefined);
+      maybeUploadAutoDiagnostics({
+        kind: 'renderer_error',
+        title: 'Unhandled Error',
+        message: detail?.message || event.message || '应用异常',
+        stack: detail?.stack || null,
+      });
       setGlobalException({
         title: '应用异常',
         message: detail?.message || event.message || '应用在运行过程中遇到意外错误',
@@ -1715,6 +1748,16 @@ export default function App() {
             : '应用在运行过程中遇到未处理的 Promise 异常'),
         stackSummary: reason?.stack || null,
       }).catch(() => undefined);
+      maybeUploadAutoDiagnostics({
+        kind: 'renderer_rejection',
+        title: 'Unhandled Promise Rejection',
+        message:
+          reason?.message ||
+          (typeof event.reason === 'string' && event.reason.trim()
+            ? event.reason.trim()
+            : '应用在运行过程中遇到未处理的 Promise 异常'),
+        stack: reason?.stack || null,
+      });
       setGlobalException({
         title: '应用异常',
         message:

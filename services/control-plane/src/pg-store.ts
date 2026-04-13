@@ -3636,6 +3636,21 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows.map(mapDesktopDiagnosticUploadRow);
   }
 
+  async getDesktopDiagnosticUploadById(id: string): Promise<DesktopDiagnosticUploadRecord | null> {
+    const result = await this.pool.query<DesktopDiagnosticUploadRow>(
+      `
+        select
+          id, user_id, device_id, app_name, upload_bucket, upload_key,
+          file_name, file_size_bytes, sha256, source_type, contains_customer_logs, sensitivity_level, linked_intent_id, created_at
+        from desktop_diagnostic_uploads
+        where id = $1
+        limit 1
+      `,
+      [id],
+    );
+    return result.rows[0] ? mapDesktopDiagnosticUploadRow(result.rows[0]) : null;
+  }
+
   async createDesktopDiagnosticUpload(
     input: Required<CreateDesktopDiagnosticUploadInput> & {id: string; created_at: string},
   ): Promise<DesktopDiagnosticUploadRecord> {

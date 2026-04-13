@@ -9,8 +9,6 @@ const rootDir = path.resolve(__dirname, '..');
 const snapshotRoot = path.join(rootDir, '.tmp-brand-state');
 
 const TRACKED_PATHS = [
-  'apps/desktop/src/app/lib/brand.generated.ts',
-  'apps/desktop/src-tauri/brand.generated.json',
   'apps/desktop/src-tauri/tauri.generated.conf.json',
   'apps/desktop/src-tauri/resources/config',
   'apps/desktop/src-tauri/resources/mcp',

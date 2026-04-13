@@ -182,6 +182,18 @@ function resolveStockComposerBoard(stock: MarketStockData): string | null {
   return typeof stock.board === 'string' && stock.board.trim() ? stock.board.trim() : 'A股';
 }
 
+function isModelNotAllowedError(error: unknown): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : error && typeof error === 'object' && 'message' in error
+          ? String((error as { message?: unknown }).message || '')
+          : '';
+  return message.toLowerCase().includes('model not allowed');
+}
+
 type OpenClawSettings = {
   gatewayUrl: string;
   token: string;
@@ -5416,6 +5428,11 @@ export function OpenClawChatSurface({
         setSelectedModelId((current) => current || nextModelId);
       } catch (error) {
         setSelectedModelId(previousModelId);
+        if (isModelNotAllowedError(error)) {
+          setSelectedModelId(null);
+          setResolvedModelSessionKey(null);
+          void refreshModelCatalog();
+        }
         const message = error instanceof Error ? error.message : '模型切换失败';
         setStatus((current) => ({
           ...current,
@@ -6006,6 +6023,11 @@ export function OpenClawChatSurface({
           return;
         }
         sessionModelBootstrapKeyRef.current = null;
+        if (isModelNotAllowedError(error)) {
+          setSelectedModelId(null);
+          setResolvedModelSessionKey(null);
+          void refreshModelCatalog();
+        }
         console.warn('[desktop] failed to bootstrap model for fresh chat session', {
           sessionKey,
           model: selectedModelId,
@@ -8679,7 +8701,11 @@ export function OpenClawChatSurface({
     };
 
     const ensureInterAssistantThinkingPlaceholder = (anchorGroup: HTMLElement) => {
-      let row = host.querySelector(':scope > .iclaw-chat-intermediate-thinking') as HTMLDivElement | null;
+      const existingRows = Array.from(
+        host.querySelectorAll(':scope > .iclaw-chat-intermediate-thinking'),
+      ) as HTMLDivElement[];
+      let row = existingRows.shift() ?? null;
+      existingRows.forEach((node) => node.remove());
       if (!row) {
         row = document.createElement('div');
         row.className = 'iclaw-chat-intermediate-thinking';
@@ -8705,7 +8731,7 @@ export function OpenClawChatSurface({
     };
 
     const findInterAssistantThinkingAnchor = (groups: HTMLElement[]) => {
-      if (!status.busy) {
+      if (!status.busy || status.lastError) {
         return null;
       }
 

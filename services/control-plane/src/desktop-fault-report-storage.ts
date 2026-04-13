@@ -83,8 +83,16 @@ function buildObjectKey(input: { reportId: string; fileName: string }): string {
   return `tenants/${getTenantId()}/desktop-fault-reports/${input.reportId}/${input.fileName}`;
 }
 
+function buildDiagnosticObjectKey(input: { uploadId: string; fileName: string }): string {
+  return `tenants/${getTenantId()}/desktop-diagnostic-uploads/${input.uploadId}/${input.fileName}`;
+}
+
 function isDesktopFaultReportObjectKey(value: string): boolean {
   return /^tenants\/[^/]+\/desktop-fault-reports\/[^/]+\/.+$/.test(value.trim());
+}
+
+function isDesktopDiagnosticObjectKey(value: string): boolean {
+  return /^tenants\/[^/]+\/desktop-diagnostic-uploads\/[^/]+\/.+$/.test(value.trim());
 }
 
 function isMissingObjectStoreError(error: unknown): boolean {
@@ -157,6 +165,62 @@ export async function uploadDesktopFaultReportFile(input: {
   };
 }
 
+export async function uploadDesktopDiagnosticFile(input: {
+  uploadId: string;
+  fileName: string;
+  contentType?: string | null;
+  content: Buffer;
+}): Promise<{
+  bucket: string;
+  objectKey: string;
+  originalFileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+}> {
+  const uploadId = input.uploadId.trim();
+  if (!uploadId) {
+    throw new HttpError(400, 'BAD_REQUEST', 'upload_id is required');
+  }
+  if (!input.fileName.trim()) {
+    throw new HttpError(400, 'BAD_REQUEST', 'file name is required');
+  }
+  if (input.content.length === 0) {
+    throw new HttpError(400, 'BAD_REQUEST', 'file is empty');
+  }
+  if (input.content.length > MAX_FAULT_REPORT_BYTES) {
+    throw new HttpError(400, 'BAD_REQUEST', 'diagnostic file must be 25MB or smaller');
+  }
+  const bucket = getBucket();
+  const originalFileName = sanitizeFileName(input.fileName);
+  const objectKey = buildDiagnosticObjectKey({ uploadId, fileName: originalFileName });
+  const mimeType = (input.contentType || '').trim() || DEFAULT_CONTENT_TYPE;
+  const sha256 = createHash('sha256').update(input.content).digest('hex');
+  await ensureBucketExists(bucket);
+  const client = getS3Client();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      Body: input.content,
+      ContentType: mimeType,
+      CacheControl: 'private, max-age=300',
+      Metadata: {
+        sha256,
+        upload_id: uploadId,
+      },
+    }),
+  );
+  return {
+    bucket,
+    objectKey,
+    originalFileName,
+    mimeType,
+    sizeBytes: input.content.length,
+    sha256,
+  };
+}
+
 export async function downloadDesktopFaultReportFile(objectKeyInput: string): Promise<{ buffer: Buffer; contentType: string }> {
   const objectKey = objectKeyInput.trim();
   if (!isDesktopFaultReportObjectKey(objectKey)) {
@@ -181,6 +245,35 @@ export async function downloadDesktopFaultReportFile(objectKeyInput: string): Pr
     if (error instanceof HttpError) throw error;
     if (isMissingObjectStoreError(error)) {
       throw new HttpError(404, 'NOT_FOUND', 'fault report file not found');
+    }
+    throw error;
+  }
+}
+
+export async function downloadDesktopDiagnosticFile(objectKeyInput: string): Promise<{ buffer: Buffer; contentType: string }> {
+  const objectKey = objectKeyInput.trim();
+  if (!isDesktopDiagnosticObjectKey(objectKey)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'invalid desktop diagnostic key');
+  }
+  const client = getS3Client();
+  try {
+    const head = await client.send(new HeadObjectCommand({ Bucket: getBucket(), Key: objectKey }));
+    const response = await client.send(new GetObjectCommand({ Bucket: getBucket(), Key: objectKey }));
+    if (!response.Body) {
+      throw new HttpError(404, 'NOT_FOUND', 'diagnostic file not found');
+    }
+    const body =
+      response.Body instanceof Readable
+        ? await toBuffer(response.Body)
+        : Buffer.from(await response.Body.transformToByteArray());
+    return {
+      buffer: body,
+      contentType: head.ContentType || response.ContentType || DEFAULT_CONTENT_TYPE,
+    };
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    if (isMissingObjectStoreError(error)) {
+      throw new HttpError(404, 'NOT_FOUND', 'diagnostic file not found');
     }
     throw error;
   }

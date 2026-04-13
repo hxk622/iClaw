@@ -1435,6 +1435,27 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/admin/security/action-diagnostic-uploads/:id',
+    handler: ({headers, params}: HandlerContext) =>
+      service.getAdminDesktopDiagnosticUpload(requireBearerToken(headers), params.id || ''),
+  },
+  {
+    method: 'GET',
+    path: '/admin/security/action-diagnostic-uploads/:id/download',
+    handler: async ({headers, params}: HandlerContext) => {
+      const {record, file} = await service.downloadAdminDesktopDiagnosticUpload(requireBearerToken(headers), params.id || '');
+      return createRawResponse(file.buffer, {
+        headers: {
+          'Content-Type': file.contentType,
+          'Content-Length': String(file.buffer.length),
+          'Cache-Control': 'private, max-age=300',
+          'Content-Disposition': `attachment; filename=\"${encodeURIComponent(record.fileName)}\"`,
+        },
+      });
+    },
+  },
+  {
+    method: 'GET',
     path: '/admin/desktop/fault-reports',
     handler: ({headers, url}: HandlerContext) =>
       service.listAdminDesktopFaultReports(requireBearerToken(headers), {
@@ -2033,9 +2054,38 @@ const server = createJsonServer([
     path: '/portal/desktop/security/diagnostic-uploads',
     handler: ({headers, body}: HandlerContext) =>
       service.recordDesktopDiagnosticUpload(
-        requireBearerToken(headers),
+        readBearerToken(headers),
         (body || {}) as CreateDesktopDiagnosticUploadInput,
       ),
+  },
+  {
+    method: 'POST',
+    path: '/portal/desktop/security/diagnostic-uploads/upload',
+    bodyType: 'raw',
+    handler: async ({headers, body}: HandlerContext<Buffer>) => {
+      const formData = await parseMultipartFormData(Buffer.isBuffer(body) ? body : Buffer.alloc(0), headers);
+      const fileEntry = formData.get('file');
+      if (!(fileEntry instanceof File)) {
+        throw new HttpError(400, 'BAD_REQUEST', 'file is required');
+      }
+      const payloadRaw = getFormDataString(formData, 'payload');
+      if (!payloadRaw) {
+        throw new HttpError(400, 'BAD_REQUEST', 'payload is required');
+      }
+      let payload: CreateDesktopDiagnosticUploadInput;
+      try {
+        payload = JSON.parse(payloadRaw) as CreateDesktopDiagnosticUploadInput;
+      } catch {
+        throw new HttpError(400, 'BAD_REQUEST', 'payload must be valid JSON');
+      }
+      const content = Buffer.from(await fileEntry.arrayBuffer());
+      return service.uploadDesktopDiagnosticArchive(readBearerToken(headers), {
+        metadata: payload,
+        fileName: fileEntry.name || 'diagnostic-upload.zip',
+        contentType: fileEntry.type || null,
+        content,
+      });
+    },
   },
   {
     method: 'POST',

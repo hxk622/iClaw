@@ -29,7 +29,7 @@ normalize_release_version() {
   exit 1
 }
 RELEASE_VERSION="$(normalize_release_version "${1:-}")"
-CHANNELS=("dev" "prod")
+CHANNELS=("prod")
 
 case "$HOST_PLATFORM" in
   darwin)

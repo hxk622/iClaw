@@ -124,7 +124,7 @@ test('honors default_model_ref even when it is not the first enabled provider mo
       ICLAW_OPENCLAW_RUNTIME_MODE: 'prod',
       ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'tauri://localhost,http://tauri.localhost,https://tauri.localhost',
     });
-    assert.equal(actual.agents.defaults.model.primary, 'deepseek/deepseek-v3.2');
+    assert.equal(actual.agents.defaults.model.primary, 'deepseek-v3.2');
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

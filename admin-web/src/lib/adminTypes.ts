@@ -12,6 +12,7 @@ export type AdminRoute =
   | 'brands'
   | 'brand-detail'
   | 'user-action-audit'
+  | 'auto-fault-reports'
   | 'agent-center'
   | 'skill-center'
   | 'mcp-center'
@@ -29,7 +30,7 @@ export type AdminRoute =
   | 'fault-reports';
 
 export type NavItem = {
-  id: AdminRoute | 'payments';
+  id: AdminRoute | 'payments' | 'fault-center';
   label: string;
   children?: Array<{ id: AdminRoute; label: string }>;
 };

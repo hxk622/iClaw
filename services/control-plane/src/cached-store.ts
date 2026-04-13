@@ -506,6 +506,10 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return this.base.listDesktopDiagnosticUploads(input);
   }
 
+  async getDesktopDiagnosticUploadById(id: string): Promise<DesktopDiagnosticUploadRecord | null> {
+    return this.base.getDesktopDiagnosticUploadById(id);
+  }
+
   async createDesktopDiagnosticUpload(
     input: Required<CreateDesktopDiagnosticUploadInput> & {id: string; created_at: string},
   ): Promise<DesktopDiagnosticUploadRecord> {

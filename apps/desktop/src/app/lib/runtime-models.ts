@@ -80,7 +80,7 @@ export function mapRuntimeModelsToGatewayEntries(
   return (payload.models || [])
     .filter((entry) => entry.enabled !== false)
     .map((entry) => ({
-      id: String(entry.modelRef || entry.modelId || '').trim(),
+      id: String(entry.modelId || entry.modelRef || '').trim(),
       name: String(entry.label || entry.modelId || '').trim(),
       provider,
       logoPresetKey: typeof entry.logoPresetKey === 'string' && entry.logoPresetKey.trim() ? entry.logoPresetKey.trim() : null,

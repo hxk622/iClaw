@@ -249,6 +249,7 @@ export interface ControlPlaneStore {
     sourceType?: string | null;
     limit?: number | null;
   }): Promise<DesktopDiagnosticUploadRecord[]>;
+  getDesktopDiagnosticUploadById(id: string): Promise<DesktopDiagnosticUploadRecord | null>;
   createDesktopDiagnosticUpload(
     input: Required<CreateDesktopDiagnosticUploadInput> & {id: string; created_at: string},
   ): Promise<DesktopDiagnosticUploadRecord>;
@@ -1499,6 +1500,10 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       .filter((item) => (!input?.sourceType ? true : item.sourceType === input.sourceType))
       .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
       .slice(0, limit);
+  }
+
+  async getDesktopDiagnosticUploadById(id: string): Promise<DesktopDiagnosticUploadRecord | null> {
+    return this.desktopDiagnosticUploadsById.get(id) || null;
   }
 
   async createDesktopDiagnosticUpload(

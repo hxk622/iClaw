@@ -1057,6 +1057,19 @@ async function removeDirectoriesByName(rootDir, directoryNames) {
   return removed;
 }
 
+async function scrubPackagingResourceTree(targetRoot) {
+  const removedVcsDirs = await removeDirectoriesByName(targetRoot, ['.git']);
+  if (removedVcsDirs.length > 0) {
+    process.stdout.write(
+      `[desktop-package] removed VCS directories from packaging tree: ${removedVcsDirs.length}\n`,
+    );
+  }
+
+  if (process.platform === 'darwin' && (await pathExists(targetRoot))) {
+    runChecked('xattr', ['-cr', targetRoot]);
+  }
+}
+
 function currentWindowsKoffiDir(targetTriple = '') {
   if (targetTriple.includes('arm64')) {
     return 'win32_arm64';
@@ -1904,7 +1917,9 @@ async function main() {
       targetTriple: runtimeTargetTriple,
       packagingPaths,
     });
+    await scrubPackagingResourceTree(packagingPaths.resourcesSourceDir);
     run(process.execPath, [syncResourcesScriptPath], { env });
+    await scrubPackagingResourceTree(path.join(tauriDir, 'resources'));
     await assertPackagedRuntimeConfig(env, runtimeTargetTriple);
     const tempTauriConfigArg = await writeTempTauriConfig();
 

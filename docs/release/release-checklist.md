@@ -99,6 +99,7 @@ Windows 补充要求：
   - Windows：`x86_64-pc-windows-msvc`、`aarch64-pc-windows-msvc`
 - 桌面正式发版默认是 installer-only：
   - 默认只产出 `.dmg` / `.exe`
+  - 默认只打 `prod`，不默认顺手打 `dev`
   - 不默认生成 `.app.tar.gz` / `.nsis.zip` / `.sig`
   - 只有显式传入 `ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER=1` 时，才允许生成 native updater 产物
 - 任何桌面发布规则改动必须同步覆盖 macOS / Windows 两套脚本与文档，除非明确记录平台例外

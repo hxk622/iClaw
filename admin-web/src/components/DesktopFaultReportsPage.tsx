@@ -112,7 +112,7 @@ export function DesktopFaultReportsPage() {
       <div className="fig-page__header">
         <div className="fig-page__header-inner fig-page__header-inner--stack">
           <div>
-            <h1>故障上报</h1>
+            <h1>手工故障上报</h1>
             <p className="fig-page__description">查看桌面端安装失败与异常弹窗产生的诊断包，支持筛选、预览与下载。</p>
           </div>
           <AdminFilterStack>
@@ -175,6 +175,7 @@ export function DesktopFaultReportsPage() {
               <div className="fig-audit-table__header">
                 <div>时间 / 编号</div>
                 <div>来源</div>
+                <div>userId</div>
                 <div>设备</div>
                 <div>平台</div>
                 <div>摘要</div>
@@ -193,6 +194,7 @@ export function DesktopFaultReportsPage() {
                         <div className="fig-audit-row__detail">{item.reportId}</div>
                       </div>
                       <div>{entryLabel(item.entry)}</div>
+                      <div>{item.userId || '空'}</div>
                       <div>{item.deviceId}</div>
                       <div>{item.platform || '未记录'}</div>
                       <div>{item.errorMessage || item.errorTitle}</div>

@@ -1,16 +1,17 @@
 {
   "project": "iClaw Fault Center",
   "branchName": "ralph/fault-center-manual-auto-reports",
-  "description": "Add a Fault Center in admin-web with separate manual and automatic fault reporting views, extend manual reports with userId, and complete the automatic desktop diagnostic upload path.",
+  "description": "Build a Fault Center in admin-web with manual and automatic report views, reuse the existing fault and diagnostic models, and complete the desktop auto-error diagnostic upload path.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add user_id support to desktop fault reports schema and mappings",
-      "description": "As an operator, I need manual desktop fault reports to retain userId when available so that authenticated fault submissions can be traced to a user.",
+      "title": "Align fault center on existing fault and diagnostic models",
+      "description": "As a developer, I need the fault center feature to reuse the existing `desktop_fault_reports` and `desktop_diagnostic_uploads` models so that manual and automatic diagnostics stay in one coherent subsystem.",
       "acceptanceCriteria": [
-        "Add `user_id` column to `desktop_fault_reports` if it does not already exist",
-        "Update control-plane store/service/admin view mappings so manual fault report list and detail responses include `user_id`",
-        "Existing anonymous fault reports continue to work with null user_id values",
+        "`desktop_fault_reports` remains the source of truth for manual fault reports",
+        "`desktop_diagnostic_uploads` remains the source of truth for automatic diagnostic uploads",
+        "No duplicate fault-report schema is introduced for automatic uploads",
+        "Control-plane admin APIs expose the fields needed by both fault center views from the existing models",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -25,6 +26,7 @@
       "acceptanceCriteria": [
         "Desktop client records automatic diagnostic uploads with `source_type = auto_error_capture`",
         "Automatic upload payload includes device_id, app_name, file_name, file_size_bytes, sensitivity_level, and created_at",
+        "Automatic upload attaches user_id when an authenticated session exists and leaves it null otherwise",
         "Automatic uploads do not reuse the manual fault report endpoint",
         "Typecheck passes",
         "Tests pass"
@@ -82,12 +84,13 @@
     },
     {
       "id": "US-006",
-      "title": "Unify fault center page-level filters and empty states",
-      "description": "As an admin user, I want both fault center pages to share clear filtering and empty-state behavior so that manual and automatic diagnostics feel like one coherent subsystem.",
+      "title": "Unify fault center page structure and filtering semantics",
+      "description": "As an admin user, I want manual and automatic fault views to feel like one subsystem with shared page structure and comparable filters.",
       "acceptanceCriteria": [
         "手工故障上报 and 自动故障上报 both support app/device/user-oriented filtering appropriate to their data source",
         "Both pages show explicit empty states when there are no records",
-        "Page titles and descriptions clearly differentiate manual vs automatic fault reporting",
+        "Both pages live under `故障中心` and use clearly differentiated titles and descriptions",
+        "Both pages preserve left-list/right-detail workflow for record inspection",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],

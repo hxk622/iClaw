@@ -140,6 +140,15 @@ interface UploadDesktopFaultReportInput {
   onProgress?: (progress: { loaded: number; total: number | null; percent: number | null }) => void;
 }
 
+interface UploadDesktopDiagnosticUploadInput {
+  token?: string | null;
+  payload: Record<string, unknown>;
+  fileName: string;
+  contentType?: string | null;
+  file: Blob | Uint8Array | ArrayBuffer;
+  onProgress?: (progress: { loaded: number; total: number | null; percent: number | null }) => void;
+}
+
 interface RecordClientMetricEventsInput {
   token?: string | null;
   items: Array<Record<string, unknown>>;
@@ -233,6 +242,23 @@ export interface DesktopFaultReportData {
   file_size_bytes: number;
   file_sha256: string | null;
   download_url: string;
+  created_at: string;
+}
+
+export interface DesktopDiagnosticUploadData {
+  id: string;
+  user_id: string | null;
+  device_id: string;
+  app_name: string;
+  upload_bucket: string;
+  upload_key: string;
+  file_name: string;
+  file_size_bytes: number;
+  sha256: string | null;
+  source_type: 'manual' | 'auto_error_capture' | 'approval_flow';
+  contains_customer_logs: boolean;
+  sensitivity_level: 'customer' | 'internal' | 'redacted';
+  linked_intent_id: string | null;
   created_at: string;
 }
 
@@ -1724,6 +1750,73 @@ export class IClawClient {
     });
 
     return data;
+  }
+
+  async uploadDesktopDiagnosticUpload(input: UploadDesktopDiagnosticUploadInput): Promise<DesktopDiagnosticUploadData> {
+    if (typeof XMLHttpRequest === 'undefined' || typeof FormData === 'undefined' || typeof Blob === 'undefined') {
+      throw new ApiError({
+        code: 'UNSUPPORTED_RUNTIME',
+        message: 'desktop diagnostic upload requires browser FormData support',
+      });
+    }
+    const file =
+      input.file instanceof Blob
+        ? input.file
+        : input.file instanceof Uint8Array
+          ? new Blob([input.file], { type: input.contentType || 'application/zip' })
+          : new Blob([input.file], { type: input.contentType || 'application/zip' });
+    const formData = new FormData();
+    formData.append('file', file, input.fileName.trim() || 'diagnostic-upload.zip');
+    formData.append('payload', JSON.stringify(input.payload || {}));
+
+    const url = `${this.authBaseUrl}/portal/desktop/security/diagnostic-uploads/upload`;
+
+    return await new Promise<DesktopDiagnosticUploadData>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      xhr.withCredentials = true;
+      if (this.desktopAppVersion) xhr.setRequestHeader('x-iclaw-app-version', this.desktopAppVersion);
+      if (this.desktopAppName) xhr.setRequestHeader('x-iclaw-app-name', this.desktopAppName);
+      if (this.desktopReleaseChannel) xhr.setRequestHeader('x-iclaw-channel', this.desktopReleaseChannel);
+      if (this.desktopPlatform) xhr.setRequestHeader('x-iclaw-platform', this.desktopPlatform);
+      if (this.desktopArch) xhr.setRequestHeader('x-iclaw-arch', this.desktopArch);
+      if (input.token?.trim()) {
+        xhr.setRequestHeader('Authorization', `Bearer ${input.token.trim()}`);
+      }
+      xhr.upload.onprogress = (event) => {
+        if (!input.onProgress) return;
+        input.onProgress({
+          loaded: event.loaded,
+          total: event.lengthComputable ? event.total : null,
+          percent: event.lengthComputable && event.total > 0 ? Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100))) : null,
+        });
+      };
+      xhr.onerror = () => {
+        reject(
+          new ApiError({
+            code: 'NETWORK_ERROR',
+            message: 'desktop diagnostic upload failed',
+          }),
+        );
+      };
+      xhr.onload = () => {
+        const body = parseJsonSafe<{ data?: DesktopDiagnosticUploadData; error?: { code?: string; message?: string; requestId?: string } }>(
+          xhr.responseText || '',
+        );
+        if (xhr.status < 200 || xhr.status >= 300 || !body?.data) {
+          reject(
+            new ApiError({
+              code: body?.error?.code || 'HTTP_ERROR',
+              message: body?.error?.message || `Request failed: ${xhr.status}`,
+              requestId: body?.error?.requestId,
+            }),
+          );
+          return;
+        }
+        resolve(body.data);
+      };
+      xhr.send(formData);
+    });
   }
 
   async recordClientMetricEvents(input: RecordClientMetricEventsInput): Promise<ClientMetricEventData[]> {
