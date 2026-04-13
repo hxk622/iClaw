@@ -43,6 +43,19 @@ function persistQueue() {
   writeBrowserQueue(queue);
 }
 
+function isIgnorableClientMetricsError(error: unknown): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : error && typeof error === 'object' && 'message' in error
+          ? String((error as { message?: unknown }).message || '')
+          : '';
+  const normalized = message.trim().toLowerCase();
+  return import.meta.env.DEV && (normalized.includes('route not found') || normalized.includes('404'));
+}
+
 function normalizePlatform(): string {
   if (typeof navigator === 'undefined') return 'unknown';
   const raw = `${navigator.platform} ${navigator.userAgent}`.toLowerCase();
@@ -135,10 +148,16 @@ export async function flushClientMetricQueue(input: {
 }): Promise<void> {
   const items = [...loadQueue()];
   if (!items.length) return;
-  await input.client.recordClientMetricEvents({
-    token: input.accessToken || null,
-    items,
-  });
+  try {
+    await input.client.recordClientMetricEvents({
+      token: input.accessToken || null,
+      items,
+    });
+  } catch (error) {
+    if (!isIgnorableClientMetricsError(error)) {
+      throw error;
+    }
+  }
   queue = [];
   persistQueue();
 }
@@ -156,25 +175,31 @@ export async function trackClientCrash(
   },
 ): Promise<void> {
   const context = await resolveClientMetricsContext();
-  await input.client.recordClientCrashEvent({
-    token: input.accessToken || null,
-    item: {
-      crash_type: input.crashType,
-      event_time: new Date().toISOString(),
-      device_id: context.device_id,
-      app_name: BRAND.brandId,
-      brand_id: context.brand_id || BRAND.brandId,
-      app_version: context.app_version || 'unknown',
-      platform: context.platform,
-      os_version: context.platform_version || null,
-      arch: context.arch,
-      error_title: input.errorTitle || null,
-      error_message: input.errorMessage || null,
-      stack_summary: input.stackSummary || null,
-      file_bucket: input.fileBucket || null,
-      file_key: input.fileKey || null,
-    },
-  });
+  try {
+    await input.client.recordClientCrashEvent({
+      token: input.accessToken || null,
+      item: {
+        crash_type: input.crashType,
+        event_time: new Date().toISOString(),
+        device_id: context.device_id,
+        app_name: BRAND.brandId,
+        brand_id: context.brand_id || BRAND.brandId,
+        app_version: context.app_version || 'unknown',
+        platform: context.platform,
+        os_version: context.platform_version || null,
+        arch: context.arch,
+        error_title: input.errorTitle || null,
+        error_message: input.errorMessage || null,
+        stack_summary: input.stackSummary || null,
+        file_bucket: input.fileBucket || null,
+        file_key: input.fileKey || null,
+      },
+    });
+  } catch (error) {
+    if (!isIgnorableClientMetricsError(error)) {
+      throw error;
+    }
+  }
 }
 
 export async function recordClientPerfSamples(
@@ -193,25 +218,31 @@ export async function recordClientPerfSamples(
 ): Promise<void> {
   const context = await resolveClientMetricsContext();
   if (!input.items.length) return;
-  await input.client.recordClientPerfSamples({
-    token: input.accessToken || null,
-    items: input.items.map((item) => ({
-      metric_name: item.metricName,
-      metric_time: item.metricTime || new Date().toISOString(),
-      device_id: context.device_id,
-      app_name: BRAND.brandId,
-      brand_id: context.brand_id || BRAND.brandId,
-      app_version: context.app_version || 'unknown',
-      release_channel: import.meta.env.DEV ? 'dev' : 'prod',
-      platform: context.platform,
-      os_version: context.platform_version || null,
-      arch: context.arch,
-      value: item.value,
-      unit: item.unit,
-      sample_rate: item.sampleRate ?? null,
-      payload_json: item.payload || {},
-    })),
-  });
+  try {
+    await input.client.recordClientPerfSamples({
+      token: input.accessToken || null,
+      items: input.items.map((item) => ({
+        metric_name: item.metricName,
+        metric_time: item.metricTime || new Date().toISOString(),
+        device_id: context.device_id,
+        app_name: BRAND.brandId,
+        brand_id: context.brand_id || BRAND.brandId,
+        app_version: context.app_version || 'unknown',
+        release_channel: import.meta.env.DEV ? 'dev' : 'prod',
+        platform: context.platform,
+        os_version: context.platform_version || null,
+        arch: context.arch,
+        value: item.value,
+        unit: item.unit,
+        sample_rate: item.sampleRate ?? null,
+        payload_json: item.payload || {},
+      })),
+    });
+  } catch (error) {
+    if (!isIgnorableClientMetricsError(error)) {
+      throw error;
+    }
+  }
 }
 
 export function getAppBootElapsedMs(): number {
