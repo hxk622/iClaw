@@ -46,6 +46,7 @@ import {
   looksLikeOpenClawTransportIssue,
   resolveOpenClawChatRecoveryAction,
 } from '@/app/lib/openclaw-chat-recovery';
+import { deriveChatResponsePhase, type ChatResponsePhase } from '@/app/lib/chat-response-phase';
 import { buildArtifactWorkspaceNameCandidates } from '@/app/lib/artifact-workspace-path';
 import {
   deriveOpenClawChatSurfaceLifecycle,
@@ -320,6 +321,7 @@ type ComposerCreditEstimateState = {
 
 type ChatSurfaceStatus = {
   busy: boolean;
+  responsePhase: ChatResponsePhase;
   connected: boolean;
   lastError: string | null;
   lastErrorCode: string | null;
@@ -4487,6 +4489,7 @@ export function OpenClawChatSurface({
   const shouldAutoScrollRef = useRef(true);
   const [status, setStatus] = useState<ChatSurfaceStatus>({
     busy: false,
+    responsePhase: 'idle',
     connected: false,
     lastError: null,
     lastErrorCode: null,
@@ -4627,6 +4630,7 @@ export function OpenClawChatSurface({
   const renderRecoveryAttemptsRef = useRef(0);
   const pendingConnectionLossStatusRef = useRef<ChatSurfaceStatus>({
     busy: false,
+    responsePhase: 'idle',
     connected: false,
     lastError: null,
     lastErrorCode: null,
@@ -5188,6 +5192,7 @@ export function OpenClawChatSurface({
       initialScrollScheduledRef.current = false;
       pendingConnectionLossStatusRef.current = {
         busy: false,
+        responsePhase: 'idle',
         connected: false,
         lastError: null,
         lastErrorCode: null,
@@ -5195,6 +5200,7 @@ export function OpenClawChatSurface({
       setCompatibilityRecoveryActive(false);
       setStatus((current) => ({
         ...current,
+        responsePhase: 'idle',
         connected: false,
         lastError: null,
         lastErrorCode: null,
@@ -5563,11 +5569,13 @@ export function OpenClawChatSurface({
       hasImmediateSnapshot || fastOpenEmptySession || preserveVisibleSurfaceDuringSwitch
         ? {
             ...current,
+            responsePhase: 'idle',
             lastError: null,
             lastErrorCode: null,
           }
         : {
             ...current,
+            responsePhase: 'idle',
             connected: false,
             lastError: null,
             lastErrorCode: null,
@@ -6610,9 +6618,17 @@ export function OpenClawChatSurface({
 
       ensureWrappedClientRequest(app);
       const reconciledBusyState = reconcileGatewayChatBusyState(app, effectiveGatewaySessionKey);
+      const responsePhase = deriveChatResponsePhase({
+        busy: reconciledBusyState.busy,
+        lastError: app.lastError ?? null,
+        messages: Array.isArray(app.chatMessages) ? app.chatMessages : [],
+        runId: typeof app.chatRunId === 'string' ? app.chatRunId : null,
+        startedAt: app.chatStreamStartedAt,
+      });
 
       const nextStatus: ChatSurfaceStatus = {
         busy: reconciledBusyState.busy,
+        responsePhase,
         connected: Boolean(app.connected),
         lastError: app.lastError ?? null,
         lastErrorCode: app.lastErrorCode ?? null,
@@ -6651,12 +6667,14 @@ export function OpenClawChatSurface({
         clearConnectionLossTimer();
         setStatus((current) =>
           current.busy === nextStatus.busy &&
+          current.responsePhase === nextStatus.responsePhase &&
           current.connected === true &&
           current.lastError === nextStatus.lastError &&
           current.lastErrorCode === nextStatus.lastErrorCode
             ? current
             : {
                 busy: nextStatus.busy,
+                responsePhase: nextStatus.responsePhase,
                 connected: true,
                 lastError: nextStatus.lastError,
                 lastErrorCode: nextStatus.lastErrorCode,
@@ -6668,11 +6686,13 @@ export function OpenClawChatSurface({
       pendingConnectionLossStatusRef.current = nextStatus;
       setStatus((current) =>
         current.busy === nextStatus.busy &&
+        current.responsePhase === nextStatus.responsePhase &&
         current.lastError === (nextStatus.lastError ?? current.lastError) &&
         current.lastErrorCode === (nextStatus.lastErrorCode ?? current.lastErrorCode)
           ? current
           : {
               busy: nextStatus.busy,
+              responsePhase: nextStatus.responsePhase,
               connected: current.connected,
               lastError: nextStatus.lastError ?? current.lastError,
               lastErrorCode: nextStatus.lastErrorCode ?? current.lastErrorCode,
@@ -6687,16 +6707,18 @@ export function OpenClawChatSurface({
         const pending = pendingConnectionLossStatusRef.current;
         setStatus((current) =>
           current.busy === pending.busy &&
+          current.responsePhase === pending.responsePhase &&
           current.connected === false &&
           current.lastError === pending.lastError &&
           current.lastErrorCode === pending.lastErrorCode
             ? current
             : {
                 busy: pending.busy,
+                responsePhase: pending.responsePhase,
                 connected: false,
                 lastError: pending.lastError,
                 lastErrorCode: pending.lastErrorCode,
-            },
+              },
         );
       }, CONNECTION_LOSS_GRACE_MS);
     };
@@ -8747,7 +8769,7 @@ export function OpenClawChatSurface({
     };
 
     const findInterAssistantThinkingAnchor = (groups: HTMLElement[]) => {
-      if (!status.busy || status.lastError) {
+      if (status.responsePhase !== 'awaiting-visible-assistant') {
         return null;
       }
 
