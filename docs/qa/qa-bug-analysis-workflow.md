@@ -48,6 +48,9 @@ Recommended:
 - reproduction frequency
 - affected page or module if known
 - whether the issue blocks further operation
+- failure timestamp or approximate occurrence time
+- related logs, if available
+- whether QA has checked the install-troubleshooting checklist
 
 Use this template:
 
@@ -63,6 +66,8 @@ Actual result: ...
 Expected result: ...
 Repro frequency: always / often / sometimes / once
 Blocking impact: yes / no
+Failure time: ...
+Related logs: ...
 Notes: ...
 ```
 
@@ -85,7 +90,8 @@ When this workflow is triggered, Codex must:
    - state variables
    - event listeners
    - persistence / runtime / gateway / startup logic
-4. Analyze whether the issue is primarily:
+4. When logs are available, cross-check the symptom against runtime and startup logs instead of relying on code inspection alone.
+5. Analyze whether the issue is primarily:
    - rendering
    - state management
    - startup gating
@@ -94,24 +100,30 @@ When this workflow is triggered, Codex must:
    - visibility / minimize / restore lifecycle
    - API / runtime integration
    - configuration mismatch
-5. Prefer concrete file-backed reasoning over generic guesses.
-6. Distinguish carefully between:
+   - runtime bootstrap / sidecar failure
+   - local state corruption
+6. Prefer concrete file-backed reasoning over generic guesses.
+7. Distinguish carefully between:
    - user-visible symptom
    - likely cause category
    - direct code trigger
+   - log-confirmed runtime behavior
    - unverified hypothesis
-7. If the code strongly suggests multiple possible causes, say so explicitly and identify the leading one.
-8. Do not propose code fixes unless the QA request explicitly asks for a fix.
-9. End with a structured bug report output.
+8. If the code strongly suggests multiple possible causes, say so explicitly and identify the leading one.
+9. If logs are missing but materially affect confidence, state which logs should be checked next.
+10. Do not propose code fixes unless the QA request explicitly asks for a fix.
+11. End with a structured bug report output.
 
 ## 5. Standard Analysis Steps
 
 Codex should follow this sequence:
 
 1. Identify the user-visible symptom from the screenshot and QA text.
-2. Locate the related screen, component, or state card in the repository.
-3. Locate the state machine or async chain behind that screen.
-4. Determine whether the bug is:
+2. Check whether QA already provided runtime, bootstrap, sidecar, or request logs.
+3. Locate the related screen, component, or state card in the repository.
+4. Locate the state machine or async chain behind that screen.
+5. Cross-check the likely code path against the corresponding logs and failure timestamp.
+6. Determine whether the bug is:
    - false error state
    - stale loading state
    - masked content
@@ -120,14 +132,16 @@ Codex should follow this sequence:
    - blocked UI due to overlay / mask / transition gate
    - permanent failure
    - transient failure shown as terminal failure
-5. Estimate impact:
+   - runtime process failure surfaced as UI symptom
+   - startup/bootstrap failure surfaced as UI symptom
+7. Estimate impact:
    - cosmetic only
    - degraded workflow
    - current feature blocked
    - current page blocked
    - app-wide blocked
-6. Assign priority according to the rules in Section 6.
-7. Produce the final bug output according to Section 7.
+8. Assign priority according to the rules in Section 6.
+9. Produce the final bug output according to Section 7.
 
 ## 6. Priority Rules
 
@@ -269,6 +283,13 @@ Include:
 - key files
 - important state or condition checks
 - why the observed symptom can happen in the current implementation
+- relevant log evidence or missing log gaps
+
+If logs are involved, explain:
+
+- which log was checked
+- what timestamp / keyword / error matched the symptom
+- whether the logs confirm the code-path conclusion or leave it as a hypothesis
 
 Prefer file references when possible.
 
@@ -330,6 +351,15 @@ For this repository, prioritize these locations when the symptom appears in desk
 - `apps/desktop/src/app/lib/tauri-runtime-config.ts`
 - `apps/desktop/src-tauri/src/main.rs`
 
+When available, also check installation-package troubleshooting logs and local state clues described in [iClaw-安装版测试排查清单.md](C:\hexun\code\iClaw\docs\qa\iClaw-安装版测试排查清单.md), especially:
+
+- `desktop-bootstrap.log`
+- `sidecar-stdout.log`
+- `sidecar-stderr.log`
+- `C:\Users\<用户名>\.openclaw\gateway-token`
+- `C:\Users\<用户名>\.openclaw\apps\iclaw\workspace`
+- `C:\Users\<用户名>\.openclaw\apps\iclaw\state`
+
 Follow repository guardrails:
 
 - do not assume OpenClaw kernel is the first place to change
@@ -366,3 +396,4 @@ This workflow is working as intended when:
 - the bug title is directly usable in a tracking system
 - the bug description is formal enough for engineering handoff
 - the analysis references real repository files instead of generic assumptions
+- the analysis combines code path reasoning with logs when logs are available
