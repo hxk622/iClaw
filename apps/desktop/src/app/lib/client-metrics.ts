@@ -9,6 +9,8 @@ const MAX_QUEUE_ITEMS = 200;
 
 let cachedContextPromise: Promise<Record<string, unknown>> | null = null;
 let queue: ClientMetricQueueItem[] | null = null;
+const appBootStartedAtMs =
+  typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
 
 function readBrowserQueue(): ClientMetricQueueItem[] {
   if (typeof window === 'undefined') return [];
@@ -173,4 +175,46 @@ export async function trackClientCrash(
       file_key: input.fileKey || null,
     },
   });
+}
+
+export async function recordClientPerfSamples(
+  input: {
+    client: IClawClient;
+    accessToken?: string | null;
+    items: Array<{
+      metricName: 'cold_start_ms' | 'warm_start_ms' | 'page_load_ms' | 'api_latency_ms' | 'memory_mb' | 'cpu_percent';
+      metricTime?: string;
+      value: number;
+      unit: string;
+      sampleRate?: number | null;
+      payload?: Record<string, unknown>;
+    }>;
+  },
+): Promise<void> {
+  const context = await resolveClientMetricsContext();
+  if (!input.items.length) return;
+  await input.client.recordClientPerfSamples({
+    token: input.accessToken || null,
+    items: input.items.map((item) => ({
+      metric_name: item.metricName,
+      metric_time: item.metricTime || new Date().toISOString(),
+      device_id: context.device_id,
+      app_name: BRAND.brandId,
+      brand_id: context.brand_id || BRAND.brandId,
+      app_version: context.app_version || 'unknown',
+      release_channel: import.meta.env.DEV ? 'dev' : 'prod',
+      platform: context.platform,
+      os_version: context.platform_version || null,
+      arch: context.arch,
+      value: item.value,
+      unit: item.unit,
+      sample_rate: item.sampleRate ?? null,
+      payload_json: item.payload || {},
+    })),
+  });
+}
+
+export function getAppBootElapsedMs(): number {
+  const now = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
+  return Math.max(0, Math.round(now - appBootStartedAtMs));
 }

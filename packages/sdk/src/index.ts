@@ -150,6 +150,11 @@ interface RecordClientCrashEventInput {
   item: Record<string, unknown>;
 }
 
+interface RecordClientPerfSamplesInput {
+  token?: string | null;
+  items: Array<Record<string, unknown>>;
+}
+
 interface InstallSkillLibraryInput {
   token: string;
   slug: string;
@@ -271,6 +276,26 @@ export interface ClientCrashEventData {
   stack_summary: string | null;
   file_bucket: string | null;
   file_key: string | null;
+  created_at: string;
+}
+
+export interface ClientPerfSampleData {
+  id: string;
+  metric_name: 'cold_start_ms' | 'warm_start_ms' | 'page_load_ms' | 'api_latency_ms' | 'memory_mb' | 'cpu_percent';
+  metric_time: string;
+  user_id: string | null;
+  device_id: string;
+  app_name: string;
+  brand_id: string;
+  app_version: string;
+  release_channel: string | null;
+  platform: string;
+  os_version: string | null;
+  arch: string;
+  value: number;
+  unit: string;
+  sample_rate: number | null;
+  payload: Record<string, unknown>;
   created_at: string;
 }
 
@@ -1731,6 +1756,23 @@ export class IClawClient {
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as { data: ClientCrashEventData };
     return json.data;
+  }
+
+  async recordClientPerfSamples(input: RecordClientPerfSamplesInput): Promise<ClientPerfSampleData[]> {
+    const res = await this.fetchAuth('/portal/client-metrics/perf', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        ...(input.token?.trim() ? { Authorization: `Bearer ${input.token.trim()}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        items: input.items,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as { data: { items: ClientPerfSampleData[] } };
+    return Array.isArray(json.data?.items) ? json.data.items : [];
   }
 
   async listMarketStocksPage(options?: {

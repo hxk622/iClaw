@@ -3,6 +3,7 @@ import type {
   BrandDetailData,
   ClientCrashEventRecord,
   ClientMetricEventRecord,
+  ClientPerfSampleRecord,
   DesktopFaultReportDetailRecord,
   DesktopFaultReportSummaryRecord,
   OverviewData,
@@ -1093,6 +1094,44 @@ export async function loadClientCrashEvents(input: {
     stackSummary: stringValue(item.stack_summary || item.stackSummary),
     fileBucket: stringValue(item.file_bucket || item.fileBucket),
     fileKey: stringValue(item.file_key || item.fileKey),
+    createdAt: stringValue(item.created_at || item.createdAt),
+  }));
+}
+
+export async function loadClientPerfSamples(input: {
+  metricName?: string;
+  appVersion?: string;
+  platform?: string;
+  limit?: number;
+} = {}): Promise<ClientPerfSampleRecord[]> {
+  const params = new URLSearchParams();
+  if (input.metricName?.trim()) params.set('metric_name', input.metricName.trim());
+  if (input.appVersion?.trim()) params.set('app_version', input.appVersion.trim());
+  if (input.platform?.trim()) params.set('platform', input.platform.trim());
+  params.set('limit', String(input.limit && input.limit > 0 ? input.limit : 200));
+  const data = await apiFetch(`/admin/client-metrics/perf?${params.toString()}`, { method: 'GET' });
+  return toArray<Record<string, unknown>>(asObject(data).items).map((item) => ({
+    id: stringValue(item.id),
+    metricName: (stringValue(item.metric_name || item.metricName) || 'cold_start_ms') as ClientPerfSampleRecord['metricName'],
+    metricTime: stringValue(item.metric_time || item.metricTime),
+    userId: stringValue(item.user_id || item.userId),
+    deviceId: stringValue(item.device_id || item.deviceId),
+    appName: stringValue(item.app_name || item.appName),
+    brandId: stringValue(item.brand_id || item.brandId),
+    appVersion: stringValue(item.app_version || item.appVersion),
+    releaseChannel: stringValue(item.release_channel || item.releaseChannel),
+    platform: stringValue(item.platform),
+    osVersion: stringValue(item.os_version || item.osVersion),
+    arch: stringValue(item.arch),
+    value: numberValue(item.value),
+    unit: stringValue(item.unit),
+    sampleRate:
+      typeof item.sample_rate === 'number'
+        ? item.sample_rate
+        : typeof item.sampleRate === 'number'
+          ? item.sampleRate
+          : null,
+    payload: asObject(item.payload),
     createdAt: stringValue(item.created_at || item.createdAt),
   }));
 }

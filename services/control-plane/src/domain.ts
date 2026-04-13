@@ -23,6 +23,13 @@ export type DesktopFaultReportEntry = 'installer' | 'exception-dialog';
 export type DesktopFaultReportAccountState = 'anonymous' | 'authenticated';
 export type ClientMetricEventResult = 'success' | 'failed';
 export type ClientCrashType = 'native' | 'renderer' | 'sidecar';
+export type ClientPerfMetricName =
+  | 'cold_start_ms'
+  | 'warm_start_ms'
+  | 'page_load_ms'
+  | 'api_latency_ms'
+  | 'memory_mb'
+  | 'cpu_percent';
 
 export type DesktopActionNetworkDestination = {
   scheme: string;
@@ -613,6 +620,26 @@ export type ClientCrashEventRecord = {
   createdAt: string;
 };
 
+export type ClientPerfSampleRecord = {
+  id: string;
+  metricName: ClientPerfMetricName;
+  metricTime: string;
+  userId: string | null;
+  deviceId: string;
+  appName: string;
+  brandId: string;
+  appVersion: string;
+  releaseChannel: string | null;
+  platform: string;
+  osVersion: string | null;
+  arch: string;
+  value: number;
+  unit: string;
+  sampleRate: number | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type AdminDesktopActionPolicyRuleView = {
   id: string;
   scope: DesktopActionPolicyScope;
@@ -794,6 +821,26 @@ export type AdminClientCrashEventView = {
   created_at: string;
 };
 
+export type AdminClientPerfSampleView = {
+  id: string;
+  metric_name: ClientPerfMetricName;
+  metric_time: string;
+  user_id: string | null;
+  device_id: string;
+  app_name: string;
+  brand_id: string;
+  app_version: string;
+  release_channel: string | null;
+  platform: string;
+  os_version: string | null;
+  arch: string;
+  value: number;
+  unit: string;
+  sample_rate: number | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
 export type UpsertDesktopActionPolicyRuleInput = {
   id?: string | null;
   scope?: DesktopActionPolicyScope | null;
@@ -963,6 +1010,26 @@ export type CreateClientCrashEventInput = {
   stack_summary?: string | null;
   file_bucket?: string | null;
   file_key?: string | null;
+  created_at?: string | null;
+};
+
+export type CreateClientPerfSampleInput = {
+  id?: string | null;
+  metric_name?: ClientPerfMetricName | null;
+  metric_time?: string | null;
+  user_id?: string | null;
+  device_id?: string | null;
+  app_name?: string | null;
+  brand_id?: string | null;
+  app_version?: string | null;
+  release_channel?: string | null;
+  platform?: string | null;
+  os_version?: string | null;
+  arch?: string | null;
+  value?: number | null;
+  unit?: string | null;
+  sample_rate?: number | null;
+  payload_json?: Record<string, unknown> | null;
   created_at?: string | null;
 };
 

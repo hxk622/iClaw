@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatDateTime } from '../lib/adminFormat';
-import { loadClientCrashEvents, loadClientMetricEvents } from '../lib/adminApi';
-import type { ClientCrashEventRecord, ClientMetricEventRecord } from '../lib/adminTypes';
+import { loadClientCrashEvents, loadClientMetricEvents, loadClientPerfSamples } from '../lib/adminApi';
+import type { ClientCrashEventRecord, ClientMetricEventRecord, ClientPerfSampleRecord } from '../lib/adminTypes';
 import { adminFilterControlStyle, AdminFilterStack, AdminSearchRow, AdminSelectorRow } from './AdminFilterLayout';
 
 export function ClientMetricsPage() {
@@ -9,6 +9,7 @@ export function ClientMetricsPage() {
   const [appVersion, setAppVersion] = useState('');
   const [events, setEvents] = useState<ClientMetricEventRecord[]>([]);
   const [crashes, setCrashes] = useState<ClientCrashEventRecord[]>([]);
+  const [perfSamples, setPerfSamples] = useState<ClientPerfSampleRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,11 +20,13 @@ export function ClientMetricsPage() {
     Promise.all([
       loadClientMetricEvents({ platform, appVersion, limit: 500 }),
       loadClientCrashEvents({ platform, appVersion, limit: 200 }),
+      loadClientPerfSamples({ platform, appVersion, limit: 200 }),
     ])
-      .then(([nextEvents, nextCrashes]) => {
+      .then(([nextEvents, nextCrashes, nextPerf]) => {
         if (cancelled) return;
         setEvents(nextEvents);
         setCrashes(nextCrashes);
+        setPerfSamples(nextPerf);
       })
       .catch((loadError) => {
         if (!cancelled) {
@@ -46,6 +49,14 @@ export function ClientMetricsPage() {
   const installSuccessRate = installStarts > 0 ? `${Math.round((installSuccess / installStarts) * 100)}%` : '—';
   const launchSuccessRate = launchStarts > 0 ? `${Math.round((launchSuccess / launchStarts) * 100)}%` : '—';
   const crashRate = launchSuccess > 0 ? `${Math.round((crashes.length / launchSuccess) * 1000) / 10}%` : '—';
+  const coldStartSamples = perfSamples.filter((item) => item.metricName === 'cold_start_ms').map((item) => item.value);
+  const pageLoadSamples = perfSamples.filter((item) => item.metricName === 'page_load_ms').map((item) => item.value);
+  const coldStartP50 = coldStartSamples.length
+    ? `${Math.round([...coldStartSamples].sort((a, b) => a - b)[Math.floor(coldStartSamples.length * 0.5)])} ms`
+    : '—';
+  const pageLoadP50 = pageLoadSamples.length
+    ? `${Math.round([...pageLoadSamples].sort((a, b) => a - b)[Math.floor(pageLoadSamples.length * 0.5)])} ms`
+    : '—';
 
   const recentFailures = useMemo(
     () =>
@@ -97,6 +108,8 @@ export function ClientMetricsPage() {
             <div className="fig-meta-card"><span>启动成功率</span><strong>{launchSuccessRate}</strong></div>
             <div className="fig-meta-card"><span>Crash Rate</span><strong>{crashRate}</strong></div>
             <div className="fig-meta-card"><span>故障崩溃数</span><strong>{String(crashes.length)}</strong></div>
+            <div className="fig-meta-card"><span>冷启动 P50</span><strong>{coldStartP50}</strong></div>
+            <div className="fig-meta-card"><span>首屏加载 P50</span><strong>{pageLoadP50}</strong></div>
           </div>
         </section>
 
@@ -145,6 +158,28 @@ export function ClientMetricsPage() {
             </div>
           </section>
         </div>
+
+        <section className="fig-card fig-card--subtle" style={{ marginTop: 20 }}>
+          <div className="fig-card__head">
+            <h3>最近性能样本</h3>
+            <span>{String(perfSamples.length)} 条</span>
+          </div>
+          <div className="fig-list">
+            {perfSamples.length ? (
+              perfSamples.slice(0, 20).map((item) => (
+                <article key={item.id} className="fig-list-item">
+                  <div className="fig-list-item__body">
+                    <div className="fig-list-item__title">{`${item.metricName} = ${item.value} ${item.unit}`}</div>
+                    <div className="fig-list-item__meta">{`${formatDateTime(item.metricTime)} · ${item.platform} · ${item.appVersion}`}</div>
+                    <div className="fig-list-item__meta">{item.deviceId}</div>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="empty-state">暂无性能样本。</div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );

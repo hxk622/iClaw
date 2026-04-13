@@ -24,6 +24,7 @@ import type {
   CreateDesktopFaultReportInput,
   CreateClientMetricEventInput,
   CreateClientCrashEventInput,
+  CreateClientPerfSampleInput,
   CreatePaymentOrderInput,
   CreateUserInput,
   CreditAccountRecord,
@@ -35,6 +36,7 @@ import type {
   DesktopFaultReportRecord,
   ClientMetricEventRecord,
   ClientCrashEventRecord,
+  ClientPerfSampleRecord,
   ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
@@ -293,6 +295,19 @@ export interface ControlPlaneStore {
   createClientCrashEvent(
     input: Required<CreateClientCrashEventInput> & {id: string; created_at: string},
   ): Promise<ClientCrashEventRecord>;
+  listClientPerfSamples(input?: {
+    metricName?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    brandId?: string | null;
+    appVersion?: string | null;
+    platform?: string | null;
+    limit?: number | null;
+  }): Promise<ClientPerfSampleRecord[]>;
+  createClientPerfSamples(
+    input: Array<Required<CreateClientPerfSampleInput> & {id: string; created_at: string}>,
+  ): Promise<ClientPerfSampleRecord[]>;
   applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null>;
   getRunGrantById(grantId: string): Promise<RunGrantRecord | null>;
   getRunBillingSummary(grantId: string): Promise<RunBillingSummaryRecord | null>;
@@ -477,6 +492,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly desktopFaultReportsById = new Map<string, DesktopFaultReportRecord>();
   private readonly clientMetricEventsById = new Map<string, ClientMetricEventRecord>();
   private readonly clientCrashEventsById = new Map<string, ClientCrashEventRecord>();
+  private readonly clientPerfSamplesById = new Map<string, ClientPerfSampleRecord>();
   private readonly paymentOrdersById = new Map<string, PaymentOrderRecord>();
   private readonly rechargePaymentMethodConfigsByApp = new Map<string, Record<string, unknown>>();
   private readonly systemStateByKey = new Map<string, Record<string, unknown>>();
@@ -1693,6 +1709,58 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     };
     this.clientCrashEventsById.set(record.id, record);
     return record;
+  }
+
+  async listClientPerfSamples(input?: {
+    metricName?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    brandId?: string | null;
+    appVersion?: string | null;
+    platform?: string | null;
+    limit?: number | null;
+  }): Promise<ClientPerfSampleRecord[]> {
+    const items = Array.from(this.clientPerfSamplesById.values())
+      .filter((item) => (!input?.metricName ? true : item.metricName === input.metricName))
+      .filter((item) => (!input?.userId ? true : item.userId === input.userId))
+      .filter((item) => (!input?.deviceId ? true : item.deviceId === input.deviceId))
+      .filter((item) => (!input?.appName ? true : item.appName === input.appName))
+      .filter((item) => (!input?.brandId ? true : item.brandId === input.brandId))
+      .filter((item) => (!input?.appVersion ? true : item.appVersion === input.appVersion))
+      .filter((item) => (!input?.platform ? true : item.platform === input.platform))
+      .sort((left, right) => right.metricTime.localeCompare(left.metricTime));
+    const limit = input?.limit && input.limit > 0 ? input.limit : items.length;
+    return items.slice(0, limit);
+  }
+
+  async createClientPerfSamples(
+    input: Array<Required<CreateClientPerfSampleInput> & {id: string; created_at: string}>,
+  ): Promise<ClientPerfSampleRecord[]> {
+    const created: ClientPerfSampleRecord[] = input.map((item) => {
+      const record: ClientPerfSampleRecord = {
+        id: item.id,
+        metricName: item.metric_name || 'cold_start_ms',
+        metricTime: item.metric_time || item.created_at,
+        userId: item.user_id || null,
+        deviceId: item.device_id || '',
+        appName: item.app_name || '',
+        brandId: item.brand_id || '',
+        appVersion: item.app_version || '',
+        releaseChannel: item.release_channel || null,
+        platform: item.platform || '',
+        osVersion: item.os_version || null,
+        arch: item.arch || '',
+        value: typeof item.value === 'number' ? item.value : 0,
+        unit: item.unit || '',
+        sampleRate: typeof item.sample_rate === 'number' ? item.sample_rate : null,
+        payload: item.payload_json || {},
+        createdAt: item.created_at,
+      };
+      this.clientPerfSamplesById.set(record.id, record);
+      return record;
+    });
+    return created;
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {

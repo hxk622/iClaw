@@ -653,6 +653,32 @@ export type ClientCrashEventRecord = {
   createdAt: string;
 };
 
+export type ClientPerfSampleRecord = {
+  id: string;
+  metricName:
+    | 'cold_start_ms'
+    | 'warm_start_ms'
+    | 'page_load_ms'
+    | 'api_latency_ms'
+    | 'memory_mb'
+    | 'cpu_percent';
+  metricTime: string;
+  userId: string;
+  deviceId: string;
+  appName: string;
+  brandId: string;
+  appVersion: string;
+  releaseChannel: string;
+  platform: string;
+  osVersion: string;
+  arch: string;
+  value: number;
+  unit: string;
+  sampleRate: number | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type BrandDetailData = {
   brand: {
     brandId: string;

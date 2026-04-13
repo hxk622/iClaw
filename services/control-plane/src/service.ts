@@ -55,6 +55,7 @@ import type {
   CreateDesktopFaultReportInput,
   CreateClientMetricEventInput,
   CreateClientCrashEventInput,
+  CreateClientPerfSampleInput,
   DesktopActionAccessMode,
   DesktopActionApprovalGrantRecord,
   DesktopActionAuditDecision,
@@ -77,6 +78,9 @@ import type {
   ClientMetricEventResult,
   ClientCrashEventRecord,
   ClientCrashType,
+  ClientPerfMetricName,
+  ClientPerfSampleRecord,
+  AdminClientPerfSampleView,
   ExtensionInstallTarget,
   ExtensionSetupStatus,
   ImportUserPrivateSkillInput,
@@ -210,6 +214,14 @@ const DESKTOP_FAULT_REPORT_ENTRIES = new Set<DesktopFaultReportEntry>(['installe
 const DESKTOP_FAULT_REPORT_ACCOUNT_STATES = new Set<DesktopFaultReportAccountState>(['anonymous', 'authenticated']);
 const CLIENT_METRIC_EVENT_RESULTS = new Set<ClientMetricEventResult>(['success', 'failed']);
 const CLIENT_CRASH_TYPES = new Set<ClientCrashType>(['native', 'renderer', 'sidecar']);
+const CLIENT_PERF_METRIC_NAMES = new Set<ClientPerfMetricName>([
+  'cold_start_ms',
+  'warm_start_ms',
+  'page_load_ms',
+  'api_latency_ms',
+  'memory_mb',
+  'cpu_percent',
+]);
 
 function resolvePublicApiBaseUrl(): string {
   if (config.apiUrl.trim()) {
@@ -723,6 +735,28 @@ function toAdminClientCrashEventView(record: ClientCrashEventRecord): AdminClien
     stack_summary: record.stackSummary,
     file_bucket: record.fileBucket,
     file_key: record.fileKey,
+    created_at: record.createdAt,
+  };
+}
+
+function toAdminClientPerfSampleView(record: ClientPerfSampleRecord): AdminClientPerfSampleView {
+  return {
+    id: record.id,
+    metric_name: record.metricName,
+    metric_time: record.metricTime,
+    user_id: record.userId,
+    device_id: record.deviceId,
+    app_name: record.appName,
+    brand_id: record.brandId,
+    app_version: record.appVersion,
+    release_channel: record.releaseChannel,
+    platform: record.platform,
+    os_version: record.osVersion,
+    arch: record.arch,
+    value: record.value,
+    unit: record.unit,
+    sample_rate: record.sampleRate,
+    payload: record.payload,
     created_at: record.createdAt,
   };
 }
@@ -1246,6 +1280,19 @@ function normalizeClientCrashType(value: unknown, fallback?: ClientCrashType): C
   const resolved = (normalized || fallback || '') as ClientCrashType;
   if (!CLIENT_CRASH_TYPES.has(resolved)) {
     throw new HttpError(400, 'BAD_REQUEST', 'crash_type must be native, renderer, or sidecar');
+  }
+  return resolved;
+}
+
+function normalizeClientPerfMetricName(value: unknown, fallback?: ClientPerfMetricName): ClientPerfMetricName {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as ClientPerfMetricName;
+  if (!CLIENT_PERF_METRIC_NAMES.has(resolved)) {
+    throw new HttpError(
+      400,
+      'BAD_REQUEST',
+      'metric_name must be cold_start_ms, warm_start_ms, page_load_ms, api_latency_ms, memory_mb, or cpu_percent',
+    );
   }
   return resolved;
 }
@@ -3452,6 +3499,33 @@ export class ControlPlaneService {
     return { items: items.map(toAdminClientCrashEventView) };
   }
 
+  async listAdminClientPerfSamples(
+    accessToken: string,
+    input: {
+      metric_name?: string | null;
+      user_id?: string | null;
+      device_id?: string | null;
+      app_name?: string | null;
+      brand_id?: string | null;
+      app_version?: string | null;
+      platform?: string | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminClientPerfSampleView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listClientPerfSamples({
+      metricName: input.metric_name || null,
+      userId: input.user_id || null,
+      deviceId: input.device_id || null,
+      appName: input.app_name || null,
+      brandId: input.brand_id || null,
+      appVersion: input.app_version || null,
+      platform: input.platform || null,
+      limit: input.limit,
+    });
+    return { items: items.map(toAdminClientPerfSampleView) };
+  }
+
   async getRuntimeDesktopActionPolicySnapshot(
     accessToken: string,
     appNameInput: string,
@@ -3955,6 +4029,77 @@ export class ControlPlaneService {
         normalizeOptionalCatalogString(input.created_at, 'created_at', { allowNull: true, trimToNull: true }) ||
         new Date().toISOString(),
     });
+  }
+
+  async recordClientPerfSamples(
+    accessToken: string | null,
+    input: CreateClientPerfSampleInput | CreateClientPerfSampleInput[],
+  ): Promise<{items: ClientPerfSampleRecord[]}> {
+    const user = await this.getOptionalUserForAccessToken(accessToken);
+    const items = Array.isArray(input) ? input : [input];
+    if (items.length === 0) {
+      return { items: [] };
+    }
+    const records = await this.store.createClientPerfSamples(
+      items.map((item) => {
+        const metricName = normalizeClientPerfMetricName(item.metric_name, 'cold_start_ms');
+        const metricTime = String(item.metric_time || '').trim() || new Date().toISOString();
+        const deviceId = String(item.device_id || '').trim();
+        const appName = String(item.app_name || '').trim().toLowerCase();
+        const brandId = String(item.brand_id || '').trim().toLowerCase();
+        const appVersion = String(item.app_version || '').trim();
+        const platform = String(item.platform || '').trim().toLowerCase();
+        const arch = String(item.arch || '').trim().toLowerCase();
+        if (!deviceId || !appName || !brandId || !appVersion || !platform || !arch) {
+          throw new HttpError(
+            400,
+            'BAD_REQUEST',
+            'device_id, app_name, brand_id, app_version, platform, arch are required',
+          );
+        }
+        if (Number.isNaN(Date.parse(metricTime))) {
+          throw new HttpError(400, 'BAD_REQUEST', 'metric_time must be a valid ISO timestamp');
+        }
+        if (typeof item.value !== 'number' || !Number.isFinite(item.value)) {
+          throw new HttpError(400, 'BAD_REQUEST', 'value must be a finite number');
+        }
+        const unit = String(item.unit || '').trim();
+        if (!unit) {
+          throw new HttpError(400, 'BAD_REQUEST', 'unit is required');
+        }
+        return {
+          id: normalizeOptionalCatalogString(item.id, 'id', { allowNull: true, trimToNull: true }) || randomUUID(),
+          metric_name: metricName,
+          metric_time: metricTime,
+          user_id: user?.id || null,
+          device_id: deviceId,
+          app_name: appName,
+          brand_id: brandId,
+          app_version: appVersion,
+          release_channel:
+            normalizeOptionalCatalogString(item.release_channel, 'release_channel', {
+              allowNull: true,
+              trimToNull: true,
+            }) ?? null,
+          platform,
+          os_version:
+            normalizeOptionalCatalogString(item.os_version, 'os_version', { allowNull: true, trimToNull: true }) ?? null,
+          arch,
+          value: item.value,
+          unit,
+          sample_rate:
+            typeof item.sample_rate === 'number' && Number.isFinite(item.sample_rate) ? item.sample_rate : null,
+          payload_json:
+            item.payload_json && typeof item.payload_json === 'object' && !Array.isArray(item.payload_json)
+              ? item.payload_json
+              : {},
+          created_at:
+            normalizeOptionalCatalogString(item.created_at, 'created_at', { allowNull: true, trimToNull: true }) ||
+            new Date().toISOString(),
+        };
+      }),
+    );
+    return { items: records };
   }
 
   async getWorkspaceBackup(accessToken: string): Promise<WorkspaceBackupView | null> {

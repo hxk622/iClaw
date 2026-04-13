@@ -24,6 +24,7 @@ import type {
   CreateDesktopFaultReportInput,
   CreateClientMetricEventInput,
   CreateClientCrashEventInput,
+  CreateClientPerfSampleInput,
   ChangePasswordInput,
   CreatePaymentOrderInput,
   ImportUserPrivateSkillInput,
@@ -1501,6 +1502,21 @@ const server = createJsonServer([
       }),
   },
   {
+    method: 'GET',
+    path: '/admin/client-metrics/perf',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminClientPerfSamples(requireBearerToken(headers), {
+        metric_name: (url.searchParams.get('metric_name') || url.searchParams.get('metricName') || '').trim() || null,
+        user_id: (url.searchParams.get('user_id') || url.searchParams.get('userId') || '').trim() || null,
+        device_id: (url.searchParams.get('device_id') || url.searchParams.get('deviceId') || '').trim() || null,
+        app_name: (url.searchParams.get('app_name') || url.searchParams.get('appName') || '').trim() || null,
+        brand_id: (url.searchParams.get('brand_id') || url.searchParams.get('brandId') || '').trim() || null,
+        app_version: (url.searchParams.get('app_version') || url.searchParams.get('appVersion') || '').trim() || null,
+        platform: (url.searchParams.get('platform') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
     method: 'PUT',
     path: '/admin/payments/gateway-config',
     handler: ({headers, body}: HandlerContext) =>
@@ -2065,6 +2081,16 @@ const server = createJsonServer([
     path: '/portal/client-metrics/crash',
     handler: ({headers, body}: HandlerContext) =>
       service.recordClientCrashEvent(readBearerToken(headers), (body || {}) as CreateClientCrashEventInput),
+  },
+  {
+    method: 'POST',
+    path: '/portal/client-metrics/perf',
+    handler: ({headers, body}: HandlerContext) =>
+      service.recordClientPerfSamples(
+        readBearerToken(headers),
+        ((body || {}) as { items?: CreateClientPerfSampleInput[] }).items ||
+          ((body || {}) as CreateClientPerfSampleInput | CreateClientPerfSampleInput[]),
+      ),
   },
   {
     method: 'GET',

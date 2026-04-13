@@ -562,6 +562,57 @@ test('client metrics events and crash ingestion support anonymous and authentica
   assert.equal(storedCrashes.length, 1);
 });
 
+test('client performance samples support anonymous and authenticated ingestion', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneService(store);
+  const user = await service.register({
+    username: 'perf-user',
+    email: 'perf-user@example.com',
+    password: 'password123',
+    name: 'Perf User',
+  });
+
+  const anonymousPerf = await service.recordClientPerfSamples(null, [
+    {
+      metric_name: 'cold_start_ms',
+      metric_time: '2026-04-12T08:10:00.000Z',
+      device_id: 'device-perf-001',
+      app_name: 'iclaw',
+      brand_id: 'iclaw',
+      app_version: '1.0.5',
+      platform: 'windows',
+      arch: 'x64',
+      value: 1820,
+      unit: 'ms',
+      sample_rate: 1,
+      payload_json: { launch_type: 'cold' },
+    },
+  ]);
+  assert.equal(anonymousPerf.items.length, 1);
+  assert.equal(anonymousPerf.items[0]?.userId, null);
+
+  const authedPerf = await service.recordClientPerfSamples(user.tokens.access_token, {
+    metric_name: 'page_load_ms',
+    metric_time: '2026-04-12T08:10:02.000Z',
+    device_id: 'device-perf-001',
+    app_name: 'iclaw',
+    brand_id: 'iclaw',
+    app_version: '1.0.5',
+    platform: 'windows',
+    arch: 'x64',
+    value: 950,
+    unit: 'ms',
+    sample_rate: 1,
+    payload_json: { page: 'app_bootstrap' },
+  });
+  assert.equal(authedPerf.items.length, 1);
+  assert.equal(authedPerf.items[0]?.userId, user.user.id);
+
+  const storedPerf = await store.listClientPerfSamples({ deviceId: 'device-perf-001' });
+  assert.equal(storedPerf.length, 2);
+  assert.equal(storedPerf[0]?.metricName, 'page_load_ms');
+});
+
 test('desktop action policy invariants reject unsafe shell whitelist and elevated reusable grants', async () => {
   await withBootstrapRoles({adminEmails: ['security-admin@example.com']}, async () => {
     const store = new InMemoryControlPlaneStore();

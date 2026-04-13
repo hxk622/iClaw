@@ -23,6 +23,7 @@ import type {
   CreateDesktopFaultReportInput,
   CreateClientMetricEventInput,
   CreateClientCrashEventInput,
+  CreateClientPerfSampleInput,
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
@@ -38,6 +39,7 @@ import type {
   DesktopFaultReportRecord,
   ClientMetricEventRecord,
   ClientCrashEventRecord,
+  ClientPerfSampleRecord,
   ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
@@ -736,6 +738,26 @@ type ClientCrashEventRow = {
   created_at: Date;
 };
 
+type ClientPerfSampleRow = {
+  id: string;
+  metric_name: 'cold_start_ms' | 'warm_start_ms' | 'page_load_ms' | 'api_latency_ms' | 'memory_mb' | 'cpu_percent';
+  metric_time: Date;
+  user_id: string | null;
+  device_id: string;
+  app_name: string;
+  brand_id: string;
+  app_version: string;
+  release_channel: string | null;
+  platform: string;
+  os_version: string | null;
+  arch: string;
+  value: string | number;
+  unit: string;
+  sample_rate: string | number | null;
+  payload_json: Record<string, unknown> | null;
+  created_at: Date;
+};
+
 function mapUserRow(row: UserRow): UserRecord {
   return {
     id: row.id,
@@ -1141,6 +1163,28 @@ function mapClientCrashEventRow(row: ClientCrashEventRow): ClientCrashEventRecor
     stackSummary: row.stack_summary,
     fileBucket: row.file_bucket,
     fileKey: row.file_key,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapClientPerfSampleRow(row: ClientPerfSampleRow): ClientPerfSampleRecord {
+  return {
+    id: row.id,
+    metricName: row.metric_name,
+    metricTime: row.metric_time.toISOString(),
+    userId: row.user_id,
+    deviceId: row.device_id,
+    appName: row.app_name,
+    brandId: row.brand_id,
+    appVersion: row.app_version,
+    releaseChannel: row.release_channel,
+    platform: row.platform,
+    osVersion: row.os_version,
+    arch: row.arch,
+    value: Number(row.value || 0),
+    unit: row.unit,
+    sampleRate: row.sample_rate == null ? null : Number(row.sample_rate),
+    payload: row.payload_json || {},
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -4010,6 +4054,107 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       ],
     );
     return mapClientCrashEventRow(result.rows[0]);
+  }
+
+  async listClientPerfSamples(input?: {
+    metricName?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    brandId?: string | null;
+    appVersion?: string | null;
+    platform?: string | null;
+    limit?: number | null;
+  }): Promise<ClientPerfSampleRecord[]> {
+    const values: unknown[] = [];
+    const where: string[] = [];
+    if (input?.metricName) {
+      values.push(input.metricName);
+      where.push(`metric_name = $${values.length}`);
+    }
+    if (input?.userId) {
+      values.push(input.userId);
+      where.push(`user_id = $${values.length}`);
+    }
+    if (input?.deviceId) {
+      values.push(input.deviceId);
+      where.push(`device_id = $${values.length}`);
+    }
+    if (input?.appName) {
+      values.push(input.appName);
+      where.push(`app_name = $${values.length}`);
+    }
+    if (input?.brandId) {
+      values.push(input.brandId);
+      where.push(`brand_id = $${values.length}`);
+    }
+    if (input?.appVersion) {
+      values.push(input.appVersion);
+      where.push(`app_version = $${values.length}`);
+    }
+    if (input?.platform) {
+      values.push(input.platform);
+      where.push(`platform = $${values.length}`);
+    }
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    values.push(limit);
+    const result = await this.pool.query<ClientPerfSampleRow>(
+      `
+        select
+          id, metric_name, metric_time, user_id, device_id, app_name, brand_id, app_version,
+          release_channel, platform, os_version, arch, value, unit, sample_rate, payload_json, created_at
+        from client_perf_samples
+        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+        order by metric_time desc, created_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapClientPerfSampleRow);
+  }
+
+  async createClientPerfSamples(
+    input: Array<Required<CreateClientPerfSampleInput> & {id: string; created_at: string}>,
+  ): Promise<ClientPerfSampleRecord[]> {
+    const created: ClientPerfSampleRecord[] = [];
+    for (const item of input) {
+      const result = await this.pool.query<ClientPerfSampleRow>(
+        `
+          insert into client_perf_samples (
+            id, metric_name, metric_time, user_id, device_id, app_name, brand_id, app_version,
+            release_channel, platform, os_version, arch, value, unit, sample_rate, payload_json, created_at
+          )
+          values (
+            $1, $2, $3, $4::uuid, $5, $6, $7, $8,
+            $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17
+          )
+          returning
+            id, metric_name, metric_time, user_id, device_id, app_name, brand_id, app_version,
+            release_channel, platform, os_version, arch, value, unit, sample_rate, payload_json, created_at
+        `,
+        [
+          item.id,
+          item.metric_name,
+          item.metric_time,
+          item.user_id || null,
+          item.device_id,
+          item.app_name,
+          item.brand_id,
+          item.app_version,
+          item.release_channel || null,
+          item.platform,
+          item.os_version || null,
+          item.arch,
+          item.value,
+          item.unit,
+          item.sample_rate ?? null,
+          JSON.stringify(item.payload_json || {}),
+          item.created_at,
+        ],
+      );
+      created.push(mapClientPerfSampleRow(result.rows[0]));
+    }
+    return created;
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {

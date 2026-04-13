@@ -13,7 +13,13 @@ import {
 import { IClawClient, type CreditBalanceData, type DesktopUpdateHint, type MarketStockData } from '@iclaw/sdk';
 import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
-import { flushClientMetricQueue, trackClientCrash, trackClientMetricEvent } from './lib/client-metrics';
+import {
+  flushClientMetricQueue,
+  getAppBootElapsedMs,
+  recordClientPerfSamples,
+  trackClientCrash,
+  trackClientMetricEvent,
+} from './lib/client-metrics';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
 import {
   detectPortConflicts,
@@ -1012,6 +1018,7 @@ export default function App() {
   const [globalException, setGlobalException] = useState<GlobalExceptionState | null>(null);
   const launchStartTrackedRef = useRef(false);
   const launchSuccessTrackedRef = useRef(false);
+  const initialPagePerfTrackedRef = useRef(false);
   const installStartTrackedRef = useRef(false);
   const lastInstallFailureSignatureRef = useRef('');
   const lastLaunchFailureSignatureRef = useRef('');
@@ -1590,7 +1597,44 @@ export default function App() {
       result: 'success',
       payload: { launch_type: 'cold' },
     });
-  }, [IS_TAURI_RUNTIME, healthy, recordMetric]);
+    void recordClientPerfSamples({
+      client,
+      accessToken,
+      items: [
+        {
+          metricName: 'cold_start_ms',
+          value: getAppBootElapsedMs(),
+          unit: 'ms',
+          sampleRate: 1,
+          payload: {
+            launch_type: 'cold',
+          },
+        },
+      ],
+    }).catch(() => undefined);
+  }, [IS_TAURI_RUNTIME, accessToken, client, healthy, recordMetric]);
+
+  useEffect(() => {
+    if (!authBootstrapReady || initialPagePerfTrackedRef.current) {
+      return;
+    }
+    initialPagePerfTrackedRef.current = true;
+    void recordClientPerfSamples({
+      client,
+      accessToken,
+      items: [
+        {
+          metricName: 'page_load_ms',
+          value: getAppBootElapsedMs(),
+          unit: 'ms',
+          sampleRate: 1,
+          payload: {
+            page: 'app_bootstrap',
+          },
+        },
+      ],
+    }).catch(() => undefined);
+  }, [accessToken, authBootstrapReady, client]);
 
   useEffect(() => {
     if (installerView.state !== 'error') {
