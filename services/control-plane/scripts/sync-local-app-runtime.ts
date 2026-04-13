@@ -36,6 +36,10 @@ function isTruthy(value: unknown): boolean {
   return /^(1|true|yes)$/i.test(String(value || '').trim());
 }
 
+function toSortedUniqueStrings(values: string[]): string[] {
+  return [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean))].sort();
+}
+
 function asObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
@@ -458,6 +462,7 @@ async function main() {
   );
   const skipRuntimeSkillSync = /^(1|true|yes)$/i.test(String(process.env.ICLAW_SKIP_RUNTIME_SKILL_SYNC || '').trim());
   const bundledOnly = hasFlag('--bundled-only') || isTruthy(process.env.ICLAW_BUNDLED_SKILLS_ONLY);
+  const failOnSkippedSkills = isTruthy(process.env.ICLAW_FAIL_ON_SKIPPED_SKILLS);
   const incrementalSkillSync = hasFlag('--no-incremental')
     ? false
     : hasFlag('--incremental') || !/^(0|false|no)$/i.test(String(process.env.ICLAW_INCREMENTAL_SKILL_SYNC || '1').trim());
@@ -770,6 +775,15 @@ async function main() {
         `${JSON.stringify(skillsManifest, null, 2)}\n`,
         'utf8',
       );
+      if (failOnSkippedSkills && skippedSkills.length > 0) {
+        throw new Error(
+          [
+            `bundled skill sync incomplete for ${appName}`,
+            `skipped skills (${skippedSkills.length}): ${toSortedUniqueStrings(skippedSkills).join(', ')}`,
+            'Thick-package builds require all bound bundled skills to resolve to valid artifacts.',
+          ].join('\n'),
+        );
+      }
       if (packagedSkillBaselineDir) {
         await rm(packagedSkillBaselineDir, {recursive: true, force: true});
         await mkdir(dirname(packagedSkillBaselineDir), {recursive: true});

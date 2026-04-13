@@ -18,6 +18,7 @@
     "upload:cloud-skill-artifacts": "node --experimental-strip-types scripts/upload-cloud-skill-artifacts.ts",
     "publish:external-cloud-skill": "node --experimental-strip-types scripts/publish-external-cloud-skill.ts",
     "publish:github-cloud-skill": "node --experimental-strip-types scripts/publish-github-cloud-skill.ts",
+    "publish:local-cloud-skill": "node --experimental-strip-types scripts/publish-local-cloud-skill.ts",
     "upsert:agent-catalog-entry": "node --experimental-strip-types scripts/upsert-agent-catalog-entry.ts",
     "migrate:skill-catalog-table": "node --experimental-strip-types scripts/migrate-skill-catalog-table.ts",
     "migrate:canonical-session-keys": "node --experimental-strip-types scripts/migrate-canonical-session-keys.ts",

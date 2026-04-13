@@ -617,6 +617,7 @@ async function syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths })
   ];
   const syncEnv = {
     ...env,
+    ICLAW_FAIL_ON_SKIPPED_SKILLS: '1',
     ICLAW_SKIP_RUNTIME_SKILL_SYNC: '0',
     ICLAW_BUNDLED_SKILLS_ONLY: '1',
     ICLAW_INCREMENTAL_SKILL_SYNC: '1',
@@ -1892,9 +1893,7 @@ async function main() {
 
     run(process.execPath, [applyBrandScriptPath, brandId], { env });
     await preparePackagingResourcesSource(packagingPaths.resourcesSourceDir);
-    if (!fastPackageMode) {
-      syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths });
-    }
+    syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths });
     await syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths });
     restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env, brandProfile, channel, runtimeTargetTriple);
     await prepareBundledRuntime({
