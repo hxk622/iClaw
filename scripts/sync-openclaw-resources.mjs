@@ -11,6 +11,7 @@ const defaultResourcesSrcDir = path.join(rootDir, 'services', 'openclaw', 'resou
 const resourcesSrcDir = path.resolve(trimString(process.env.ICLAW_OPENCLAW_RESOURCES_SOURCE_DIR) || defaultResourcesSrcDir);
 const serversSrcDir = path.join(rootDir, 'servers');
 const resourcesDstDir = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'resources');
+const runtimeBundleMode = trimString(process.env.ICLAW_RUNTIME_BUNDLE_MODE).toLowerCase();
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -20,6 +21,12 @@ async function syncMcpConfig() {
   const sourcePath = path.join(resourcesSrcDir, 'mcp', 'mcp.json');
   const outputPath = path.join(resourcesDstDir, 'mcp', 'mcp.json');
   await syncFileOrRemove(sourcePath, outputPath);
+}
+
+async function syncRuntimeArchives() {
+  const sourcePath = path.join(resourcesSrcDir, 'runtime-archives');
+  const outputPath = path.join(resourcesDstDir, 'runtime-archives');
+  await syncDirOrRemove(sourcePath, outputPath);
 }
 
 async function removeBrokenPythonSitePackagesSymlink() {
@@ -57,16 +64,21 @@ async function main() {
     fs.mkdir(path.join(resourcesDstDir, 'config'), { recursive: true }),
     fs.mkdir(path.join(resourcesDstDir, 'certs'), { recursive: true }),
     fs.mkdir(path.join(resourcesDstDir, 'servers'), { recursive: true }),
-    fs.mkdir(path.join(resourcesDstDir, 'openclaw-runtime'), { recursive: true }),
+    fs.mkdir(path.join(resourcesDstDir, 'runtime-archives'), { recursive: true }),
   ]);
 
   await fs.rm(path.join(resourcesDstDir, 'skills'), { recursive: true, force: true });
+  if (runtimeBundleMode === 'archive') {
+    await fs.rm(path.join(resourcesDstDir, 'openclaw-runtime'), { recursive: true, force: true });
+  }
   await Promise.all([
     syncDirOrRemove(serversSrcDir, path.join(resourcesDstDir, 'servers')),
     syncDirOrRemove(path.join(resourcesSrcDir, 'certs'), path.join(resourcesDstDir, 'certs')),
     syncDirOrRemove(path.join(resourcesSrcDir, 'baseline'), path.join(resourcesDstDir, 'baseline')),
     syncDirOrRemove(path.join(resourcesSrcDir, 'bundled-skills'), path.join(resourcesDstDir, 'bundled-skills')),
-    syncDirOrRemove(path.join(resourcesSrcDir, 'openclaw-runtime'), path.join(resourcesDstDir, 'openclaw-runtime')),
+    runtimeBundleMode === 'archive'
+      ? syncRuntimeArchives()
+      : syncDirOrRemove(path.join(resourcesSrcDir, 'openclaw-runtime'), path.join(resourcesDstDir, 'openclaw-runtime')),
     syncFileOrRemove(
       path.join(resourcesSrcDir, 'config', 'runtime-config.json'),
       path.join(resourcesDstDir, 'config', 'runtime-config.json'),
@@ -77,7 +89,9 @@ async function main() {
     ),
     syncMcpConfig(),
   ]);
-  await removeBrokenPythonSitePackagesSymlink();
+  if (runtimeBundleMode !== 'archive') {
+    await removeBrokenPythonSitePackagesSymlink();
+  }
 
   process.stdout.write(`Synced OpenClaw resources from ${resourcesSrcDir} to ${resourcesDstDir}\n`);
 }

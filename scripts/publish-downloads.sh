@@ -27,14 +27,14 @@ fi
 
 require_mc_alias() {
   local alias_name="$1"
-  if ! mc alias ls | grep -q "^${alias_name}[[:space:]]"; then
+  if ! mc alias ls | awk 'NF { print $1 }' | grep -Fxq "$alias_name"; then
     echo "Missing mc alias: ${alias_name}" >&2
     echo "Configure a valid MinIO/S3 alias first, or override with ICLAW_MINIO_*_ALIAS." >&2
     exit 1
   fi
 }
 
-node "$ROOT_DIR/scripts/export-desktop-release-manifests.mjs" --channel "$ENV_NAME"
+node "$ROOT_DIR/scripts/generate-desktop-release-manifests.mjs" --channel "$ENV_NAME"
 
 local_prune() {
   local channel="$1"

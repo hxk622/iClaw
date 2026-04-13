@@ -39,9 +39,10 @@ bash scripts/build-desktop-matrix.sh
 
 - `releaseVersion` 固定为：`<baseVersion>.<datetime>`
 - mac installer：`<artifactBaseName>_<releaseVersion>_<arch>_<channel>.dmg`
-- mac updater：`<artifactBaseName>_<releaseVersion>_<arch>_<channel>.app.tar.gz`
 - Windows installer：`<artifactBaseName>_<releaseVersion>_<arch>_<channel>.exe`
-- Windows updater：`<artifactBaseName>_<releaseVersion>_<arch>_<channel>.nsis.zip`
+- 如显式开启 native updater：
+  - mac updater：`<artifactBaseName>_<releaseVersion>_<arch>_<channel>.app.tar.gz`
+  - Windows updater：`<artifactBaseName>_<releaseVersion>_<arch>_<channel>.nsis.zip`
 
 例子：
 
@@ -90,7 +91,9 @@ bash scripts/build-desktop-matrix.sh
 注意：
 
 - `scripts/build-desktop-matrix.sh` 会在每轮构建前调用 `scripts/env.sh`，因此它会切换仓库根目录 `.env`
-- updater 压缩包是否生成，取决于对应平台的签名/更新配置是否已准备好
+- 厚包为默认路径：安装包内直接携带 runtime archive，首次启动优先从安装包内解压到本地缓存
+- native updater 默认关闭，不再作为正式发版主链路
+- 只有显式传入 `ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER=1` 时，脚本才会保留 updater 压缩包
 
 ## 下载站部署
 
@@ -141,15 +144,18 @@ bash scripts/publish-downloads.sh prod
 发布完成后，`dist/releases/` 至少应包含：
 
 - `*_aarch64_prod.dmg`
-- `*_aarch64_prod.app.tar.gz`
-- `*_aarch64_prod.app.tar.gz.sig`
 - `latest-prod-mac-aarch64.json`
 - `latest-prod.json`
+
+只有显式开启 native updater 时，才额外要求：
+
+- `*_aarch64_prod.app.tar.gz`
+- `*_aarch64_prod.app.tar.gz.sig`
 
 说明：
 
 - 在当前规范下，macOS `prod` 发布应显式限制为 `aarch64-apple-darwin`
-- `scripts/publish-downloads.sh prod` 会上传 installer、updater 和 manifest，并按保留策略清理旧版本
+- `scripts/publish-downloads.sh prod` 默认上传 installer 和 manifest；若本次显式生成了 updater 产物，也会一并上传
 - prod 构建必须通过签名校验；macOS 公证失败时不会产出可公开发布的 prod 包
 - 如果 `home-web` 需要展示下载链接，发布时应显式传入本次对外版本，例如 `ICLAW_HOME_PUBLIC_RELEASE_VERSION=<releaseVersion>`，避免页面继续显示旧时间戳
 

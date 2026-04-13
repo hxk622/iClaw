@@ -12,9 +12,9 @@
 - [x] 本地全量构建通过
 - [ ] macOS 产物包含：`.dmg`
 - [ ] Windows 产物包含：`.exe`
-- [ ] updater 产物包含：
+- [ ] 若本次显式开启 native updater，则 updater 产物完整：
   - macOS：`.app.tar.gz` + `.sig`
-  - Windows：`.nsis.zip` + `.sig` 可选，不作为强更发布阻断项
+  - Windows：`.nsis.zip` + `.sig`
 
 ## 2. 安装与启动
 
@@ -97,6 +97,10 @@ Windows 补充要求：
 - 脚本会根据宿主平台自动选择 target：
   - macOS：当前正式发版默认只使用 `aarch64-apple-darwin`
   - Windows：`x86_64-pc-windows-msvc`、`aarch64-pc-windows-msvc`
+- 桌面正式发版默认是 installer-only：
+  - 默认只产出 `.dmg` / `.exe`
+  - 不默认生成 `.app.tar.gz` / `.nsis.zip` / `.sig`
+  - 只有显式传入 `ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER=1` 时，才允许生成 native updater 产物
 - 如只打单个 target，可加：
   - `ICLAW_DESKTOP_TARGETS=x86_64-pc-windows-msvc bash scripts/build-desktop-matrix.sh`
 - 构建后的规范化产物统一写到：

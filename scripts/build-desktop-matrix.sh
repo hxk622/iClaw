@@ -135,6 +135,17 @@ find_first_matching_file() {
   return 1
 }
 
+native_updater_enabled() {
+  case "${ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER:-}" in
+    1|true|TRUE|yes|YES)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 build_one() {
   local target="$1"
   local channel="$2"
@@ -189,9 +200,20 @@ build_one() {
     local installer_dir="$bundle_dir/dmg"
     local installer_path
     if [[ "$channel" == "dev" || "$channel" == "prod" ]]; then
-      installer_path="$installer_dir/${current_artifact_base_name}_${APP_VERSION}_${arch_label}_${channel}.dmg"
+      installer_path="$(
+        find_first_matching_file \
+          "$installer_dir" \
+          "${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}_${channel}.dmg" \
+          "${current_artifact_base_name}_${APP_VERSION}_${arch_label}_${channel}.dmg" \
+          "${current_artifact_base_name}_${PUBLIC_APP_VERSION}.*_${arch_label}_${channel}.dmg"
+      )" || true
     else
-      installer_path="$installer_dir/${current_artifact_base_name}_${APP_VERSION}_${arch_label}.dmg"
+      installer_path="$(
+        find_first_matching_file \
+          "$installer_dir" \
+          "${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}.dmg" \
+          "${current_artifact_base_name}_${APP_VERSION}_${arch_label}.dmg"
+      )" || true
     fi
     if [[ ! -f "$installer_path" ]]; then
       echo "Expected DMG not found under: $installer_dir (artifactBaseName=$current_artifact_base_name appVersion=$APP_VERSION arch=$arch_label)" >&2
@@ -202,16 +224,18 @@ build_one() {
     cp "$installer_path" "$installer_out"
     echo "saved: $installer_out"
 
-    local updater_dir="$bundle_dir/macos"
-    local updater_archive="$updater_dir/${current_product_name}.app.tar.gz"
-    local updater_signature="${updater_archive}.sig"
-    if [[ -f "$updater_archive" && -f "$updater_signature" ]]; then
-      local updater_out="$OUT_DIR/${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}_${channel}.app.tar.gz"
-      local updater_sig_out="${updater_out}.sig"
-      cp "$updater_archive" "$updater_out"
-      cp "$updater_signature" "$updater_sig_out"
-      echo "saved: $updater_out"
-      echo "saved: $updater_sig_out"
+    if native_updater_enabled; then
+      local updater_dir="$bundle_dir/macos"
+      local updater_archive="$updater_dir/${current_product_name}.app.tar.gz"
+      local updater_signature="${updater_archive}.sig"
+      if [[ -f "$updater_archive" && -f "$updater_signature" ]]; then
+        local updater_out="$OUT_DIR/${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}_${channel}.app.tar.gz"
+        local updater_sig_out="${updater_out}.sig"
+        cp "$updater_archive" "$updater_out"
+        cp "$updater_signature" "$updater_sig_out"
+        echo "saved: $updater_out"
+        echo "saved: $updater_sig_out"
+      fi
     fi
     return
   fi
@@ -238,28 +262,30 @@ build_one() {
     cp "$installer_path" "$installer_out"
     echo "saved: $installer_out"
 
-    local updater_archive
-    if [[ "$arch_label" == "aarch64" ]]; then
-      updater_archive="$(
-        find_first_matching_file \
-          "$installer_dir" \
-          "*${APP_VERSION}*aarch64*.nsis.zip" \
-          "*${APP_VERSION}*arm64*.nsis.zip"
-      )" || true
-    else
-      updater_archive="$(find_first_matching_file "$installer_dir" "*${APP_VERSION}*x64*.nsis.zip")" || true
-    fi
-    local updater_signature=""
-    if [[ -n "$updater_archive" ]]; then
-      updater_signature="${updater_archive}.sig"
-    fi
-    if [[ -n "$updater_archive" && -f "$updater_signature" ]]; then
-      local updater_out="$OUT_DIR/${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}_${channel}.nsis.zip"
-      local updater_sig_out="${updater_out}.sig"
-      cp "$updater_archive" "$updater_out"
-      cp "$updater_signature" "$updater_sig_out"
-      echo "saved: $updater_out"
-      echo "saved: $updater_sig_out"
+    if native_updater_enabled; then
+      local updater_archive
+      if [[ "$arch_label" == "aarch64" ]]; then
+        updater_archive="$(
+          find_first_matching_file \
+            "$installer_dir" \
+            "*${APP_VERSION}*aarch64*.nsis.zip" \
+            "*${APP_VERSION}*arm64*.nsis.zip"
+        )" || true
+      else
+        updater_archive="$(find_first_matching_file "$installer_dir" "*${APP_VERSION}*x64*.nsis.zip")" || true
+      fi
+      local updater_signature=""
+      if [[ -n "$updater_archive" ]]; then
+        updater_signature="${updater_archive}.sig"
+      fi
+      if [[ -n "$updater_archive" && -f "$updater_signature" ]]; then
+        local updater_out="$OUT_DIR/${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}_${channel}.nsis.zip"
+        local updater_sig_out="${updater_out}.sig"
+        cp "$updater_archive" "$updater_out"
+        cp "$updater_signature" "$updater_sig_out"
+        echo "saved: $updater_out"
+        echo "saved: $updater_sig_out"
+      fi
     fi
     return
   fi

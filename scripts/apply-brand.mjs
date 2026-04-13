@@ -254,6 +254,10 @@ function resolveHomeReleaseVersion(appVersion) {
   return typeof appVersion === 'string' ? appVersion.replace(/\+/g, '.') : '0.0.0';
 }
 
+function isTruthyEnv(value) {
+  return /^(1|true|yes)$/i.test(String(value || '').trim());
+}
+
 function buildHomeBrandJs(brand, appVersion, assetPaths) {
   return `export const HOME_BRAND = ${JSON.stringify(
     {
@@ -428,7 +432,10 @@ async function main() {
   tauriConfig.bundle = tauriConfig.bundle || {};
   tauriConfig.bundle.windows = tauriConfig.bundle.windows || {};
   tauriConfig.bundle.windows.nsis = tauriConfig.bundle.windows.nsis || {};
-  tauriConfig.bundle.createUpdaterArtifacts = Boolean((process.env.TAURI_SIGNING_PRIVATE_KEY || '').trim());
+  const enableNativeUpdater =
+    isTruthyEnv(process.env.ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER) &&
+    Boolean((process.env.TAURI_SIGNING_PRIVATE_KEY || '').trim());
+  tauriConfig.bundle.createUpdaterArtifacts = enableNativeUpdater;
   tauriConfig.bundle.icon = [
     'icons-generated/32x32.png',
     'icons-generated/128x128.png',

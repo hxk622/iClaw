@@ -43,6 +43,7 @@ home-web/brand.generated.js
 home-web/public/brand/
 services/control-plane/build-info.json
 .tmp-brand-state/
+.tmp/
 .omx/logs/
 .omx/metrics.json
 .omx/state/
@@ -52,6 +53,7 @@ services/control-plane/build-info.json
 docs/.obsidian/
 .tmp-packaging/
 .tmp-*/
+apps/desktop/src-tauri/tauri.build.local.json
 config/*.local.json
 .codex/
 docs/copilot/

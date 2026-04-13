@@ -32,6 +32,7 @@ const syncResourcesScriptPath = path.join(rootDir, 'scripts', 'sync-openclaw-res
 const packageDmgScriptPath = path.join(rootDir, 'scripts', 'package-desktop-dmg.sh');
 const runtimeBootstrapConfigPath = path.join(tauriDir, 'resources', 'config', 'openclaw-runtime.json');
 const bundledRuntimeDir = path.join(tauriDir, 'resources', 'openclaw-runtime');
+const bundledRuntimeArchiveDir = path.join(tauriDir, 'resources', 'runtime-archives');
 const openclawResourcesSourceDir = path.join(rootDir, 'services', 'openclaw', 'resources');
 const runtimeArtifactCacheDir = path.join(rootDir, '.artifacts', 'openclaw-runtime');
 const runtimeInstallReceiptName = '.iclaw-runtime-install.json';
@@ -91,6 +92,20 @@ function run(command, args, options = {}) {
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
+}
+
+function runCapture(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? rootDir,
+    env: options.env ?? process.env,
+    shell: options.shell ?? false,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  return result;
 }
 
 function pnpmCommand() {
@@ -185,6 +200,16 @@ function buildChannelSigningEnv(signingEnv, channel) {
   return env;
 }
 
+function shouldUseManualMacosNotarization(channel, env) {
+  if (process.platform !== 'darwin' || channel !== 'prod') {
+    return false;
+  }
+  if (isTruthyEnv(process.env.ICLAW_USE_TAURI_INTERNAL_NOTARIZE)) {
+    return false;
+  }
+  return Boolean(trimString(env.APPLE_ID) && trimString(env.APPLE_PASSWORD) && trimString(env.APPLE_TEAM_ID));
+}
+
 async function readGeneratedProductName() {
   const config = JSON.parse(await fs.readFile(generatedConfigPath, 'utf8'));
   const productName = typeof config.productName === 'string' ? config.productName.trim() : '';
@@ -248,6 +273,127 @@ async function validateMacosProdBundle({ target, channel }) {
       details,
     ].join('\n'),
   );
+}
+
+async function notarizeMacosAppBundleManually({ target, channel, env }) {
+  if (!shouldUseManualMacosNotarization(channel, env)) {
+    return;
+  }
+
+  const productName = await readGeneratedProductName();
+  const appBundlePath = path.join(bundleTargetRoot(target), 'macos', `${productName}.app`);
+  const tmpDir = await fs.mkdtemp(path.join(process.env.TMPDIR || '/tmp', 'iclaw-notary-'));
+  const zipPath = path.join(tmpDir, `${productName}.zip`);
+  const timeoutMs = Number.parseInt(String(env.ICLAW_NOTARY_TIMEOUT_MS || '1800000'), 10);
+  const pollMs = Number.parseInt(String(env.ICLAW_NOTARY_POLL_MS || '15000'), 10);
+
+  try {
+    run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', appBundlePath, zipPath], { env });
+    const submit = runCapture(
+      'xcrun',
+      [
+        'notarytool',
+        'submit',
+        zipPath,
+        '--apple-id',
+        env.APPLE_ID,
+        '--password',
+        env.APPLE_PASSWORD,
+        '--team-id',
+        env.APPLE_TEAM_ID,
+        '--output-format',
+        'json',
+      ],
+      { env },
+    );
+    if (submit.status !== 0) {
+      throw new Error(
+        [
+          'manual macOS notarization submit failed.',
+          submit.stderr?.trim() || submit.stdout?.trim() || `exit ${submit.status ?? 'unknown'}`,
+        ].join('\n'),
+      );
+    }
+
+    const submitPayload = JSON.parse(submit.stdout || '{}');
+    const submissionId = trimString(submitPayload.id || submitPayload.submissionId || '');
+    if (!submissionId) {
+      throw new Error(`manual macOS notarization submit did not return a submission id.\n${submit.stdout || ''}`.trim());
+    }
+
+    process.stdout.write(`[desktop-package] submitted macOS notarization: ${submissionId}\n`);
+    const startedAt = Date.now();
+
+    while (true) {
+      const info = runCapture(
+        'xcrun',
+        [
+          'notarytool',
+          'info',
+          submissionId,
+          '--apple-id',
+          env.APPLE_ID,
+          '--password',
+          env.APPLE_PASSWORD,
+          '--team-id',
+          env.APPLE_TEAM_ID,
+          '--output-format',
+          'json',
+        ],
+        { env },
+      );
+      if (info.status !== 0) {
+        throw new Error(
+          [
+            `manual macOS notarization info failed for ${submissionId}.`,
+            info.stderr?.trim() || info.stdout?.trim() || `exit ${info.status ?? 'unknown'}`,
+          ].join('\n'),
+        );
+      }
+
+      const infoPayload = JSON.parse(info.stdout || '{}');
+      const status = trimString(infoPayload.status);
+      if (/^accepted$/i.test(status)) {
+        process.stdout.write(`[desktop-package] macOS notarization accepted: ${submissionId}\n`);
+        break;
+      }
+      if (/^(invalid|rejected)$/i.test(status)) {
+        const log = runCapture(
+          'xcrun',
+          [
+            'notarytool',
+            'log',
+            submissionId,
+            '--apple-id',
+            env.APPLE_ID,
+            '--password',
+            env.APPLE_PASSWORD,
+            '--team-id',
+            env.APPLE_TEAM_ID,
+          ],
+          { env },
+        );
+        throw new Error(
+          [
+            `manual macOS notarization ${status.toLowerCase()}: ${submissionId}`,
+            log.stderr?.trim() || log.stdout?.trim() || '(no notarization log output)',
+          ].join('\n'),
+        );
+      }
+      if (Date.now() - startedAt > timeoutMs) {
+        throw new Error(
+          `manual macOS notarization timed out after ${Math.round(timeoutMs / 1000)}s: ${submissionId}`,
+        );
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+    }
+
+    run('xcrun', ['stapler', 'staple', '-v', appBundlePath], { env });
+    process.stdout.write(`[desktop-package] stapled macOS app bundle: ${appBundlePath}\n`);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
 }
 
 function findMakensisPath() {
@@ -452,7 +598,7 @@ function syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths }) {
   );
 }
 
-function syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths }) {
+async function syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths }) {
   const args = [
     path.join(rootDir, 'scripts', 'with-packaging-source-env.mjs'),
     '--',
@@ -489,6 +635,12 @@ function syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths }) {
   if (result.status === 0) {
     process.stdout.write(result.stdout || '');
     process.stderr.write(result.stderr || '');
+    const removedVcsDirs = await removeDirectoriesByName(packagingPaths.bundledSkillsDir, ['.git']);
+    if (removedVcsDirs.length > 0) {
+      process.stdout.write(
+        `[desktop-package] removed VCS directories from bundled skills: ${removedVcsDirs.length}\n`,
+      );
+    }
     return;
   }
 
@@ -506,6 +658,10 @@ async function writeTempTauriConfig() {
   const config = JSON.parse(await fs.readFile(generatedConfigPath, 'utf8'));
   config.build = config.build || {};
   config.build.beforeBuildCommand = '';
+  config.bundle = config.bundle || {};
+  if (!isTruthyEnv(process.env.ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER)) {
+    config.bundle.createUpdaterArtifacts = false;
+  }
   await fs.writeFile(tempConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
   return path.relative(desktopDir, tempConfigPath).replace(/\\/g, '/');
 }
@@ -592,6 +748,176 @@ async function collectRuntimeFiles(rootDir) {
 
   await walk(rootDir);
   return files;
+}
+
+async function isMachOBinary(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  if (
+    [
+      '.js',
+      '.mjs',
+      '.cjs',
+      '.json',
+      '.md',
+      '.mdx',
+      '.txt',
+      '.html',
+      '.css',
+      '.map',
+      '.py',
+      '.pyc',
+      '.typed',
+      '.ts',
+      '.tsx',
+      '.jsx',
+      '.yml',
+      '.yaml',
+      '.toml',
+      '.lock',
+      '.plist',
+      '.png',
+      '.jpg',
+      '.jpeg',
+      '.gif',
+      '.svg',
+      '.wasm',
+    ].includes(extension)
+  ) {
+    return false;
+  }
+  const result = runCapture('file', ['-b', filePath]);
+  if (result.status !== 0) {
+    return false;
+  }
+  return /Mach-O/i.test(result.stdout || '');
+}
+
+async function collectRuntimeSymlinks(rootDir) {
+  const symlinks = [];
+  if (!(await pathExists(rootDir))) {
+    return symlinks;
+  }
+
+  async function walk(currentDir) {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isSymbolicLink()) {
+        symlinks.push(fullPath);
+        continue;
+      }
+      if (entry.isDirectory()) {
+        await walk(fullPath);
+      }
+    }
+  }
+
+  await walk(rootDir);
+  return symlinks;
+}
+
+async function collectRuntimeBundleRoots(rootDir) {
+  const bundleRoots = [];
+  if (!(await pathExists(rootDir))) {
+    return bundleRoots;
+  }
+
+  async function walk(currentDir) {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+    const hasContentsInfo = await pathExists(path.join(currentDir, 'Contents', 'Info.plist'));
+    const hasResourcesInfo = await pathExists(path.join(currentDir, 'Resources', 'Info.plist'));
+    const hasCodeResources = await pathExists(path.join(currentDir, '_CodeSignature', 'CodeResources'));
+    if ((hasContentsInfo || hasResourcesInfo) && hasCodeResources) {
+      bundleRoots.push(currentDir);
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        await walk(path.join(currentDir, entry.name));
+      }
+    }
+  }
+
+  await walk(rootDir);
+  return bundleRoots.sort((left, right) => right.length - left.length);
+}
+
+async function signBundledRuntimeArchiveForMacos({ archivePath, artifactFormat, targetTriple, env }) {
+  if (process.platform !== 'darwin' || !targetTriple.includes('apple-darwin')) {
+    return;
+  }
+  const signingIdentity = trimString(env.APPLE_SIGNING_IDENTITY);
+  if (!signingIdentity) {
+    return;
+  }
+
+  const tempRoot = await fs.mkdtemp(path.join(process.env.TMPDIR || '/tmp', 'iclaw-runtime-sign-'));
+  const extractDir = path.join(tempRoot, 'extract');
+  const rebuiltArchivePath = path.join(tempRoot, `runtime.${runtimeArchiveExtension(artifactFormat)}`);
+
+  try {
+    await extractRuntimeArchive({ archivePath, artifactFormat, destinationDir: extractDir });
+    const runtimeRoot = await resolveExtractedRuntimeRoot(extractDir, targetTriple);
+    const files = await collectRuntimeFiles(runtimeRoot);
+    const signableFiles = [];
+    for (const filePath of files) {
+      if (await isMachOBinary(filePath)) {
+        signableFiles.push(filePath);
+      }
+    }
+
+    process.stdout.write(
+      `[desktop-package] signing bundled runtime archive for notarization: ${signableFiles.length} Mach-O files\n`,
+    );
+
+    for (const filePath of signableFiles) {
+      runChecked(
+        'codesign',
+        ['--force', '--sign', signingIdentity, '--timestamp', '--options', 'runtime', filePath],
+        { env },
+      );
+    }
+
+    const symlinks = await collectRuntimeSymlinks(runtimeRoot);
+    for (const symlinkPath of symlinks) {
+      let realPath = '';
+      try {
+        realPath = await fs.realpath(symlinkPath);
+      } catch {
+        continue;
+      }
+      if (!(await isMachOBinary(realPath))) {
+        continue;
+      }
+      const sourceStats = await fs.stat(realPath);
+      await fs.rm(symlinkPath, { force: true });
+      await fs.copyFile(realPath, symlinkPath);
+      await fs.chmod(symlinkPath, sourceStats.mode);
+      runChecked(
+        'codesign',
+        ['--force', '--sign', signingIdentity, '--timestamp', '--options', 'runtime', symlinkPath],
+        { env },
+      );
+    }
+
+    const bundleRoots = await collectRuntimeBundleRoots(runtimeRoot);
+    for (const bundleRoot of bundleRoots) {
+      runChecked(
+        'codesign',
+        ['--force', '--sign', signingIdentity, '--timestamp', '--options', 'runtime', bundleRoot],
+        { env },
+      );
+    }
+
+    if (artifactFormat === 'zip') {
+      runChecked('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', runtimeRoot, rebuiltArchivePath], { env });
+    } else {
+      runChecked('tar', ['-czf', rebuiltArchivePath, '-C', extractDir, '.'], { env });
+    }
+
+    await fs.copyFile(rebuiltArchivePath, archivePath);
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
 }
 
 async function collectRuntimeDirsByName(rootDir, directoryNames) {
@@ -718,6 +1044,16 @@ async function removeTypeOnlyPackageDirs(nodeModulesRoot, stats) {
     }
     await removeRuntimePath(packageDir, stats);
   }
+}
+
+async function removeDirectoriesByName(rootDir, directoryNames) {
+  const matches = await collectRuntimeDirsByName(rootDir, directoryNames);
+  const removed = [];
+  for (const targetPath of matches.sort((left, right) => right.length - left.length)) {
+    await fs.rm(targetPath, { recursive: true, force: true });
+    removed.push(targetPath);
+  }
+  return removed;
 }
 
 function currentWindowsKoffiDir(targetTriple = '') {
@@ -1324,10 +1660,12 @@ async function resolveRuntimeArtifactSource({ config, brandId, targetTriple, pac
 
 async function prepareBundledRuntime({ env, brandId, brandProfile, channel, targetTriple, packagingPaths }) {
   const stagedRuntimeDir = path.join(packagingPaths.resourcesSourceDir, 'openclaw-runtime');
+  const stagedRuntimeArchiveDir = path.join(packagingPaths.resourcesSourceDir, 'runtime-archives');
   if (await runtimeLayoutLooksComplete(stagedRuntimeDir, targetTriple)) {
-    await pruneBundledRuntime(stagedRuntimeDir, targetTriple);
-    process.stdout.write(`[desktop-package] bundled runtime already staged: ${stagedRuntimeDir}\n`);
-    return;
+    process.stdout.write(
+      `[desktop-package] removing stale expanded runtime before archive staging: ${stagedRuntimeDir}\n`,
+    );
+    await fs.rm(stagedRuntimeDir, { recursive: true, force: true });
   }
 
   const rawConfig = resolveRuntimeBootstrapConfigForTarget(
@@ -1366,25 +1704,21 @@ async function prepareBundledRuntime({ env, brandId, brandProfile, channel, targ
   await verifyRuntimeArtifactFileSha256(artifactPath, artifactSha256);
   await persistRuntimeArtifactCopy(artifactPath, brandCachedArtifactPath);
   await persistRuntimeArtifactCopy(artifactPath, sharedCachedArtifactPath);
-
-  const extractRoot = path.join(packagingPaths.workspaceRoot, 'runtime-extract');
-  await fs.rm(extractRoot, { recursive: true, force: true });
-  await extractRuntimeArchive({ archivePath: artifactPath, artifactFormat, destinationDir: extractRoot });
-  const normalizedRuntimeRoot = await resolveExtractedRuntimeRoot(extractRoot, targetTriple);
-
   await fs.rm(stagedRuntimeDir, { recursive: true, force: true });
-  await fs.mkdir(path.dirname(stagedRuntimeDir), { recursive: true });
-  await fs.rename(normalizedRuntimeRoot, stagedRuntimeDir);
-  await pruneBundledRuntime(stagedRuntimeDir, targetTriple);
-  await writeBundledRuntimeInstallReceipt(stagedRuntimeDir, {
-    version,
-    artifact_url: artifactUrl,
-    artifact_sha256: artifactSha256,
+  await fs.rm(stagedRuntimeArchiveDir, { recursive: true, force: true });
+  await fs.mkdir(stagedRuntimeArchiveDir, { recursive: true });
+  const stagedArchivePath = path.join(stagedRuntimeArchiveDir, path.basename(artifactPath));
+  await fs.rm(stagedArchivePath, { force: true });
+  await fs.copyFile(artifactPath, stagedArchivePath);
+  await signBundledRuntimeArchiveForMacos({
+    archivePath: stagedArchivePath,
+    artifactFormat,
+    targetTriple,
+    env,
   });
-  await fs.rm(extractRoot, { recursive: true, force: true });
 
   process.stdout.write(
-    `[desktop-package] bundled runtime prepared for ${targetTriple || 'host'} from ${source}: ${artifactPath}\n`,
+    `[desktop-package] bundled runtime archive prepared for ${targetTriple || 'host'} from ${source}: ${stagedArchivePath}\n`,
   );
 }
 
@@ -1467,6 +1801,22 @@ async function assertPackagedRuntimeConfig(env, targetTriple) {
     );
   }
 
+  const bundledArchivePath = path.join(
+    bundledRuntimeArchiveDir,
+    runtimeArtifactFileName({
+      version,
+      targetTriple: expectedTargetTriple || targetTriple,
+      artifactFormat: normalizeRuntimeArtifactFormat(artifactFormat) || 'tar.gz',
+      artifactUrl,
+    }),
+  );
+  if (await pathExists(bundledArchivePath)) {
+    process.stdout.write(
+      `[desktop-package] found bundled runtime archive for package target: ${bundledArchivePath}\n`,
+    );
+    return;
+  }
+
   if (!/^(1|true|yes)$/i.test(String(env.ICLAW_SKIP_REMOTE_RUNTIME_HASH_VERIFY || '').trim())) {
     await verifyRemoteRuntimeArtifactSha256(artifactUrl, artifactSha256);
   }
@@ -1490,6 +1840,7 @@ async function main() {
   const packagingSourceEnv = resolvePackagingSourceEnv(rootDir);
   const signingProfile = await resolveOemSigningProfile({ rootDir, brandId });
   const channelSigningEnv = buildChannelSigningEnv(signingProfile.env, channel);
+  const useManualMacosNotarization = shouldUseManualMacosNotarization(channel, channelSigningEnv);
   const env = {
     ...process.env,
     ...packagingOverlayEnv,
@@ -1501,7 +1852,14 @@ async function main() {
     ICLAW_USE_PACKAGING_SOURCE_ENV: '1',
     ICLAW_ENV_NAME: channel || process.env.ICLAW_ENV_NAME || process.env.NODE_ENV || '',
     ICLAW_OPENCLAW_RESOURCES_SOURCE_DIR: packagingPaths.resourcesSourceDir,
+    ICLAW_RUNTIME_BUNDLE_MODE: 'archive',
   };
+  const tauriBuildEnv = { ...env };
+  if (useManualMacosNotarization) {
+    delete tauriBuildEnv.APPLE_ID;
+    delete tauriBuildEnv.APPLE_PASSWORD;
+    delete tauriBuildEnv.APPLE_TEAM_ID;
+  }
   const { tauriBundle, packageDmg } = platformBundleTarget();
   const pnpm = pnpmCommand();
   const fastPackageMode = !/^(0|false|no)$/i.test(String(process.env.ICLAW_FAST_PACKAGE || '1').trim());
@@ -1537,7 +1895,7 @@ async function main() {
     if (!fastPackageMode) {
       syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths });
     }
-    syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths });
+    await syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths });
     restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env, brandProfile, channel, runtimeTargetTriple);
     await prepareBundledRuntime({
       env,
@@ -1555,10 +1913,11 @@ async function main() {
     const tauri = tauriBinaryPath();
     run(tauri.command, ['build', '--config', tempTauriConfigArg, '--bundles', tauriBundle, ...forwardedArgs], {
       cwd: desktopDir,
-      env,
+      env: tauriBuildEnv,
       shell: tauri.shell,
     });
     await rebuildWindowsNsisInstaller({ target });
+    await notarizeMacosAppBundleManually({ target, channel, env });
     await validateMacosProdBundle({ target, channel });
 
     if (packageDmg) {

@@ -41,7 +41,8 @@
    - MinIO / S3 bucket
    - OEM 资源
    - runtime 资源
-   - desktop 安装包 / updater / manifest
+   - desktop 安装包 / manifest
+   - 如本次显式开启 native updater，再额外包含 updater / signature
 5. `Infra Config`
    - `.env`
    - Nginx
@@ -101,6 +102,12 @@
 - 但下载页、公开安装包文件名、对外发布文档一律使用四段点号版本：`<baseVersion>.<timestamp>`
 - 这个 `<timestamp>` 必须使用本次实际发布产物对应的最新时间戳，不允许继续暴露旧的 build metadata 时间
 - 如果同一次发布重新补打 DMG / EXE，下载页必须同步切到最新产物时间戳，不能只上传文件不改页面
+- 桌面正式发版默认采用 `installer-only` 单轨：
+  - macOS 默认只发布 `.dmg`
+  - Windows 默认只发布 `.exe`
+  - 默认不生成、不验收、不发布 `native updater` 产物
+- 只有当本次发布明确声明要验证 native updater，且显式设置 `ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER=1` 时，才允许恢复 `.app.tar.gz` / `.nsis.zip` / `.sig`
+- 厚包（runtime archive bundled into installer）为默认发布策略，禁止回到“安装后首次强依赖外网下载 runtime 才能启动”的旧路径
 
 ## 4. 发布单格式
 
@@ -209,6 +216,7 @@
 6. 发布对象存储内容
    - MinIO / S3 资源
    - desktop 安装包 / 更新清单
+   - 如本次显式开启 native updater，再包含 updater / signature
 7. 执行 smoke test
 8. 记录结果并关闭发布
 
