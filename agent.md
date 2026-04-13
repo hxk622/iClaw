@@ -14,3 +14,5 @@
 - Formal desktop release is `installer-only` by default.
 - Do not generate native updater artifacts unless `ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER=1` is explicitly set.
 - Thick package is the default strategy: installer carries the runtime archive, first launch extracts locally, and startup must not depend on downloading runtime from the network.
+- Any desktop release pipeline rule change must be applied to both macOS and Windows together in the same round.
+- Do not leave release behavior divergent across macOS and Windows unless the repo explicitly documents a platform-only exception.

@@ -269,6 +269,13 @@ function Get-ArchLabel {
   }
 }
 
+function Test-NativeUpdaterEnabled {
+  if (-not $env:ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER) {
+    return $false
+  }
+  return $env:ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER.Trim().ToLowerInvariant() -in @('1', 'true', 'yes')
+}
+
 function Should-SkipUnsupportedTargetFailure {
   param(
     [Parameter(Mandatory = $true)][string]$Target,
@@ -391,7 +398,7 @@ function Save-WindowsArtifacts {
   Copy-Item -LiteralPath $installer.FullName -Destination $installerOut -Force
   Write-Host "saved: $installerOut"
 
-  if ($updater) {
+  if ((Test-NativeUpdaterEnabled) -and $updater) {
     $signaturePath = "$($updater.FullName).sig"
     if (Test-Path -LiteralPath $signaturePath) {
       $updaterOut = Join-Path $ReleaseDir "${ArtifactBaseName}_${ResolvedReleaseVersion}_${archLabel}_${Channel}.nsis.zip"
@@ -447,10 +454,14 @@ function Publish-Channel {
 
   $patterns = @(
     "${ArtifactBaseName}_*_${channelValue}.exe",
-    "${ArtifactBaseName}_*_${channelValue}.nsis.zip",
-    "${ArtifactBaseName}_*_${channelValue}.nsis.zip.sig",
     "latest-$channelValue*.json"
   )
+  if (Test-NativeUpdaterEnabled) {
+    $patterns += @(
+      "${ArtifactBaseName}_*_${channelValue}.nsis.zip",
+      "${ArtifactBaseName}_*_${channelValue}.nsis.zip.sig"
+    )
+  }
 
   $files = @(
     foreach ($pattern in $patterns) {
@@ -485,11 +496,16 @@ function Publish-Channel {
 
   $installers = Get-ChildItem -LiteralPath $ReleaseDir -File -Filter "${ArtifactBaseName}_*_${channelValue}.exe" -ErrorAction SilentlyContinue |
     Sort-Object Name
-  $updaters = Get-ChildItem -LiteralPath $ReleaseDir -File -Filter "${ArtifactBaseName}_*_${channelValue}.nsis.zip*" -ErrorAction SilentlyContinue |
-    Sort-Object Name
+  $updaters = @()
+  if (Test-NativeUpdaterEnabled) {
+    $updaters = Get-ChildItem -LiteralPath $ReleaseDir -File -Filter "${ArtifactBaseName}_*_${channelValue}.nsis.zip*" -ErrorAction SilentlyContinue |
+      Sort-Object Name
+  }
   if ($uploadLatestOnly) {
     $installers = @($installers | Where-Object { $_.Name -like "${ArtifactBaseName}_${ReleaseVersion}_*_${channelValue}.exe" })
-    $updaters = @($updaters | Where-Object { $_.Name -like "${ArtifactBaseName}_${ReleaseVersion}_*_${channelValue}.nsis.zip*" })
+    if (Test-NativeUpdaterEnabled) {
+      $updaters = @($updaters | Where-Object { $_.Name -like "${ArtifactBaseName}_${ReleaseVersion}_*_${channelValue}.nsis.zip*" })
+    }
   }
   $installerGroups = @{}
   foreach ($installer in $installers) {

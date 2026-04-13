@@ -34,6 +34,10 @@ require_mc_alias() {
   fi
 }
 
+native_updater_enabled() {
+  [[ "${ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER:-}" =~ ^(1|true|TRUE|yes|YES)$ ]]
+}
+
 node "$ROOT_DIR/scripts/generate-desktop-release-manifests.mjs" --channel "$ENV_NAME"
 
 local_prune() {
@@ -224,18 +228,20 @@ if [[ "$ENV_NAME" == "dev" ]]; then
     dev_upload_target="$dev_upload_target/$ICLAW_MINIO_DEV_PREFIX"
   fi
   dev_files=()
-  dev_updater_files=()
   shopt -s nullglob
   dev_files=(
     "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.dmg
     "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.exe
   )
-  dev_updater_files=(
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.app.tar.gz
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.app.tar.gz.sig
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.nsis.zip
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.nsis.zip.sig
-  )
+  dev_updater_files=()
+  if native_updater_enabled; then
+    dev_updater_files=(
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.app.tar.gz
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.app.tar.gz.sig
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.nsis.zip
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.nsis.zip.sig
+    )
+  fi
   shopt -u nullglob
   if [[ ${#dev_files[@]} -eq 0 ]]; then
     echo "No dev desktop installers found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
@@ -281,18 +287,20 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
     prod_upload_target="$prod_upload_target/$ICLAW_MINIO_PROD_PREFIX"
   fi
   prod_files=()
-  prod_updater_files=()
   shopt -s nullglob
   prod_files=(
     "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.dmg
     "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.exe
   )
-  prod_updater_files=(
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz.sig
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.nsis.zip
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.nsis.zip.sig
-  )
+  prod_updater_files=()
+  if native_updater_enabled; then
+    prod_updater_files=(
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz.sig
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.nsis.zip
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.nsis.zip.sig
+    )
+  fi
   shopt -u nullglob
   if [[ ${#prod_files[@]} -eq 0 ]]; then
     echo "No prod desktop installers found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
@@ -337,18 +345,20 @@ elif [[ "$ENV_NAME" == "test" ]]; then
     test_upload_target="$test_upload_target/$ICLAW_MINIO_TEST_PREFIX"
   fi
   test_files=()
-  test_updater_files=()
   shopt -s nullglob
   test_files=(
     "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.dmg
     "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.exe
   )
-  test_updater_files=(
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.app.tar.gz
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.app.tar.gz.sig
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.nsis.zip
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.nsis.zip.sig
-  )
+  test_updater_files=()
+  if native_updater_enabled; then
+    test_updater_files=(
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.app.tar.gz
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.app.tar.gz.sig
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.nsis.zip
+      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.nsis.zip.sig
+    )
+  fi
   shopt -u nullglob
   if [[ ${#test_files[@]} -eq 0 ]]; then
     echo "No test desktop installers found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2

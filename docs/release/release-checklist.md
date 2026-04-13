@@ -101,6 +101,7 @@ Windows 补充要求：
   - 默认只产出 `.dmg` / `.exe`
   - 不默认生成 `.app.tar.gz` / `.nsis.zip` / `.sig`
   - 只有显式传入 `ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER=1` 时，才允许生成 native updater 产物
+- 任何桌面发布规则改动必须同步覆盖 macOS / Windows 两套脚本与文档，除非明确记录平台例外
 - 如只打单个 target，可加：
   - `ICLAW_DESKTOP_TARGETS=x86_64-pc-windows-msvc bash scripts/build-desktop-matrix.sh`
 - 构建后的规范化产物统一写到：

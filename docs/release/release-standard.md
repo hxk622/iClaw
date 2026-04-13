@@ -108,6 +108,9 @@
   - 默认不生成、不验收、不发布 `native updater` 产物
 - 只有当本次发布明确声明要验证 native updater，且显式设置 `ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER=1` 时，才允许恢复 `.app.tar.gz` / `.nsis.zip` / `.sig`
 - 厚包（runtime archive bundled into installer）为默认发布策略，禁止回到“安装后首次强依赖外网下载 runtime 才能启动”的旧路径
+- 桌面发布链路规则必须双系统同步维护：
+  - 任何 installer / updater / runtime / manifest / 发布脚本口径变更，默认同时修改 macOS 与 Windows
+  - 若只改一个平台，必须在发布文档中明确写出平台例外与原因
 
 ## 4. 发布单格式
 

@@ -94,6 +94,7 @@ bash scripts/build-desktop-matrix.sh
 - 厚包为默认路径：安装包内直接携带 runtime archive，首次启动优先从安装包内解压到本地缓存
 - native updater 默认关闭，不再作为正式发版主链路
 - 只有显式传入 `ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER=1` 时，脚本才会保留 updater 压缩包
+- 任何桌面发布链路变更默认要求 macOS / Windows 双系统同改，不能只修单边脚本后留下另一边旧口径
 
 ## 下载站部署
 
