@@ -2816,6 +2816,13 @@ code {
   justify-content: space-between;
 }
 
+.fig-workspace--cloud-skills {
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 0;
+  align-items: start;
+  justify-content: stretch;
+}
+
 .fig-workspace__list,
 .fig-workspace__drawer {
   min-width: 0;

@@ -1,16 +1,16 @@
 {
-  "project": "iClaw Client Metrics Monitoring",
-  "branchName": "ralph/client-metrics-monitoring",
-  "description": "Build the first production-ready client metrics monitoring pipeline for the iClaw desktop app across desktop, control-plane, PostgreSQL, S3/MinIO, and admin-web.",
+  "project": "iClaw Fault Center",
+  "branchName": "ralph/fault-center-manual-auto-reports",
+  "description": "Add a Fault Center in admin-web with separate manual and automatic fault reporting views, extend manual reports with userId, and complete the automatic desktop diagnostic upload path.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add raw client metrics event schema",
-      "description": "As a platform engineer, I need PostgreSQL tables for raw client metric events so that install, launch, login, and core action events can be stored durably.",
+      "title": "Add user_id support to desktop fault reports schema and mappings",
+      "description": "As an operator, I need manual desktop fault reports to retain userId when available so that authenticated fault submissions can be traced to a user.",
       "acceptanceCriteria": [
-        "Add migration for `client_metric_events` with fields from the client metrics schema doc",
-        "Add indexes for event name, app version, platform, and device time-based queries",
-        "Migration is idempotent and compatible with existing control-plane schema bootstrapping",
+        "Add `user_id` column to `desktop_fault_reports` if it does not already exist",
+        "Update control-plane store/service/admin view mappings so manual fault report list and detail responses include `user_id`",
+        "Existing anonymous fault reports continue to work with null user_id values",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -20,12 +20,12 @@
     },
     {
       "id": "US-002",
-      "title": "Add crash and performance sample schemas",
-      "description": "As a platform engineer, I need dedicated PostgreSQL tables for crash events and performance samples so that stability and performance data are queryable independently from general business events.",
+      "title": "Add automatic diagnostic upload capture path in desktop client",
+      "description": "As the desktop runtime, I need to automatically upload diagnostic metadata for captured client errors so that operators can inspect automatic fault signals without waiting for manual reports.",
       "acceptanceCriteria": [
-        "Add migration for `client_crash_events` and `client_perf_samples`",
-        "Add indexes for app version, platform, device, and metric/crash time queries",
-        "Schema bootstrapping loads the new tables without affecting existing migrations",
+        "Desktop client records automatic diagnostic uploads with `source_type = auto_error_capture`",
+        "Automatic upload payload includes device_id, app_name, file_name, file_size_bytes, sensitivity_level, and created_at",
+        "Automatic uploads do not reuse the manual fault report endpoint",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -35,14 +35,15 @@
     },
     {
       "id": "US-003",
-      "title": "Add control-plane event ingestion API",
-      "description": "As a desktop client, I need to POST batched metric events to control-plane so that install, launch, login, and core action events are recorded centrally.",
+      "title": "Expose fault center route group in admin-web navigation",
+      "description": "As an admin user, I want a Fault Center menu with manual and automatic sub-pages so that manual and automatic diagnostics are separated clearly.",
       "acceptanceCriteria": [
-        "Add domain, store, service, and server route support for `POST /portal/client-metrics/events`",
-        "API accepts batched items with common client metric fields and validates required dimensions",
-        "Events persist to `client_metric_events` and are queryable in tests",
+        "Add left nav parent menu `故障中心` to admin-web",
+        "Add child route `手工故障上报` that points to the existing fault report page",
+        "Add child route `自动故障上报` for the automatic diagnostics page",
+        "故障中心 appears in the left navigation with the two sub-menu items in order",
         "Typecheck passes",
-        "Tests pass"
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
       "passes": false,
@@ -50,14 +51,14 @@
     },
     {
       "id": "US-004",
-      "title": "Add control-plane crash ingestion API",
-      "description": "As a desktop client, I need to POST crash and fatal error payloads to control-plane so that stability failures are recorded with the correct app and platform dimensions.",
+      "title": "Show userId on manual fault report list and detail views",
+      "description": "As an admin user, I want the manual fault report UI to show userId when present so that authenticated reports are distinguishable from anonymous ones.",
       "acceptanceCriteria": [
-        "Add domain, store, service, and server route support for `POST /portal/client-metrics/crash`",
-        "API validates crash type, event time, device ID, app version, platform, and error summary fields",
-        "Crash events persist to `client_crash_events` and are queryable in tests",
+        "手工故障上报列表新增 `userId` 列",
+        "userId 为空时列表与详情显示明确空值文案而不是报错",
+        "手工故障上报详情区域显示 `userId`",
         "Typecheck passes",
-        "Tests pass"
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
       "passes": false,
@@ -65,14 +66,15 @@
     },
     {
       "id": "US-005",
-      "title": "Add control-plane performance ingestion API",
-      "description": "As a desktop client, I need to POST performance samples to control-plane so that startup and runtime performance metrics are captured centrally.",
+      "title": "Build automatic fault report admin page from diagnostic uploads",
+      "description": "As an admin user, I want an automatic fault report page backed by desktop diagnostic uploads so that auto-collected error logs can be filtered and inspected separately from manual reports.",
       "acceptanceCriteria": [
-        "Add domain, store, service, and server route support for `POST /portal/client-metrics/perf`",
-        "API accepts batched metric samples with metric name, value, unit, app version, platform, and device dimensions",
-        "Performance samples persist to `client_perf_samples` and are queryable in tests",
+        "自动故障上报页面 reads from `/admin/security/action-diagnostic-uploads`",
+        "Page filters records to automatic uploads using `source_type = auto_error_capture`",
+        "List shows created time, userId, deviceId, appName, fileName, sensitivity level, and linked intent when present",
+        "Detail view shows upload metadata including bucket/key, sha256, file size, and source type",
         "Typecheck passes",
-        "Tests pass"
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
       "passes": false,
@@ -80,121 +82,16 @@
     },
     {
       "id": "US-006",
-      "title": "Build desktop client metrics transport module",
-      "description": "As a desktop engineer, I need one shared client metrics module so that all monitoring events use the same queueing, payload shaping, and flush behavior.",
+      "title": "Unify fault center page-level filters and empty states",
+      "description": "As an admin user, I want both fault center pages to share clear filtering and empty-state behavior so that manual and automatic diagnostics feel like one coherent subsystem.",
       "acceptanceCriteria": [
-        "Add a shared desktop client metrics library with `trackClientMetricEvent`, `trackClientCrash`, and `flushClientMetricQueue` entry points",
-        "Library attaches common dimensions including app version, platform, arch, brand, and device context",
-        "Library supports batched event flushes to the new control-plane APIs",
+        "手工故障上报 and 自动故障上报 both support app/device/user-oriented filtering appropriate to their data source",
+        "Both pages show explicit empty states when there are no records",
+        "Page titles and descriptions clearly differentiate manual vs automatic fault reporting",
         "Typecheck passes",
-        "Tests pass"
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-007",
-      "title": "Instrument install and launch lifecycle events",
-      "description": "As an operator, I want install and app launch events instrumented so that I can measure installation success and startup success by version and platform.",
-      "acceptanceCriteria": [
-        "Emit `install_start`, `install_success`, and `install_failed` from the desktop startup/install flow",
-        "Emit `app_launch_start`, `app_launch_success`, `app_launch_failed`, and `runtime_healthcheck_failed` from the desktop lifecycle flow",
-        "Event payloads include install session ID, failure stage, and duration where applicable",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 7,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-008",
-      "title": "Instrument login and core action success/failure events",
-      "description": "As an operator, I want login and core action metrics so that I can see business conversion and key workflow success rates in the client.",
-      "acceptanceCriteria": [
-        "Emit `login_success` and `login_failed` from desktop auth flows with provider metadata when available",
-        "Emit `core_action_success` and `core_action_failed` for one or more agreed critical desktop flows",
-        "Payloads include action name, result, and error code for failure cases",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 8,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-009",
-      "title": "Instrument crash and unhandled exception reporting",
-      "description": "As an operator, I want desktop crash and fatal error reporting so that renderer and runtime failures are visible in monitoring without relying only on manual fault reports.",
-      "acceptanceCriteria": [
-        "Report unhandled renderer exceptions through the shared desktop crash metrics path",
-        "Capture crash type, error title, message, and stack summary when available",
-        "Crash reports are sent to `POST /portal/client-metrics/crash` with desktop dimensions",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 9,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-010",
-      "title": "Add daily metrics aggregation storage and job",
-      "description": "As an operator, I need daily aggregated metrics so that admin-web dashboards do not have to scan raw event tables for common KPIs.",
-      "acceptanceCriteria": [
-        "Add schema for `client_metric_daily_agg`",
-        "Implement control-plane aggregation logic for install success, launch success, crash rate, and fault report volume",
-        "Aggregated rows are grouped by date, app, brand, app version, and platform",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 10,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-011",
-      "title": "Build admin-web install and stability metrics page",
-      "description": "As an operator, I want an admin-web dashboard for installation and stability health so that I can spot version regressions quickly.",
-      "acceptanceCriteria": [
-        "Add an admin-web page that shows install success rate, launch success rate, crash rate, and fault report counts",
-        "Page supports filtering by app version and platform",
-        "Data is sourced from the new control-plane metrics APIs or aggregation views",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 11,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-012",
-      "title": "Add performance sampling ingestion and admin-web performance page",
-      "description": "As an operator, I want startup and runtime performance distributions visible in admin-web so that I can detect regressions in cold start and resource usage.",
-      "acceptanceCriteria": [
-        "Desktop emits `cold_start_ms`, `warm_start_ms`, and at least one runtime performance metric through the perf ingestion API",
-        "Admin-web shows a performance page with startup percentile metrics and basic filtering by platform and app version",
-        "Control-plane exposes the data needed for the performance page without scanning arbitrary raw payloads in the browser",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 12,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-013",
-      "title": "Add alert storage and threshold scanning for release health",
-      "description": "As an operator, I want automated metric threshold alerts so that severe installation, launch, or crash regressions are surfaced without manual dashboard review.",
-      "acceptanceCriteria": [
-        "Add schema for `client_metric_alerts` and `client_release_health_snapshots`",
-        "Implement control-plane threshold scanning for install success rate, launch success rate, crash rate, and core action success rate",
-        "Alert records capture metric name, scope, threshold, current value, severity, and status",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 13,
       "passes": false,
       "notes": ""
     }

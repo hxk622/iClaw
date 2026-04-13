@@ -2,6 +2,9 @@
   "mcpServers": {
     "alpaca": {
       "command": "uvx",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
       "enabled": true
     },
     "browser": {
@@ -16,6 +19,9 @@
     },
     "alphavantage": {
       "command": "uvx",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
       "enabled": true
     },
     "markitdown": {
@@ -41,6 +47,9 @@
     },
     "dbt": {
       "command": "uvx",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
       "enabled": true
     },
     "serper": {
@@ -56,6 +65,9 @@
     },
     "fingpt": {
       "command": "uv",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
       "enabled": true
     },
     "yahoo-finance": {
@@ -70,10 +82,16 @@
     },
     "fmp": {
       "command": "npx",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
       "enabled": true
     },
     "fred": {
       "command": "uvx",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
       "enabled": true
     },
     "nano-banana": {
@@ -86,10 +104,16 @@
         "__ICLAW_SERVERS_DIR__/nano-banana/index.mjs"
       ],
       "command": "node",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
       "enabled": true
     },
     "sec-edgar": {
       "command": "uvx",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
       "enabled": true
     }
   }

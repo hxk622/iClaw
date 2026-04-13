@@ -1534,6 +1534,8 @@ export default function App() {
   );
 
   const {
+    healthy,
+    healthError,
     installerView,
     shouldShowStartupGate,
     retrySetup,
