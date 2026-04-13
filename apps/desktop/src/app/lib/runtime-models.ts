@@ -28,6 +28,19 @@ export type RuntimeModelCatalogResponse = {
   version: number;
 };
 
+function normalizeModelToken(value: string | null | undefined): string {
+  return String(value || '').trim();
+}
+
+function modelTail(value: string): string {
+  const normalized = normalizeModelToken(value);
+  if (!normalized) {
+    return '';
+  }
+  const segments = normalized.split('/');
+  return segments[segments.length - 1] || normalized;
+}
+
 function joinUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, '')}${path}`;
 }
@@ -99,4 +112,32 @@ export function mapRuntimeModelsToGatewayEntries(
         : undefined,
     }))
     .filter((entry) => entry.id);
+}
+
+export function resolveRuntimeKernelModelRef(
+  payload: RuntimeModelCatalogResponse | null | undefined,
+  modelId: string | null | undefined,
+): string | null {
+  const normalizedModelId = normalizeModelToken(modelId);
+  if (!normalizedModelId) {
+    return null;
+  }
+  const normalizedTail = modelTail(normalizedModelId);
+  const matched = (payload?.models || []).find((entry) => {
+    if (entry.enabled === false) {
+      return false;
+    }
+    const entryModelId = normalizeModelToken(entry.modelId);
+    const entryModelRef = normalizeModelToken(entry.modelRef);
+    return (
+      normalizedModelId === entryModelId ||
+      normalizedModelId === entryModelRef ||
+      normalizedTail === modelTail(entryModelId) ||
+      normalizedTail === modelTail(entryModelRef)
+    );
+  });
+  if (matched?.modelRef) {
+    return normalizeModelToken(matched.modelRef);
+  }
+  return normalizedModelId;
 }

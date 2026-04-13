@@ -56,7 +56,12 @@ import {
   findComposerModelOption,
   type ComposerModelOption,
 } from '../lib/model-catalog';
-import { fetchRuntimeModelCatalog, mapRuntimeModelsToGatewayEntries } from '../lib/runtime-models';
+import {
+  fetchRuntimeModelCatalog,
+  mapRuntimeModelsToGatewayEntries,
+  resolveRuntimeKernelModelRef,
+  type RuntimeModelCatalogResponse,
+} from '../lib/runtime-models';
 import {
   buildGeneratedUserAvatarDataUrl,
   resolveUserAvatarUrl,
@@ -4236,6 +4241,7 @@ async function loadChatModelSnapshot(
   resolvedSessionKey: string | null;
   hasPersistedHistory: boolean;
   sessionPressure: ChatSessionPressureSnapshot;
+  runtimeCatalog: RuntimeModelCatalogResponse;
 } | null> {
   const request = app.client?.request;
   if (!app.connected || typeof request !== 'function') {
@@ -4298,6 +4304,7 @@ async function loadChatModelSnapshot(
       messageGroups: storedMessageGroups,
       hasPersistedHistory,
     }),
+    runtimeCatalog,
   };
 }
 
@@ -4604,6 +4611,7 @@ export function OpenClawChatSurface({
   const sessionTransitionPendingRef = useRef(false);
   const sessionTransitionStartedAtRef = useRef(0);
   const sessionModelBootstrapKeyRef = useRef<string | null>(null);
+  const runtimeModelCatalogRef = useRef<RuntimeModelCatalogResponse | null>(null);
   const responseUsageEnabledSessionKeyRef = useRef<string | null>(null);
   const persistedChatSnapshotRef = useRef<string | null>(null);
   const forcedSnapshotRestoreScopeRef = useRef<string | null>(null);
@@ -5138,6 +5146,7 @@ export function OpenClawChatSurface({
       setModelOptions(snapshot.options);
       setSelectedModelId(snapshot.selectedModelId);
       setResolvedModelSessionKey(snapshot.resolvedSessionKey);
+      runtimeModelCatalogRef.current = snapshot.runtimeCatalog;
       setSessionHistoryState(snapshot.hasPersistedHistory ? 'has-history' : 'empty');
       if (snapshot.hasPersistedHistory) {
         setOptimisticEmptySessionActive(false);
@@ -5373,6 +5382,10 @@ export function OpenClawChatSurface({
     client.request = wrappedRequest;
   }, []);
 
+  const resolveKernelModelSelection = useCallback((modelId: string | null | undefined): string | null => {
+    return resolveRuntimeKernelModelRef(runtimeModelCatalogRef.current, modelId);
+  }, []);
+
   const ensureGatewaySessionPrepared = useCallback(async (): Promise<void> => {
     const app = appRef.current;
     const request = app?.client?.request;
@@ -5384,18 +5397,19 @@ export function OpenClawChatSurface({
     if (patchTargets.length === 0) {
       return;
     }
+    const kernelModel = resolveKernelModelSelection(selectedModelId);
 
     await Promise.all(
       patchTargets.map((key) =>
         request('sessions.patch', {
           key,
           responseUsage: 'tokens',
-          ...(selectedModelId ? { model: selectedModelId } : {}),
+          ...(kernelModel ? { model: kernelModel } : {}),
         }),
       ),
     );
     responseUsageEnabledSessionKeyRef.current = effectiveGatewaySessionKey;
-  }, [effectiveGatewaySessionKey, resolvedModelSessionKey, selectedModelId, sessionKey]);
+  }, [effectiveGatewaySessionKey, resolveKernelModelSelection, resolvedModelSessionKey, selectedModelId, sessionKey]);
 
   const handleModelChange = useCallback(
     async (modelId: string) => {
@@ -5411,6 +5425,7 @@ export function OpenClawChatSurface({
       }
 
       const previousModelId = selectedModelId;
+      const nextKernelModel = resolveKernelModelSelection(nextModelId);
       setModelSwitching(true);
       setSelectedModelId(nextModelId);
 
@@ -5420,7 +5435,7 @@ export function OpenClawChatSurface({
           patchTargets.map((key) =>
             request('sessions.patch', {
               key,
-              model: nextModelId,
+              model: nextKernelModel || nextModelId,
             }),
           ),
         );
@@ -5442,7 +5457,7 @@ export function OpenClawChatSurface({
         setModelSwitching(false);
       }
     },
-    [refreshModelCatalog, resolvedModelSessionKey, selectedModelId, sessionKey],
+    [refreshModelCatalog, resolveKernelModelSelection, resolvedModelSessionKey, selectedModelId, sessionKey],
   );
 
   const handleSearchStocks = useCallback(
@@ -6004,11 +6019,12 @@ export function OpenClawChatSurface({
 
     let cancelled = false;
     const patchTargets = buildGatewaySessionPatchTargets(sessionKey, resolvedModelSessionKey);
+    const kernelModel = resolveKernelModelSelection(selectedModelId);
     void Promise.all(
       patchTargets.map((key) =>
         request('sessions.patch', {
           key,
-          model: selectedModelId,
+          model: kernelModel || selectedModelId,
         }),
       ),
     )
@@ -6038,7 +6054,7 @@ export function OpenClawChatSurface({
     return () => {
       cancelled = true;
     };
-  }, [modelSwitching, refreshModelCatalog, resolvedModelSessionKey, selectedModelId, sessionKey, status.connected]);
+  }, [modelSwitching, refreshModelCatalog, resolveKernelModelSelection, resolvedModelSessionKey, selectedModelId, sessionKey, status.connected]);
 
   useEffect(() => {
     const app = appRef.current;

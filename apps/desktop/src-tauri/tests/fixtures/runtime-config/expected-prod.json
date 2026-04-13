@@ -17,11 +17,11 @@
   "agents": {
     "defaults": {
       "model": {
-        "primary": "qwen3.5-plus"
+        "primary": "openai/qwen3.5-plus"
       },
       "models": {
-        "qwen3.5-plus": {},
-        "deepseek-v3.2": {}
+        "openai/qwen3.5-plus": {},
+        "deepseek/deepseek-v3.2": {}
       },
       "workspace": "/tmp/iclaw-golden-prod-workspace",
       "compaction": {
