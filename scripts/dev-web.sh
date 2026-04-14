@@ -52,8 +52,10 @@ const path = require('path');
 
 const rootDir = process.cwd();
 const expectedBrandId = String(process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || '').trim();
-const generatedBrandPath = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'brand.generated.json');
-const generatedBrandTsPath = path.join(rootDir, 'apps', 'desktop', 'src', 'app', 'lib', 'brand.generated.ts');
+const stageMarkerPath = path.join(rootDir, '.build', 'desktop', expectedBrandId, 'current.json');
+const stageMarker = JSON.parse(fs.readFileSync(stageMarkerPath, 'utf8'));
+const generatedBrandPath = path.join(stageMarker.stageRoot, 'desktop', 'src-tauri', 'brand.generated.json');
+const generatedBrandTsPath = path.join(stageMarker.stageRoot, 'desktop', 'src', 'app', 'lib', 'brand.generated.ts');
 const generatedBrand = JSON.parse(fs.readFileSync(generatedBrandPath, 'utf8'));
 const actualBrandId = String(generatedBrand.brandId || '').trim();
 const generatedBrandTs = fs.readFileSync(generatedBrandTsPath, 'utf8');

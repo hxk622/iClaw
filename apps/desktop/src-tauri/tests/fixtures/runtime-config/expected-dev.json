@@ -150,10 +150,22 @@
       },
       "wechat-mp": {
         "enabled": true
+      },
+      "openclaw-weixin": {
+        "enabled": true
       }
     }
   },
   "browser": {
     "headless": true
+  },
+  "metadata": {
+    "desktopBrand": {
+      "brandId": "licaiclaw",
+      "buildId": "202604141320",
+      "sourceProfileHash": "test-profile-hash",
+      "bundleIdentifier": "ai.licaiclaw.desktop",
+      "artifactBaseName": "LiCaiClaw"
+    }
   }
 }

@@ -73,6 +73,22 @@ function writeJson(targetPath, value) {
   fs.writeFileSync(targetPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
+function buildDesktopBrandStamp(snapshot) {
+  const rootConfig = asObject(snapshot?.config);
+  const brandMeta = asObject(rootConfig.brand);
+  return {
+    brandId:
+      trimString(process.env.ICLAW_DESKTOP_BRAND_ID) ||
+      trimString(snapshot?.brandId || snapshot?.brand_id) ||
+      trimString(brandMeta.brand_id || brandMeta.brandId) ||
+      trimString(process.env.APP_NAME),
+    buildId: trimString(process.env.ICLAW_DESKTOP_BUILD_ID),
+    sourceProfileHash: trimString(process.env.ICLAW_DESKTOP_SOURCE_PROFILE_HASH),
+    bundleIdentifier: trimString(process.env.ICLAW_DESKTOP_BUNDLE_IDENTIFIER),
+    artifactBaseName: trimString(process.env.ICLAW_DESKTOP_ARTIFACT_BASE_NAME),
+  };
+}
+
 function sanitizeLegacySkillEntries(root) {
   const skills = root.skills;
   if (!skills || typeof skills !== 'object' || Array.isArray(skills)) {
@@ -232,6 +248,7 @@ function main() {
   const config = readJsonIfExists(configPath) ?? {};
   const portalRuntimeSources = loadPortalRuntimeSnapshotSources();
   const portalRuntimeSnapshot = portalRuntimeSources.snapshot ?? portalRuntimeSources.bundled;
+  const desktopBrandStamp = buildDesktopBrandStamp(portalRuntimeSnapshot);
   const resolvedProviderConfig = extractResolvedProviderConfig(
     portalRuntimeSnapshot,
     portalRuntimeSources.bundled,
@@ -423,6 +440,12 @@ function main() {
   const browser = ensureObject(config, 'browser');
   browser.headless = true;
   config.browser = browser;
+
+  const metadata = ensureObject(config, 'metadata');
+  metadata.desktopBrand = Object.fromEntries(
+    Object.entries(desktopBrandStamp).filter(([, value]) => typeof value === 'string' && value.trim()),
+  );
+  config.metadata = metadata;
 
   writeJson(configPath, config);
 }

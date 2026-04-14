@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DESKTOP_DIR="$ROOT_DIR/apps/desktop"
-TAURI_DIR="$DESKTOP_DIR/src-tauri"
+TAURI_DIR="${ICLAW_TAURI_STAGE_DIR:-$DESKTOP_DIR/src-tauri}"
 
 target=""
 profile="release"

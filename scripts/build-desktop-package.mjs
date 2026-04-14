@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadDesktopBrandContext } from './lib/desktop-brand-context.mjs';
+import { loadDesktopBrandContext, readActiveDesktopBrandStage } from './lib/desktop-brand-context.mjs';
 import { resolveBrandId } from './lib/brand-profile.mjs';
 import { pathExists, syncDirOrRemove } from './lib/incremental-fs.mjs';
 import { resolveConfiguredAppName, resolvePackagingSourceEnv, resolveSigningOverlayEnv } from './lib/app-env.mjs';
@@ -25,9 +25,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const desktopDir = path.join(rootDir, 'apps', 'desktop');
 const tauriDir = path.join(desktopDir, 'src-tauri');
-const generatedConfigPath = path.join(tauriDir, 'tauri.generated.conf.json');
-const generatedBrandPath = path.join(tauriDir, 'brand.generated.json');
-const tempConfigPath = path.join(tauriDir, 'tauri.build.local.json');
 const applyBrandScriptPath = path.join(rootDir, 'scripts', 'apply-brand.mjs');
 const brandStateScriptPath = path.join(rootDir, 'scripts', 'brand-generated-state.mjs');
 const syncResourcesScriptPath = path.join(rootDir, 'scripts', 'sync-openclaw-resources.mjs');
@@ -212,7 +209,7 @@ function shouldUseManualMacosNotarization(channel, env) {
   return Boolean(trimString(env.APPLE_ID) && trimString(env.APPLE_PASSWORD) && trimString(env.APPLE_TEAM_ID));
 }
 
-async function readGeneratedProductName() {
+async function readGeneratedProductName(generatedConfigPath) {
   const config = JSON.parse(await fs.readFile(generatedConfigPath, 'utf8'));
   const productName = typeof config.productName === 'string' ? config.productName.trim() : '';
   if (!productName) {
@@ -221,7 +218,9 @@ async function readGeneratedProductName() {
   return productName;
 }
 
-async function assertGeneratedBrandArtifacts({ brandContext, appVersion }) {
+async function assertGeneratedBrandArtifacts({ brandContext, appVersion, stagePaths }) {
+  const generatedConfigPath = stagePaths.tauriGeneratedConfigPath;
+  const generatedBrandPath = stagePaths.brandGeneratedJsonPath;
   const generatedConfig = JSON.parse(await fs.readFile(generatedConfigPath, 'utf8'));
   const generatedBrand = JSON.parse(await fs.readFile(generatedBrandPath, 'utf8'));
   const expectedProductName = trimString(brandContext?.productName);
@@ -274,12 +273,12 @@ async function assertGeneratedBrandArtifacts({ brandContext, appVersion }) {
   }
 
   const requiredGeneratedFiles = [
-    path.join(tauriDir, 'icons-generated', '32x32.png'),
-    path.join(tauriDir, 'icons-generated', '128x128.png'),
-    path.join(tauriDir, 'icons-generated', '128x128@2x.png'),
-    path.join(tauriDir, 'icons-generated', 'icon.icns'),
-    path.join(tauriDir, 'icons-generated', 'icon.ico'),
-    path.join(tauriDir, 'installer-generated', 'nsis-installer.ico'),
+    path.join(stagePaths.iconsGeneratedDir, '32x32.png'),
+    path.join(stagePaths.iconsGeneratedDir, '128x128.png'),
+    path.join(stagePaths.iconsGeneratedDir, '128x128@2x.png'),
+    path.join(stagePaths.iconsGeneratedDir, 'icon.icns'),
+    path.join(stagePaths.iconsGeneratedDir, 'icon.ico'),
+    path.join(stagePaths.installerGeneratedDir, 'nsis-installer.ico'),
     path.join(tauriDir, 'resources', 'runtime', 'generate-openclaw-config.mjs'),
     path.join(tauriDir, 'resources', 'runtime', 'openclaw-plugin-manifest.mjs'),
     path.join(tauriDir, 'resources', 'runtime', 'packaged-plugins-manifest.json'),
@@ -295,12 +294,12 @@ function bundleTargetRoot(target) {
   return buildBundleRoot({ tauriDir, target, profile: 'release' });
 }
 
-async function validateMacosProdBundle({ target, channel }) {
+async function validateMacosProdBundle({ target, channel, stagePaths }) {
   if (process.platform !== 'darwin' || channel !== 'prod') {
     return;
   }
 
-  const productName = await readGeneratedProductName();
+  const productName = await readGeneratedProductName(stagePaths.tauriGeneratedConfigPath);
   const appBundlePath = path.join(bundleTargetRoot(target), 'macos', `${productName}.app`);
   const allowUnsignedProd = isTruthyEnv(process.env.ICLAW_ALLOW_UNSIGNED_MACOS_PROD);
 
@@ -347,12 +346,12 @@ async function validateMacosProdBundle({ target, channel }) {
   );
 }
 
-async function notarizeMacosAppBundleManually({ target, channel, env }) {
+async function notarizeMacosAppBundleManually({ target, channel, env, stagePaths }) {
   if (!shouldUseManualMacosNotarization(channel, env)) {
     return;
   }
 
-  const productName = await readGeneratedProductName();
+  const productName = await readGeneratedProductName(stagePaths.tauriGeneratedConfigPath);
   const appBundlePath = path.join(bundleTargetRoot(target), 'macos', `${productName}.app`);
   const tmpDir = await fs.mkdtemp(path.join(process.env.TMPDIR || '/tmp', 'iclaw-notary-'));
   const zipPath = path.join(tmpDir, `${productName}.zip`);
@@ -727,16 +726,35 @@ async function syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths })
   );
 }
 
-async function writeTempTauriConfig() {
-  const config = JSON.parse(await fs.readFile(generatedConfigPath, 'utf8'));
+async function writeTempTauriConfig({ stagePaths }) {
+  const config = JSON.parse(await fs.readFile(stagePaths.tauriGeneratedConfigPath, 'utf8'));
   config.build = config.build || {};
   config.build.beforeBuildCommand = '';
+  config.build.frontendDist = path.join(desktopDir, 'dist');
   config.bundle = config.bundle || {};
   if (!isTruthyEnv(process.env.ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER)) {
     config.bundle.createUpdaterArtifacts = false;
   }
+  config.bundle.icon = [
+    path.join(stagePaths.iconsGeneratedDir, '32x32.png'),
+    path.join(stagePaths.iconsGeneratedDir, '128x128.png'),
+    path.join(stagePaths.iconsGeneratedDir, '128x128@2x.png'),
+    path.join(stagePaths.iconsGeneratedDir, 'icon.icns'),
+    path.join(stagePaths.iconsGeneratedDir, 'icon.ico'),
+  ];
+  if (config.bundle.windows?.nsis) {
+    config.bundle.windows.nsis.installerIcon = path.join(stagePaths.installerGeneratedDir, 'nsis-installer.ico');
+    if (config.bundle.windows.nsis.headerImage) {
+      config.bundle.windows.nsis.headerImage = path.join(stagePaths.installerGeneratedDir, 'nsis-header.bmp');
+    }
+    if (config.bundle.windows.nsis.sidebarImage) {
+      config.bundle.windows.nsis.sidebarImage = path.join(stagePaths.installerGeneratedDir, 'nsis-sidebar.bmp');
+    }
+  }
+  const tempConfigPath = path.join(stagePaths.tauriRoot, 'tauri.build.local.json');
+  await fs.mkdir(path.dirname(tempConfigPath), { recursive: true });
   await fs.writeFile(tempConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
-  return path.relative(desktopDir, tempConfigPath).replace(/\\/g, '/');
+  return tempConfigPath;
 }
 
 async function preparePackagingResourcesSource(resourcesSourceDir) {
@@ -1951,6 +1969,7 @@ async function main() {
   const fastPackageMode = !/^(0|false|no)$/i.test(String(process.env.ICLAW_FAST_PACKAGE || '1').trim());
   const keepPackagingCache = !/^(0|false|no)$/i.test(String(process.env.ICLAW_KEEP_PACKAGING_CACHE || '1').trim());
   let restoreRuntimeBootstrapConfig = async () => {};
+  let tempTauriConfigPath = '';
 
   if (fastPackageMode) {
     env.ICLAW_DMG_ZLIB_LEVEL ||= '1';
@@ -1977,7 +1996,9 @@ async function main() {
     }
 
     run(process.execPath, [applyBrandScriptPath, brandId], { env });
-    await assertGeneratedBrandArtifacts({ brandContext, appVersion });
+    const activeStage = await readActiveDesktopBrandStage({ rootDir, brandId });
+    const stagePaths = activeStage.paths;
+    await assertGeneratedBrandArtifacts({ brandContext, appVersion, stagePaths });
     await preparePackagingResourcesSource(packagingPaths.resourcesSourceDir);
     syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths });
     await syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths });
@@ -1994,25 +2015,35 @@ async function main() {
     run(process.execPath, [syncResourcesScriptPath], { env });
     await scrubPackagingResourceTree(path.join(tauriDir, 'resources'));
     await assertPackagedRuntimeConfig(env, runtimeTargetTriple);
-    const tempTauriConfigArg = await writeTempTauriConfig();
+    tempTauriConfigPath = await writeTempTauriConfig({ stagePaths });
 
     run(pnpm.command, [...pnpm.args, '--dir', desktopDir, 'build'], { env, shell: pnpm.shell });
     const tauri = tauriBinaryPath();
-    run(tauri.command, ['build', '--config', tempTauriConfigArg, '--bundles', tauriBundle, ...forwardedArgs], {
+    run(tauri.command, ['build', '--config', tempTauriConfigPath, '--bundles', tauriBundle, ...forwardedArgs], {
       cwd: desktopDir,
-      env: tauriBuildEnv,
+      env: {
+        ...tauriBuildEnv,
+        ICLAW_BRAND_JSON_PATH: stagePaths.brandGeneratedJsonPath,
+      },
       shell: tauri.shell,
     });
     await rebuildWindowsNsisInstaller({ target });
-    await notarizeMacosAppBundleManually({ target, channel, env });
-    await validateMacosProdBundle({ target, channel });
+    await notarizeMacosAppBundleManually({ target, channel, env, stagePaths });
+    await validateMacosProdBundle({ target, channel, stagePaths });
 
     if (packageDmg) {
-      run('bash', [packageDmgScriptPath, ...forwardedArgs], { env });
+      run('bash', [packageDmgScriptPath, ...forwardedArgs], {
+        env: {
+          ...env,
+          ICLAW_TAURI_STAGE_DIR: stagePaths.tauriRoot,
+        },
+      });
     }
     await normalizeBundledArtifactNames({ target, brandProfile, channel, appVersion });
   } finally {
-    await fs.rm(tempConfigPath, { force: true });
+    if (tempTauriConfigPath) {
+      await fs.rm(tempTauriConfigPath, { force: true });
+    }
     await restoreRuntimeBootstrapConfig();
     if (!keepPackagingCache) {
       await fs.rm(packagingPaths.workspaceRoot, { recursive: true, force: true });

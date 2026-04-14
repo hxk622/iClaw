@@ -29,14 +29,12 @@ test('desktop brand context resolves shared stamp fields from one source of trut
   assert.equal(context.stamp.artifactBaseName, context.artifactBaseName);
   assert.equal(context.stamp.buildId, context.buildId);
   assert.match(context.stamp.sourceProfileHash, /^[0-9a-f]{64}$/);
-  assert.equal(
-    context.staging.root,
-    path.join(rootDir, '.build', 'desktop', 'licaiclaw', expectedBuildId),
-  );
+  assert.ok(context.staging.root.startsWith(path.join(rootDir, '.build', 'desktop', 'licaiclaw', expectedBuildId)));
   assert.equal(
     context.staging.brandGeneratedJsonPath,
-    path.join(rootDir, '.build', 'desktop', 'licaiclaw', expectedBuildId, 'desktop', 'src-tauri', 'brand.generated.json'),
+    path.join(context.staging.root, 'desktop', 'src-tauri', 'brand.generated.json'),
   );
+  assert.equal(context.staging.currentPath, path.join(rootDir, '.build', 'desktop', 'licaiclaw', 'current.json'));
 });
 
 test('desktop brand context keeps different OEM identities isolated', async () => {

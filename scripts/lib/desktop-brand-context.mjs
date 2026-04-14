@@ -11,13 +11,24 @@ function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function buildDesktopBrandStagingPaths(rootDir, brandId, buildId) {
-  const stageRoot = path.join(rootDir, '.build', 'desktop', brandId, buildId);
+function resolveStageRunId() {
+  const explicitRunId = trimString(process.env.ICLAW_DESKTOP_STAGE_RUN_ID || process.env.ICLAW_STAGE_RUN_ID);
+  if (explicitRunId) {
+    return explicitRunId;
+  }
+  return `${Date.now()}`;
+}
+
+function buildDesktopBrandStagingPaths(rootDir, brandId, buildId, runId) {
+  const brandRoot = path.join(rootDir, '.build', 'desktop', brandId);
+  const stageRoot = path.join(brandRoot, buildId, runId);
   const desktopRoot = path.join(stageRoot, 'desktop');
   const publicRoot = path.join(desktopRoot, 'public');
   const tauriRoot = path.join(desktopRoot, 'src-tauri');
   return {
+    brandRoot,
     root: stageRoot,
+    currentPath: path.join(brandRoot, 'current.json'),
     stampPath: path.join(stageRoot, 'brand-stamp.json'),
     manifestPath: path.join(stageRoot, 'manifest.json'),
     desktopRoot,
@@ -99,6 +110,7 @@ export async function loadDesktopBrandContext(options = {}) {
     trimString(profile?.distribution?.artifactBaseName) ||
     productName;
   const buildId = resolveBuildId(versionInfo);
+  const stageRunId = resolveStageRunId();
   const sourceProfileHash = await hashProfileSource(brandConfigPath, profile);
 
   return {
@@ -113,8 +125,9 @@ export async function loadDesktopBrandContext(options = {}) {
     appVersion: versionInfo.appVersion,
     releaseVersion: versionInfo.releaseVersion,
     buildId,
+    stageRunId,
     sourceProfileHash,
-    staging: buildDesktopBrandStagingPaths(rootDir, brandId, buildId),
+    staging: buildDesktopBrandStagingPaths(rootDir, brandId, buildId, stageRunId),
     stamp: {
       brandId,
       productName,
@@ -123,5 +136,22 @@ export async function loadDesktopBrandContext(options = {}) {
       buildId,
       sourceProfileHash,
     },
+  };
+}
+
+export async function readActiveDesktopBrandStage(options = {}) {
+  const rootDir = options.rootDir ? path.resolve(options.rootDir) : defaultRootDir;
+  const brandId = resolveBrandId(options.brandId);
+  const currentPath = path.join(rootDir, '.build', 'desktop', brandId, 'current.json');
+  const payload = JSON.parse(await fs.readFile(currentPath, 'utf8'));
+  const buildId = trimString(payload.buildId);
+  const runId = trimString(payload.runId);
+  if (!buildId || !runId) {
+    throw new Error(`invalid active desktop stage marker: ${currentPath}`);
+  }
+  return {
+    ...payload,
+    currentPath,
+    paths: buildDesktopBrandStagingPaths(rootDir, brandId, buildId, runId),
   };
 }

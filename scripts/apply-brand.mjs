@@ -5,6 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { loadDesktopBrandContext } from './lib/desktop-brand-context.mjs';
+import { spawnSync } from 'node:child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -23,6 +24,7 @@ const tauriGeneratedPath = path.join(tauriDir, 'tauri.generated.conf.json');
 const brandGeneratedTsPath = path.join(desktopDir, 'src', 'app', 'lib', 'brand.generated.ts');
 const brandGeneratedJsonPath = path.join(tauriDir, 'brand.generated.json');
 const homeWebBrandGeneratedJsPath = path.join(homeWebDir, 'brand.generated.js');
+const guardrailsScriptPath = path.join(rootDir, 'scripts', 'verify-desktop-brand-guardrails.mjs');
 const brandGeneratedPaths = [
   outputBrandDir,
   path.join(outputPublicDir, 'favicon.ico'),
@@ -364,6 +366,16 @@ function assertDesktopBrandConsistency(tauriConfig, brand) {
 }
 
 async function main() {
+  {
+    const guardrail = spawnSync(process.execPath, [guardrailsScriptPath], {
+      cwd: rootDir,
+      stdio: 'pipe',
+      encoding: 'utf8',
+    });
+    if (guardrail.status !== 0) {
+      throw new Error((guardrail.stderr || guardrail.stdout || '').trim() || 'desktop brand guardrail failed');
+    }
+  }
   const context = await loadDesktopBrandContext({ rootDir, brandId: process.argv[2] });
   const {
     brandDir,
@@ -548,14 +560,31 @@ async function main() {
   await fs.writeFile(homeWebBrandGeneratedJsPath, buildHomeBrandJs(brand, appVersion, brandAssetPaths, brandStamp), 'utf8');
 
   await fs.rm(staging.root, { recursive: true, force: true });
+  await fs.mkdir(staging.brandRoot, { recursive: true });
   await fs.mkdir(staging.root, { recursive: true });
   await fs.writeFile(staging.stampPath, `${JSON.stringify(brandStamp, null, 2)}\n`, 'utf8');
+  await fs.writeFile(
+    staging.currentPath,
+    `${JSON.stringify(
+      {
+        brandId: brand.brandId,
+        buildId: context.buildId,
+        runId: context.stageRunId,
+        stageRoot: staging.root,
+        stamp: brandStamp,
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
   await fs.writeFile(
     staging.manifestPath,
     `${JSON.stringify(
       {
         brandId: brand.brandId,
         buildId: context.buildId,
+        runId: context.stageRunId,
         appVersion,
         outputs: {
           tauriConfigPath: path.relative(staging.root, staging.tauriConfigPath),

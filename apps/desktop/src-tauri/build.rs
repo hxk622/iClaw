@@ -1,6 +1,10 @@
 fn main() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("missing CARGO_MANIFEST_DIR");
-    let brand_path = std::path::Path::new(&manifest_dir).join("brand.generated.json");
+    let brand_path = std::env::var("ICLAW_BRAND_JSON_PATH")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::Path::new(&manifest_dir).join("brand.generated.json"));
     println!("cargo:rerun-if-changed={}", brand_path.display());
 
     let env_brand_id = std::env::var("APP_NAME")
@@ -40,9 +44,41 @@ fn main() {
         .and_then(|entry| entry.as_str())
         .map(str::to_owned)
         .unwrap_or_default();
+    let bundle_identifier = brand_json
+        .as_ref()
+        .and_then(|value| value.get("bundleIdentifier"))
+        .and_then(|entry| entry.as_str())
+        .map(str::to_owned)
+        .unwrap_or_default();
+    let artifact_base_name = brand_json
+        .as_ref()
+        .and_then(|value| value.get("artifactBaseName"))
+        .and_then(|entry| entry.as_str())
+        .map(str::to_owned)
+        .unwrap_or_default();
+    let build_id = brand_json
+        .as_ref()
+        .and_then(|value| value.get("build"))
+        .and_then(|entry| entry.get("stamp"))
+        .and_then(|entry| entry.get("buildId"))
+        .and_then(|entry| entry.as_str())
+        .map(str::to_owned)
+        .unwrap_or_default();
+    let source_profile_hash = brand_json
+        .as_ref()
+        .and_then(|value| value.get("build"))
+        .and_then(|entry| entry.get("stamp"))
+        .and_then(|entry| entry.get("sourceProfileHash"))
+        .and_then(|entry| entry.as_str())
+        .map(str::to_owned)
+        .unwrap_or_default();
 
     println!("cargo:rustc-env=ICLAW_AUTH_SERVICE={auth_service}");
     println!("cargo:rustc-env=ICLAW_BRAND_ID={brand_id}");
     println!("cargo:rustc-env=ICLAW_AUTH_BASE_URL={auth_base_url}");
+    println!("cargo:rustc-env=ICLAW_BUNDLE_IDENTIFIER={bundle_identifier}");
+    println!("cargo:rustc-env=ICLAW_ARTIFACT_BASE_NAME={artifact_base_name}");
+    println!("cargo:rustc-env=ICLAW_BUILD_ID={build_id}");
+    println!("cargo:rustc-env=ICLAW_SOURCE_PROFILE_HASH={source_profile_hash}");
     tauri_build::build()
 }

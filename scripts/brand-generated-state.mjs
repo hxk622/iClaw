@@ -15,7 +15,6 @@ const TRACKED_PATHS = [
   'apps/desktop/src-tauri/resources/certs',
   'apps/desktop/src-tauri/resources/servers',
   'apps/desktop/src-tauri/resources/baseline',
-  'apps/desktop/src-tauri/resources/bundled-skills',
   'apps/desktop/public/brand',
   'apps/desktop/public/favicon.ico',
   'apps/desktop/public/favicon.png',
@@ -69,7 +68,7 @@ async function removeTarget(targetPath) {
 async function snapshot(key) {
   const keyDir = path.join(snapshotRoot, key);
   const filesDir = path.join(keyDir, 'files');
-  await fs.rm(keyDir, {recursive: true, force: true});
+  await fs.rm(keyDir, {recursive: true, force: true, maxRetries: 5, retryDelay: 100});
   await fs.mkdir(filesDir, {recursive: true});
 
   const manifest = [];
@@ -118,7 +117,7 @@ async function restore(key) {
     await copyToSnapshot(snapshotPath, absolutePath, entry.type === 'dir' ? 'dir' : 'file');
   }
 
-  await fs.rm(keyDir, {recursive: true, force: true});
+  await fs.rm(keyDir, {recursive: true, force: true, maxRetries: 5, retryDelay: 100});
   process.stdout.write(`[brand-state] snapshot restored: ${key}\n`);
 }
 

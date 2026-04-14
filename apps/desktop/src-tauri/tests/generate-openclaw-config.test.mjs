@@ -25,6 +25,14 @@ function runGenerator(env) {
     env: {
       ...process.env,
       ...env,
+      ICLAW_DESKTOP_BRAND_ID: env.ICLAW_DESKTOP_BRAND_ID || 'licaiclaw',
+      ICLAW_DESKTOP_BUILD_ID: env.ICLAW_DESKTOP_BUILD_ID || '202604141320',
+      ICLAW_DESKTOP_SOURCE_PROFILE_HASH:
+        env.ICLAW_DESKTOP_SOURCE_PROFILE_HASH || 'test-profile-hash',
+      ICLAW_DESKTOP_BUNDLE_IDENTIFIER:
+        env.ICLAW_DESKTOP_BUNDLE_IDENTIFIER || 'ai.licaiclaw.desktop',
+      ICLAW_DESKTOP_ARTIFACT_BASE_NAME:
+        env.ICLAW_DESKTOP_ARTIFACT_BASE_NAME || 'LiCaiClaw',
       ICLAW_OPENCLAW_CONFIG_PATH: configPath,
     },
     stdio: 'pipe',
@@ -125,6 +133,7 @@ test('honors default_model_ref even when it is not the first enabled provider mo
       ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'tauri://localhost,http://tauri.localhost,https://tauri.localhost',
     });
     assert.equal(actual.agents.defaults.model.primary, 'deepseek/deepseek-v3.2');
+    assert.equal(actual.metadata?.desktopBrand?.brandId, 'licaiclaw');
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

@@ -48,6 +48,10 @@ struct DesktopUpdateState {
 const AUTH_SERVICE: &str = env!("ICLAW_AUTH_SERVICE");
 const DESKTOP_BRAND_ID: &str = env!("ICLAW_BRAND_ID");
 const DESKTOP_AUTH_BASE_URL: &str = env!("ICLAW_AUTH_BASE_URL");
+const DESKTOP_BUNDLE_IDENTIFIER: &str = env!("ICLAW_BUNDLE_IDENTIFIER");
+const DESKTOP_ARTIFACT_BASE_NAME: &str = env!("ICLAW_ARTIFACT_BASE_NAME");
+const DESKTOP_BUILD_ID: &str = env!("ICLAW_BUILD_ID");
+const DESKTOP_SOURCE_PROFILE_HASH: &str = env!("ICLAW_SOURCE_PROFILE_HASH");
 const DESKTOP_SIDE_CAR_ARGS: &str = match option_env!("VITE_SIDE_CAR_ARGS") {
     Some(value) => value,
     None => "--port 2126",
@@ -5746,6 +5750,11 @@ fn generate_openclaw_runtime_config(
         "ICLAW_OPENCLAW_ALLOWED_ORIGINS",
         "tauri://localhost,http://tauri.localhost,https://tauri.localhost",
     );
+    command.env("ICLAW_DESKTOP_BRAND_ID", DESKTOP_BRAND_ID);
+    command.env("ICLAW_DESKTOP_BUILD_ID", DESKTOP_BUILD_ID);
+    command.env("ICLAW_DESKTOP_SOURCE_PROFILE_HASH", DESKTOP_SOURCE_PROFILE_HASH);
+    command.env("ICLAW_DESKTOP_BUNDLE_IDENTIFIER", DESKTOP_BUNDLE_IDENTIFIER);
+    command.env("ICLAW_DESKTOP_ARTIFACT_BASE_NAME", DESKTOP_ARTIFACT_BASE_NAME);
     if portal_runtime_config_path.exists() {
         command.env(
             "ICLAW_OPENCLAW_PORTAL_RUNTIME_CONFIG_PATH",

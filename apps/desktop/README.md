@@ -63,6 +63,18 @@ pnpm dev:web
 
 ## OpenClaw Runtime
 
+## Desktop Brand Artifact Rule
+
+桌面品牌产物遵循 disposable 原则：
+
+- 每次 `apply-brand` 都会重新从单一 OEM brand profile 生成一套全新的 staging 产物
+- staging 目录位于 `.build/desktop/<brandId>/<buildId>/<runId>/...`
+- `.build/desktop/<brandId>/current.json` 指向当前激活的那一套产物
+- repo 内的 `brand.generated.*` / `tauri*.json` / `public/brand/*` 只作为兼容镜像，不再视为权威输入
+- desktop packaging 与 dev 脚本应优先读取 active staging，而不是信任上一次遗留的 repo 产物
+
+如果 active staging 缺失、brand stamp 不匹配，脚本应直接失败，不允许静默复用旧产物。
+
 发布包不再内置 sidecar 二进制。推荐流程：
 
 1. 基于 OpenClaw npm 发布包构建 runtime artifact：

@@ -57,6 +57,20 @@ try {
 }
 
 read_generated_brand_id() {
+  local expected_brand_id="${PORTAL_APP_NAME:-${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-}}}"
+  local stage_marker_path="$ROOT_DIR/.build/desktop/$expected_brand_id/current.json"
+  if [[ -n "$expected_brand_id" && -f "$stage_marker_path" ]]; then
+    node -e '
+const fs = require("fs");
+const targetPath = process.argv[1];
+try {
+  const parsed = JSON.parse(fs.readFileSync(targetPath, "utf8"));
+  const value = typeof parsed?.stamp?.brandId === "string" ? parsed.stamp.brandId.trim() : "";
+  if (value) process.stdout.write(value);
+} catch {}
+' "$stage_marker_path"
+    return 0
+  fi
   local generated_brand_path="$ROOT_DIR/apps/desktop/src-tauri/brand.generated.json"
   [[ -f "$generated_brand_path" ]] || return 0
   node -e '
@@ -265,6 +279,11 @@ sync_gateway_token_config() {
   ICLAW_OPENCLAW_WORKSPACE_DIR="$OPENCLAW_WORKSPACE_DIR" \
   ICLAW_OPENCLAW_RUNTIME_MODE="dev" \
   ICLAW_OPENCLAW_ALLOWED_ORIGINS="http://127.0.0.1:1520,http://localhost:1520" \
+  ICLAW_DESKTOP_BRAND_ID="$PORTAL_APP_NAME" \
+  ICLAW_DESKTOP_BUILD_ID="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --brand "$PORTAL_APP_NAME" build.stamp.buildId | tail -n1)" \
+  ICLAW_DESKTOP_SOURCE_PROFILE_HASH="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --brand "$PORTAL_APP_NAME" build.stamp.sourceProfileHash | tail -n1)" \
+  ICLAW_DESKTOP_BUNDLE_IDENTIFIER="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --brand "$PORTAL_APP_NAME" build.stamp.bundleIdentifier | tail -n1)" \
+  ICLAW_DESKTOP_ARTIFACT_BASE_NAME="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --brand "$PORTAL_APP_NAME" build.stamp.artifactBaseName | tail -n1)" \
   node "$ROOT_DIR/apps/desktop/src-tauri/resources/runtime/generate-openclaw-config.mjs"
 
   echo "[api-dev] gateway token synced to $OPENCLAW_CONFIG_PATH"
