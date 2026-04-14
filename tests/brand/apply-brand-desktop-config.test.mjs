@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 const rootDir = path.resolve(import.meta.dirname, '..', '..');
 const tauriConfigPath = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'tauri.conf.json');
 const generatedConfigPath = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'tauri.generated.conf.json');
+const generatedBrandPath = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'brand.generated.json');
 const generatedIconsDir = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'icons-generated');
 const snapshotKey = 'apply-brand-desktop-config-test';
 
@@ -51,11 +52,16 @@ test('apply-brand materializes desktop title and version from the selected brand
       await runNodeScript(['scripts/apply-brand.mjs', brandId], { APP_NAME: brandId });
       const tauriConfig = await readJson(tauriConfigPath);
       const generatedConfig = await readJson(generatedConfigPath);
+      const generatedBrand = await readJson(generatedBrandPath);
       const expectedName = brandId === 'iclaw' ? 'iClaw' : generatedConfig.productName;
       assert.equal(tauriConfig.productName, expectedName);
       assert.equal(tauriConfig.app?.windows?.[0]?.title, expectedName);
       assert.equal(generatedConfig.productName, expectedName);
       assert.equal(generatedConfig.version, '1.0.6+202604141320');
+      assert.equal(generatedBrand.build?.version, '1.0.6+202604141320');
+      assert.equal(generatedBrand.build?.stamp?.brandId, brandId);
+      assert.equal(generatedBrand.build?.stamp?.productName, expectedName);
+      assert.equal(generatedBrand.build?.stamp?.bundleIdentifier, generatedBrand.bundleIdentifier);
       if (brandId === 'licaiclaw') {
         assert.notEqual(tauriConfig.productName, 'iClaw');
       }

@@ -61,5 +61,16 @@ export const BRAND = {
   },
   "distribution": {
     "artifactBaseName": "LiCaiClaw"
+  },
+  "build": {
+    "version": "1.0.6+202604141320",
+    "stamp": {
+      "brandId": "licaiclaw",
+      "productName": "理财客",
+      "bundleIdentifier": "ai.licaiclaw.desktop",
+      "artifactBaseName": "LiCaiClaw",
+      "buildId": "202604141320",
+      "sourceProfileHash": "af812b57f57b8b455287b246e55bfa5748bc62e78cccc4a6c7ae6b982b6fa0e3"
+    }
   }
 } as const;

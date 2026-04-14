@@ -1,17 +1,17 @@
 {
-  "project": "iClaw Licaiclaw Menu Assembly",
-  "branchName": "ralph/licaiclaw-left-nav-groups",
-  "description": "Reorder and regroup the licaiclaw left navigation into fixed 工作台/市场/通用 sections, make the admin/control-plane data source authoritative, and apply the same configuration to the online database with persisted/runtime verification.",
+  "project": "iClaw IM Bots Real China Channels",
+  "branchName": "ralph/im-bots-real-china-channels",
+  "description": "Turn the desktop IM Bots view from a static mock setup flow into a real China-channel integration surface backed by packaged OpenClaw plugins, persistent bot records, actual channel config mapping, and meaningful readiness checks.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Define licaiclaw menu bindings as the source of truth in control-plane data",
-      "description": "As a platform developer, I need the licaiclaw app menu bindings to encode the exact menu keys, sort order, and group labels so that the desktop left nav is driven by authoritative DB-backed config instead of ad hoc admin clicking.",
+      "title": "Package all China IM plugins and the compatible official WeChat plugin into the runtime",
+      "description": "As a release owner, I need the China IM plugin set bundled into the packaged OpenClaw runtime so that the desktop app ships with the full domestic channel surface instead of only the upstream built-ins.",
       "acceptanceCriteria": [
-        "Licaiclaw menu bindings include exactly these menu keys in order: chat, investment-experts, finance-skills, foundation-skills, cron, stock-market, fund-market, data-connections, im-bots, memory, security",
-        "Menu binding config stores group labels so the first five items map to `工作台`, the next two map to `市场`, and the last four map to `通用`",
-        "No extra licaiclaw app menu binding remains enabled outside the required ordered set",
-        "The source-of-truth config remains in control-plane DB/baseline-compatible data, not a frontend-only hardcoded reorder",
+        "Packaged plugin manifests include exactly these enabled plugin ids: claw-aegis, dingtalk, feishu-china, qqbot, wecom, wecom-app, wecom-kf, wechat-mp, openclaw-weixin",
+        "Official WeChat plugin is pinned to the legacy-compatible package line for OpenClaw 2026.3.13",
+        "Generated runtime config exposes plugins.entries for the same packaged plugin ids",
+        "Desktop packaged-plugin fixtures stay in sync with the source manifest",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -21,15 +21,14 @@
     },
     {
       "id": "US-002",
-      "title": "Add a deterministic script to upsert licaiclaw menu bindings",
-      "description": "As an operator, I need a scriptable way to apply the licaiclaw menu assembly so that local and remote databases can be updated reproducibly without manual admin-web edits.",
+      "title": "Expand the IM bot platform catalog to the full China channel set",
+      "description": "As an operator, I want the IM bot setup catalog to list every packaged China channel with correct metadata so that the UI reflects the real channel advantage surface we now ship.",
       "acceptanceCriteria": [
-        "Add or extend a control-plane script that upserts app menu bindings for a specified app name",
-        "The script writes enabled state, sort order, and `group_label` for each required licaiclaw menu binding",
-        "The script can target the current environment database using existing env/config loading",
-        "The script can be re-run safely without creating duplicate bindings or unstable ordering",
+        "Desktop IM bot platform catalog includes these platform ids: dingtalk, feishu-china, qqbot, wecom, wecom-app, wecom-kf, wechat-mp, openclaw-weixin",
+        "Each platform entry defines plugin id, display label, guide URL, credential field schema, intro steps, and rollout notes",
+        "Legacy placeholder-only platform ids `feishu` and `qq` are removed from the IM bot catalog",
         "Typecheck passes",
-        "Tests pass"
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
       "passes": false,
@@ -37,12 +36,12 @@
     },
     {
       "id": "US-003",
-      "title": "Keep admin-web menu assembly view consistent with grouped menu bindings",
-      "description": "As an admin user, I want the brand detail menu assembly panel to reflect the persisted grouped order so that the admin UI matches the control-plane source of truth after script-based updates.",
+      "title": "Show IM bots page as pure channel entry when no bots exist",
+      "description": "As a first-time user, I want the empty IM bots page to focus on channel onboarding so that I am not distracted by an empty operations layout before any robot exists.",
       "acceptanceCriteria": [
-        "Admin-web brand detail menu assembly reads and displays `group_label` from menu binding config",
-        "The licaiclaw menu assembly panel shows the updated grouped order without manual re-entry",
-        "Saving menu assembly from admin-web preserves the same group labels and ordering fields used by the script",
+        "When IM bot count is 0, the page hides the `已创建的机器人` list and the right-side operations panel",
+        "When IM bot count is 0, the page still shows the platform access card area as the primary content",
+        "When IM bot count is greater than 0, the operations area becomes visible again without removing the platform access cards",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
@@ -52,14 +51,14 @@
     },
     {
       "id": "US-004",
-      "title": "Apply the licaiclaw menu assembly to the local control-plane database",
-      "description": "As a developer, I need the local control-plane database updated to the new licaiclaw menu grouping so that local runtime and admin verification use the same menu assembly as production.",
+      "title": "Add a persisted IM bot record store for desktop",
+      "description": "As a desktop app, I need IM bot records stored outside transient React state so that created bots survive reloads and can drive a real management surface.",
       "acceptanceCriteria": [
-        "Run the menu upsert script against the local/current control-plane database for `licaiclaw`",
-        "Persisted menu bindings for `licaiclaw` verify the exact order and groups in the database-backed admin API response",
-        "The local admin-web menu assembly page shows the same grouped order after reload",
+        "Define a persisted IM bot record schema that stores platform id, credential payload, assistant binding, runtime state, and timestamps",
+        "Implement desktop-side load and save helpers for IM bot records using an existing durable storage location",
+        "Loading the IM bots page initializes from the persisted store instead of a hardcoded empty in-memory list",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 4,
       "passes": false,
@@ -67,13 +66,14 @@
     },
     {
       "id": "US-005",
-      "title": "Apply the licaiclaw menu assembly to the online database",
-      "description": "As an operator, I need the online licaiclaw database records updated to the new menu grouping so that the production app uses the intended left navigation without manual admin operations.",
+      "title": "Make the setup wizard create and update persisted IM bot records",
+      "description": "As an operator, I want the setup wizard to create a real managed bot record so that the bot appears after reload and can be edited from the detail sheet.",
       "acceptanceCriteria": [
-        "Run the menu upsert script against the online target database for `licaiclaw`",
-        "The online persisted menu binding record verifies the required order and `group_label` values through the admin/control-plane API or direct DB-backed verification",
-        "The change is scoped to `licaiclaw` and does not reorder other apps' menu bindings",
-        "Typecheck passes"
+        "Completing the setup wizard creates or updates a persisted IM bot record for the selected platform",
+        "Reloading the desktop app preserves previously created bots and their selected platform metadata",
+        "Editing the detail sheet saves back to the same persisted IM bot record",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
       "passes": false,
@@ -81,16 +81,47 @@
     },
     {
       "id": "US-006",
-      "title": "Verify runtime and public payload expose the new grouped menu assembly",
-      "description": "As a release owner, I need to verify the runtime/public payload after the DB update so that the desktop shell actually receives the grouped licaiclaw menu config, not just the saved admin record.",
+      "title": "Map persisted IM bot records into real OpenClaw channel configuration",
+      "description": "As a runtime integrator, I need each managed IM bot to emit actual OpenClaw channel config so that packaged plugins can be configured by the desktop UI instead of only showing guide text.",
       "acceptanceCriteria": [
-        "Fetch the licaiclaw runtime/public payload after save and confirm the menu order matches chat, investment-experts, finance-skills, foundation-skills, cron, stock-market, fund-market, data-connections, im-bots, memory, security",
-        "Runtime/public payload exposes group labels mapping to `工作台`, `市场`, and `通用` for the corresponding menu keys",
-        "Verification checks both persisted backend data and runtime/public payload before marking complete",
+        "Saving a bot record writes or updates channel config for the corresponding packaged plugin id in the desktop runtime config source",
+        "Per-platform field mapping covers dingtalk, feishu-china, qqbot, wecom, wecom-app, wecom-kf, wechat-mp, and openclaw-weixin",
+        "OpenClaw runtime config output after save contains the expected channel section for a created bot",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Replace fake IM connection tests with channel-aware readiness diagnostics",
+      "description": "As an operator, I want the test action to diagnose the selected channel configuration and runtime prerequisites so that the setup flow tells me whether the robot is truly ready instead of only checking generic app health.",
+      "acceptanceCriteria": [
+        "Connection test validates required credentials for the selected platform before reporting success",
+        "Connection test verifies packaged plugin presence and local OpenClaw runtime availability",
+        "Test results persist a platform-specific readiness summary onto the managed bot record",
+        "WeChat official plugin path surfaces QR-login-not-completed as a distinct readiness state",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
-      "priority": 6,
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Support official WeChat QR-login guidance inside the IM bot setup flow",
+      "description": "As a user configuring personal WeChat, I want the wizard to explain and expose the QR login step for the official plugin so that I can complete the only platform that needs interactive account authorization.",
+      "acceptanceCriteria": [
+        "The `openclaw-weixin` setup flow clearly distinguishes QR login from static credential entry platforms",
+        "Wizard copy references the `openclaw channels login --channel openclaw-weixin` step in the correct place",
+        "The saved bot record can represent pending-login versus logged-in states for `openclaw-weixin`",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
       "passes": false,
       "notes": ""
     }

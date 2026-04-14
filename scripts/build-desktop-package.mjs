@@ -6,7 +6,8 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadBrandProfile, resolveBrandId } from './lib/brand-profile.mjs';
+import { loadDesktopBrandContext } from './lib/desktop-brand-context.mjs';
+import { resolveBrandId } from './lib/brand-profile.mjs';
 import { pathExists, syncDirOrRemove } from './lib/incremental-fs.mjs';
 import { resolveConfiguredAppName, resolvePackagingSourceEnv, resolveSigningOverlayEnv } from './lib/app-env.mjs';
 import {
@@ -220,12 +221,15 @@ async function readGeneratedProductName() {
   return productName;
 }
 
-async function assertGeneratedBrandArtifacts({ brandProfile, appVersion }) {
+async function assertGeneratedBrandArtifacts({ brandContext, appVersion }) {
   const generatedConfig = JSON.parse(await fs.readFile(generatedConfigPath, 'utf8'));
   const generatedBrand = JSON.parse(await fs.readFile(generatedBrandPath, 'utf8'));
-  const expectedProductName = trimString(brandProfile?.productName);
-  const expectedBundleIdentifier = trimString(brandProfile?.bundleIdentifier);
-  const expectedBrandId = trimString(brandProfile?.brandId);
+  const expectedProductName = trimString(brandContext?.productName);
+  const expectedBundleIdentifier = trimString(brandContext?.bundleIdentifier);
+  const expectedBrandId = trimString(brandContext?.brandId);
+  const expectedArtifactBaseName = trimString(brandContext?.artifactBaseName);
+  const expectedBuildId = trimString(brandContext?.buildId);
+  const expectedSourceProfileHash = trimString(brandContext?.sourceProfileHash);
   const expectedVersion = trimString(appVersion);
 
   if (trimString(generatedConfig.productName) !== expectedProductName) {
@@ -251,6 +255,21 @@ async function assertGeneratedBrandArtifacts({ brandProfile, appVersion }) {
   if (trimString(generatedBrand.bundleIdentifier) !== expectedBundleIdentifier) {
     throw new Error(
       `desktop packaging aborted: stale bundleIdentifier in ${generatedBrandPath}; expected ${JSON.stringify(expectedBundleIdentifier)}, got ${JSON.stringify(generatedBrand.bundleIdentifier)}`,
+    );
+  }
+  if (trimString(generatedBrand.artifactBaseName) !== expectedArtifactBaseName) {
+    throw new Error(
+      `desktop packaging aborted: stale artifactBaseName in ${generatedBrandPath}; expected ${JSON.stringify(expectedArtifactBaseName)}, got ${JSON.stringify(generatedBrand.artifactBaseName)}`,
+    );
+  }
+  if (trimString(generatedBrand.build?.stamp?.buildId) !== expectedBuildId) {
+    throw new Error(
+      `desktop packaging aborted: stale buildId in ${generatedBrandPath}; expected ${JSON.stringify(expectedBuildId)}, got ${JSON.stringify(generatedBrand.build?.stamp?.buildId)}`,
+    );
+  }
+  if (trimString(generatedBrand.build?.stamp?.sourceProfileHash) !== expectedSourceProfileHash) {
+    throw new Error(
+      `desktop packaging aborted: stale sourceProfileHash in ${generatedBrandPath}; expected ${JSON.stringify(expectedSourceProfileHash)}, got ${JSON.stringify(generatedBrand.build?.stamp?.sourceProfileHash)}`,
     );
   }
 
@@ -1893,9 +1912,9 @@ async function main() {
   const { brandId, target, forwardedArgs } = parseArgs(process.argv.slice(2));
   const runtimeTargetTriple = inferRuntimeTargetTriple(target);
   const channel = resolvePackagingChannelFromEnv(process.env);
-  const packageJson = JSON.parse(await fs.readFile(path.join(rootDir, 'package.json'), 'utf8'));
-  const appVersion = trimString(packageJson.version);
-  const { profile: brandProfile } = await loadBrandProfile({ rootDir, brandId, envName: channel });
+  const brandContext = await loadDesktopBrandContext({ rootDir, brandId, envName: channel });
+  const brandProfile = brandContext.profile;
+  const appVersion = trimString(brandContext.appVersion);
   const packagingPaths = buildPackagingWorkspacePaths({ rootDir, brandId, channel, target });
   const snapshotKey = [
     'desktop-package-build',
@@ -1958,7 +1977,7 @@ async function main() {
     }
 
     run(process.execPath, [applyBrandScriptPath, brandId], { env });
-    await assertGeneratedBrandArtifacts({ brandProfile, appVersion });
+    await assertGeneratedBrandArtifacts({ brandContext, appVersion });
     await preparePackagingResourcesSource(packagingPaths.resourcesSourceDir);
     syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths });
     await syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths });

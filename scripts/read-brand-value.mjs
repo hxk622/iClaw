@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import process from 'node:process';
-import { loadBrandProfile, resolveBrandId } from './lib/brand-profile.mjs';
+import { loadDesktopBrandContext } from './lib/desktop-brand-context.mjs';
+import { resolveBrandId } from './lib/brand-profile.mjs';
 
 function readPath(root, pathExpression) {
   return pathExpression
@@ -24,11 +25,20 @@ async function main() {
     paths.push(arg);
   }
 
-  const { profile } = await loadBrandProfile({ brandId });
+  const context = await loadDesktopBrandContext({ brandId });
+  const profile = context.profile;
+  const queryRoot = {
+    ...profile,
+    build: {
+      version: context.appVersion,
+      releaseVersion: context.releaseVersion,
+      stamp: context.stamp,
+    },
+  };
   const queries = paths.length > 0 ? paths : ['brandId'];
 
   for (const query of queries) {
-    const value = readPath(profile, query);
+    const value = readPath(queryRoot, query);
     if (typeof value === 'string') {
       process.stdout.write(`${value}\n`);
       continue;

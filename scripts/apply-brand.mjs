@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { loadBrandProfile, resolveBrandId } from './lib/brand-profile.mjs';
+import { loadDesktopBrandContext } from './lib/desktop-brand-context.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -23,7 +23,6 @@ const tauriGeneratedPath = path.join(tauriDir, 'tauri.generated.conf.json');
 const brandGeneratedTsPath = path.join(desktopDir, 'src', 'app', 'lib', 'brand.generated.ts');
 const brandGeneratedJsonPath = path.join(tauriDir, 'brand.generated.json');
 const homeWebBrandGeneratedJsPath = path.join(homeWebDir, 'brand.generated.js');
-const rootPackageJsonPath = path.join(rootDir, 'package.json');
 const brandGeneratedPaths = [
   outputBrandDir,
   path.join(outputPublicDir, 'favicon.ico'),
@@ -223,7 +222,7 @@ async function ensureTauriIcons(params) {
   await copyFile(icnsSourcePath, path.join(outputIconsDir, 'icon.icns'));
 }
 
-function buildBrandTs(brand, assetPaths) {
+function buildBrandTs(brand, appVersion, assetPaths, brandStamp) {
   return `export const BRAND = ${JSON.stringify(
     {
       brandId: brand.brandId,
@@ -254,7 +253,11 @@ function buildBrandTs(brand, assetPaths) {
       oauth: brand.oauth,
       website: brand.website,
       distribution: {
-        artifactBaseName: brand.distribution.artifactBaseName,
+        artifactBaseName: brandStamp.artifactBaseName,
+      },
+      build: {
+        version: appVersion,
+        stamp: brandStamp,
       },
     },
     null,
@@ -282,7 +285,7 @@ function isTruthyEnv(value) {
   return /^(1|true|yes)$/i.test(String(value || '').trim());
 }
 
-function buildHomeBrandJs(brand, appVersion, assetPaths) {
+function buildHomeBrandJs(brand, appVersion, assetPaths, brandStamp) {
   return `export const HOME_BRAND = ${JSON.stringify(
     {
       brandId: brand.brandId,
@@ -317,7 +320,11 @@ function buildHomeBrandJs(brand, appVersion, assetPaths) {
       },
       release: {
         version: resolveHomeReleaseVersion(appVersion),
-        artifactBaseName: brand.distribution.artifactBaseName,
+        artifactBaseName: brandStamp.artifactBaseName,
+      },
+      build: {
+        version: appVersion,
+        stamp: brandStamp,
       },
       distribution: brand.distribution,
     },
@@ -345,12 +352,17 @@ function assertDesktopBrandConsistency(tauriConfig, brand) {
 }
 
 async function main() {
-  const brandId = resolveBrandId(process.argv[2]);
-  const { brandDir, profile: brand } = await loadBrandProfile({ rootDir, brandId });
-  const rootPackageJson = JSON.parse(await fs.readFile(rootPackageJsonPath, 'utf8'));
-  const appVersion = typeof rootPackageJson.version === 'string' ? rootPackageJson.version : '0.0.0';
-  if (typeof rootPackageJson.releaseVersion === 'string' && rootPackageJson.releaseVersion.trim()) {
-    process.env.ICLAW_ROOT_RELEASE_VERSION = rootPackageJson.releaseVersion.trim();
+  const context = await loadDesktopBrandContext({ rootDir, brandId: process.argv[2] });
+  const {
+    brandDir,
+    profile: brand,
+    appVersion,
+    releaseVersion,
+    artifactBaseName,
+    stamp: brandStamp,
+  } = context;
+  if (releaseVersion) {
+    process.env.ICLAW_ROOT_RELEASE_VERSION = releaseVersion;
   }
 
   const faviconIco = resolveBrandPath(brandDir, brand.assets.faviconIco);
@@ -507,16 +519,20 @@ async function main() {
         bundleIdentifier: brand.bundleIdentifier,
         authService: brand.authService,
         endpoints: brand.endpoints,
-        artifactBaseName: brand.distribution.artifactBaseName,
+        artifactBaseName,
         storageNamespace: brand.storage.namespace,
+        build: {
+          version: appVersion,
+          stamp: brandStamp,
+        },
       },
       null,
       2,
     )}\n`,
     'utf8',
   );
-  await fs.writeFile(brandGeneratedTsPath, buildBrandTs(brand, brandAssetPaths), 'utf8');
-  await fs.writeFile(homeWebBrandGeneratedJsPath, buildHomeBrandJs(brand, appVersion, brandAssetPaths), 'utf8');
+  await fs.writeFile(brandGeneratedTsPath, buildBrandTs(brand, appVersion, brandAssetPaths, brandStamp), 'utf8');
+  await fs.writeFile(homeWebBrandGeneratedJsPath, buildHomeBrandJs(brand, appVersion, brandAssetPaths, brandStamp), 'utf8');
 
   process.stdout.write(`[brand] applied ${brand.brandId}\n`);
 }

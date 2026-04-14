@@ -1,6 +1,6 @@
 Ralph Progress
 ==============
 
-Project: iClaw Licaiclaw Menu Assembly
-Branch: ralph/licaiclaw-left-nav-groups
+Project: iClaw IM Bots Real China Channels
+Branch: ralph/im-bots-real-china-channels
 
