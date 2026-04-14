@@ -1,17 +1,17 @@
 {
-  "project": "iClaw Fault Center",
-  "branchName": "ralph/fault-center-manual-auto-reports",
-  "description": "Build a Fault Center in admin-web with manual and automatic report views, reuse the existing fault and diagnostic models, and complete the desktop auto-error diagnostic upload path.",
+  "project": "iClaw Licaiclaw Menu Assembly",
+  "branchName": "ralph/licaiclaw-left-nav-groups",
+  "description": "Reorder and regroup the licaiclaw left navigation into fixed 工作台/市场/通用 sections, make the admin/control-plane data source authoritative, and apply the same configuration to the online database with persisted/runtime verification.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Align fault center on existing fault and diagnostic models",
-      "description": "As a developer, I need the fault center feature to reuse the existing `desktop_fault_reports` and `desktop_diagnostic_uploads` models so that manual and automatic diagnostics stay in one coherent subsystem.",
+      "title": "Define licaiclaw menu bindings as the source of truth in control-plane data",
+      "description": "As a platform developer, I need the licaiclaw app menu bindings to encode the exact menu keys, sort order, and group labels so that the desktop left nav is driven by authoritative DB-backed config instead of ad hoc admin clicking.",
       "acceptanceCriteria": [
-        "`desktop_fault_reports` remains the source of truth for manual fault reports",
-        "`desktop_diagnostic_uploads` remains the source of truth for automatic diagnostic uploads",
-        "No duplicate fault-report schema is introduced for automatic uploads",
-        "Control-plane admin APIs expose the fields needed by both fault center views from the existing models",
+        "Licaiclaw menu bindings include exactly these menu keys in order: chat, investment-experts, finance-skills, foundation-skills, cron, stock-market, fund-market, data-connections, im-bots, memory, security",
+        "Menu binding config stores group labels so the first five items map to `工作台`, the next two map to `市场`, and the last four map to `通用`",
+        "No extra licaiclaw app menu binding remains enabled outside the required ordered set",
+        "The source-of-truth config remains in control-plane DB/baseline-compatible data, not a frontend-only hardcoded reorder",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -21,13 +21,13 @@
     },
     {
       "id": "US-002",
-      "title": "Add automatic diagnostic upload capture path in desktop client",
-      "description": "As the desktop runtime, I need to automatically upload diagnostic metadata for captured client errors so that operators can inspect automatic fault signals without waiting for manual reports.",
+      "title": "Add a deterministic script to upsert licaiclaw menu bindings",
+      "description": "As an operator, I need a scriptable way to apply the licaiclaw menu assembly so that local and remote databases can be updated reproducibly without manual admin-web edits.",
       "acceptanceCriteria": [
-        "Desktop client records automatic diagnostic uploads with `source_type = auto_error_capture`",
-        "Automatic upload payload includes device_id, app_name, file_name, file_size_bytes, sensitivity_level, and created_at",
-        "Automatic upload attaches user_id when an authenticated session exists and leaves it null otherwise",
-        "Automatic uploads do not reuse the manual fault report endpoint",
+        "Add or extend a control-plane script that upserts app menu bindings for a specified app name",
+        "The script writes enabled state, sort order, and `group_label` for each required licaiclaw menu binding",
+        "The script can target the current environment database using existing env/config loading",
+        "The script can be re-run safely without creating duplicate bindings or unstable ordering",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -37,13 +37,12 @@
     },
     {
       "id": "US-003",
-      "title": "Expose fault center route group in admin-web navigation",
-      "description": "As an admin user, I want a Fault Center menu with manual and automatic sub-pages so that manual and automatic diagnostics are separated clearly.",
+      "title": "Keep admin-web menu assembly view consistent with grouped menu bindings",
+      "description": "As an admin user, I want the brand detail menu assembly panel to reflect the persisted grouped order so that the admin UI matches the control-plane source of truth after script-based updates.",
       "acceptanceCriteria": [
-        "Add left nav parent menu `故障中心` to admin-web",
-        "Add child route `手工故障上报` that points to the existing fault report page",
-        "Add child route `自动故障上报` for the automatic diagnostics page",
-        "故障中心 appears in the left navigation with the two sub-menu items in order",
+        "Admin-web brand detail menu assembly reads and displays `group_label` from menu binding config",
+        "The licaiclaw menu assembly panel shows the updated grouped order without manual re-entry",
+        "Saving menu assembly from admin-web preserves the same group labels and ordering fields used by the script",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
@@ -53,12 +52,12 @@
     },
     {
       "id": "US-004",
-      "title": "Show userId on manual fault report list and detail views",
-      "description": "As an admin user, I want the manual fault report UI to show userId when present so that authenticated reports are distinguishable from anonymous ones.",
+      "title": "Apply the licaiclaw menu assembly to the local control-plane database",
+      "description": "As a developer, I need the local control-plane database updated to the new licaiclaw menu grouping so that local runtime and admin verification use the same menu assembly as production.",
       "acceptanceCriteria": [
-        "手工故障上报列表新增 `userId` 列",
-        "userId 为空时列表与详情显示明确空值文案而不是报错",
-        "手工故障上报详情区域显示 `userId`",
+        "Run the menu upsert script against the local/current control-plane database for `licaiclaw`",
+        "Persisted menu bindings for `licaiclaw` verify the exact order and groups in the database-backed admin API response",
+        "The local admin-web menu assembly page shows the same grouped order after reload",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
@@ -68,15 +67,13 @@
     },
     {
       "id": "US-005",
-      "title": "Build automatic fault report admin page from diagnostic uploads",
-      "description": "As an admin user, I want an automatic fault report page backed by desktop diagnostic uploads so that auto-collected error logs can be filtered and inspected separately from manual reports.",
+      "title": "Apply the licaiclaw menu assembly to the online database",
+      "description": "As an operator, I need the online licaiclaw database records updated to the new menu grouping so that the production app uses the intended left navigation without manual admin operations.",
       "acceptanceCriteria": [
-        "自动故障上报页面 reads from `/admin/security/action-diagnostic-uploads`",
-        "Page filters records to automatic uploads using `source_type = auto_error_capture`",
-        "List shows created time, userId, deviceId, appName, fileName, sensitivity level, and linked intent when present",
-        "Detail view shows upload metadata including bucket/key, sha256, file size, and source type",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Run the menu upsert script against the online target database for `licaiclaw`",
+        "The online persisted menu binding record verifies the required order and `group_label` values through the admin/control-plane API or direct DB-backed verification",
+        "The change is scoped to `licaiclaw` and does not reorder other apps' menu bindings",
+        "Typecheck passes"
       ],
       "priority": 5,
       "passes": false,
@@ -84,13 +81,12 @@
     },
     {
       "id": "US-006",
-      "title": "Unify fault center page structure and filtering semantics",
-      "description": "As an admin user, I want manual and automatic fault views to feel like one subsystem with shared page structure and comparable filters.",
+      "title": "Verify runtime and public payload expose the new grouped menu assembly",
+      "description": "As a release owner, I need to verify the runtime/public payload after the DB update so that the desktop shell actually receives the grouped licaiclaw menu config, not just the saved admin record.",
       "acceptanceCriteria": [
-        "手工故障上报 and 自动故障上报 both support app/device/user-oriented filtering appropriate to their data source",
-        "Both pages show explicit empty states when there are no records",
-        "Both pages live under `故障中心` and use clearly differentiated titles and descriptions",
-        "Both pages preserve left-list/right-detail workflow for record inspection",
+        "Fetch the licaiclaw runtime/public payload after save and confirm the menu order matches chat, investment-experts, finance-skills, foundation-skills, cron, stock-market, fund-market, data-connections, im-bots, memory, security",
+        "Runtime/public payload exposes group labels mapping to `工作台`, `市场`, and `通用` for the corresponding menu keys",
+        "Verification checks both persisted backend data and runtime/public payload before marking complete",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
