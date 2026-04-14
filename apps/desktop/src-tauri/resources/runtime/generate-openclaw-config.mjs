@@ -234,6 +234,7 @@ function replaceProviderModels(provider, entries) {
 
 function main() {
   const configPath = trimString(process.env.ICLAW_OPENCLAW_CONFIG_PATH || process.env.OPENCLAW_CONFIG_PATH);
+  const desktopBrandStampPath = trimString(process.env.ICLAW_OPENCLAW_BRAND_STAMP_PATH);
   const runtimeConfigPath = trimString(process.env.ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH);
   const gatewayToken = trimString(process.env.ICLAW_OPENCLAW_GATEWAY_TOKEN || process.env.OPENCLAW_GATEWAY_TOKEN);
   const workspaceDir = trimString(process.env.ICLAW_OPENCLAW_WORKSPACE_DIR);
@@ -246,6 +247,9 @@ function main() {
   }
 
   const config = readJsonIfExists(configPath) ?? {};
+  if (config && typeof config === 'object' && !Array.isArray(config) && 'metadata' in config) {
+    delete config.metadata;
+  }
   const portalRuntimeSources = loadPortalRuntimeSnapshotSources();
   const portalRuntimeSnapshot = portalRuntimeSources.snapshot ?? portalRuntimeSources.bundled;
   const desktopBrandStamp = buildDesktopBrandStamp(portalRuntimeSnapshot);
@@ -441,13 +445,15 @@ function main() {
   browser.headless = true;
   config.browser = browser;
 
-  const metadata = ensureObject(config, 'metadata');
-  metadata.desktopBrand = Object.fromEntries(
-    Object.entries(desktopBrandStamp).filter(([, value]) => typeof value === 'string' && value.trim()),
-  );
-  config.metadata = metadata;
-
   writeJson(configPath, config);
+  if (desktopBrandStampPath) {
+    writeJson(
+      desktopBrandStampPath,
+      Object.fromEntries(
+        Object.entries(desktopBrandStamp).filter(([, value]) => typeof value === 'string' && value.trim()),
+      ),
+    );
+  }
 }
 
 main();

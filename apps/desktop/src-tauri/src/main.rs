@@ -5434,6 +5434,16 @@ fn openclaw_config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn openclaw_brand_stamp_path(app: &AppHandle) -> Result<PathBuf, String> {
+    ensure_runtime_scope_migrated(app)?;
+    let path = runtime_scope_root_dir_raw(app).join("desktop-brand-stamp.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create desktop brand stamp dir: {e}"))?;
+    }
+    Ok(path)
+}
+
 fn desktop_window_state_path(app: &AppHandle) -> Result<PathBuf, String> {
     let path = app_data_base_dir(app)?
         .join("config")
@@ -5739,10 +5749,12 @@ fn generate_openclaw_runtime_config(
     let node_path = resolve_runtime_node_path(app)?;
     let workspace_dir = openclaw_workspace_dir(app)?;
     let snapshot_path = oem_runtime_snapshot_path(app)?;
+    let brand_stamp_path = openclaw_brand_stamp_path(app)?;
     let mut command = Command::new(&node_path);
     command.arg(node_command_safe_path(&generator_path));
     command.env("ICLAW_OPENCLAW_CONFIG_PATH", config_path);
     command.env("ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH", &runtime_config_path);
+    command.env("ICLAW_OPENCLAW_BRAND_STAMP_PATH", &brand_stamp_path);
     command.env("ICLAW_OPENCLAW_GATEWAY_TOKEN", gateway_token);
     command.env("ICLAW_OPENCLAW_WORKSPACE_DIR", workspace_dir);
     command.env("ICLAW_OPENCLAW_RUNTIME_MODE", "prod");

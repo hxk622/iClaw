@@ -20,6 +20,7 @@ const generatorPath = path.join(
 function runGenerator(env) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iclaw-runtime-config-test-'));
   const configPath = path.join(tempDir, 'openclaw.json');
+  const brandStampPath = path.join(tempDir, 'desktop-brand-stamp.json');
   execFileSync(process.execPath, [generatorPath], {
     cwd: repoRoot,
     env: {
@@ -33,13 +34,15 @@ function runGenerator(env) {
         env.ICLAW_DESKTOP_BUNDLE_IDENTIFIER || 'ai.licaiclaw.desktop',
       ICLAW_DESKTOP_ARTIFACT_BASE_NAME:
         env.ICLAW_DESKTOP_ARTIFACT_BASE_NAME || 'LiCaiClaw',
+      ICLAW_OPENCLAW_BRAND_STAMP_PATH: brandStampPath,
       ICLAW_OPENCLAW_CONFIG_PATH: configPath,
     },
     stdio: 'pipe',
   });
   const output = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const brandStamp = JSON.parse(fs.readFileSync(brandStampPath, 'utf8'));
   fs.rmSync(tempDir, { recursive: true, force: true });
-  return output;
+  return { output, brandStamp };
 }
 
 function readFixture(name) {
@@ -61,7 +64,8 @@ test('golden: dev runtime config generation stays stable', () => {
     ICLAW_OPENCLAW_RUNTIME_MODE: 'dev',
     ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'http://127.0.0.1:1520,http://localhost:1520',
   });
-  assert.deepEqual(actual, readFixture('expected-dev.json'));
+  assert.deepEqual(actual.output, readFixture('expected-dev.json'));
+  assert.equal(actual.brandStamp.brandId, 'licaiclaw');
 });
 
 test('golden: prod runtime config generation stays stable', () => {
@@ -73,7 +77,8 @@ test('golden: prod runtime config generation stays stable', () => {
     ICLAW_OPENCLAW_RUNTIME_MODE: 'prod',
     ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'tauri://localhost,http://tauri.localhost,https://tauri.localhost',
   });
-  assert.deepEqual(actual, readFixture('expected-prod.json'));
+  assert.deepEqual(actual.output, readFixture('expected-prod.json'));
+  assert.equal(actual.brandStamp.brandId, 'licaiclaw');
 });
 
 test('defaults desktop runtime browser launcher to headless', () => {
@@ -85,7 +90,7 @@ test('defaults desktop runtime browser launcher to headless', () => {
     ICLAW_OPENCLAW_RUNTIME_MODE: 'prod',
     ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'tauri://localhost,http://tauri.localhost,https://tauri.localhost',
   });
-  assert.equal(actual.browser?.headless, true);
+  assert.equal(actual.output.browser?.headless, true);
 });
 
 test('normalizes openai-compatible provider baseUrl to include /v1 when missing', () => {
@@ -105,9 +110,9 @@ test('normalizes openai-compatible provider baseUrl to include /v1 when missing'
       ICLAW_OPENCLAW_RUNTIME_MODE: 'dev',
       ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'http://127.0.0.1:1520,http://localhost:1520',
     });
-    assert.equal(actual.models.providers.omnirouter.baseUrl, 'https://omnirouter.aiyuanxi.com/v1');
+    assert.equal(actual.output.models.providers.omnirouter.baseUrl, 'https://omnirouter.aiyuanxi.com/v1');
     assert.equal(
-      actual.agents.defaults.memorySearch.remote.baseUrl,
+      actual.output.agents.defaults.memorySearch.remote.baseUrl,
       'https://dashscope.aliyuncs.com/compatible-mode',
     );
   } finally {
@@ -132,8 +137,8 @@ test('honors default_model_ref even when it is not the first enabled provider mo
       ICLAW_OPENCLAW_RUNTIME_MODE: 'prod',
       ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'tauri://localhost,http://tauri.localhost,https://tauri.localhost',
     });
-    assert.equal(actual.agents.defaults.model.primary, 'deepseek/deepseek-v3.2');
-    assert.equal(actual.metadata?.desktopBrand?.brandId, 'licaiclaw');
+    assert.equal(actual.output.agents.defaults.model.primary, 'deepseek/deepseek-v3.2');
+    assert.equal(actual.brandStamp.brandId, 'licaiclaw');
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
