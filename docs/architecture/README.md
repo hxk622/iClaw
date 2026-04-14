@@ -14,6 +14,7 @@
 - `desktop-lifecycle-session-architecture.md`
 - `desktop-startup-orchestrator-architecture.md`
 - `desktop-surface-cache-architecture.md`
+- `hermes-self-evolution-architecture.md`
 - `native-agent-store-architecture.md`
 - `oem-capability-architecture.md`
 - `openclaw-wrapper-architecture.md`
@@ -29,4 +30,5 @@
 1. `control-plane-architecture.md`
 2. `openclaw-wrapper-architecture.md`
 3. `oem-capability-architecture.md`
-4. `desktop-startup-orchestrator-architecture.md`
+4. `hermes-self-evolution-architecture.md`
+5. `desktop-startup-orchestrator-architecture.md`
