@@ -56,18 +56,18 @@ export async function submitDesktopFaultReport(
   input.onPhaseChange?.('collecting');
   const prepareInput: DesktopFaultReportPrepareInput = {
     entry: input.entry,
-    install_session_id: input.installSessionId || null,
-    app_name: BRAND.brandId,
-    brand_id: BRAND.brandId,
-    app_version: desktopPackageJson.version,
-    release_channel: resolveReleaseChannel(),
-    failure_stage: input.failureStage,
-    error_title: input.errorTitle,
-    error_message: input.errorMessage,
-    error_code: input.errorCode || null,
-    install_progress_phase: input.installProgressPhase || null,
-    install_progress_percent: input.installProgressPercent ?? null,
-    extra_diagnostics: input.extraDiagnostics || null,
+    installSessionId: input.installSessionId || null,
+    appName: BRAND.brandId,
+    brandId: BRAND.brandId,
+    appVersion: desktopPackageJson.version,
+    releaseChannel: resolveReleaseChannel(),
+    failureStage: input.failureStage,
+    errorTitle: input.errorTitle,
+    errorMessage: input.errorMessage,
+    errorCode: input.errorCode || null,
+    installProgressPhase: input.installProgressPhase || null,
+    installProgressPercent: input.installProgressPercent ?? null,
+    extraDiagnostics: input.extraDiagnostics || null,
   };
   const prepared = await prepareDesktopFaultReportArchive(prepareInput);
   if (!prepared) {
@@ -75,7 +75,7 @@ export async function submitDesktopFaultReport(
   }
 
   input.onPhaseChange?.('compressing');
-  const archiveBytes = decodeBase64ToBytes(prepared.archive_base64);
+  const archiveBytes = decodeBase64ToBytes(prepared.archiveBase64);
   const payload = {
     ...prepared.payload,
     account_state: input.accountState,
@@ -85,7 +85,7 @@ export async function submitDesktopFaultReport(
   return input.client.uploadDesktopFaultReport({
     token: input.accessToken || null,
     payload,
-    fileName: prepared.file_name,
+    fileName: prepared.fileName,
     contentType: 'application/zip',
     file: archiveBytes,
     onProgress: input.onUploadProgress,
@@ -97,36 +97,36 @@ export async function submitAutoDiagnosticUpload(
 ): Promise<DesktopDiagnosticUploadData> {
   const prepareInput: DesktopFaultReportPrepareInput = {
     entry: 'exception-dialog',
-    install_session_id: input.installSessionId || null,
-    app_name: BRAND.brandId,
-    brand_id: BRAND.brandId,
-    app_version: desktopPackageJson.version,
-    release_channel: resolveReleaseChannel(),
-    failure_stage: input.failureStage,
-    error_title: input.errorTitle,
-    error_message: input.errorMessage,
-    error_code: input.errorCode || null,
-    extra_diagnostics: input.extraDiagnostics || null,
+    installSessionId: input.installSessionId || null,
+    appName: BRAND.brandId,
+    brandId: BRAND.brandId,
+    appVersion: desktopPackageJson.version,
+    releaseChannel: resolveReleaseChannel(),
+    failureStage: input.failureStage,
+    errorTitle: input.errorTitle,
+    errorMessage: input.errorMessage,
+    errorCode: input.errorCode || null,
+    extraDiagnostics: input.extraDiagnostics || null,
   };
   const prepared = await prepareDesktopFaultReportArchive(prepareInput);
   if (!prepared) {
     throw new Error('桌面端自动诊断上传不可用');
   }
-  const archiveBytes = decodeBase64ToBytes(prepared.archive_base64);
+  const archiveBytes = decodeBase64ToBytes(prepared.archiveBase64);
   return input.client.uploadDesktopDiagnosticUpload({
     token: input.accessToken || null,
     payload: {
-      device_id: prepared.device_id,
+      device_id: prepared.deviceId,
       app_name: BRAND.brandId,
-      file_name: prepared.file_name,
-      file_size_bytes: prepared.file_size_bytes,
-      sha256: prepared.file_sha256,
+      file_name: prepared.fileName,
+      file_size_bytes: prepared.fileSizeBytes,
+      sha256: prepared.fileSha256,
       source_type: 'auto_error_capture',
       contains_customer_logs: true,
       sensitivity_level: 'customer',
       created_at: new Date().toISOString(),
     },
-    fileName: prepared.file_name,
+    fileName: prepared.fileName,
     contentType: 'application/zip',
     file: archiveBytes,
     onProgress: input.onUploadProgress,

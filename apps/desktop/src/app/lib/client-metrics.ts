@@ -79,12 +79,12 @@ async function resolveClientMetricsContext(): Promise<Record<string, unknown>> {
       const tauriContext = await loadDesktopClientMetricsContext().catch(() => null);
       if (tauriContext) {
         return {
-          device_id: tauriContext.device_id,
+          device_id: tauriContext.deviceId,
           platform: tauriContext.platform,
-          platform_version: tauriContext.platform_version,
+          platform_version: tauriContext.platformVersion,
           arch: tauriContext.arch,
-          app_version: tauriContext.app_version,
-          brand_id: tauriContext.brand_id,
+          app_version: tauriContext.appVersion,
+          brand_id: tauriContext.brandId,
         };
       }
       return {

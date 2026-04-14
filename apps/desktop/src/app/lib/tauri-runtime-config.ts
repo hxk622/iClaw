@@ -43,49 +43,49 @@ export interface RuntimeInstallProgress {
 }
 
 export interface DesktopFaultReportPrepareInput {
-  report_id?: string | null;
+  reportId?: string | null;
   entry: 'installer' | 'exception-dialog';
-  install_session_id?: string | null;
-  app_name?: string | null;
-  brand_id?: string | null;
-  app_version?: string | null;
-  release_channel?: string | null;
-  failure_stage: string;
-  error_title: string;
-  error_message: string;
-  error_code?: string | null;
-  runtime_found?: boolean | null;
-  runtime_installable?: boolean | null;
-  runtime_version?: string | null;
-  runtime_path?: string | null;
-  work_dir?: string | null;
-  log_dir?: string | null;
-  runtime_download_url?: string | null;
-  install_progress_phase?: string | null;
-  install_progress_percent?: number | null;
-  extra_diagnostics?: Record<string, unknown> | null;
+  installSessionId?: string | null;
+  appName?: string | null;
+  brandId?: string | null;
+  appVersion?: string | null;
+  releaseChannel?: string | null;
+  failureStage: string;
+  errorTitle: string;
+  errorMessage: string;
+  errorCode?: string | null;
+  runtimeFound?: boolean | null;
+  runtimeInstallable?: boolean | null;
+  runtimeVersion?: string | null;
+  runtimePath?: string | null;
+  workDir?: string | null;
+  logDir?: string | null;
+  runtimeDownloadUrl?: string | null;
+  installProgressPhase?: string | null;
+  installProgressPercent?: number | null;
+  extraDiagnostics?: Record<string, unknown> | null;
 }
 
 export interface PreparedDesktopFaultReportArchive {
-  report_id: string;
-  device_id: string;
+  reportId: string;
+  deviceId: string;
   platform: string;
-  platform_version: string | null;
+  platformVersion: string | null;
   arch: string;
-  file_name: string;
-  file_size_bytes: number;
-  file_sha256: string;
-  archive_base64: string;
+  fileName: string;
+  fileSizeBytes: number;
+  fileSha256: string;
+  archiveBase64: string;
   payload: Record<string, unknown>;
 }
 
 export interface DesktopClientMetricsContext {
-  device_id: string;
+  deviceId: string;
   platform: string;
-  platform_version: string | null;
+  platformVersion: string | null;
   arch: string;
-  app_version: string;
-  brand_id: string;
+  appVersion: string;
+  brandId: string;
 }
 
 export interface OemRuntimeSnapshot {

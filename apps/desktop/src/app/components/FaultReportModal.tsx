@@ -94,8 +94,8 @@ export function FaultReportModal({
           setProgress(percent == null ? 72 : Math.max(45, percent));
         },
       });
-      setReportId(result.report_id);
-      setPackageSizeLabel(`${Math.max(1, Math.round(result.file_size_bytes / 1024))} KB`);
+      setReportId(result.reportId);
+      setPackageSizeLabel(`${Math.max(1, Math.round(result.fileSizeBytes / 1024))} KB`);
       setProgress(100);
       setState('success');
     } catch (error) {
