@@ -20,6 +20,7 @@
     "publish:github-cloud-skill": "node --experimental-strip-types scripts/publish-github-cloud-skill.ts",
     "publish:local-cloud-skill": "node --experimental-strip-types scripts/publish-local-cloud-skill.ts",
     "upsert:agent-catalog-entry": "node --experimental-strip-types scripts/upsert-agent-catalog-entry.ts",
+    "apply:app-menu-layout": "node --experimental-strip-types scripts/apply-app-menu-layout.ts",
     "migrate:skill-catalog-table": "node --experimental-strip-types scripts/migrate-skill-catalog-table.ts",
     "migrate:canonical-session-keys": "node --experimental-strip-types scripts/migrate-canonical-session-keys.ts",
     "import:a-share-stocks": "node --experimental-strip-types scripts/import-a-share-stocks.ts",

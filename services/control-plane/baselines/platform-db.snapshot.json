@@ -1260,7 +1260,8 @@
         },
         {
           "config": {
-            "group_label": "商店"
+            "display_name": "智能投资专家",
+            "group_label": "工作台"
           },
           "enabled": true,
           "menuKey": "investment-experts",
@@ -1268,105 +1269,84 @@
         },
         {
           "config": {
-            "group_label": "商店"
+            "display_name": "财经技能",
+            "group_label": "工作台"
           },
-          "enabled": false,
-          "menuKey": "skill-store",
+          "enabled": true,
+          "menuKey": "finance-skills",
           "sortOrder": 30
         },
         {
           "config": {
-            "group_label": "商店"
+            "display_name": "基础技能",
+            "group_label": "工作台"
           },
           "enabled": true,
-          "menuKey": "lobster-store",
+          "menuKey": "foundation-skills",
           "sortOrder": 40
         },
         {
           "config": {
-            "group_label": "商店"
-          },
-          "enabled": false,
-          "menuKey": "mcp-store",
-          "sortOrder": 50
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "menuKey": "task-center",
-          "sortOrder": 60
-        },
-        {
-          "config": {
-            "group_label": "工作台"
-          },
-          "enabled": true,
-          "menuKey": "data-connections",
-          "sortOrder": 70
-        },
-        {
-          "config": {
-            "group_label": "商店"
-          },
-          "enabled": true,
-          "menuKey": "finance-skills",
-          "sortOrder": 80
-        },
-        {
-          "config": {
-            "group_label": "商店"
-          },
-          "enabled": true,
-          "menuKey": "foundation-skills",
-          "sortOrder": 90
-        },
-        {
-          "config": {
-            "group_label": "市场"
-          },
-          "enabled": true,
-          "menuKey": "stock-market",
-          "sortOrder": 100
-        },
-        {
-          "config": {
-            "group_label": "市场"
-          },
-          "enabled": true,
-          "menuKey": "fund-market",
-          "sortOrder": 110
-        },
-        {
-          "config": {
+            "display_name": "定时任务",
             "group_label": "工作台"
           },
           "enabled": true,
           "menuKey": "cron",
-          "sortOrder": 120
+          "sortOrder": 50
         },
         {
           "config": {
-            "group_label": "工作台"
+            "display_name": "股票市场",
+            "group_label": "市场"
+          },
+          "enabled": true,
+          "menuKey": "stock-market",
+          "sortOrder": 60
+        },
+        {
+          "config": {
+            "display_name": "基金市场",
+            "group_label": "市场"
+          },
+          "enabled": true,
+          "menuKey": "fund-market",
+          "sortOrder": 70
+        },
+        {
+          "config": {
+            "display_name": "数据连接",
+            "group_label": "通用"
+          },
+          "enabled": true,
+          "menuKey": "data-connections",
+          "sortOrder": 80
+        },
+        {
+          "config": {
+            "display_name": "IM机器人",
+            "group_label": "通用"
           },
           "enabled": true,
           "menuKey": "im-bots",
-          "sortOrder": 130
+          "sortOrder": 90
         },
         {
           "config": {
-            "group_label": "工作台"
+            "display_name": "记忆管理",
+            "group_label": "通用"
           },
           "enabled": true,
           "menuKey": "memory",
-          "sortOrder": 140
+          "sortOrder": 100
         },
         {
           "config": {
-            "group_label": "工作台"
+            "display_name": "安全中心",
+            "group_label": "通用"
           },
           "enabled": true,
           "menuKey": "security",
-          "sortOrder": 150
+          "sortOrder": 110
         }
       ],
       "modelBindings": [
