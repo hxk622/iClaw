@@ -22,6 +22,7 @@ test('returns healthy when local runtime health check succeeds', async () => {
     stopSidecar: async () => true,
     startSidecar: async () => true,
     sidecarArgs: ['--port', '2126'],
+    sidecarStartTimeoutMs: 100,
     waitForHealth: async () => true,
   });
 
@@ -50,6 +51,7 @@ test('restarts sidecar when local runtime health check fails', async () => {
       return true;
     },
     sidecarArgs: ['--port', '2126'],
+    sidecarStartTimeoutMs: 100,
     waitForHealth: async () => {
       calls.push('wait');
       return true;
@@ -78,6 +80,7 @@ test('returns cooldown when restart budget is still cooling down', async () => {
       stopSidecar: async () => true,
       startSidecar: async () => true,
       sidecarArgs: [],
+      sidecarStartTimeoutMs: 100,
       waitForHealth: async () => true,
     },
   );
@@ -107,6 +110,7 @@ test('coalesces concurrent recovery calls into a single in-flight restart', asyn
       return true;
     },
     sidecarArgs: [],
+    sidecarStartTimeoutMs: 100,
     waitForHealth: async () => true,
   });
 
@@ -120,6 +124,7 @@ test('coalesces concurrent recovery calls into a single in-flight restart', asyn
     stopSidecar: async () => true,
     startSidecar: async () => true,
     sidecarArgs: [],
+    sidecarStartTimeoutMs: 100,
     waitForHealth: async () => true,
   });
 
@@ -127,4 +132,22 @@ test('coalesces concurrent recovery calls into a single in-flight restart', asyn
   release();
   assert.equal(await firstPromise, 'restarted');
   assert.equal(startCount, 1);
+});
+
+test('returns failed when sidecar start command itself times out', async () => {
+  const result = await ensureDesktopRuntimeReadyForChatRecovery(createState(), {
+    isTauriRuntime: true,
+    healthCheck: async () => {
+      throw new Error('down');
+    },
+    refreshGatewayAuth: async () => undefined,
+    syncBrandRuntimeSnapshot: async () => undefined,
+    stopSidecar: async () => true,
+    startSidecar: async () => new Promise<boolean>(() => undefined),
+    sidecarArgs: [],
+    sidecarStartTimeoutMs: 10,
+    waitForHealth: async () => true,
+  });
+
+  assert.equal(result, 'failed');
 });

@@ -5,6 +5,7 @@ import {
   resolveShouldShowStartupGate,
   type InstallerViewModel,
 } from './startup-gate';
+import { startSidecarWithTimeout } from './sidecar-start-timeout.ts';
 import type {
   RuntimeDiagnosis,
   RuntimeInstallProgress,
@@ -76,6 +77,10 @@ export function useDesktopStartupController(
   const buildSidecarHealthTimeoutMessage = useCallback(() => {
     const seconds = Math.max(1, Math.round(params.sidecarBootHealthcheckTimeoutMs / 1000));
     return `本地服务启动超时：健康检查在 ${seconds}s 内未通过，请使用故障上报上传日志。`;
+  }, [params.sidecarBootHealthcheckTimeoutMs]);
+  const buildSidecarStartTimeoutMessage = useCallback(() => {
+    const seconds = Math.max(1, Math.round(params.sidecarBootHealthcheckTimeoutMs / 1000));
+    return `本地服务启动超时：启动命令在 ${seconds}s 内未返回，请使用故障上报上传日志。`;
   }, [params.sidecarBootHealthcheckTimeoutMs]);
 
     const waitForClientHealth = useCallback(
@@ -181,7 +186,12 @@ export function useDesktopStartupController(
     try {
       await params.refreshGatewayAuth();
       await params.syncBrandRuntimeSnapshot();
-      await params.startSidecar(params.sidecarArgs);
+      await startSidecarWithTimeout(
+        params.startSidecar,
+        params.sidecarArgs,
+        params.sidecarBootHealthcheckTimeoutMs,
+        buildSidecarStartTimeoutMessage(),
+      );
       const healthyNow = await waitForClientHealth({
         attempts: params.sidecarBootHealthcheckAttempts,
         intervalMs: params.sidecarBootHealthcheckIntervalMs,
@@ -200,7 +210,14 @@ export function useDesktopStartupController(
       setHealthChecking(false);
       setInitialHealthResolved(true);
     }
-  }, [buildSidecarHealthTimeoutMessage, handleInstallRuntime, params, runtimeReady, waitForClientHealth]);
+  }, [
+    buildSidecarHealthTimeoutMessage,
+    buildSidecarStartTimeoutMessage,
+    handleInstallRuntime,
+    params,
+    runtimeReady,
+    waitForClientHealth,
+  ]);
 
   useEffect(() => {
     if (!params.isTauriRuntime) {
@@ -377,7 +394,12 @@ export function useDesktopStartupController(
         setHealthChecking(true);
         setHealthError(null);
         try {
-          await params.startSidecar(params.sidecarArgs);
+          await startSidecarWithTimeout(
+            params.startSidecar,
+            params.sidecarArgs,
+            params.sidecarBootHealthcheckTimeoutMs,
+            buildSidecarStartTimeoutMessage(),
+          );
         } catch (error) {
           const portConflictMessage = await params.resolvePortConflictMessage();
           if (!cancelled) {
@@ -411,7 +433,15 @@ export function useDesktopStartupController(
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [buildSidecarHealthTimeoutMessage, params, runtimeChecking, runtimeInstalling, runtimeReady, waitForClientHealth]);
+  }, [
+    buildSidecarHealthTimeoutMessage,
+    buildSidecarStartTimeoutMessage,
+    params,
+    runtimeChecking,
+    runtimeInstalling,
+    runtimeReady,
+    waitForClientHealth,
+  ]);
 
   const installerView = useMemo(
     () =>

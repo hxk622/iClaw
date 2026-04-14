@@ -1,3 +1,5 @@
+import { startSidecarWithTimeout } from './sidecar-start-timeout.ts';
+
 export type DesktopRuntimeRecoveryResult =
   | 'unsupported'
   | 'healthy'
@@ -21,6 +23,7 @@ export type DesktopRuntimeRecoveryDeps = {
   stopSidecar: () => Promise<boolean>;
   startSidecar: (args: string[]) => Promise<boolean>;
   sidecarArgs: string[];
+  sidecarStartTimeoutMs?: number;
   waitForHealth: () => Promise<boolean>;
 };
 
@@ -55,7 +58,13 @@ export async function ensureDesktopRuntimeReadyForChatRecovery(
       await deps.refreshGatewayAuth();
       await deps.syncBrandRuntimeSnapshot();
       await deps.stopSidecar();
-      await deps.startSidecar(deps.sidecarArgs);
+      const startTimeoutMs = Math.max(0, deps.sidecarStartTimeoutMs ?? 45_000);
+      await startSidecarWithTimeout(
+        deps.startSidecar,
+        deps.sidecarArgs,
+        startTimeoutMs,
+        `本地服务启动超时：启动命令在 ${Math.max(1, Math.round(startTimeoutMs / 1000))}s 内未返回。`,
+      );
       const healthy = await deps.waitForHealth();
       return healthy ? 'restarted' : 'failed';
     } catch {

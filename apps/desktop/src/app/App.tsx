@@ -1506,6 +1506,7 @@ export default function App() {
       stopSidecar,
       startSidecar,
       sidecarArgs: SIDE_CAR_ARGS,
+      sidecarStartTimeoutMs: SIDECAR_BOOT_HEALTHCHECK_TIMEOUT_MS,
       waitForHealth: waitForLocalRuntimeHealth,
     });
   }, [healthCheck, refreshGatewayAuth, syncBrandRuntimeSnapshot, waitForLocalRuntimeHealth]);
