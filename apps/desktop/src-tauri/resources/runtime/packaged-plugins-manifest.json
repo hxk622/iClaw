@@ -18,6 +18,93 @@
           "exfiltrationGuardMode": "enforce"
         }
       }
+    },
+    {
+      "id": "dingtalk",
+      "source": {
+        "type": "npm",
+        "name": "@openclaw-china/dingtalk",
+        "version": "2026.3.29"
+      },
+      "entry": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "feishu-china",
+      "source": {
+        "type": "npm",
+        "name": "@openclaw-china/feishu-china",
+        "version": "2026.3.29"
+      },
+      "entry": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "qqbot",
+      "source": {
+        "type": "npm",
+        "name": "@openclaw-china/qqbot",
+        "version": "2026.3.29"
+      },
+      "entry": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "wecom",
+      "source": {
+        "type": "npm",
+        "name": "@openclaw-china/wecom",
+        "version": "2026.3.29"
+      },
+      "entry": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "wecom-app",
+      "source": {
+        "type": "npm",
+        "name": "@openclaw-china/wecom-app",
+        "version": "2026.3.29"
+      },
+      "entry": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "wecom-kf",
+      "source": {
+        "type": "npm",
+        "name": "@openclaw-china/wecom-kf",
+        "version": "2026.3.29"
+      },
+      "entry": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "wechat-mp",
+      "source": {
+        "type": "npm",
+        "name": "@openclaw-china/wechat-mp",
+        "version": "2026.3.29"
+      },
+      "entry": {
+        "enabled": true
+      }
+    },
+    {
+      "id": "openclaw-weixin",
+      "source": {
+        "type": "npm",
+        "spec": "@tencent-weixin/openclaw-weixin@legacy"
+      },
+      "entry": {
+        "enabled": true
+      }
     }
   ]
 }

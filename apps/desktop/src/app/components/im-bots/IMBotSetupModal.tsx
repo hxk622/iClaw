@@ -26,7 +26,8 @@ export type IMPlatformId =
   | 'wecom-app'
   | 'wecom-kf'
   | 'qqbot'
-  | 'wechat-mp';
+  | 'wechat-mp'
+  | 'openclaw-weixin';
 export type TriggerMode = 'mention' | 'all' | 'keyword';
 export type ReplyFormat = 'text' | 'card' | 'markdown';
 
@@ -92,7 +93,7 @@ const completionChecklist = [
   '填写基础凭据与回调信息',
   '完成一次标准连接测试',
   '设置默认触发与回复策略',
-  '启用一个新的 OpenClaw 机器人实例',
+  '启用一个新的 iClaw 机器人实例',
 ];
 
 const SECTION_LABEL =
@@ -240,7 +241,7 @@ export function IMBotSetupModal({
                   接入{platform.label}机器人
                 </h2>
                 <p className="mt-1 max-w-[620px] text-[13px] leading-[1.55] text-[#6B6863] dark:text-[#A39F9A]">
-                  按步骤完成应用配置，并将其连接到 OpenClaw
+                  按步骤完成应用配置，并将其连接到 iClaw
                 </p>
               </div>
             </div>
@@ -302,7 +303,7 @@ export function IMBotSetupModal({
                       <ChevronRight className="h-[14px] w-[14px]" />
                     </div>
                     <p className="text-[13px] leading-relaxed text-[#3D3A36] dark:text-[#D4D2CE]">
-                      接入完成后，系统会把它作为独立机器人实例管理。你可以在 OpenClaw 中统一配置机器人的触发规则、响应方式和权限控制。
+                      接入完成后，系统会把它作为独立机器人实例管理。你可以在 iClaw 中统一配置机器人的触发规则、响应方式和权限控制。
                     </p>
                   </div>
                 </SurfacePanel>
@@ -394,7 +395,7 @@ export function IMBotSetupModal({
                     测试连接
                   </h3>
                   <p className="mt-2 text-[13px] leading-relaxed text-[#6B6863] dark:text-[#A39F9A]">
-                    系统会模拟一次标准连接检查，确认平台凭据、事件入口和 OpenClaw 接收链路都已经准备完成。
+                    系统会模拟一次标准连接检查，确认平台凭据、事件入口和 iClaw 接收链路都已经准备完成。
                   </p>
                 </div>
 

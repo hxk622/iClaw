@@ -220,7 +220,7 @@ const platformMetaList: PlatformCardMeta[] = [
     ],
     testHints: [
       '飞书默认走 websocket / 长连接模式，不依赖 webhook 回调地址。',
-      '飞书官方原生支持 OpenClaw，多账号场景可通过 accountId 建模。',
+      '飞书官方原生支持 iClaw，多账号场景可通过 accountId 建模。',
       '如企业使用国际版 Lark，后续可在高级配置里补充域名覆盖。',
     ],
   },
@@ -294,7 +294,7 @@ const platformMetaList: PlatformCardMeta[] = [
     label: '企微客服',
     pluginId: 'wecom-kf',
     advantageLabel: '客服会话入口',
-    rolloutNote: '适合把外部客户咨询导入 OpenClaw，会话体验更贴近客服中心。',
+    rolloutNote: '适合把外部客户咨询导入 iClaw，会话体验更贴近客服中心。',
     logo: wecomLogo,
     intro: '适合企业微信客服、外部客户接待与问题分流。',
     difficulty: '高',
@@ -346,7 +346,7 @@ const platformMetaList: PlatformCardMeta[] = [
     testHints: [
       'QQ 更适合增量试点，建议先验证企业内部使用稳定性。',
       '如果后续接入频道和群聊，系统会继续按机器人实例统一管理。',
-      'QQ 渠道插件已通过当前 OpenClaw 版本验证，可纳入默认打包能力。',
+      'QQ 渠道插件已通过当前 iClaw 运行时版本验证，可纳入默认打包能力。',
     ],
   },
   {
@@ -377,6 +377,32 @@ const platformMetaList: PlatformCardMeta[] = [
       '微信公众号适合做品牌对外 AI 服务和内容陪伴式触达。',
       '正式上线前请确认消息频控与菜单交互体验。',
       '这条渠道和 QQ/企微一起，能明显拉开国内渠道覆盖差距。',
+    ],
+  },
+  {
+    id: 'openclaw-weixin',
+    label: '微信',
+    pluginId: 'openclaw-weixin',
+    advantageLabel: '官方插件 / 二维码登录',
+    rolloutNote: '腾讯官方微信插件，适合个人微信入口与轻量私聊触达。',
+    logo: wechatMpLogo,
+    intro: '适合个人微信私聊入口，走官方插件与二维码登录流程。',
+    difficulty: '简单',
+    eta: '5 分钟',
+    admin: '不需要',
+    guideUrl: 'https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin',
+    capabilities: ['私聊', '扫码登录', '轻量接入'],
+    credentialFields: [],
+    introSteps: [
+      '确认当前 iClaw 运行时使用的是微信官方插件兼容线。',
+      '安装后通过 `openclaw channels login --channel openclaw-weixin` 拉起二维码登录。',
+      '使用手机微信扫码并确认授权，登录凭据会保存在本地。',
+      '回到 iClaw 继续完成默认助手绑定和对话测试。',
+    ],
+    testHints: [
+      '这条能力是个人微信入口，不等同于公众号或企业微信。',
+      '当前对 iClaw 运行时 2026.3.13 需要锁定官方插件 legacy 版本线。',
+      '更适合做高频私聊陪伴，而不是组织内群协作。',
     ],
   },
 ];
@@ -701,7 +727,7 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
             lastActive: '刚刚',
             healthSummary:
               nextHealthState === 'healthy'
-                ? '本地 OpenClaw runtime 与 gateway 连接正常，默认助手配置也已就绪。'
+                ? '本地 iClaw 运行时与 gateway 连接正常，默认助手配置也已就绪。'
                 : nextHealthState === 'paused'
                   ? 'runtime 健康检查通过，但机器人当前处于停用状态。'
                   : 'runtime 健康检查通过，但默认助手还没有配置完成。',
@@ -736,7 +762,7 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
                 testStatus: 'idle',
                 healthState: 'connectivity_issue',
                 lastActive: '刚刚',
-                healthSummary: '本地 OpenClaw runtime 或 gateway 当前不可用，无法完成真实连接测试。',
+                healthSummary: '本地 iClaw 运行时或 gateway 当前不可用，无法完成真实连接测试。',
                 lastTestResponse: message,
                 auditLogs: [
                   createAuditEntry('warning', '连接测试失败', message),
@@ -880,7 +906,7 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
         <PageHeader
           className="mb-4 gap-2.5"
           title={title}
-          description="将 OpenClaw 接入企业常用办公 IM，并统一管理机器人状态。这个视图区现在不只是接入入口，也包含机器人详情、测试与默认助手绑定。"
+          description="将 iClaw 接入企业常用办公 IM，并统一管理机器人状态。这个视图区现在不只是接入入口，也包含机器人详情、测试与默认助手绑定。"
           contentClassName="space-y-1"
           titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em]"
           descriptionClassName="mt-0 text-[12px] leading-5"
@@ -916,14 +942,14 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
 
         <SummaryBar cards={summaryCards} />
 
-        <div className="mb-6 mt-4 grid grid-cols-[minmax(0,1fr)_308px] gap-4">
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between gap-4">
-              <div className="text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">已创建机器人</div>
-              <span className="text-[13px] text-[var(--text-secondary)]">{bots.length} 个</span>
-            </div>
-            {bots.length > 0 ? (
-              bots.map((bot) => {
+        {bots.length > 0 ? (
+          <div className="mb-6 mt-4 grid grid-cols-[minmax(0,1fr)_308px] gap-4">
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">已创建机器人</div>
+                <span className="text-[13px] text-[var(--text-secondary)]">{bots.length} 个</span>
+              </div>
+              {bots.map((bot) => {
                 const meta = platformMetaList.find((item) => item.id === bot.platformId)!;
                 return (
                   <ManagedBotCard
@@ -938,13 +964,9 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
                     onToggleEnabled={() => handleToggleBot(bot.id)}
                   />
                 );
-              })
-            ) : (
-              <EmptyBotState onCreate={() => setSelectedPlatformId(DEFAULT_PLATFORM_ID)} />
-            )}
-          </div>
+              })}
+            </div>
 
-          <div className="space-y-3.5">
             <ActivityPanel
               activeTab={activeSideTab}
               onTabChange={setActiveSideTab}
@@ -953,13 +975,8 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
               auditItems={auditItems}
               onOpenBot={(botId) => setSelectedBotId(botId)}
             />
-            <ChannelAdvantagePanel
-              platforms={platformMetaList}
-              configuredPlatforms={configuredPlatforms}
-              onOpenPlatform={(platformId) => setSelectedPlatformId(platformId)}
-            />
           </div>
-        </div>
+        ) : null}
 
         <div className="mt-7">
           <div className="mb-4 flex items-center justify-between">
@@ -1047,21 +1064,6 @@ function SummaryBarItem({
   className?: string;
 }) {
   return <SummaryMetricItem label={label} value={value} note={note} icon={Icon} tone={tone} first={first} className={className} />;
-}
-
-function EmptyBotState({ onCreate }: { onCreate: () => void }) {
-  return (
-    <EmptyStatePanel
-      icon={<Bot className="h-6 w-6" />}
-      title="还没有已创建的机器人"
-      description="这里不再展示 mock 示例。完成任一平台接入后，新的机器人会真实出现在这个区域，并直接进入详情抽屉继续完成默认助手绑定与测试。"
-      action={
-        <Button variant="primary" size="sm" leadingIcon={<Link2 className="h-4 w-4" />} onClick={onCreate}>
-          从钉钉开始接入
-        </Button>
-      }
-    />
-  );
 }
 
 function ManagedBotCard({
@@ -1315,59 +1317,6 @@ function ActivityPanel({
   );
 }
 
-function ChannelAdvantagePanel({
-  platforms,
-  configuredPlatforms,
-  onOpenPlatform,
-}: {
-  platforms: PlatformCardMeta[];
-  configuredPlatforms: Set<IMPlatformId>;
-  onOpenPlatform: (platformId: IMPlatformId) => void;
-}) {
-  return (
-    <PressableCard className="w-[308px] overflow-hidden rounded-[22px] border-[var(--border-default)] bg-[var(--bg-card)] px-3.5 py-3 shadow-[var(--pressable-card-rest-shadow)]">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[15px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">渠道矩阵</div>
-          <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
-            已打包的中国 IM 渠道。这里是我们形成国内渠道优势的底盘。
-          </p>
-        </div>
-        <Chip tone="success" className="px-2 py-1 text-[11px] font-medium">
-          {platforms.length} 条
-        </Chip>
-      </div>
-      <div className="space-y-2">
-        {platforms.map((platform) => (
-          <button
-            key={platform.id}
-            type="button"
-            onClick={() => onOpenPlatform(platform.id)}
-            className={cn(
-              'flex w-full cursor-pointer items-start gap-3 rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-3 text-left transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--bg-page)]/60',
-              SPRING_PRESSABLE,
-              INTERACTIVE_FOCUS_RING,
-            )}
-          >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-white shadow-[var(--pressable-card-rest-shadow)] dark:bg-[rgba(255,255,255,0.04)]">
-              <img src={platform.logo} alt={platform.label} className={cn('h-full w-full object-cover', platform.logoClassName)} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <div className="text-[13px] font-medium text-[var(--text-primary)]">{platform.label}</div>
-                <Chip tone={configuredPlatforms.has(platform.id) ? 'success' : 'outline'} className="px-2 py-0.5 text-[10px]">
-                  {configuredPlatforms.has(platform.id) ? '已配置' : '待配置'}
-                </Chip>
-              </div>
-              <div className="mt-1 text-[12px] font-medium text-[var(--text-secondary)]">{platform.advantageLabel}</div>
-              <p className="mt-1 text-[12px] leading-5 text-[var(--text-muted)]">{platform.rolloutNote}</p>
-            </div>
-          </button>
-        ))}
-      </div>
-    </PressableCard>
-  );
-}
 
 function ActivityListItem({
   title,

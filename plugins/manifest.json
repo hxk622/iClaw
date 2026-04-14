@@ -95,6 +95,16 @@
       "entry": {
         "enabled": true
       }
+    },
+    {
+      "id": "openclaw-weixin",
+      "source": {
+        "type": "npm",
+        "spec": "@tencent-weixin/openclaw-weixin@legacy"
+      },
+      "entry": {
+        "enabled": true
+      }
     }
   ]
 }
