@@ -56,6 +56,7 @@ import {
   findComposerModelOption,
   type ComposerModelOption,
 } from '../lib/model-catalog';
+import { resolveOrphanReadingIndicatorIndexes } from '../lib/embedded-chat-normalization';
 import {
   fetchRuntimeModelCatalog,
   mapRuntimeModelsToGatewayEntries,
@@ -1164,6 +1165,10 @@ function hasVisibleMessageContent(group: HTMLElement): boolean {
 
 function isToolLikeChatGroup(group: HTMLElement): boolean {
   return Boolean(group.querySelector('.chat-tool-card, .chat-tools-collapse, .chat-tool-msg-collapse, .chat-json-collapse'));
+}
+
+function hasReadingIndicator(group: HTMLElement): boolean {
+  return Boolean(group.querySelector('.chat-bubble.chat-reading-indicator'));
 }
 
 function buildNormalizedGroupText(group: HTMLElement): string {
@@ -8961,6 +8966,30 @@ export function OpenClawChatSurface({
       const internalMemoryFlushGroupIndexes = collectInternalMemoryFlushGroupIndexes(groups);
       groups.forEach((group, groupIndex) => {
         setInternalNodeHidden(group, internalMemoryFlushGroupIndexes.has(groupIndex));
+      });
+      const orphanReadingIndicatorIndexes = resolveOrphanReadingIndicatorIndexes(
+        groups.map((group) => {
+          const toolLikeGroup = isToolLikeChatGroup(group);
+          return {
+            hidden: isHiddenChatGroup(group),
+            user: group.classList.contains('user'),
+            assistantSide:
+              group.classList.contains('assistant') ||
+              group.classList.contains('tool') ||
+              group.classList.contains('other') ||
+              toolLikeGroup,
+            hasVisibleContent: hasVisibleMessageContent(group),
+            hasReadingIndicator: hasReadingIndicator(group),
+            toolLike: toolLikeGroup,
+          };
+        }),
+        status.busy,
+      );
+      groups.forEach((group, groupIndex) => {
+        if (internalMemoryFlushGroupIndexes.has(groupIndex)) {
+          return;
+        }
+        setInternalNodeHidden(group, orphanReadingIndicatorIndexes.has(groupIndex));
       });
       syncInternalCompactionDividerVisibility();
       normalizeAssistantTurnGroups(groups);
