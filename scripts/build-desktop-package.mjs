@@ -25,6 +25,7 @@ const rootDir = path.resolve(__dirname, '..');
 const desktopDir = path.join(rootDir, 'apps', 'desktop');
 const tauriDir = path.join(desktopDir, 'src-tauri');
 const generatedConfigPath = path.join(tauriDir, 'tauri.generated.conf.json');
+const generatedBrandPath = path.join(tauriDir, 'brand.generated.json');
 const tempConfigPath = path.join(tauriDir, 'tauri.build.local.json');
 const applyBrandScriptPath = path.join(rootDir, 'scripts', 'apply-brand.mjs');
 const brandStateScriptPath = path.join(rootDir, 'scripts', 'brand-generated-state.mjs');
@@ -217,6 +218,58 @@ async function readGeneratedProductName() {
     throw new Error(`desktop packaging aborted: missing productName in ${generatedConfigPath}`);
   }
   return productName;
+}
+
+async function assertGeneratedBrandArtifacts({ brandProfile, appVersion }) {
+  const generatedConfig = JSON.parse(await fs.readFile(generatedConfigPath, 'utf8'));
+  const generatedBrand = JSON.parse(await fs.readFile(generatedBrandPath, 'utf8'));
+  const expectedProductName = trimString(brandProfile?.productName);
+  const expectedBundleIdentifier = trimString(brandProfile?.bundleIdentifier);
+  const expectedBrandId = trimString(brandProfile?.brandId);
+  const expectedVersion = trimString(appVersion);
+
+  if (trimString(generatedConfig.productName) !== expectedProductName) {
+    throw new Error(
+      `desktop packaging aborted: stale productName in ${generatedConfigPath}; expected ${JSON.stringify(expectedProductName)}, got ${JSON.stringify(generatedConfig.productName)}`,
+    );
+  }
+  if (trimString(generatedConfig.identifier) !== expectedBundleIdentifier) {
+    throw new Error(
+      `desktop packaging aborted: stale identifier in ${generatedConfigPath}; expected ${JSON.stringify(expectedBundleIdentifier)}, got ${JSON.stringify(generatedConfig.identifier)}`,
+    );
+  }
+  if (trimString(generatedConfig.version) !== expectedVersion) {
+    throw new Error(
+      `desktop packaging aborted: stale version in ${generatedConfigPath}; expected ${JSON.stringify(expectedVersion)}, got ${JSON.stringify(generatedConfig.version)}`,
+    );
+  }
+  if (trimString(generatedBrand.brandId) !== expectedBrandId) {
+    throw new Error(
+      `desktop packaging aborted: stale brandId in ${generatedBrandPath}; expected ${JSON.stringify(expectedBrandId)}, got ${JSON.stringify(generatedBrand.brandId)}`,
+    );
+  }
+  if (trimString(generatedBrand.bundleIdentifier) !== expectedBundleIdentifier) {
+    throw new Error(
+      `desktop packaging aborted: stale bundleIdentifier in ${generatedBrandPath}; expected ${JSON.stringify(expectedBundleIdentifier)}, got ${JSON.stringify(generatedBrand.bundleIdentifier)}`,
+    );
+  }
+
+  const requiredGeneratedFiles = [
+    path.join(tauriDir, 'icons-generated', '32x32.png'),
+    path.join(tauriDir, 'icons-generated', '128x128.png'),
+    path.join(tauriDir, 'icons-generated', '128x128@2x.png'),
+    path.join(tauriDir, 'icons-generated', 'icon.icns'),
+    path.join(tauriDir, 'icons-generated', 'icon.ico'),
+    path.join(tauriDir, 'installer-generated', 'nsis-installer.ico'),
+    path.join(tauriDir, 'resources', 'runtime', 'generate-openclaw-config.mjs'),
+    path.join(tauriDir, 'resources', 'runtime', 'openclaw-plugin-manifest.mjs'),
+    path.join(tauriDir, 'resources', 'runtime', 'packaged-plugins-manifest.json'),
+  ];
+  for (const filePath of requiredGeneratedFiles) {
+    if (!(await pathExists(filePath))) {
+      throw new Error(`desktop packaging aborted: missing generated brand/runtime artifact ${filePath}`);
+    }
+  }
 }
 
 function bundleTargetRoot(target) {
@@ -1905,6 +1958,7 @@ async function main() {
     }
 
     run(process.execPath, [applyBrandScriptPath, brandId], { env });
+    await assertGeneratedBrandArtifacts({ brandProfile, appVersion });
     await preparePackagingResourcesSource(packagingPaths.resourcesSourceDir);
     syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths });
     await syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths });

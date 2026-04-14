@@ -24,6 +24,21 @@ const brandGeneratedTsPath = path.join(desktopDir, 'src', 'app', 'lib', 'brand.g
 const brandGeneratedJsonPath = path.join(tauriDir, 'brand.generated.json');
 const homeWebBrandGeneratedJsPath = path.join(homeWebDir, 'brand.generated.js');
 const rootPackageJsonPath = path.join(rootDir, 'package.json');
+const brandGeneratedPaths = [
+  outputBrandDir,
+  path.join(outputPublicDir, 'favicon.ico'),
+  path.join(outputPublicDir, 'favicon.png'),
+  path.join(outputPublicDir, 'apple-touch-icon.png'),
+  outputIconsDir,
+  outputInstallerAssetsDir,
+  legacyInstallerAssetPath,
+  tauriMaterializedPath,
+  tauriGeneratedPath,
+  brandGeneratedTsPath,
+  brandGeneratedJsonPath,
+  homeWebBrandGeneratedJsPath,
+  homeWebPublicBrandDir,
+];
 
 function defaultMarketingTemplateKey(brandId) {
   return brandId === 'licaiclaw' ? 'wealth-premium' : 'classic-download';
@@ -168,6 +183,14 @@ async function copyDirectory(sourcePath, targetPath) {
   await fs.cp(sourcePath, targetPath, { recursive: true });
 }
 
+async function clearBrandOutputs() {
+  await Promise.all(
+    brandGeneratedPaths.map((targetPath) =>
+      fs.rm(targetPath, { recursive: true, force: true }),
+    ),
+  );
+}
+
 async function ensureTauriIcons(params) {
   const {
     faviconIco,
@@ -183,6 +206,7 @@ async function ensureTauriIcons(params) {
   const tauri128x128 = tauriIconsDir ? path.join(tauriIconsDir, '128x128.png') : null;
   const tauri128x128Retina = tauriIconsDir ? path.join(tauriIconsDir, '128x128@2x.png') : null;
   const tauriIconPng = tauriIconsDir ? path.join(tauriIconsDir, 'icon.png') : null;
+  const tauriIconIco = tauriIconsDir ? path.join(tauriIconsDir, 'icon.ico') : null;
 
   // Tauri expects exact sizes and RGBA PNGs here. Reusing favicon.png can
   // produce a 512/1024 RGB asset masquerading as 32x32, which breaks release builds.
@@ -193,7 +217,7 @@ async function ensureTauriIcons(params) {
     path.join(outputIconsDir, '128x128@2x.png'),
   );
   await copyFirstExistingFile([tauriIconPng, faviconPng], path.join(outputIconsDir, 'icon.png'));
-  await copyFile(faviconIco, path.join(outputIconsDir, 'icon.ico'));
+  await copyFirstExistingFile([tauriIconIco, faviconIco], path.join(outputIconsDir, 'icon.ico'));
 
   const icnsSourcePath = path.join(tauriIconsDir, 'icon.icns');
   await copyFile(icnsSourcePath, path.join(outputIconsDir, 'icon.icns'));
@@ -376,6 +400,7 @@ async function main() {
     process.stdout.write(`[brand] reuse existing tauri icons for ${brand.brandId} on ${process.platform}\n`);
   }
 
+  await clearBrandOutputs();
   await fs.mkdir(outputBrandDir, { recursive: true });
   await fs.mkdir(outputPublicDir, { recursive: true });
   await fs.mkdir(homeWebPublicBrandDir, { recursive: true });
@@ -425,6 +450,7 @@ async function main() {
 
   const tauriConfig = JSON.parse(await fs.readFile(tauriTemplatePath, 'utf8'));
   tauriConfig.productName = brand.productName;
+  tauriConfig.version = appVersion;
   tauriConfig.identifier = brand.bundleIdentifier;
   if (Array.isArray(tauriConfig.app?.windows) && tauriConfig.app.windows[0]) {
     tauriConfig.app.windows[0].title = brand.productName;

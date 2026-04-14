@@ -1,5 +1,5 @@
 [package]
-name = "iclaw-desktop"
+name = "desktop-shell"
 version = "1.0.6+202604141320"
 description = "iClaw desktop shell"
 authors = ["iClaw Team"]

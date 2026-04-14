@@ -45,18 +45,9 @@ struct DesktopUpdateState {
     stop_sidecar_on_exit: Mutex<bool>,
 }
 
-const AUTH_SERVICE: &str = match option_env!("ICLAW_AUTH_SERVICE") {
-    Some(value) => value,
-    None => "ai.iclaw.desktop",
-};
-const DESKTOP_BRAND_ID: &str = match option_env!("ICLAW_BRAND_ID") {
-    Some(value) => value,
-    None => "iclaw",
-};
-const DESKTOP_AUTH_BASE_URL: &str = match option_env!("ICLAW_AUTH_BASE_URL") {
-    Some(value) => value,
-    None => "",
-};
+const AUTH_SERVICE: &str = env!("ICLAW_AUTH_SERVICE");
+const DESKTOP_BRAND_ID: &str = env!("ICLAW_BRAND_ID");
+const DESKTOP_AUTH_BASE_URL: &str = env!("ICLAW_AUTH_BASE_URL");
 const DESKTOP_SIDE_CAR_ARGS: &str = match option_env!("VITE_SIDE_CAR_ARGS") {
     Some(value) => value,
     None => "--port 2126",
@@ -7461,8 +7452,8 @@ fn sanitize_download_file_name(name: &str, fallback: &str) -> String {
 
 fn resolve_desktop_installer_file_name(url: &str, version: Option<&str>) -> String {
     let fallback = match version.map(str::trim).filter(|value| !value.is_empty()) {
-        Some(value) => format!("iclaw-desktop-{value}.exe"),
-        None => String::from("iclaw-desktop-update.exe"),
+        Some(value) => format!("{DESKTOP_BRAND_ID}-desktop-{value}.exe"),
+        None => format!("{DESKTOP_BRAND_ID}-desktop-update.exe"),
     };
     if let Ok(parsed) = Url::parse(url) {
         if let Some(file_name) = Path::new(parsed.path())

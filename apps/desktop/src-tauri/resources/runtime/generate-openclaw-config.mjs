@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildPackagedPluginEntries, loadPackagedPlugins } from '../../../../../scripts/lib/openclaw-plugin-manifest.mjs';
+import { buildPackagedPluginEntries, loadPackagedPlugins } from './openclaw-plugin-manifest.mjs';
 
 const DEFAULT_PROVIDER_MODEL_CONTEXT_WINDOW = 131072;
 const DEFAULT_PROVIDER_MODEL_MAX_TOKENS = 8192;

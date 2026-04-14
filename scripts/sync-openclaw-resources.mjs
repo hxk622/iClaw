@@ -10,6 +10,7 @@ const rootDir = path.resolve(__dirname, '..');
 const defaultResourcesSrcDir = path.join(rootDir, 'services', 'openclaw', 'resources');
 const resourcesSrcDir = path.resolve(trimString(process.env.ICLAW_OPENCLAW_RESOURCES_SOURCE_DIR) || defaultResourcesSrcDir);
 const serversSrcDir = path.join(rootDir, 'servers');
+const pluginsManifestSrcPath = path.join(rootDir, 'plugins', 'manifest.json');
 const resourcesDstDir = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'resources');
 const runtimeBundleMode = trimString(process.env.ICLAW_RUNTIME_BUNDLE_MODE).toLowerCase();
 
@@ -27,6 +28,11 @@ async function syncRuntimeArchives() {
   const sourcePath = path.join(resourcesSrcDir, 'runtime-archives');
   const outputPath = path.join(resourcesDstDir, 'runtime-archives');
   await syncDirOrRemove(sourcePath, outputPath);
+}
+
+async function syncPackagedPluginsManifest() {
+  const outputPath = path.join(resourcesDstDir, 'runtime', 'packaged-plugins-manifest.json');
+  await syncFileOrRemove(pluginsManifestSrcPath, outputPath);
 }
 
 async function removeBrokenPythonSitePackagesSymlink() {
@@ -64,6 +70,7 @@ async function main() {
     fs.mkdir(path.join(resourcesDstDir, 'config'), { recursive: true }),
     fs.mkdir(path.join(resourcesDstDir, 'certs'), { recursive: true }),
     fs.mkdir(path.join(resourcesDstDir, 'servers'), { recursive: true }),
+    fs.mkdir(path.join(resourcesDstDir, 'runtime'), { recursive: true }),
     fs.mkdir(path.join(resourcesDstDir, 'runtime-archives'), { recursive: true }),
   ]);
 
@@ -88,6 +95,7 @@ async function main() {
       path.join(resourcesDstDir, 'config', 'portal-app-runtime.json'),
     ),
     syncMcpConfig(),
+    syncPackagedPluginsManifest(),
   ]);
   if (runtimeBundleMode !== 'archive') {
     await removeBrokenPythonSitePackagesSymlink();
