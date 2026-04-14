@@ -2,12 +2,17 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BRAND_ID="${1:-${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-iclaw}}}}"
+BRAND_ID="${1:-${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-}}}}"
 RGBA_HELPER="$ROOT_DIR/scripts/ensure-rgba-png.swift"
 ICO_HELPER="$ROOT_DIR/scripts/build-ico.py"
 DESKTOP_VARIANT_HELPER="$ROOT_DIR/scripts/generate-desktop-icon-variants.sh"
 SWIFT_MODULE_CACHE_DIR="${TMPDIR:-/tmp}/swift-module-cache"
 CLANG_MODULE_CACHE_DIR="${TMPDIR:-/tmp}/clang-module-cache"
+
+if [[ -z "${BRAND_ID:-}" ]]; then
+  echo "Missing OEM brand id. Pass it as the first arg or set APP_NAME / ICLAW_PORTAL_APP_NAME / ICLAW_BRAND." >&2
+  exit 1
+fi
 
 BRAND_PATHS="$(
   node --input-type=module -e "

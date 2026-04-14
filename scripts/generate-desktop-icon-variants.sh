@@ -2,8 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BRAND_ID="${1:-${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-iclaw}}}}"
+BRAND_ID="${1:-${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-}}}}"
 VARIANT_HELPER="$ROOT_DIR/scripts/generate-platform-desktop-icon.swift"
+
+if [[ -z "${BRAND_ID:-}" ]]; then
+  echo "Missing OEM brand id. Pass it as the first arg or set APP_NAME / ICLAW_PORTAL_APP_NAME / ICLAW_BRAND." >&2
+  exit 1
+fi
 
 BRAND_PATHS="$(
   node --input-type=module -e "
