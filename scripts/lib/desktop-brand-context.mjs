@@ -11,6 +11,28 @@ function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function buildDesktopBrandStagingPaths(rootDir, brandId, buildId) {
+  const stageRoot = path.join(rootDir, '.build', 'desktop', brandId, buildId);
+  const desktopRoot = path.join(stageRoot, 'desktop');
+  const publicRoot = path.join(desktopRoot, 'public');
+  const tauriRoot = path.join(desktopRoot, 'src-tauri');
+  return {
+    root: stageRoot,
+    stampPath: path.join(stageRoot, 'brand-stamp.json'),
+    manifestPath: path.join(stageRoot, 'manifest.json'),
+    desktopRoot,
+    publicRoot,
+    publicBrandDir: path.join(publicRoot, 'brand'),
+    tauriRoot,
+    tauriConfigPath: path.join(tauriRoot, 'tauri.conf.json'),
+    tauriGeneratedConfigPath: path.join(tauriRoot, 'tauri.generated.conf.json'),
+    brandGeneratedJsonPath: path.join(tauriRoot, 'brand.generated.json'),
+    brandGeneratedTsPath: path.join(desktopRoot, 'src', 'app', 'lib', 'brand.generated.ts'),
+    iconsGeneratedDir: path.join(tauriRoot, 'icons-generated'),
+    installerGeneratedDir: path.join(tauriRoot, 'installer-generated'),
+  };
+}
+
 function resolveBuildId({ appVersion, releaseVersion }) {
   const explicitBuildId = trimString(process.env.BUILD_ID || process.env.ICLAW_BUILD_ID);
   if (explicitBuildId) {
@@ -92,6 +114,7 @@ export async function loadDesktopBrandContext(options = {}) {
     releaseVersion: versionInfo.releaseVersion,
     buildId,
     sourceProfileHash,
+    staging: buildDesktopBrandStagingPaths(rootDir, brandId, buildId),
     stamp: {
       brandId,
       productName,

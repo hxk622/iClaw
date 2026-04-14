@@ -9,6 +9,7 @@ const tauriConfigPath = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'taur
 const generatedConfigPath = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'tauri.generated.conf.json');
 const generatedBrandPath = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'brand.generated.json');
 const generatedIconsDir = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'icons-generated');
+const stagingRoot = path.join(rootDir, '.build', 'desktop');
 const snapshotKey = 'apply-brand-desktop-config-test';
 
 function runNodeScript(args, env = {}) {
@@ -53,6 +54,8 @@ test('apply-brand materializes desktop title and version from the selected brand
       const tauriConfig = await readJson(tauriConfigPath);
       const generatedConfig = await readJson(generatedConfigPath);
       const generatedBrand = await readJson(generatedBrandPath);
+      const stagingDir = path.join(stagingRoot, brandId, '202604141320');
+      const stagedBrand = await readJson(path.join(stagingDir, 'desktop', 'src-tauri', 'brand.generated.json'));
       const expectedName = brandId === 'iclaw' ? 'iClaw' : generatedConfig.productName;
       assert.equal(tauriConfig.productName, expectedName);
       assert.equal(tauriConfig.app?.windows?.[0]?.title, expectedName);
@@ -62,6 +65,13 @@ test('apply-brand materializes desktop title and version from the selected brand
       assert.equal(generatedBrand.build?.stamp?.brandId, brandId);
       assert.equal(generatedBrand.build?.stamp?.productName, expectedName);
       assert.equal(generatedBrand.build?.stamp?.bundleIdentifier, generatedBrand.bundleIdentifier);
+      assert.equal(stagedBrand.build?.stamp?.brandId, brandId);
+      await fs.access(path.join(stagingDir, 'brand-stamp.json'));
+      await fs.access(path.join(stagingDir, 'manifest.json'));
+      await fs.access(path.join(stagingDir, 'desktop', 'src-tauri', 'tauri.conf.json'));
+      await fs.access(path.join(stagingDir, 'desktop', 'src-tauri', 'icons-generated', 'icon.ico'));
+      await fs.access(path.join(stagingDir, 'desktop', 'src-tauri', 'installer-generated', 'nsis-installer.ico'));
+      await fs.access(path.join(stagingDir, 'desktop', 'public', 'brand', 'favicon.ico'));
       if (brandId === 'licaiclaw') {
         assert.notEqual(tauriConfig.productName, 'iClaw');
       }

@@ -182,6 +182,18 @@ async function copyDirectory(sourcePath, targetPath) {
   await fs.cp(sourcePath, targetPath, { recursive: true });
 }
 
+async function mirrorPathToTargets(sourcePath, targetPaths) {
+  const normalizedTargets = targetPaths.filter(Boolean);
+  if (normalizedTargets.length === 0) {
+    return;
+  }
+  for (const targetPath of normalizedTargets) {
+    await fs.rm(targetPath, { recursive: true, force: true });
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.cp(sourcePath, targetPath, { recursive: true });
+  }
+}
+
 async function clearBrandOutputs() {
   await Promise.all(
     brandGeneratedPaths.map((targetPath) =>
@@ -359,6 +371,7 @@ async function main() {
     appVersion,
     releaseVersion,
     artifactBaseName,
+    staging,
     stamp: brandStamp,
   } = context;
   if (releaseVersion) {
@@ -533,6 +546,45 @@ async function main() {
   );
   await fs.writeFile(brandGeneratedTsPath, buildBrandTs(brand, appVersion, brandAssetPaths, brandStamp), 'utf8');
   await fs.writeFile(homeWebBrandGeneratedJsPath, buildHomeBrandJs(brand, appVersion, brandAssetPaths, brandStamp), 'utf8');
+
+  await fs.rm(staging.root, { recursive: true, force: true });
+  await fs.mkdir(staging.root, { recursive: true });
+  await fs.writeFile(staging.stampPath, `${JSON.stringify(brandStamp, null, 2)}\n`, 'utf8');
+  await fs.writeFile(
+    staging.manifestPath,
+    `${JSON.stringify(
+      {
+        brandId: brand.brandId,
+        buildId: context.buildId,
+        appVersion,
+        outputs: {
+          tauriConfigPath: path.relative(staging.root, staging.tauriConfigPath),
+          tauriGeneratedConfigPath: path.relative(staging.root, staging.tauriGeneratedConfigPath),
+          brandGeneratedJsonPath: path.relative(staging.root, staging.brandGeneratedJsonPath),
+          brandGeneratedTsPath: path.relative(staging.root, staging.brandGeneratedTsPath),
+          publicBrandDir: path.relative(staging.root, staging.publicBrandDir),
+          iconsGeneratedDir: path.relative(staging.root, staging.iconsGeneratedDir),
+          installerGeneratedDir: path.relative(staging.root, staging.installerGeneratedDir),
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+  await mirrorPathToTargets(outputBrandDir, [staging.publicBrandDir]);
+  await mirrorPathToTargets(path.join(outputPublicDir, 'favicon.ico'), [path.join(staging.publicRoot, 'favicon.ico')]);
+  await mirrorPathToTargets(path.join(outputPublicDir, 'favicon.png'), [path.join(staging.publicRoot, 'favicon.png')]);
+  await mirrorPathToTargets(
+    path.join(outputPublicDir, 'apple-touch-icon.png'),
+    [path.join(staging.publicRoot, 'apple-touch-icon.png')],
+  );
+  await mirrorPathToTargets(tauriMaterializedPath, [staging.tauriConfigPath]);
+  await mirrorPathToTargets(tauriGeneratedPath, [staging.tauriGeneratedConfigPath]);
+  await mirrorPathToTargets(brandGeneratedJsonPath, [staging.brandGeneratedJsonPath]);
+  await mirrorPathToTargets(brandGeneratedTsPath, [staging.brandGeneratedTsPath]);
+  await mirrorPathToTargets(outputIconsDir, [staging.iconsGeneratedDir]);
+  await mirrorPathToTargets(outputInstallerAssetsDir, [staging.installerGeneratedDir]);
 
   process.stdout.write(`[brand] applied ${brand.brandId}\n`);
 }
