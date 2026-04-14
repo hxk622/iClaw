@@ -19,7 +19,14 @@ import { cn } from '@/app/lib/cn';
 import { openExternalUrl } from '@/app/lib/open-external-url';
 import { APPLE_FLAT_SURFACE, INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
-export type IMPlatformId = 'feishu' | 'dingtalk' | 'wecom' | 'qq';
+export type IMPlatformId =
+  | 'feishu-china'
+  | 'dingtalk'
+  | 'wecom'
+  | 'wecom-app'
+  | 'wecom-kf'
+  | 'qqbot'
+  | 'wechat-mp';
 export type TriggerMode = 'mention' | 'all' | 'keyword';
 export type ReplyFormat = 'text' | 'card' | 'markdown';
 
@@ -112,7 +119,11 @@ export function IMBotSetupModal({
     if (!open || !platform) return;
     setCurrentStep(1);
     setTriggerMode('mention');
-    setReplyFormat(platform.id === 'dingtalk' || platform.id === 'qq' ? 'markdown' : 'card');
+    setReplyFormat(
+      platform.id === 'dingtalk' || platform.id === 'qqbot' || platform.id === 'wechat-mp'
+        ? 'markdown'
+        : 'card',
+    );
     setKeywordDraft('AI助手');
     setOfflineReply('我现在暂时离线，稍后会继续处理你的消息。');
     setTestStatus('idle');
@@ -319,7 +330,7 @@ export function IMBotSetupModal({
                     填写平台凭据
                   </h3>
                   <p className="mt-2 text-[13px] leading-relaxed text-[#6B6863] dark:text-[#A39F9A]">
-                    {platform.id === 'wecom'
+                    {platform.id.startsWith('wecom')
                       ? '企微接入需要企业管理员提供应用凭据。像回调地址这类由系统生成的项目，会自动带出并支持复制。'
                       : '只保留用户真正需要填写的核心字段。像回调地址这类由系统生成的项目，会自动带出并支持复制。'}
                   </p>

@@ -41,6 +41,7 @@ import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interacti
 import dingtalkLogo from '@/app/assets/im-bots/dingtalk.png';
 import feishuLogo from '@/app/assets/im-bots/feishu.png';
 import qqLogo from '@/app/assets/im-bots/qq.png';
+import wechatMpLogo from '@/app/assets/im-bots/wechat-mp.svg';
 import wecomLogo from '@/app/assets/im-bots/wecom.png';
 import { IMBotSetupModal, type IMBotDraft, type IMPlatformId, type IMPlatformMeta } from './IMBotSetupModal';
 
@@ -99,7 +100,12 @@ interface ManagedBot {
 
 type PlatformCardMeta = IMPlatformMeta & {
   capabilities: string[];
+  pluginId: string;
+  advantageLabel: string;
+  rolloutNote: string;
 };
+
+const DEFAULT_PLATFORM_ID: IMPlatformId = 'dingtalk';
 
 const DETAIL_INPUT_CLASS =
   'min-h-[46px] w-full rounded-[15px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]';
@@ -160,8 +166,40 @@ const bindingScopeOptions: Array<{ value: BindingScope; label: string; descripti
 
 const platformMetaList: PlatformCardMeta[] = [
   {
-    id: 'feishu',
-    label: '飞书',
+    id: 'dingtalk',
+    label: '钉钉',
+    pluginId: 'dingtalk',
+    advantageLabel: '企业办公主战场',
+    rolloutNote: '已打包 Stream 模式插件，适合先做组织内试点。',
+    logo: dingtalkLogo,
+    intro: '适合组织内办公对话、通知流和群聊助手。',
+    difficulty: '中',
+    eta: '12 分钟',
+    admin: '需要',
+    guideUrl: 'https://open-dev.dingtalk.com/',
+    capabilities: ['群聊', '通知', '组织内'],
+    credentialFields: [
+      { key: 'client_id', label: 'Client ID / AppKey', placeholder: '请输入钉钉 Client ID' },
+      { key: 'client_secret', label: 'Client Secret / AppSecret', placeholder: '请输入钉钉 Client Secret' },
+    ],
+    introSteps: [
+      '进入钉钉开放平台，创建企业内部应用。',
+      '开通机器人相关权限，并完成企业管理员审批。',
+      '确认 Stream 模式入口和事件订阅权限。',
+      '回到 iClaw 完成凭据录入和连通测试。',
+    ],
+    testHints: [
+      '钉钉更适合企业内部办公场景，建议先从小范围试点开始。',
+      '如果后续要做多机器人，系统内部会继续映射为独立机器人实例。',
+      '当前已内置中国版 DingTalk channel plugin，可直接进入配置阶段。',
+    ],
+  },
+  {
+    id: 'feishu-china',
+    label: '飞书中国版',
+    pluginId: 'feishu-china',
+    advantageLabel: '长连接 + 文档生态',
+    rolloutNote: '走中国版飞书渠道插件，适合企业内部群聊与文档协同。',
     logo: feishuLogo,
     logoClassName: 'scale-[1.55]',
     intro: '适合企业群聊、私聊与组织内 AI 助手。',
@@ -187,33 +225,40 @@ const platformMetaList: PlatformCardMeta[] = [
     ],
   },
   {
-    id: 'dingtalk',
-    label: '钉钉',
-    logo: dingtalkLogo,
-    intro: '适合组织内办公对话、通知流和群聊助手。',
+    id: 'wecom',
+    label: '企微机器人',
+    pluginId: 'wecom',
+    advantageLabel: '群机器人 / Bot 模式',
+    rolloutNote: '适合快速把企业微信群通知、播报和问答先跑起来。',
+    logo: wecomLogo,
+    intro: '适合企微群机器人、组织内消息触达与轻量工作流。',
     difficulty: '中',
-    eta: '12 分钟',
-    admin: '需要',
-    guideUrl: 'https://open-dev.dingtalk.com/',
-    capabilities: ['群聊', '通知', '组织内'],
+    eta: '10 分钟',
+    admin: '管理员',
+    guideUrl: 'https://developer.work.weixin.qq.com/',
+    capabilities: ['群聊', 'Bot 模式', '工作流'],
     credentialFields: [
-      { key: 'client_id', label: 'Client ID / AppKey', placeholder: '请输入钉钉 Client ID' },
-      { key: 'client_secret', label: 'Client Secret / AppSecret', placeholder: '请输入钉钉 Client Secret' },
+      { key: 'bot_id', label: 'Bot ID', placeholder: '请输入企微 Bot ID' },
+      { key: 'secret', label: 'Secret', placeholder: '请输入应用 Secret' },
     ],
     introSteps: [
-      '进入钉钉开放平台，创建企业内部应用。',
-      '开通机器人相关权限，并完成企业管理员审批。',
-      '确认 Stream 模式入口和事件订阅权限。',
-      '回到 iClaw 完成凭据录入和连通测试。',
+      '在企微开放平台创建机器人或 AI Bot。',
+      '记录 Bot ID 与 Secret，并确认组织侧已开通消息能力。',
+      '如需 webhook 模式，再补充 Token 与 AESKey 等高级参数。',
+      '回到 iClaw 完成凭据录入并做一次连通测试。',
     ],
     testHints: [
-      '钉钉更适合企业内部办公场景，建议先从小范围试点开始。',
-      '如果后续要做多机器人，系统内部会继续映射为独立机器人实例。',
+      '企微机器人更适合快速试点，先跑通群内通知和问答。',
+      '如果后续需要更复杂的组织回调，再升级到自建应用模式。',
+      '当前已内置中国版企微机器人插件，可直接打包交付。',
     ],
   },
   {
-    id: 'wecom',
-    label: '企微',
+    id: 'wecom-app',
+    label: '企微自建应用',
+    pluginId: 'wecom-app',
+    advantageLabel: '企业应用 / 回调',
+    rolloutNote: '覆盖组织内员工助手、自建应用和 API 回调场景。',
     logo: wecomLogo,
     intro: '适合组织内员工助手、企业消息与内部工作流。',
     difficulty: '高',
@@ -245,8 +290,42 @@ const platformMetaList: PlatformCardMeta[] = [
     ],
   },
   {
-    id: 'qq',
-    label: 'QQ',
+    id: 'wecom-kf',
+    label: '企微客服',
+    pluginId: 'wecom-kf',
+    advantageLabel: '客服会话入口',
+    rolloutNote: '适合把外部客户咨询导入 OpenClaw，会话体验更贴近客服中心。',
+    logo: wecomLogo,
+    intro: '适合企业微信客服、外部客户接待与问题分流。',
+    difficulty: '高',
+    eta: '18 分钟',
+    admin: '企业管理员',
+    guideUrl: 'https://developer.work.weixin.qq.com/',
+    capabilities: ['客服', '外部会话', '回调'],
+    credentialFields: [
+      { key: 'corp_id', label: '企业 Corp ID', placeholder: '请输入企业 Corp ID' },
+      { key: 'secret', label: 'Secret', placeholder: '请输入客服应用 Secret' },
+      { key: 'open_kf_id', label: 'Open KF ID', placeholder: '请输入客服账号 ID' },
+      { key: 'callback_url', label: '回调地址', placeholder: '', readOnly: true },
+    ],
+    introSteps: [
+      '在企微管理后台开通客服能力，并创建客服账号。',
+      '记录 Corp ID、Secret 和 OpenKF ID。',
+      '配置客服回调地址并做一次事件验证。',
+      '回到 iClaw 完成配置，后续可继续绑定客服专属助手。',
+    ],
+    testHints: [
+      '企微客服更适合对外服务，不建议和组织内员工助手混用。',
+      '上线前请先验证回调白名单和客服账号可用性。',
+      '这条渠道适合形成“企业内外统一 AI 服务”的差异化能力。',
+    ],
+  },
+  {
+    id: 'qqbot',
+    label: 'QQ Bot',
+    pluginId: 'qqbot',
+    advantageLabel: '年轻用户 / 社群',
+    rolloutNote: '适合 QQ 群、频道和社群陪伴型助手，是国内增量流量入口。',
     logo: qqLogo,
     intro: '适合 QQ 群、频道和轻量办公协作入口。',
     difficulty: '高',
@@ -267,6 +346,37 @@ const platformMetaList: PlatformCardMeta[] = [
     testHints: [
       'QQ 更适合增量试点，建议先验证企业内部使用稳定性。',
       '如果后续接入频道和群聊，系统会继续按机器人实例统一管理。',
+      'QQ 渠道插件已通过当前 OpenClaw 版本验证，可纳入默认打包能力。',
+    ],
+  },
+  {
+    id: 'wechat-mp',
+    label: '微信公众号',
+    pluginId: 'wechat-mp',
+    advantageLabel: '私域触达 / 订阅',
+    rolloutNote: '适合公众号消息、菜单交互和私域内容服务，是品牌面向外部用户的强入口。',
+    logo: wechatMpLogo,
+    intro: '适合微信公众号问答、菜单交互与私域内容服务。',
+    difficulty: '高',
+    eta: '18 分钟',
+    admin: '公众号管理员',
+    guideUrl: 'https://mp.weixin.qq.com/',
+    capabilities: ['私聊', '菜单', '订阅触达'],
+    credentialFields: [
+      { key: 'app_id', label: 'App ID', placeholder: '请输入公众号 App ID' },
+      { key: 'app_secret', label: 'App Secret', placeholder: '请输入公众号 App Secret' },
+      { key: 'callback_url', label: '回调地址', placeholder: '', readOnly: true },
+    ],
+    introSteps: [
+      '登录微信公众平台，创建或选择服务号 / 订阅号应用。',
+      '开启开发者模式，记录 App ID 与 App Secret。',
+      '配置服务器地址、Token 和消息校验参数。',
+      '回到 iClaw 完成接入配置并验证回调。',
+    ],
+    testHints: [
+      '微信公众号适合做品牌对外 AI 服务和内容陪伴式触达。',
+      '正式上线前请确认消息频控与菜单交互体验。',
+      '这条渠道和 QQ/企微一起，能明显拉开国内渠道覆盖差距。',
     ],
   },
 ];
@@ -796,7 +906,7 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
               size="sm"
               leadingIcon={<Link2 className="h-4 w-4" />}
               className="px-3.5 py-1.5 text-[12px]"
-              onClick={() => setSelectedPlatformId('feishu')}
+              onClick={() => setSelectedPlatformId(DEFAULT_PLATFORM_ID)}
             >
               新建机器人
             </Button>
@@ -830,18 +940,25 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
                 );
               })
             ) : (
-              <EmptyBotState onCreate={() => setSelectedPlatformId('feishu')} />
+              <EmptyBotState onCreate={() => setSelectedPlatformId(DEFAULT_PLATFORM_ID)} />
             )}
           </div>
 
-          <ActivityPanel
-            activeTab={activeSideTab}
-            onTabChange={setActiveSideTab}
-            todoItems={todoItems}
-            healthItems={healthItems}
-            auditItems={auditItems}
-            onOpenBot={(botId) => setSelectedBotId(botId)}
-          />
+          <div className="space-y-3.5">
+            <ActivityPanel
+              activeTab={activeSideTab}
+              onTabChange={setActiveSideTab}
+              todoItems={todoItems}
+              healthItems={healthItems}
+              auditItems={auditItems}
+              onOpenBot={(botId) => setSelectedBotId(botId)}
+            />
+            <ChannelAdvantagePanel
+              platforms={platformMetaList}
+              configuredPlatforms={configuredPlatforms}
+              onOpenPlatform={(platformId) => setSelectedPlatformId(platformId)}
+            />
+          </div>
         </div>
 
         <div className="mt-7">
@@ -940,7 +1057,7 @@ function EmptyBotState({ onCreate }: { onCreate: () => void }) {
       description="这里不再展示 mock 示例。完成任一平台接入后，新的机器人会真实出现在这个区域，并直接进入详情抽屉继续完成默认助手绑定与测试。"
       action={
         <Button variant="primary" size="sm" leadingIcon={<Link2 className="h-4 w-4" />} onClick={onCreate}>
-          从飞书开始接入
+          从钉钉开始接入
         </Button>
       }
     />
@@ -1193,6 +1310,60 @@ function ActivityPanel({
         >
           查看全部历史
         </button>
+      </div>
+    </PressableCard>
+  );
+}
+
+function ChannelAdvantagePanel({
+  platforms,
+  configuredPlatforms,
+  onOpenPlatform,
+}: {
+  platforms: PlatformCardMeta[];
+  configuredPlatforms: Set<IMPlatformId>;
+  onOpenPlatform: (platformId: IMPlatformId) => void;
+}) {
+  return (
+    <PressableCard className="w-[308px] overflow-hidden rounded-[22px] border-[var(--border-default)] bg-[var(--bg-card)] px-3.5 py-3 shadow-[var(--pressable-card-rest-shadow)]">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[15px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">渠道矩阵</div>
+          <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+            已打包的中国 IM 渠道。这里是我们形成国内渠道优势的底盘。
+          </p>
+        </div>
+        <Chip tone="success" className="px-2 py-1 text-[11px] font-medium">
+          {platforms.length} 条
+        </Chip>
+      </div>
+      <div className="space-y-2">
+        {platforms.map((platform) => (
+          <button
+            key={platform.id}
+            type="button"
+            onClick={() => onOpenPlatform(platform.id)}
+            className={cn(
+              'flex w-full cursor-pointer items-start gap-3 rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-3 text-left transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--bg-page)]/60',
+              SPRING_PRESSABLE,
+              INTERACTIVE_FOCUS_RING,
+            )}
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-white shadow-[var(--pressable-card-rest-shadow)] dark:bg-[rgba(255,255,255,0.04)]">
+              <img src={platform.logo} alt={platform.label} className={cn('h-full w-full object-cover', platform.logoClassName)} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <div className="text-[13px] font-medium text-[var(--text-primary)]">{platform.label}</div>
+                <Chip tone={configuredPlatforms.has(platform.id) ? 'success' : 'outline'} className="px-2 py-0.5 text-[10px]">
+                  {configuredPlatforms.has(platform.id) ? '已配置' : '待配置'}
+                </Chip>
+              </div>
+              <div className="mt-1 text-[12px] font-medium text-[var(--text-secondary)]">{platform.advantageLabel}</div>
+              <p className="mt-1 text-[12px] leading-5 text-[var(--text-muted)]">{platform.rolloutNote}</p>
+            </div>
+          </button>
+        ))}
       </div>
     </PressableCard>
   );

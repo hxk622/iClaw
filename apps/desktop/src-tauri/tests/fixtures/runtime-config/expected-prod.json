@@ -130,6 +130,27 @@
           "memoryGuardMode": "enforce",
           "exfiltrationGuardMode": "enforce"
         }
+      },
+      "dingtalk": {
+        "enabled": true
+      },
+      "feishu-china": {
+        "enabled": true
+      },
+      "qqbot": {
+        "enabled": true
+      },
+      "wecom": {
+        "enabled": true
+      },
+      "wecom-app": {
+        "enabled": true
+      },
+      "wecom-kf": {
+        "enabled": true
+      },
+      "wechat-mp": {
+        "enabled": true
       }
     }
   },
