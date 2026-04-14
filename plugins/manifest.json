@@ -1,0 +1,23 @@
+{
+  "plugins": [
+    {
+      "id": "claw-aegis",
+      "source": {
+        "type": "git",
+        "repository": "https://github.com/antgroup/ClawAegis.git",
+        "version": "3920df6ce7e819b99300c6b6dd418cd9dedb2170"
+      },
+      "entry": {
+        "enabled": true,
+        "config": {
+          "allDefensesEnabled": true,
+          "defaultBlockingMode": "observe",
+          "selfProtectionMode": "enforce",
+          "commandBlockMode": "enforce",
+          "memoryGuardMode": "enforce",
+          "exfiltrationGuardMode": "enforce"
+        }
+      }
+    }
+  ]
+}

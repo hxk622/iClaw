@@ -272,6 +272,11 @@ for path in openclaw.mjs package.json LICENSE README.md assets docs dist extensi
   fi
 done
 
+node "$ROOT_DIR/scripts/stage-openclaw-plugins.mjs" \
+  --runtime-root "$STAGE_DIR/openclaw" \
+  --node-bin "$STAGE_DIR/bin/node" \
+  --target-extensions-dir "$STAGE_DIR/openclaw/extensions"
+
 cat > "$STAGE_DIR/manifest.json" <<JSON
 {
   "name": "openclaw-runtime",

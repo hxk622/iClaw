@@ -118,7 +118,19 @@
     "slots": {
       "memory": "memory-core"
     },
-    "entries": {}
+    "entries": {
+      "claw-aegis": {
+        "enabled": true,
+        "config": {
+          "allDefensesEnabled": true,
+          "defaultBlockingMode": "observe",
+          "selfProtectionMode": "enforce",
+          "commandBlockMode": "enforce",
+          "memoryGuardMode": "enforce",
+          "exfiltrationGuardMode": "enforce"
+        }
+      }
+    }
   },
   "browser": {
     "headless": true

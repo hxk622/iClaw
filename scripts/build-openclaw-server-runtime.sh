@@ -151,6 +151,10 @@ mkdir -p "$RUNTIME_DIR" "$NODE_DIR" "$BIN_DIR"
 for path in dist docs extensions skills assets node_modules; do
   copy_runtime_path "$SOURCE_DIR" "$path" "$RUNTIME_DIR"
 done
+node "$ROOT_DIR/scripts/stage-openclaw-plugins.mjs" \
+  --runtime-root "$RUNTIME_DIR" \
+  --node-bin "$NODE_DIR/node" \
+  --target-extensions-dir "$RUNTIME_DIR/extensions"
 copy_runtime_path "$SOURCE_DIR" "openclaw.mjs" "$RUNTIME_DIR"
 copy_runtime_path "$SOURCE_DIR" "package.json" "$RUNTIME_DIR"
 copy_runtime_path "$SOURCE_DIR" "README.md" "$RUNTIME_DIR"

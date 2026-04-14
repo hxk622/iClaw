@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildPackagedPluginEntries, loadPackagedPlugins } from '../../../../../scripts/lib/openclaw-plugin-manifest.mjs';
 
 const DEFAULT_PROVIDER_MODEL_CONTEXT_WINDOW = 131072;
 const DEFAULT_PROVIDER_MODEL_MAX_TOKENS = 8192;
@@ -414,6 +415,7 @@ function main() {
   if (entries['memory-lancedb']) {
     delete entries['memory-lancedb'];
   }
+  Object.assign(entries, buildPackagedPluginEntries(loadPackagedPlugins()));
   plugins.slots = slots;
   plugins.entries = entries;
   config.plugins = plugins;
