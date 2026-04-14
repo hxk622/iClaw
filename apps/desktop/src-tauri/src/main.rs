@@ -4563,6 +4563,12 @@ fn append_desktop_bootstrap_log(app: &AppHandle, message: &str) {
     }
 }
 
+fn desktop_fault_report_err<T>(app: &AppHandle, stage: &str, error: impl Into<String>) -> Result<T, String> {
+    let error = error.into();
+    append_desktop_bootstrap_log(app, &format!("desktop_fault_report:{stage}: error {error}"));
+    Err(error)
+}
+
 fn chrono_like_timestamp() -> String {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -4753,18 +4759,48 @@ fn current_arch_label() -> String {
 
 #[tauri::command]
 fn load_startup_diagnostics(app: AppHandle) -> Result<StartupDiagnosticsSnapshot, String> {
-    let paths = ensure_runtime_dirs(&app)?;
+    append_desktop_bootstrap_log(&app, "load_startup_diagnostics: begin");
+    let paths = ensure_runtime_dirs(&app)
+        .map_err(|error| {
+            append_desktop_bootstrap_log(
+                &app,
+                &format!("load_startup_diagnostics: ensure_runtime_dirs failed {error}"),
+            );
+            error
+        })?;
     let bootstrap_log_path = PathBuf::from(&paths.log_dir).join("desktop-bootstrap.log");
-    let (sidecar_stdout_log_path, sidecar_stderr_log_path) = sidecar_log_paths(&app)?;
+    let (sidecar_stdout_log_path, sidecar_stderr_log_path) = sidecar_log_paths(&app)
+        .map_err(|error| {
+            append_desktop_bootstrap_log(
+                &app,
+                &format!("load_startup_diagnostics: sidecar_log_paths failed {error}"),
+            );
+            error
+        })?;
 
-    Ok(StartupDiagnosticsSnapshot {
+    let snapshot = StartupDiagnosticsSnapshot {
         bootstrap_log_path: bootstrap_log_path.to_string_lossy().to_string(),
         sidecar_stdout_log_path: sidecar_stdout_log_path.to_string_lossy().to_string(),
         sidecar_stderr_log_path: sidecar_stderr_log_path.to_string_lossy().to_string(),
         bootstrap_tail: read_log_tail(&bootstrap_log_path, 1200),
         sidecar_stdout_tail: read_log_tail(&sidecar_stdout_log_path, 1200),
         sidecar_stderr_tail: read_log_tail(&sidecar_stderr_log_path, 1200),
-    })
+    };
+
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "load_startup_diagnostics: success bootstrapLogExists={} stdoutLogExists={} stderrLogExists={} bootstrapTailPresent={} stdoutTailPresent={} stderrTailPresent={}",
+            bootstrap_log_path.exists(),
+            sidecar_stdout_log_path.exists(),
+            sidecar_stderr_log_path.exists(),
+            snapshot.bootstrap_tail.is_some(),
+            snapshot.sidecar_stdout_tail.is_some(),
+            snapshot.sidecar_stderr_tail.is_some()
+        ),
+    );
+
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -4784,9 +4820,51 @@ fn prepare_desktop_fault_report_archive(
                 random_hex_string(6).to_uppercase()
             )
         });
-    let device_id = load_or_create_desktop_fault_report_device_id(&app)?;
-    let runtime_diagnosis = diagnose_runtime(app.clone())?;
-    let startup_diagnostics = load_startup_diagnostics(app.clone())?;
+    let extra_diagnostics_key_count = input
+        .extra_diagnostics
+        .as_ref()
+        .and_then(|value| value.as_object())
+        .map(|value| value.len())
+        .unwrap_or(0);
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "desktop_fault_report:prepare begin reportId={} entry={} failureStage={} installSessionIdPresent={} appName={} brandId={} extraDiagnosticsKeys={}",
+            report_id,
+            input.entry,
+            input.failure_stage,
+            input
+                .install_session_id
+                .as_deref()
+                .map(str::trim)
+                .map(|value| !value.is_empty())
+                .unwrap_or(false),
+            input.app_name.as_deref().unwrap_or(DESKTOP_BRAND_ID),
+            input.brand_id.as_deref().unwrap_or(DESKTOP_BRAND_ID),
+            extra_diagnostics_key_count
+        ),
+    );
+    let device_id = load_or_create_desktop_fault_report_device_id(&app).map_err(|error| {
+        append_desktop_bootstrap_log(
+            &app,
+            &format!("desktop_fault_report:prepare device_id failed reportId={} error={error}", report_id),
+        );
+        error
+    })?;
+    let runtime_diagnosis = diagnose_runtime(app.clone()).map_err(|error| {
+        append_desktop_bootstrap_log(
+            &app,
+            &format!("desktop_fault_report:prepare diagnose_runtime failed reportId={} error={error}", report_id),
+        );
+        error
+    })?;
+    let startup_diagnostics = load_startup_diagnostics(app.clone()).map_err(|error| {
+        append_desktop_bootstrap_log(
+            &app,
+            &format!("desktop_fault_report:prepare load_startup_diagnostics failed reportId={} error={error}", report_id),
+        );
+        error
+    })?;
     let bootstrap_log_path = PathBuf::from(&startup_diagnostics.bootstrap_log_path);
     let stdout_log_path = PathBuf::from(&startup_diagnostics.sidecar_stdout_log_path);
     let stderr_log_path = PathBuf::from(&startup_diagnostics.sidecar_stderr_log_path);
@@ -4795,6 +4873,17 @@ fn prepare_desktop_fault_report_archive(
         ("logs/sidecar-stdout.log", read_fault_report_log(&stdout_log_path)),
         ("logs/sidecar-stderr.log", read_fault_report_log(&stderr_log_path)),
     ];
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "desktop_fault_report:prepare logs reportId={} bootstrapLogExists={} stdoutLogExists={} stderrLogExists={} includedLogs={}",
+            report_id,
+            bootstrap_log_path.exists(),
+            stdout_log_path.exists(),
+            stderr_log_path.exists(),
+            logs.iter().filter(|(_, content)| content.is_some()).count()
+        ),
+    );
 
     let payload = json!({
         "report_id": report_id,
@@ -4851,47 +4940,114 @@ fn prepare_desktop_fault_report_archive(
     let cursor = Cursor::new(Vec::<u8>::new());
     let mut archive = zip::ZipWriter::new(cursor);
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let manifest_bytes = match serde_json::to_vec_pretty(&manifest_json) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return desktop_fault_report_err(
+                &app,
+                "serialize_manifest",
+                format!("failed to serialize fault report manifest: {e}"),
+            )
+        }
+    };
+    let summary_bytes = match serde_json::to_vec_pretty(&payload) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return desktop_fault_report_err(
+                &app,
+                "serialize_summary",
+                format!("failed to serialize fault report summary: {e}"),
+            )
+        }
+    };
+    let diagnostics_bytes = match serde_json::to_vec_pretty(&runtime_diagnostics_json) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return desktop_fault_report_err(
+                &app,
+                "serialize_diagnostics",
+                format!("failed to serialize fault report diagnostics: {e}"),
+            )
+        }
+    };
     let files = vec![
-        (
-            "manifest.json",
-            serde_json::to_vec_pretty(&manifest_json)
-                .map_err(|e| format!("failed to serialize fault report manifest: {e}"))?,
-        ),
-        (
-            "error-summary.json",
-            serde_json::to_vec_pretty(&payload)
-                .map_err(|e| format!("failed to serialize fault report summary: {e}"))?,
-        ),
-        (
-            "runtime-diagnostics.json",
-            serde_json::to_vec_pretty(&runtime_diagnostics_json)
-                .map_err(|e| format!("failed to serialize fault report diagnostics: {e}"))?,
-        ),
+        ("manifest.json", manifest_bytes),
+        ("error-summary.json", summary_bytes),
+        ("runtime-diagnostics.json", diagnostics_bytes),
     ];
+    let metadata_bytes: usize = files.iter().map(|(_, bytes)| bytes.len()).sum();
+    let log_bytes: usize = logs
+        .iter()
+        .filter_map(|(_, content)| content.as_ref().map(|value| value.as_bytes().len()))
+        .sum();
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "desktop_fault_report:prepare archive reportId={} metadataFiles={} logFiles={} metadataBytes={} logBytes={}",
+            report_id,
+            files.len(),
+            logs.iter().filter(|(_, content)| content.is_some()).count(),
+            metadata_bytes,
+            log_bytes
+        ),
+    );
     for (name, bytes) in files {
-        archive
-            .start_file(name, options)
-            .map_err(|e| format!("failed to add fault report file {name}: {e}"))?;
-        archive
-            .write_all(&bytes)
-            .map_err(|e| format!("failed to write fault report file {name}: {e}"))?;
+        if let Err(e) = archive.start_file(name, options) {
+            return desktop_fault_report_err(
+                &app,
+                "start_metadata_file",
+                format!("failed to add fault report file {name}: {e}"),
+            );
+        }
+        if let Err(e) = archive.write_all(&bytes) {
+            return desktop_fault_report_err(
+                &app,
+                "write_metadata_file",
+                format!("failed to write fault report file {name}: {e}"),
+            );
+        }
     }
     for (name, content) in logs {
         if let Some(value) = content {
-            archive
-                .start_file(name, options)
-                .map_err(|e| format!("failed to add fault report log {name}: {e}"))?;
-            archive
-                .write_all(value.as_bytes())
-                .map_err(|e| format!("failed to write fault report log {name}: {e}"))?;
+            if let Err(e) = archive.start_file(name, options) {
+                return desktop_fault_report_err(
+                    &app,
+                    "start_log_file",
+                    format!("failed to add fault report log {name}: {e}"),
+                );
+            }
+            if let Err(e) = archive.write_all(value.as_bytes()) {
+                return desktop_fault_report_err(
+                    &app,
+                    "write_log_file",
+                    format!("failed to write fault report log {name}: {e}"),
+                );
+            }
         }
     }
-    let cursor = archive
-        .finish()
-        .map_err(|e| format!("failed to finalize fault report archive: {e}"))?;
+    let cursor = match archive.finish() {
+        Ok(cursor) => cursor,
+        Err(e) => {
+            return desktop_fault_report_err(
+                &app,
+                "finalize_archive",
+                format!("failed to finalize fault report archive: {e}"),
+            )
+        }
+    };
     let bytes = cursor.into_inner();
     let file_sha256 = sha256_hex(&bytes);
     let file_name = format!("fault-report-{report_id}.zip");
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "desktop_fault_report:prepare success reportId={} fileName={} archiveBytes={} sha256={}",
+            report_id,
+            file_name,
+            bytes.len(),
+            file_sha256
+        ),
+    );
 
     Ok(PreparedDesktopFaultReportArchive {
         report_id,

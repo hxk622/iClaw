@@ -1710,7 +1710,15 @@ export default function App() {
           stack: input.stack || null,
           source: 'global-exception-listener',
         },
-      }).catch(() => undefined);
+      }).catch((error) => {
+        console.error('[fault-report] auto submit uncaught failure', {
+          kind: input.kind,
+          title: input.title,
+          message: input.message,
+          hasStack: Boolean(input.stack),
+          error,
+        });
+      });
     };
 
     const onError = (event: ErrorEvent) => {

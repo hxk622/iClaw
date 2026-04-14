@@ -64,6 +64,14 @@ export function FaultReportModal({
   }
 
   async function handleSubmit() {
+    console.info('[fault-report-modal] submit click', {
+      source,
+      failureStage,
+      accountState,
+      hasAccessToken: Boolean(accessToken),
+      installSessionIdPresent: Boolean(installSessionId),
+      extraDiagnosticsKeys: extraDiagnostics ? Object.keys(extraDiagnostics) : [],
+    });
     setFailureReason('');
     setProgress(0);
     setState('collecting');
@@ -94,11 +102,23 @@ export function FaultReportModal({
           setProgress(percent == null ? 72 : Math.max(45, percent));
         },
       });
+      console.info('[fault-report-modal] submit success', {
+        source,
+        failureStage,
+        reportId: result.reportId,
+        fileSizeBytes: result.fileSizeBytes,
+      });
       setReportId(result.reportId);
       setPackageSizeLabel(`${Math.max(1, Math.round(result.fileSizeBytes / 1024))} KB`);
       setProgress(100);
       setState('success');
     } catch (error) {
+      console.error('[fault-report-modal] submit failed', {
+        source,
+        failureStage,
+        state,
+        error,
+      });
       setState('failed');
       setFailureReason(error instanceof Error ? error.message : '故障上报失败，请稍后重试');
     }
