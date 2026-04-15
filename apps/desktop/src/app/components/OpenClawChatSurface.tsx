@@ -64,6 +64,10 @@ import {
   type RuntimeModelCatalogResponse,
 } from '../lib/runtime-models';
 import {
+  getDesktopGatewayConnectionManager,
+  type GatewayTransportState,
+} from '../lib/openclaw-gateway-manager';
+import {
   buildGeneratedUserAvatarDataUrl,
   resolveUserAvatarUrl,
   type AppUserAvatarSource,
@@ -4149,15 +4153,76 @@ function isSeededEmptySessionKey(value: string): boolean {
   return SEEDED_EMPTY_SESSION_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
+const UPSTREAM_STARTER_MESSAGE_MARKERS = [
+  'ready to chat',
+  'what can you do?',
+  'summarize my recent sessions',
+  'help me configure a channel',
+  'check system health',
+  'type a message below',
+] as const;
+
+function extractRenderableMessageText(message: unknown): string | null {
+  if (!message || typeof message !== 'object' || Array.isArray(message)) {
+    return null;
+  }
+
+  const record = message as Record<string, unknown>;
+  if (typeof record.content === 'string' && record.content.trim()) {
+    return record.content.trim();
+  }
+
+  if (!Array.isArray(record.content)) {
+    return null;
+  }
+
+  const text = record.content
+    .map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return '';
+      }
+      const block = item as Record<string, unknown>;
+      return typeof block.text === 'string' ? block.text.trim() : '';
+    })
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  return text || null;
+}
+
+function isUpstreamStarterSnapshot(messages: unknown[]): boolean {
+  const texts = messages
+    .map((message) => extractRenderableMessageText(message))
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.replace(/\s+/g, ' ').trim().toLowerCase());
+
+  if (texts.length < 2 || texts.length > 8) {
+    return false;
+  }
+
+  const markerMatches = texts.filter((text) =>
+    UPSTREAM_STARTER_MESSAGE_MARKERS.some((marker) => text.includes(marker)),
+  );
+
+  return markerMatches.length === texts.length;
+}
+
 function hasStoredChatSnapshotMessages(
   appName: string,
   sessionKey: string,
   conversationId?: string | null,
 ): boolean {
-  return (readChatSessionSnapshot(appName, sessionKey, conversationId)?.messages?.length ?? 0) > 0;
+  return snapshotHasMeaningfulRenderableMessages(
+    readChatSessionSnapshot(appName, sessionKey, conversationId)?.messages ?? [],
+  );
 }
 
 function snapshotHasMeaningfulRenderableMessages(messages: unknown[]): boolean {
+  if (isUpstreamStarterSnapshot(messages)) {
+    return false;
+  }
+
   return messages.some((message) => {
     if (!message || typeof message !== 'object' || Array.isArray(message)) {
       return false;
@@ -4169,7 +4234,7 @@ function snapshotHasMeaningfulRenderableMessages(messages: unknown[]): boolean {
       return false;
     }
 
-    if (typeof record.content === 'string' && record.content.trim()) {
+    if (extractRenderableMessageText(record)) {
       return true;
     }
 
@@ -4193,22 +4258,18 @@ function snapshotHasMeaningfulRenderableMessages(messages: unknown[]): boolean {
   });
 }
 
-function hasReusableEmptyGeneralConversation(
+function hasReusableEmptyConversation(
   appName: string,
   sessionKey: string,
   conversationId?: string | null,
 ): boolean {
-  if (!isGeneralChatSessionKey(sessionKey)) {
-    return false;
-  }
-
   const conversation =
     (conversationId ? readChatConversation(conversationId) : null) ||
     findChatConversationBySessionKey(sessionKey);
-  if (!conversation || conversation.kind !== 'general') {
+  if (!conversation) {
     return false;
   }
-  if ((conversation.title ?? '').trim()) {
+  if (conversation.kind === 'general' && (conversation.title ?? '').trim()) {
     return false;
   }
 
@@ -4229,7 +4290,7 @@ function shouldTreatAsImmediateEmptySession(
   if (isSeededEmptySessionKey(sessionKey) && !hasStoredChatSnapshotMessages(appName, sessionKey, conversationId)) {
     return true;
   }
-  return hasReusableEmptyGeneralConversation(appName, sessionKey, conversationId);
+  return hasReusableEmptyConversation(appName, sessionKey, conversationId);
 }
 
 async function loadChatModelSnapshot(
@@ -4529,6 +4590,11 @@ export function OpenClawChatSurface({
   const [shellDropSummary, setShellDropSummary] = useState<DraggedFileSummary | null>(null);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelSwitching, setModelSwitching] = useState(false);
+  const [gatewayTransportState, setGatewayTransportState] = useState<GatewayTransportState>({
+    phase: 'disconnected',
+    ready: false,
+    lastError: null,
+  });
   const [sessionTransitionVisible, setSessionTransitionVisible] = useState(false);
   const [surfaceReactivating, setSurfaceReactivating] = useState(false);
   const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
@@ -4611,6 +4677,7 @@ export function OpenClawChatSurface({
   const unhandledLogRef = useRef<string | null>(null);
   const selectionMenuRef = useRef<HTMLDivElement | null>(null);
   const modelLoadVersionRef = useRef(0);
+  const connectedEmbeddedAppRef = useRef<OpenClawAppElement | null>(null);
   const messageActionTimersRef = useRef<number[]>([]);
   const previousChatScopeRef = useRef(buildChatScopeIdentity(sessionKey, conversationId));
   const sessionTransitionPendingRef = useRef(false);
@@ -5965,15 +6032,37 @@ export function OpenClawChatSurface({
     }
 
     appRef.current = app;
+    connectedEmbeddedAppRef.current = null;
     host.replaceChildren(app);
 
     return () => {
       if (appRef.current === app) {
         appRef.current = null;
       }
+      if (connectedEmbeddedAppRef.current === app) {
+        connectedEmbeddedAppRef.current = null;
+      }
       host.replaceChildren();
     };
   }, [embeddedResetEpoch]);
+
+  useEffect(() => {
+    const manager = getDesktopGatewayConnectionManager({
+      gatewayUrl,
+      gatewayToken,
+      gatewayPassword,
+    });
+    manager.connect();
+    return manager.subscribe((state) => {
+      setGatewayTransportState((current) =>
+        current.phase === state.phase &&
+        current.ready === state.ready &&
+        current.lastError === state.lastError
+          ? current
+          : state,
+      );
+    });
+  }, [gatewayPassword, gatewayToken, gatewayUrl]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -5993,18 +6082,46 @@ export function OpenClawChatSurface({
       gatewayToken: gatewayToken?.trim() ?? '',
       gatewayPassword: gatewayPassword?.trim() ?? '',
     });
+    const shouldConnectCurrentApp =
+      connectedEmbeddedAppRef.current !== app || reconnectKeyRef.current !== reconnectKey;
     if (reconnectKeyRef.current === null) {
       reconnectKeyRef.current = reconnectKey;
       initialScrollScheduledRef.current = false;
       app.connect();
+      connectedEmbeddedAppRef.current = app;
       return;
     }
-    if (reconnectKeyRef.current !== reconnectKey) {
+    if (shouldConnectCurrentApp) {
       reconnectKeyRef.current = reconnectKey;
       initialScrollScheduledRef.current = false;
       app.connect();
+      connectedEmbeddedAppRef.current = app;
     }
   }, [effectiveGatewaySessionKey, gatewayPassword, gatewayToken, gatewayUrl]);
+
+  useEffect(() => {
+    if (!gatewayTransportState.ready || status.connected || shellTransitioning) {
+      return;
+    }
+    const app = appRef.current;
+    if (!app) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      if (!appRef.current || status.connected) {
+        return;
+      }
+      try {
+        appRef.current.connect();
+      } catch (error) {
+        console.warn('[desktop] failed to reconnect embedded chat surface after transport became ready', {
+          sessionKey,
+          error,
+        });
+      }
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [gatewayTransportState.ready, sessionKey, shellTransitioning, status.connected]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -6615,10 +6732,13 @@ export function OpenClawChatSurface({
 
       ensureWrappedClientRequest(app);
       const reconciledBusyState = reconcileGatewayChatBusyState(app, effectiveGatewaySessionKey);
+      const embeddedClientReady = Boolean(app.client && typeof app.client.request === 'function');
+      const transportConnected =
+        Boolean(app.connected) || (gatewayTransportState.ready && embeddedClientReady);
 
       const nextStatus: ChatSurfaceStatus = {
         busy: reconciledBusyState.busy,
-        connected: Boolean(app.connected),
+        connected: transportConnected,
         lastError: app.lastError ?? null,
         lastErrorCode: app.lastErrorCode ?? null,
       };
@@ -6713,7 +6833,7 @@ export function OpenClawChatSurface({
       window.clearInterval(timer);
       clearConnectionLossTimer();
     };
-  }, [clearConnectionLossTimer, effectiveGatewaySessionKey, ensureWrappedClientRequest]);
+  }, [clearConnectionLossTimer, effectiveGatewaySessionKey, ensureWrappedClientRequest, gatewayTransportState.ready]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -7032,6 +7152,8 @@ export function OpenClawChatSurface({
   const hasGatewayAuth = Boolean((gatewayToken ?? '').trim() || (gatewayPassword ?? '').trim());
   const connectionMessage = status.lastError
     ? status.lastError
+    : gatewayTransportState.lastError
+      ? gatewayTransportState.lastError
     : hasGatewayAuth
       ? '正在连接 OpenClaw 网关…'
       : '缺少本地网关凭据，当前无法连接 OpenClaw。';
@@ -7050,6 +7172,8 @@ export function OpenClawChatSurface({
     optimisticEmptySessionActive,
     statusConnected: status.connected,
     statusLastError: status.lastError,
+    gatewayTransportReady: gatewayTransportState.ready,
+    gatewayTransportError: gatewayTransportState.lastError,
     surfaceVisible,
     surfaceReactivating,
     sessionTransitionVisible,
@@ -8418,9 +8542,11 @@ export function OpenClawChatSurface({
 
   const allowWelcomeForCurrentRoute =
     !conversationId || shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId);
+  const preferBrandWelcomeForRoute = allowWelcomeForCurrentRoute;
 
   const showWelcomePage = shouldShowOpenClawWelcomePage({
     allowWelcomeForCurrentRoute,
+    preferBrandWelcomeForRoute,
     allowImmediateEmptySessionUi,
     bootStillSettling: lifecycle.bootStillSettling,
     shellTransitioning,
@@ -9194,12 +9320,19 @@ export function OpenClawChatSurface({
                 data-session-transitioning={shellTransitioning ? 'true' : 'false'}
                 data-surface-reactivating={showSurfaceReactivationMask ? 'true' : 'false'}
               >
-                <div
-                  ref={hostRef}
-                  className={`openclaw-chat-surface min-h-0 flex-1 overflow-hidden ${
-                    allowImmediateEmptySessionUi ? 'pointer-events-none opacity-0' : ''
-                  }`}
-                />
+                {!showWelcomePage ? (
+                  <div
+                    ref={hostRef}
+                    className={`openclaw-chat-surface min-h-0 flex-1 overflow-hidden ${
+                      allowImmediateEmptySessionUi ? 'pointer-events-none opacity-0' : ''
+                    }`}
+                  />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="openclaw-chat-surface min-h-0 flex-1 overflow-hidden opacity-0 pointer-events-none"
+                  />
+                )}
 
                 {showWelcomePage ? (
                   <K2CWelcomePage

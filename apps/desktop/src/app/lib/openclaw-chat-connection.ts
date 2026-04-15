@@ -4,6 +4,8 @@ export type OpenClawChatSurfaceLifecycleInput = {
   optimisticEmptySessionActive: boolean;
   statusConnected: boolean;
   statusLastError: string | null;
+  gatewayTransportReady: boolean;
+  gatewayTransportError: string | null;
   surfaceVisible: boolean;
   surfaceReactivating: boolean;
   sessionTransitionVisible: boolean;
@@ -83,7 +85,10 @@ export function deriveOpenClawChatSurfaceLifecycle(
     input.surfaceVisible &&
     !input.surfaceReactivating &&
     !input.statusConnected &&
-    (input.statusLastError || (!input.sessionTransitionVisible && !bootStillSettling))
+    !input.gatewayTransportReady &&
+    (input.statusLastError ||
+      input.gatewayTransportError ||
+      (!input.sessionTransitionVisible && !bootStillSettling))
       ? true
       : false;
   const shouldShowRenderDiagnostics =
@@ -136,6 +141,8 @@ export type OpenClawConnectionCardInput = Pick<
   | 'optimisticEmptySessionActive'
   | 'statusConnected'
   | 'statusLastError'
+  | 'gatewayTransportReady'
+  | 'gatewayTransportError'
   | 'surfaceVisible'
   | 'surfaceReactivating'
   | 'sessionTransitionVisible'
@@ -153,6 +160,8 @@ export function shouldShowOpenClawConnectionCard(input: OpenClawConnectionCardIn
     optimisticEmptySessionActive: input.allowImmediateEmptySessionUi ?? false,
     statusConnected: input.statusConnected,
     statusLastError: input.statusLastError,
+    gatewayTransportReady: input.gatewayTransportReady,
+    gatewayTransportError: input.gatewayTransportError,
     surfaceVisible: input.surfaceVisible,
     surfaceReactivating: input.surfaceReactivating,
     sessionTransitionVisible: input.sessionTransitionVisible,
@@ -181,6 +190,8 @@ export function shouldAllowDisconnectedComposerQueue(
     optimisticEmptySessionActive: false,
     statusConnected: false,
     statusLastError: null,
+    gatewayTransportReady: false,
+    gatewayTransportError: null,
     surfaceVisible: true,
     surfaceReactivating: input.surfaceReactivating,
     sessionTransitionVisible: input.sessionTransitionVisible,
@@ -202,6 +213,7 @@ export type OpenClawWelcomePageInput = Pick<
   'allowImmediateEmptySessionUi' | 'bootStillSettling' | 'shellTransitioning'
 > & {
   allowWelcomeForCurrentRoute: boolean;
+  preferBrandWelcomeForRoute: boolean;
   sessionHistoryState: SessionHistoryState;
   hasObservedHistory: boolean;
   renderGroupCount: number;
@@ -217,11 +229,11 @@ export function shouldShowOpenClawWelcomePage(input: OpenClawWelcomePageInput): 
   }
 
   const canShowForEmptySession =
+    input.preferBrandWelcomeForRoute ||
     (input.allowImmediateEmptySessionUi && input.sessionHistoryState === 'empty') ||
     (!input.bootStillSettling &&
       !input.hasObservedHistory &&
-      input.sessionHistoryState === 'empty' &&
-      input.renderGroupCount === 0);
+      input.sessionHistoryState === 'empty');
 
   if (!canShowForEmptySession) {
     return false;

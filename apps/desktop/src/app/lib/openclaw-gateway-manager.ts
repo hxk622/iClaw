@@ -63,8 +63,8 @@ function buildGatewayConnectParams(gatewayToken?: string, gatewayPassword?: stri
     minProtocol: 3,
     maxProtocol: 3,
     client: {
-      id: 'openclaw-control-ui',
-      version: 'control-ui',
+      id: 'gateway-client',
+      version: 'iclaw-shell',
       platform: typeof navigator !== 'undefined' ? navigator.platform || 'Unknown' : 'Unknown',
       mode: 'webchat',
     },
@@ -133,6 +133,10 @@ export class DesktopGatewayConnectionManager {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  connect() {
+    this.ensureConnected();
   }
 
   async request<T = unknown>(method: string, params?: unknown): Promise<T> {

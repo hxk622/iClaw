@@ -13,6 +13,8 @@ function buildInput(overrides = {}) {
     optimisticEmptySessionActive: false,
     statusConnected: false,
     statusLastError: null,
+    gatewayTransportReady: false,
+    gatewayTransportError: null,
     surfaceVisible: true,
     surfaceReactivating: false,
     sessionTransitionVisible: false,
@@ -73,6 +75,17 @@ test('hides reconnect affordance when connection is healthy', () => {
     shouldShowOpenClawConnectionCard(
       buildInput({
         statusConnected: true,
+      }),
+    ),
+    false,
+  );
+});
+
+test('hides reconnect affordance when shell-level gateway transport is already ready', () => {
+  assert.equal(
+    shouldShowOpenClawConnectionCard(
+      buildInput({
+        gatewayTransportReady: true,
       }),
     ),
     false,
@@ -179,6 +192,7 @@ test('shows welcome page only for true empty-session lifecycle states', () => {
   assert.equal(
     shouldShowOpenClawWelcomePage({
       allowWelcomeForCurrentRoute: true,
+      preferBrandWelcomeForRoute: false,
       allowImmediateEmptySessionUi: true,
       bootStillSettling: false,
       shellTransitioning: false,
@@ -196,6 +210,25 @@ test('shows welcome page only for true empty-session lifecycle states', () => {
   assert.equal(
     shouldShowOpenClawWelcomePage({
       allowWelcomeForCurrentRoute: true,
+      preferBrandWelcomeForRoute: false,
+      allowImmediateEmptySessionUi: false,
+      bootStillSettling: false,
+      shellTransitioning: false,
+      sessionHistoryState: 'empty',
+      hasObservedHistory: false,
+      renderGroupCount: 4,
+      showRenderDiagnosticsCard: false,
+      showConnectionCard: false,
+      statusBusy: false,
+      welcomePageEnabled: true,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldShowOpenClawWelcomePage({
+      allowWelcomeForCurrentRoute: true,
+      preferBrandWelcomeForRoute: false,
       allowImmediateEmptySessionUi: false,
       bootStillSettling: true,
       shellTransitioning: false,
@@ -213,6 +246,7 @@ test('shows welcome page only for true empty-session lifecycle states', () => {
   assert.equal(
     shouldShowOpenClawWelcomePage({
       allowWelcomeForCurrentRoute: true,
+      preferBrandWelcomeForRoute: false,
       allowImmediateEmptySessionUi: false,
       bootStillSettling: false,
       shellTransitioning: false,
@@ -230,9 +264,46 @@ test('shows welcome page only for true empty-session lifecycle states', () => {
   assert.equal(
     shouldShowOpenClawWelcomePage({
       allowWelcomeForCurrentRoute: true,
+      preferBrandWelcomeForRoute: false,
       allowImmediateEmptySessionUi: true,
       bootStillSettling: false,
       shellTransitioning: true,
+      sessionHistoryState: 'empty',
+      hasObservedHistory: false,
+      renderGroupCount: 0,
+      showRenderDiagnosticsCard: false,
+      showConnectionCard: false,
+      statusBusy: false,
+      welcomePageEnabled: true,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldShowOpenClawWelcomePage({
+      allowWelcomeForCurrentRoute: true,
+      preferBrandWelcomeForRoute: true,
+      allowImmediateEmptySessionUi: false,
+      bootStillSettling: false,
+      shellTransitioning: false,
+      sessionHistoryState: 'has-history',
+      hasObservedHistory: true,
+      renderGroupCount: 6,
+      showRenderDiagnosticsCard: false,
+      showConnectionCard: false,
+      statusBusy: false,
+      welcomePageEnabled: true,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldShowOpenClawWelcomePage({
+      allowWelcomeForCurrentRoute: false,
+      preferBrandWelcomeForRoute: false,
+      allowImmediateEmptySessionUi: false,
+      bootStillSettling: false,
+      shellTransitioning: false,
       sessionHistoryState: 'empty',
       hasObservedHistory: false,
       renderGroupCount: 0,
