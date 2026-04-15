@@ -6100,7 +6100,7 @@ export function OpenClawChatSurface({
   }, [effectiveGatewaySessionKey, gatewayPassword, gatewayToken, gatewayUrl]);
 
   useEffect(() => {
-    if (!gatewayTransportState.ready || status.connected || shellTransitioning) {
+    if (!gatewayTransportState.ready || status.connected || sessionTransitionVisible || surfaceReactivating) {
       return;
     }
     const app = appRef.current;
@@ -6121,7 +6121,7 @@ export function OpenClawChatSurface({
       }
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [gatewayTransportState.ready, sessionKey, shellTransitioning, status.connected]);
+  }, [gatewayTransportState.ready, sessionKey, sessionTransitionVisible, status.connected, surfaceReactivating]);
 
   useEffect(() => {
     const app = appRef.current;
