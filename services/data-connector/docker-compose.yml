@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  data-connector:
+    build: .
+    image: iclaw/data-connector:${VERSION:-latest}
+    container_name: data-connector
+    ports:
+      - "${PORT:-2131}:2131"
+    environment:
+      - ENV=${ENV:-prod}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DB_URL=${DB_URL:-postgresql://iclaw_app:change_me_now@postgres:5432/iclaw}
+      - HOST=0.0.0.0
+      - PORT=2131
+      - WORKERS=${WORKERS:-2}
+      - ENABLE_INCREMENTAL_SYNC=${ENABLE_INCREMENTAL_SYNC:-true}
+      - MAX_CONCURRENT_TASKS=${MAX_CONCURRENT_TASKS:-2}
+      - SCHEDULER_ENABLED=${SCHEDULER_ENABLED:-true}
+      - SCHEDULER_TIMEZONE=${SCHEDULER_TIMEZONE:-Asia/Shanghai}
+      - MIN_STOCK_COUNT=${MIN_STOCK_COUNT:-4000}
+      - MAX_RETRIES=${MAX_RETRIES:-3}
+      - RETRY_DELAY=${RETRY_DELAY:-5}
+    volumes:
+      - ./logs:/var/log/data-connector
+    networks:
+      - iclaw-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2131/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Optional: PostgreSQL database for local development
+  postgres:
+    image: postgres:15-alpine
+    container_name: data-connector-postgres
+    environment:
+      - POSTGRES_DB=iclaw
+      - POSTGRES_USER=iclaw_app
+      - POSTGRES_PASSWORD=change_me_now
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - iclaw-network
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iclaw_app -d iclaw"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    profiles:
+      - dev
+
+  # Optional: Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: data-connector-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    networks:
+      - iclaw-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Optional: Grafana for visualization
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: data-connector-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    networks:
+      - iclaw-network
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+networks:
+  iclaw-network:
+    external: true
+    name: iclaw-network
+
+volumes:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
