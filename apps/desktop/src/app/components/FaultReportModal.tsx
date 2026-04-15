@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, CheckCircle2, Copy, LoaderCircle, Upload, X } from 'lucide-react';
 import type { IClawClient } from '@iclaw/sdk';
 import { Button } from './ui/Button';
@@ -44,6 +45,18 @@ export function FaultReportModal({
   const [reportId, setReportId] = useState('');
   const [packageSizeLabel, setPackageSizeLabel] = useState('待生成');
   const [failureReason, setFailureReason] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      setState('idle');
+      setProgress(0);
+      setReportId('');
+      setPackageSizeLabel('待生成');
+      setFailureReason('');
+      return;
+    }
+    console.info('[fault-report] modal opened', { source, failureStage });
+  }, [failureStage, open, source]);
 
   const sourceLabel = source === 'installer' ? '安装程序' : '异常弹窗';
   const phaseLabel = useMemo(() => {
@@ -120,7 +133,14 @@ export function FaultReportModal({
         error,
       });
       setState('failed');
-      setFailureReason(error instanceof Error ? error.message : '故障上报失败，请稍后重试');
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'string' && error.trim()
+            ? error.trim()
+            : '故障上报失败，请稍后重试';
+      console.error('[fault-report] submit failed', error);
+      setFailureReason(message);
     }
   }
 
@@ -129,7 +149,7 @@ export function FaultReportModal({
     await navigator.clipboard.writeText(reportId).catch(() => undefined);
   }
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[rgba(8,12,20,0.56)] px-4 py-6 backdrop-blur-[6px]">
       <div className="w-full max-w-[520px] rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-surface)] p-6 shadow-[0_28px_80px_rgba(15,23,42,0.24)]">
         <div className="flex items-start justify-between gap-4">
@@ -260,4 +280,10 @@ export function FaultReportModal({
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') {
+    return modalContent;
+  }
+
+  return createPortal(modalContent, document.body);
 }

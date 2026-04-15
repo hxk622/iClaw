@@ -31,8 +31,8 @@ use tauri::{
     AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State, WindowEvent,
 };
 use tauri_plugin_updater::UpdaterExt;
-use zip::ZipArchive;
 use zip::write::SimpleFileOptions;
+use zip::ZipArchive;
 
 use rfd::FileDialog;
 
@@ -1199,20 +1199,24 @@ fn resource_runtime_archive_path(
 ) -> Result<Option<PathBuf>, String> {
     let artifact_url = clean_optional(config.artifact_url.clone());
     let version_label = runtime_version_label(config);
-    let extension = match runtime_archive_format(config, artifact_url.as_deref().unwrap_or_default()) {
-        Ok(value) => {
-            if value == "zip" {
-                "zip"
-            } else {
-                "tar.gz"
+    let extension =
+        match runtime_archive_format(config, artifact_url.as_deref().unwrap_or_default()) {
+            Ok(value) => {
+                if value == "zip" {
+                    "zip"
+                } else {
+                    "tar.gz"
+                }
             }
-        }
-        Err(_) => return Ok(None),
-    };
+            Err(_) => return Ok(None),
+        };
 
     let direct_name = format!("openclaw-runtime-{version_label}.{extension}");
     if let Ok(resource_dir) = app.path().resource_dir() {
-        let direct = resource_dir.join("resources").join("runtime-archives").join(&direct_name);
+        let direct = resource_dir
+            .join("resources")
+            .join("runtime-archives")
+            .join(&direct_name);
         if direct.exists() {
             return Ok(Some(direct));
         }
@@ -4626,7 +4630,9 @@ fn redact_sensitive_segment(value: &str, marker: &str) -> String {
         output.push_str(marker);
         let secret_start = start + marker.len();
         let secret_end = value[secret_start..]
-            .find(|ch: char| ch.is_whitespace() || ch == '"' || ch == '\'' || ch == '&' || ch == ',' || ch == ';')
+            .find(|ch: char| {
+                ch.is_whitespace() || ch == '"' || ch == '\'' || ch == '&' || ch == ',' || ch == ';'
+            })
             .map(|offset| secret_start + offset)
             .unwrap_or(value.len());
         if secret_end > secret_start {
@@ -4639,7 +4645,8 @@ fn redact_sensitive_segment(value: &str, marker: &str) -> String {
 }
 
 fn redact_sensitive_lines(value: &str) -> String {
-    value.lines()
+    value
+        .lines()
         .map(|line| {
             let mut current = line.to_string();
             current = redact_sensitive_segment(&current, "Bearer ");
@@ -4683,7 +4690,9 @@ fn read_fault_report_log(path: &Path) -> Option<String> {
 }
 
 fn desktop_fault_report_device_id_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app_data_base_dir(app)?.join("config").join("desktop-device-id"))
+    Ok(app_data_base_dir(app)?
+        .join("config")
+        .join("desktop-device-id"))
 }
 
 fn load_or_create_desktop_fault_report_device_id(app: &AppHandle) -> Result<String, String> {
@@ -4697,16 +4706,24 @@ fn load_or_create_desktop_fault_report_device_id(app: &AppHandle) -> Result<Stri
         })?;
     }
     if path.exists() {
-        let value = fs::read_to_string(&path)
-            .map_err(|e| format!("failed to read desktop device id {}: {e}", path.to_string_lossy()))?;
+        let value = fs::read_to_string(&path).map_err(|e| {
+            format!(
+                "failed to read desktop device id {}: {e}",
+                path.to_string_lossy()
+            )
+        })?;
         let normalized = value.trim().to_string();
         if !normalized.is_empty() {
             return Ok(normalized);
         }
     }
     let value = format!("D-{}", random_hex_string(6).to_uppercase());
-    fs::write(&path, format!("{value}\n"))
-        .map_err(|e| format!("failed to write desktop device id {}: {e}", path.to_string_lossy()))?;
+    fs::write(&path, format!("{value}\n")).map_err(|e| {
+        format!(
+            "failed to write desktop device id {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
     #[cfg(unix)]
     {
         let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
@@ -4729,7 +4746,10 @@ fn current_platform_label() -> String {
 fn current_platform_version() -> Option<String> {
     #[cfg(target_os = "macos")]
     {
-        let output = Command::new("sw_vers").arg("-productVersion").output().ok()?;
+        let output = Command::new("sw_vers")
+            .arg("-productVersion")
+            .output()
+            .ok()?;
         if !output.status.success() {
             return None;
         }
@@ -4807,6 +4827,58 @@ fn load_startup_diagnostics(app: AppHandle) -> Result<StartupDiagnosticsSnapshot
     Ok(snapshot)
 }
 
+fn fallback_runtime_diagnosis(app: &AppHandle) -> RuntimeDiagnosis {
+    let paths = ensure_runtime_dirs(app).unwrap_or(RuntimePaths {
+        work_dir: String::new(),
+        log_dir: String::new(),
+        cache_dir: String::new(),
+    });
+    RuntimeDiagnosis {
+        runtime_found: false,
+        runtime_installable: false,
+        runtime_source: None,
+        runtime_path: None,
+        runtime_version: None,
+        runtime_download_url: None,
+        skills_dir_ready: false,
+        mcp_config_ready: false,
+        api_key_configured: false,
+        skills_dir: String::new(),
+        mcp_config: String::new(),
+        work_dir: paths.work_dir,
+        log_dir: paths.log_dir,
+        cache_dir: paths.cache_dir,
+    }
+}
+
+fn fallback_startup_diagnostics(app: &AppHandle, log_dir: &str) -> StartupDiagnosticsSnapshot {
+    let bootstrap_log_path = if log_dir.trim().is_empty() {
+        String::new()
+    } else {
+        PathBuf::from(log_dir)
+            .join("desktop-bootstrap.log")
+            .to_string_lossy()
+            .to_string()
+    };
+    let (sidecar_stdout_log_path, sidecar_stderr_log_path) = sidecar_log_paths(app)
+        .map(|(stdout, stderr)| {
+            (
+                stdout.to_string_lossy().to_string(),
+                stderr.to_string_lossy().to_string(),
+            )
+        })
+        .unwrap_or_else(|_| (String::new(), String::new()));
+
+    StartupDiagnosticsSnapshot {
+        bootstrap_log_path,
+        sidecar_stdout_log_path,
+        sidecar_stderr_log_path,
+        bootstrap_tail: None,
+        sidecar_stdout_tail: None,
+        sidecar_stderr_tail: None,
+    }
+}
+
 #[tauri::command]
 fn prepare_desktop_fault_report_archive(
     app: AppHandle,
@@ -4848,34 +4920,52 @@ fn prepare_desktop_fault_report_archive(
             extra_diagnostics_key_count
         ),
     );
-    let device_id = load_or_create_desktop_fault_report_device_id(&app).map_err(|error| {
+    let device_id = load_or_create_desktop_fault_report_device_id(&app).unwrap_or_else(|error| {
         append_desktop_bootstrap_log(
             &app,
-            &format!("desktop_fault_report:prepare device_id failed reportId={} error={error}", report_id),
+            &format!(
+                "desktop_fault_report:prepare device_id failed reportId={} error={} fallback=ephemeral",
+                report_id, error
+            ),
         );
-        error
-    })?;
-    let runtime_diagnosis = diagnose_runtime(app.clone()).map_err(|error| {
+        format!("ephemeral-{}", random_hex_string(8).to_uppercase())
+    });
+    let runtime_diagnosis = diagnose_runtime(app.clone()).unwrap_or_else(|error| {
         append_desktop_bootstrap_log(
             &app,
-            &format!("desktop_fault_report:prepare diagnose_runtime failed reportId={} error={error}", report_id),
+            &format!(
+                "desktop_fault_report:prepare diagnose_runtime failed reportId={} error={} fallback=true",
+                report_id, error
+            ),
         );
-        error
-    })?;
-    let startup_diagnostics = load_startup_diagnostics(app.clone()).map_err(|error| {
+        fallback_runtime_diagnosis(&app)
+    });
+    let startup_diagnostics = load_startup_diagnostics(app.clone()).unwrap_or_else(|error| {
         append_desktop_bootstrap_log(
             &app,
-            &format!("desktop_fault_report:prepare load_startup_diagnostics failed reportId={} error={error}", report_id),
+            &format!(
+                "desktop_fault_report:prepare load_startup_diagnostics failed reportId={} error={} fallback=true",
+                report_id, error
+            ),
         );
-        error
-    })?;
+        fallback_startup_diagnostics(&app, &runtime_diagnosis.log_dir)
+    });
     let bootstrap_log_path = PathBuf::from(&startup_diagnostics.bootstrap_log_path);
     let stdout_log_path = PathBuf::from(&startup_diagnostics.sidecar_stdout_log_path);
     let stderr_log_path = PathBuf::from(&startup_diagnostics.sidecar_stderr_log_path);
     let logs = vec![
-        ("logs/desktop-bootstrap.log", read_fault_report_log(&bootstrap_log_path)),
-        ("logs/sidecar-stdout.log", read_fault_report_log(&stdout_log_path)),
-        ("logs/sidecar-stderr.log", read_fault_report_log(&stderr_log_path)),
+        (
+            "logs/desktop-bootstrap.log",
+            read_fault_report_log(&bootstrap_log_path),
+        ),
+        (
+            "logs/sidecar-stdout.log",
+            read_fault_report_log(&stdout_log_path),
+        ),
+        (
+            "logs/sidecar-stderr.log",
+            read_fault_report_log(&stderr_log_path),
+        ),
     ];
     append_desktop_bootstrap_log(
         &app,
@@ -5055,7 +5145,10 @@ fn prepare_desktop_fault_report_archive(
 
     Ok(PreparedDesktopFaultReportArchive {
         report_id,
-        device_id: payload["device_id"].as_str().unwrap_or_default().to_string(),
+        device_id: payload["device_id"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
         platform: payload["platform"].as_str().unwrap_or_default().to_string(),
         platform_version: payload["platform_version"].as_str().map(String::from),
         arch: payload["arch"].as_str().unwrap_or_default().to_string(),
@@ -5068,7 +5161,9 @@ fn prepare_desktop_fault_report_archive(
 }
 
 #[tauri::command]
-fn load_desktop_client_metrics_context(app: AppHandle) -> Result<DesktopClientMetricsContext, String> {
+fn load_desktop_client_metrics_context(
+    app: AppHandle,
+) -> Result<DesktopClientMetricsContext, String> {
     Ok(DesktopClientMetricsContext {
         device_id: load_or_create_desktop_fault_report_device_id(&app)?,
         platform: current_platform_label(),
@@ -5157,10 +5252,7 @@ fn port_listener_pids(port: u16) -> Vec<u32> {
 
 #[cfg(windows)]
 fn port_listener_pids(port: u16) -> Vec<u32> {
-    let output = match Command::new("netstat")
-        .args(["-ano", "-p", "tcp"])
-        .output()
-    {
+    let output = match Command::new("netstat").args(["-ano", "-p", "tcp"]).output() {
         Ok(output) if output.status.success() => output,
         _ => return Vec::new(),
     };
@@ -5261,7 +5353,10 @@ fn inspect_process(pid: u32) -> Option<ListeningProcess> {
         return None;
     }
     let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if raw.is_empty() || raw.eq_ignore_ascii_case("INFO: No tasks are running which match the specified criteria.") {
+    if raw.is_empty()
+        || raw
+            .eq_ignore_ascii_case("INFO: No tasks are running which match the specified criteria.")
+    {
         return None;
     }
     Some(ListeningProcess {
@@ -5365,10 +5460,7 @@ fn reclaim_any_local_service_ports(app: &AppHandle) {
     let _ = clear_persisted_sidecar_state(app);
 }
 
-fn stop_sidecar_internal(
-    app: &AppHandle,
-    state: &SidecarState,
-) -> Result<bool, String> {
+fn stop_sidecar_internal(app: &AppHandle, state: &SidecarState) -> Result<bool, String> {
     let mut stopped = false;
     let mut child_guard = state
         .child
@@ -5514,19 +5606,34 @@ fn load_persisted_sidecar_state(app: &AppHandle) -> Result<Option<PersistedSidec
     if !path.exists() {
         return Ok(None);
     }
-    let raw = fs::read_to_string(&path)
-        .map_err(|e| format!("failed to read sidecar state {}: {e}", path.to_string_lossy()))?;
-    let parsed = serde_json::from_str::<PersistedSidecarState>(&raw)
-        .map_err(|e| format!("failed to parse sidecar state {}: {e}", path.to_string_lossy()))?;
+    let raw = fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "failed to read sidecar state {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    let parsed = serde_json::from_str::<PersistedSidecarState>(&raw).map_err(|e| {
+        format!(
+            "failed to parse sidecar state {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
     Ok(Some(parsed))
 }
 
-fn save_persisted_sidecar_state(app: &AppHandle, state: &PersistedSidecarState) -> Result<(), String> {
+fn save_persisted_sidecar_state(
+    app: &AppHandle,
+    state: &PersistedSidecarState,
+) -> Result<(), String> {
     let path = sidecar_state_path(app)?;
     let raw = serde_json::to_string_pretty(state)
         .map_err(|e| format!("failed to serialize sidecar state: {e}"))?;
-    fs::write(&path, raw)
-        .map_err(|e| format!("failed to write sidecar state {}: {e}", path.to_string_lossy()))?;
+    fs::write(&path, raw).map_err(|e| {
+        format!(
+            "failed to write sidecar state {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
     Ok(())
 }
 
@@ -5535,8 +5642,12 @@ fn clear_persisted_sidecar_state(app: &AppHandle) -> Result<(), String> {
     if !path.exists() {
         return Ok(());
     }
-    fs::remove_file(&path)
-        .map_err(|e| format!("failed to remove sidecar state {}: {e}", path.to_string_lossy()))?;
+    fs::remove_file(&path).map_err(|e| {
+        format!(
+            "failed to remove sidecar state {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
     Ok(())
 }
 
@@ -7602,7 +7713,9 @@ fn open_external_url(url: String) -> Result<bool, String> {
 }
 
 fn desktop_update_downloads_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app_data_base_dir(app)?.join("desktop-updates").join("downloads");
+    let dir = app_data_base_dir(app)?
+        .join("desktop-updates")
+        .join("downloads");
     fs::create_dir_all(&dir)
         .map_err(|e| format!("failed to create desktop update downloads dir: {e}"))?;
     Ok(dir)

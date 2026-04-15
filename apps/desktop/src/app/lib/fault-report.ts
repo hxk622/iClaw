@@ -69,6 +69,27 @@ function summarizePreparedArchive(prepared: {
   };
 }
 
+function normalizeFaultReportError(error: unknown, fallback: string): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === 'string' && error.trim()) {
+    return new Error(error.trim());
+  }
+  if (typeof error === 'object' && error) {
+    const message =
+      'message' in error && typeof error.message === 'string' && error.message.trim()
+        ? error.message.trim()
+        : 'code' in error && typeof error.code === 'string' && error.code.trim()
+          ? error.code.trim()
+          : '';
+    if (message) {
+      return new Error(message);
+    }
+  }
+  return new Error(fallback);
+}
+
 function decodeBase64ToBytes(value: string): Uint8Array {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
@@ -94,55 +115,55 @@ export async function submitDesktopFaultReport(
     extraDiagnosticsKeys: input.extraDiagnostics ? Object.keys(input.extraDiagnostics) : [],
   });
   input.onPhaseChange?.('collecting');
-  const prepareInput: DesktopFaultReportPrepareInput = {
-    entry: input.entry,
-    installSessionId: input.installSessionId || null,
-    appName: BRAND.brandId,
-    brandId: BRAND.brandId,
-    appVersion: desktopPackageJson.version,
-    releaseChannel: resolveReleaseChannel(),
-    failureStage: input.failureStage,
-    errorTitle: input.errorTitle,
-    errorMessage: input.errorMessage,
-    errorCode: input.errorCode || null,
-    installProgressPhase: input.installProgressPhase || null,
-    installProgressPercent: input.installProgressPercent ?? null,
-    extraDiagnostics: input.extraDiagnostics || null,
-  };
-  console.info('[fault-report] manual prepare invoke', summarizeFaultReportPrepareInput(prepareInput));
-  let prepared;
   try {
-    prepared = await prepareDesktopFaultReportArchive(prepareInput);
-  } catch (error) {
-    console.error('[fault-report] manual prepare failed', {
-      ...summarizeFaultReportPrepareInput(prepareInput),
-      error,
+    const prepareInput: DesktopFaultReportPrepareInput = {
+      entry: input.entry,
+      installSessionId: input.installSessionId || null,
+      appName: BRAND.brandId,
+      brandId: BRAND.brandId,
+      appVersion: desktopPackageJson.version,
+      releaseChannel: resolveReleaseChannel(),
+      failureStage: input.failureStage,
+      errorTitle: input.errorTitle,
+      errorMessage: input.errorMessage,
+      errorCode: input.errorCode || null,
+      installProgressPhase: input.installProgressPhase || null,
+      installProgressPercent: input.installProgressPercent ?? null,
+      extraDiagnostics: input.extraDiagnostics || null,
+    };
+    console.info('[fault-report] manual prepare invoke', summarizeFaultReportPrepareInput(prepareInput));
+    let prepared;
+    try {
+      prepared = await prepareDesktopFaultReportArchive(prepareInput);
+    } catch (error) {
+      console.error('[fault-report] manual prepare failed', {
+        ...summarizeFaultReportPrepareInput(prepareInput),
+        error,
+      });
+      throw error;
+    }
+    if (!prepared) {
+      console.error('[fault-report] manual prepare unavailable', summarizeFaultReportPrepareInput(prepareInput));
+      throw new Error('Desktop fault report unavailable');
+    }
+    console.info('[fault-report] manual prepare success', summarizePreparedArchive(prepared));
+
+    input.onPhaseChange?.('compressing');
+    const archiveBytes = decodeBase64ToBytes(prepared.archiveBase64);
+    const payload = {
+      ...prepared.payload,
+      account_state: input.accountState,
+    };
+    console.info('[fault-report] manual upload start', {
+      reportId: prepared.reportId,
+      fileName: prepared.fileName,
+      fileSizeBytes: prepared.fileSizeBytes,
+      uploadEndpoint: 'desktop_fault_report',
+      accountState: input.accountState,
+      hasAccessToken: Boolean(input.accessToken),
     });
-    throw error;
-  }
-  if (!prepared) {
-    console.error('[fault-report] manual prepare unavailable', summarizeFaultReportPrepareInput(prepareInput));
-    throw new Error('Desktop fault report unavailable');
-  }
-  console.info('[fault-report] manual prepare success', summarizePreparedArchive(prepared));
 
-  input.onPhaseChange?.('compressing');
-  const archiveBytes = decodeBase64ToBytes(prepared.archiveBase64);
-  const payload = {
-    ...prepared.payload,
-    account_state: input.accountState,
-  };
-  console.info('[fault-report] manual upload start', {
-    reportId: prepared.reportId,
-    fileName: prepared.fileName,
-    fileSizeBytes: prepared.fileSizeBytes,
-    uploadEndpoint: 'desktop_fault_report',
-    accountState: input.accountState,
-    hasAccessToken: Boolean(input.accessToken),
-  });
-
-  input.onPhaseChange?.('uploading');
-  try {
+    input.onPhaseChange?.('uploading');
     const result = await input.client.uploadDesktopFaultReport({
       token: input.accessToken || null,
       payload,
@@ -157,13 +178,9 @@ export async function submitDesktopFaultReport(
     });
     return result;
   } catch (error) {
-    console.error('[fault-report] manual upload failed', {
-      reportId: prepared.reportId,
-      fileName: prepared.fileName,
-      fileSizeBytes: prepared.fileSizeBytes,
-      error,
-    });
-    throw error;
+    const normalized = normalizeFaultReportError(error, '桌面端故障上报失败');
+    console.error('[fault-report] manual submit failed', normalized);
+    throw normalized;
   }
 }
 
