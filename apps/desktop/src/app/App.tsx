@@ -2409,50 +2409,6 @@ function AuthedView({
   }, [selectedTaskCenterConversationId]);
 
   useEffect(() => {
-    if (!authBootstrapReady) {
-      return;
-    }
-    if (lastRehydratedChatScopeRef.current === resolvedChatPersistenceScope) {
-      return;
-    }
-    lastRehydratedChatScopeRef.current = resolvedChatPersistenceScope;
-
-    const currentRoute = activeChatRouteRef.current;
-    if (!canReuseEmptyUnnamedGeneralConversation(currentRoute, BRAND.brandId)) {
-      return;
-    }
-
-    const persistedRoute = readPersistedActiveChatRoute();
-    if (!persistedRoute) {
-      return;
-    }
-
-    if (
-      persistedRoute.sessionKey === currentRoute.sessionKey &&
-      persistedRoute.conversationId === currentRoute.conversationId
-    ) {
-      return;
-    }
-
-    openChatRoute(
-      buildConversationBackedChatRoute({
-        sessionKey: persistedRoute.sessionKey,
-        conversationId: persistedRoute.conversationId,
-        kind: 'general',
-        initialPrompt: persistedRoute.initialPrompt,
-        initialPromptKey: persistedRoute.initialPromptKey,
-        focusedTurnId: null,
-        focusedTurnKey: null,
-        initialAgentSlug: persistedRoute.initialAgentSlug,
-        initialSkillSlug: persistedRoute.initialSkillSlug,
-        initialSkillOption: persistedRoute.initialSkillOption,
-        initialStockContext: persistedRoute.initialStockContext,
-      }),
-      {forceRemount: true},
-    );
-  }, [authBootstrapReady, openChatRoute, resolvedChatPersistenceScope]);
-
-  useEffect(() => {
     writeCacheString(sidebarCollapsedStorageKey, sidebarCollapsed ? '1' : '0');
   }, [sidebarCollapsed, sidebarCollapsedStorageKey]);
 
@@ -2638,6 +2594,50 @@ function AuthedView({
     },
     [setPrimaryView],
   );
+
+  useEffect(() => {
+    if (!authBootstrapReady) {
+      return;
+    }
+    if (lastRehydratedChatScopeRef.current === resolvedChatPersistenceScope) {
+      return;
+    }
+    lastRehydratedChatScopeRef.current = resolvedChatPersistenceScope;
+
+    const currentRoute = activeChatRouteRef.current;
+    if (!canReuseEmptyUnnamedGeneralConversation(currentRoute, BRAND.brandId)) {
+      return;
+    }
+
+    const persistedRoute = readPersistedActiveChatRoute();
+    if (!persistedRoute) {
+      return;
+    }
+
+    if (
+      persistedRoute.sessionKey === currentRoute.sessionKey &&
+      persistedRoute.conversationId === currentRoute.conversationId
+    ) {
+      return;
+    }
+
+    openChatRoute(
+      buildConversationBackedChatRoute({
+        sessionKey: persistedRoute.sessionKey,
+        conversationId: persistedRoute.conversationId,
+        kind: 'general',
+        initialPrompt: persistedRoute.initialPrompt,
+        initialPromptKey: persistedRoute.initialPromptKey,
+        focusedTurnId: null,
+        focusedTurnKey: null,
+        initialAgentSlug: persistedRoute.initialAgentSlug,
+        initialSkillSlug: persistedRoute.initialSkillSlug,
+        initialSkillOption: persistedRoute.initialSkillOption,
+        initialStockContext: persistedRoute.initialStockContext,
+      }),
+      {forceRemount: true},
+    );
+  }, [authBootstrapReady, openChatRoute, resolvedChatPersistenceScope]);
 
   useEffect(() => {
     writePersistedActiveChatRoute(activeChatRoute);
