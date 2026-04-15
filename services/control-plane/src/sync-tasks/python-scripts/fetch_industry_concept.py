@@ -4,11 +4,41 @@ import json
 import sys
 import traceback
 
-# 强制清空所有代理环境变量，绝对不走代理
-for k in list(os.environ.keys()):
-    if k.lower() in ['http_proxy', 'https_proxy', 'all_proxy', 'ftp_proxy', 'no_proxy',
-                    'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'FTP_PROXY', 'NO_PROXY']:
-        del os.environ[k]
+# ========== 强制清除所有代理，彻底解决代理拦截问题 ==========
+# 清除所有可能的代理环境变量（包括大小写变体和所有相关变量）
+PROXY_VARS = [
+    'http_proxy', 'https_proxy', 'all_proxy', 'ftp_proxy', 'no_proxy',
+    'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'FTP_PROXY', 'NO_PROXY',
+    'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE', 'SSL_CERT_FILE',
+    'HTTP_PROXY_USER', 'HTTP_PROXY_PASS', 'HTTPS_PROXY_USER', 'HTTPS_PROXY_PASS',
+    'socks_proxy', 'SOCKS_PROXY', 'ALL_PROXY', 'all_proxy'
+]
+for var in PROXY_VARS:
+    if var in os.environ:
+        del os.environ[var]
+# 强制所有请求不走代理
+os.environ['NO_PROXY'] = '*'
+os.environ['no_proxy'] = '*'
+
+# 全局配置requests强制不使用代理，关闭SSL验证
+import requests
+requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
+DEFAULT_PROXIES = {
+    "http": None,
+    "https": None,
+    "ftp": None,
+    "socks": None
+}
+
+# 猴子补丁requests的请求方法，强制不使用代理，关闭SSL验证，增加超时
+original_request = requests.Session.request
+def patched_request(self, method, url, *args, **kwargs):
+    kwargs['proxies'] = DEFAULT_PROXIES
+    kwargs['verify'] = False
+    kwargs['timeout'] = kwargs.get('timeout', 30)
+    return original_request(self, method, url, *args, **kwargs)
+requests.Session.request = patched_request
+# =======================================================
 
 def fetch_akshare():
     """从AKShare获取行业和概念关联"""
