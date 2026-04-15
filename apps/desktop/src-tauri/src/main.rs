@@ -2215,21 +2215,26 @@ fn merge_custom_mcp_runtime_items(
         return;
     };
 
-    let resolved_servers = root
-        .entry(String::from("resolved_mcp_servers"))
-        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
-    if !resolved_servers.is_object() {
-        *resolved_servers = serde_json::Value::Object(serde_json::Map::new());
+    if !root
+        .get("resolved_mcp_servers")
+        .map(|value| value.is_object())
+        .unwrap_or(false)
+    {
+        root.insert(
+            String::from("resolved_mcp_servers"),
+            serde_json::Value::Object(serde_json::Map::new()),
+        );
     }
-    let resolved_servers_object = resolved_servers.as_object_mut().unwrap();
-
-    let mcp_bindings = root
-        .entry(String::from("mcp_bindings"))
-        .or_insert_with(|| serde_json::Value::Array(Vec::new()));
-    if !mcp_bindings.is_array() {
-        *mcp_bindings = serde_json::Value::Array(Vec::new());
+    if !root
+        .get("mcp_bindings")
+        .map(|value| value.is_array())
+        .unwrap_or(false)
+    {
+        root.insert(
+            String::from("mcp_bindings"),
+            serde_json::Value::Array(Vec::new()),
+        );
     }
-    let mcp_bindings_array = mcp_bindings.as_array_mut().unwrap();
 
     for item in items.into_iter().filter(|item| item.enabled) {
         let mut merged_config = item
@@ -2242,29 +2247,46 @@ fn merge_custom_mcp_runtime_items(
             serde_json::Value::String(item.transport.clone()),
         );
         merged_config.insert(String::from("enabled"), serde_json::Value::Bool(true));
-        resolved_servers_object.insert(
-            item.mcp_key.clone(),
-            serde_json::Value::Object(merged_config.clone()),
-        );
 
-        let binding_exists = mcp_bindings_array.iter().any(|value| {
-            value
-                .as_object()
-                .and_then(|object| object.get("mcp_key"))
-                .and_then(|value| value.as_str())
-                .map(|value| value.trim() == item.mcp_key)
-                .unwrap_or(false)
-        });
+        if let Some(resolved_servers_object) = root
+            .get_mut("resolved_mcp_servers")
+            .and_then(|value| value.as_object_mut())
+        {
+            resolved_servers_object.insert(
+                item.mcp_key.clone(),
+                serde_json::Value::Object(merged_config.clone()),
+            );
+        }
+
+        let binding_exists = root
+            .get("mcp_bindings")
+            .and_then(|value| value.as_array())
+            .map(|bindings| {
+                bindings.iter().any(|value| {
+                    value
+                        .as_object()
+                        .and_then(|object| object.get("mcp_key"))
+                        .and_then(|value| value.as_str())
+                        .map(|value| value.trim() == item.mcp_key)
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false);
         if binding_exists {
             continue;
         }
 
-        mcp_bindings_array.push(json!({
-            "mcp_key": item.mcp_key,
-            "sort_order": item.sort_order,
-            "config": serde_json::Value::Object(merged_config),
-            "metadata": item.metadata,
-        }));
+        if let Some(mcp_bindings_array) = root
+            .get_mut("mcp_bindings")
+            .and_then(|value| value.as_array_mut())
+        {
+            mcp_bindings_array.push(json!({
+                "mcp_key": item.mcp_key,
+                "sort_order": item.sort_order,
+                "config": serde_json::Value::Object(merged_config),
+                "metadata": item.metadata,
+            }));
+        }
     }
 }
 

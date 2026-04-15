@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "理财客",
-  "version": "1.0.6+202604141320",
+  "version": "1.0.7+202604152241",
   "identifier": "ai.licaiclaw.desktop",
   "build": {
     "beforeDevCommand": "node ../../scripts/sync-openclaw-resources.mjs && pnpm dev --host 0.0.0.0 --port 1520",
@@ -22,6 +22,11 @@
     ],
     "security": {
       "csp": null
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQzRDYzMjk4RDdFNzAwODIKUldTQ0FPZlhtRExXUXlkR1RTa2JxQU9yY3BpZWhyL3FzWWkvcUM1VDBMcE9sRCtPUFhPVUV0Z3gK"
     }
   },
   "bundle": {
