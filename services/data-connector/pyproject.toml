@@ -1,0 +1,41 @@
+[tool.poetry]
+name = "data-connector"
+version = "1.0.0"
+description = "Market data sync microservice for iClaw platform"
+authors = ["iClaw Team <team@iclaw.dev>"]
+readme = "README.md"
+packages = [{ include = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.104.1"
+uvicorn = "^0.24.0.post1"
+sqlalchemy = { version = "^2.0.23", extras = ["asyncio"] }
+pydantic = "^2.5.0"
+pydantic-settings = "^2.1.0"
+psycopg2-binary = "^2.9.9"
+asyncpg = "^0.29.0"
+python-dotenv = "^1.0.0"
+python-json-logger = "^2.0.7"
+tenacity = "^8.2.3"
+aiohttp = "^3.9.1"
+akshare = "^1.12.102"
+pytz = "^2023.3.post1"
+greenlet = "^3.0.0"
+efinance = "^0.5.8"
+pandas = "<2.2.0"
+numpy = "<2.0.0"
+prometheus-client = "^0.25.0"
+APScheduler = "^3.10.4"
+
+[build-system]
+requires = ["poetry-core==1.7.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+start = "src.main:main"
+
+[dependency-groups]
+dev = [
+    "httpx (>=0.27.0,<0.28.0)"
+]
