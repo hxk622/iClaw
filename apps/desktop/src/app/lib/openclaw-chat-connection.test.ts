@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  deriveOpenClawGatewayReadiness,
   deriveOpenClawChatSurfaceLifecycle,
   shouldAllowDisconnectedComposerQueue,
   shouldShowOpenClawConnectionCard,
@@ -36,6 +37,34 @@ test('shows reconnect affordance when gateway is disconnected even if cached his
   assert.equal(
     shouldShowOpenClawConnectionCard(buildInput()),
     true,
+  );
+});
+
+test('deriveOpenClawGatewayReadiness keeps session readiness stricter than transport readiness', () => {
+  assert.deepEqual(
+    deriveOpenClawGatewayReadiness({
+      appConnected: false,
+      embeddedClientReady: true,
+      gatewayTransportReady: true,
+    }),
+    {
+      sessionReady: false,
+      transportReady: true,
+      reconnectingSession: true,
+    },
+  );
+
+  assert.deepEqual(
+    deriveOpenClawGatewayReadiness({
+      appConnected: true,
+      embeddedClientReady: true,
+      gatewayTransportReady: true,
+    }),
+    {
+      sessionReady: true,
+      transportReady: true,
+      reconnectingSession: false,
+    },
   );
 });
 

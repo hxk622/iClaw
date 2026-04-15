@@ -1,5 +1,29 @@
 export type SessionHistoryState = 'unknown' | 'empty' | 'has-history';
 
+export type OpenClawGatewayReadinessInput = {
+  appConnected: boolean;
+  embeddedClientReady: boolean;
+  gatewayTransportReady: boolean;
+};
+
+export type OpenClawGatewayReadiness = {
+  sessionReady: boolean;
+  transportReady: boolean;
+  reconnectingSession: boolean;
+};
+
+export function deriveOpenClawGatewayReadiness(
+  input: OpenClawGatewayReadinessInput,
+): OpenClawGatewayReadiness {
+  const sessionReady = input.appConnected && input.embeddedClientReady;
+  const transportReady = input.gatewayTransportReady;
+  return {
+    sessionReady,
+    transportReady,
+    reconnectingSession: transportReady && !sessionReady,
+  };
+}
+
 export type OpenClawChatSurfaceLifecycleInput = {
   optimisticEmptySessionActive: boolean;
   statusConnected: boolean;

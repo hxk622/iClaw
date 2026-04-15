@@ -48,6 +48,7 @@ import {
 } from '@/app/lib/openclaw-chat-recovery';
 import { buildArtifactWorkspaceNameCandidates } from '@/app/lib/artifact-workspace-path';
 import {
+  deriveOpenClawGatewayReadiness,
   deriveOpenClawChatSurfaceLifecycle,
   shouldShowOpenClawWelcomePage,
 } from '@/app/lib/openclaw-chat-connection';
@@ -6733,12 +6734,15 @@ export function OpenClawChatSurface({
       ensureWrappedClientRequest(app);
       const reconciledBusyState = reconcileGatewayChatBusyState(app, effectiveGatewaySessionKey);
       const embeddedClientReady = Boolean(app.client && typeof app.client.request === 'function');
-      const transportConnected =
-        Boolean(app.connected) || (gatewayTransportState.ready && embeddedClientReady);
+      const readiness = deriveOpenClawGatewayReadiness({
+        appConnected: Boolean(app.connected),
+        embeddedClientReady,
+        gatewayTransportReady: gatewayTransportState.ready,
+      });
 
       const nextStatus: ChatSurfaceStatus = {
         busy: reconciledBusyState.busy,
-        connected: transportConnected,
+        connected: readiness.sessionReady,
         lastError: app.lastError ?? null,
         lastErrorCode: app.lastErrorCode ?? null,
       };
@@ -6939,13 +6943,10 @@ export function OpenClawChatSurface({
 
   useEffect(() => {
     if (!status.connected) {
-      if (sessionTransitionPendingRef.current) {
+      modelLoadVersionRef.current += 1;
+      if (sessionTransitionPendingRef.current || gatewayTransportState.ready) {
         setModelsLoading(true);
       } else {
-        modelLoadVersionRef.current += 1;
-        setModelOptions([]);
-        setSelectedModelId(null);
-        setResolvedModelSessionKey(null);
         setModelsLoading(false);
       }
       setModelSwitching(false);
@@ -6975,7 +6976,7 @@ export function OpenClawChatSurface({
     return () => {
       disposed = true;
     };
-  }, [refreshModelCatalog, status.connected]);
+  }, [gatewayTransportState.ready, refreshModelCatalog, status.connected]);
 
   useEffect(() => {
     if (!status.connected || status.lastError) {
@@ -7152,6 +7153,8 @@ export function OpenClawChatSurface({
   const hasGatewayAuth = Boolean((gatewayToken ?? '').trim() || (gatewayPassword ?? '').trim());
   const connectionMessage = status.lastError
     ? status.lastError
+    : gatewayTransportState.ready && !status.connected
+      ? '网关已连接，正在恢复聊天会话…'
     : gatewayTransportState.lastError
       ? gatewayTransportState.lastError
     : hasGatewayAuth
@@ -7426,6 +7429,7 @@ export function OpenClawChatSurface({
       authRole,
       authScopes,
       gatewayUrl,
+      gatewayTransportReady: gatewayTransportState.ready,
       hasGatewayAuth,
       shellAuthenticated,
     };
@@ -7433,6 +7437,7 @@ export function OpenClawChatSurface({
     authRole,
     authScopes,
     gatewayUrl,
+    gatewayTransportState.ready,
     hasGatewayAuth,
     lastRpcFailure,
     modelOptions,
