@@ -231,4 +231,7 @@ export const config = {
   epayPartnerId: process.env.EPAY_PARTNER_ID || '',
   epayKey: process.env.EPAY_KEY || '',
   epayGateway: process.env.EPAY_GATEWAY || '',
+
+  // Data Connector service configuration
+  dataConnectorUrl: process.env.DATA_CONNECTOR_URL || 'http://127.0.0.1:2131',
 };

@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     CORS_ALLOWED_ORIGINS: str = ""  # Comma-separated list of allowed origins
     CORS_ALLOW_ALL_ORIGINS: bool = False  # Whether to allow all origins (not recommended for production)
 
+    # Database connection pool configuration
+    DB_POOL_SIZE: int = 10  # Number of persistent connections to keep open
+    DB_MAX_OVERFLOW: int = 20  # Maximum number of extra connections beyond pool_size
+    DB_POOL_RECYCLE: int = 3600  # Recycle connections after this many seconds (1 hour)
+    DB_POOL_PRE_PING: bool = True  # Whether to ping connections before using them
+
     class Config:
         env_file = ".env"
         case_sensitive = True
