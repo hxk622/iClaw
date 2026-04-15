@@ -4,102 +4,92 @@
 
 ## APIs & External Services
 
-**Market Data:**
-- AKShare - A股 market data provider
-  - SDK/Client: Python akshare package
-  - Auth: No auth required for public data
-- efinance - Market data provider (fallback)
-  - SDK/Client: Python efinance package
-  - Auth: No auth required for public data
-- Tushare - Market data provider (secondary fallback)
-  - SDK/Client: Python tushare package
-  - Auth: API key required
-
-**Cloud Services:**
-- AWS S3 / S3-compatible storage - Object storage for artifacts, assets, and releases
+**Cloud Storage:**
+- S3-compatible Object Storage - Artifact storage, skill packages, file hosting
   - SDK/Client: `@aws-sdk/client-s3`
   - Auth: `S3_ACCESS_KEY`, `S3_SECRET_KEY` env vars
 
-**Authentication:**
-- Google OAuth - User authentication
-  - Auth: Client ID configured in environment
-  - Redirect URI: `VITE_GOOGLE_OAUTH_REDIRECT_URI`
-- WeChat OAuth - User authentication
-  - Auth: Client ID configured in environment
-  - Redirect URI: `VITE_WECHAT_OAUTH_REDIRECT_URI`
+**Market Data Providers:**
+- AKShare - A-share market data provider (primary)
+- efinance - A-share market data provider (fallback)
+- Tushare - A-share market data provider (secondary fallback)
+  - SDK/Client: Python packages
+  - Auth: API keys configured via environment
 
 ## Data Storage
 
 **Databases:**
 - PostgreSQL
   - Connection: `DATABASE_URL` env var
-  - Client: `pg` Node.js library
-  - Schemas: `app` schema for business data
-- Redis
-  - Connection: `CONTROL_PLANE_REDIS_URL` env var
-  - Client: `redis` Node.js library
-  - Purpose: Caching, session storage, rate limiting
+  - Client: `pg` (node-postgres)
+  - Schemas: `app` (business data), `public` (system data)
+  - Tables: stock_basics, stock_quotes, stock_industry_relation, stock_concept_relation, stock_finance, sync_task_logs, etc.
 
 **File Storage:**
-- S3-compatible object storage
-  - Endpoint: `S3_ENDPOINT` env var
-  - Bucket: `S3_BUCKET` env var
-  - Region: `S3_REGION` env var
-- Local filesystem - For logs and temporary files
+- S3-compatible storage (cloud artifacts)
+- Local filesystem (desktop app data, logs)
 
 **Caching:**
-- Redis - Primary distributed cache
+- Redis
+  - Connection: `CONTROL_PLANE_REDIS_URL` env var
+  - Client: `redis` npm package
+  - Usage: Session caching, rate limiting, temporary data storage
 
 ## Authentication & Identity
 
 **Auth Provider:**
-- Custom implementation with OAuth providers
-  - Implementation: Control-plane handles OAuth callbacks and session management
-  - Session storage: PostgreSQL + Redis
+- OAuth 2.0 (Custom implementation)
+  - Implementation: Frontend OAuth flow with control-plane session management
+  - Auth endpoints: `/api/auth/*`
 
 ## Monitoring & Observability
 
 **Error Tracking:**
 - None detected
+- Custom logging implemented
 
 **Logs:**
-- File-based logging to `logs/openclaw/` directory
-- Latest logs available at `logs/openclaw/latest.log`
+- Backend logs saved to `logs/openclaw/` directory
+- Latest log available at `logs/openclaw/latest.log`
+- Structured logging via console and file output
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- Control-plane: Linux servers
-- Desktop application: Distributed as native binaries for macOS/Windows
-- Frontend: Static hosting
+- Desktop apps: Native distribution via Tauri build system
+- Control-plane: Cloud server deployment (Docker/VPS)
+- Static assets: S3-compatible storage + CDN
 
 **CI Pipeline:**
-- None detected (custom build and publish scripts)
+- Custom build scripts
+- Package publishing via `pnpm publish:*` commands
 
 ## Environment Configuration
 
 **Required env vars:**
 - `DATABASE_URL` - PostgreSQL connection string
 - `CONTROL_PLANE_REDIS_URL` - Redis connection string
-- `S3_ACCESS_KEY` - S3 storage access key
-- `S3_SECRET_KEY` - S3 storage secret key
 - `S3_ENDPOINT` - S3 storage endpoint
-- `S3_BUCKET` - S3 storage bucket name
-- OAuth provider credentials (Google, WeChat)
+- `S3_REGION` - S3 storage region
+- `S3_ACCESS_KEY` - S3 access key
+- `S3_SECRET_KEY` - S3 secret key
+- `S3_BUCKET` - S3 bucket name
+- OAuth and other service-specific keys
 
 **Secrets location:**
-- Environment-specific `.env.*` files in root directory
-- Sensitive signing configuration in `.env.signing.*` files
+- Environment variables in `.env.*` files (not committed to git)
+- Signing secrets in separate `.env.signing.*` files
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- OAuth callback endpoints for Google and WeChat authentication
-- `/api/oauth/callback/google`
-- `/api/oauth/callback/wechat`
+- OAuth callback endpoint: `/api/auth/callback`
+- Desktop update check endpoints
 
 **Outgoing:**
-- None detected
+- External market data API calls (AKShare, efinance, Tushare)
+- S3 storage API calls
+- OAuth provider API calls
 
 ---
 

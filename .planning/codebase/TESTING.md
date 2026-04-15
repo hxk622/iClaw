@@ -5,181 +5,172 @@
 ## Test Framework
 
 **Runner:**
-- Native Node.js test runner (no external Jest/Vitest dependency)
-- Version matches Node.js runtime version
-- Config: Built-in, no dedicated config file
-- Uses `node --test` command with `--experimental-strip-types` for TypeScript support
+- Vitest 1.x (frontend)
+  - Config: `daily_stock_analysis/apps/dsa-web/vitest.config.ts`
+  - Environment: jsdom for React component testing
+- pytest (Python backend)
+  - Config: CI runs `pytest -m "not network"` for offline tests
 
 **Assertion Library:**
-- Native Node.js `assert/strict` module
-- No external assertion libraries (Chai, etc.)
+- Vitest built-in assertions (expect API)
+- pytest assertions for Python tests
 
 **Run Commands:**
 ```bash
-pnpm test               # Run desktop unit tests
-pnpm --filter @iclaw/control-plane test  # Run control-plane unit tests
-pnpm test:e2e:{category} # Run specific E2E test category
-pnpm check              # Run type checking + tests
+# Frontend (daily_stock_analysis/apps/dsa-web/)
+npm test                  # Run all tests
+npm run test:watch        # Watch mode
+npm run test:coverage     # Coverage
+
+# Python Backend
+python -m pytest -m "not network"  # Run offline tests
+python -m pytest -m network        # Run network-dependent tests
 ```
 
 ## Test File Organization
 
 **Location:**
-- Unit tests: Co-located with implementation files in the same directory
-  - Example: `src/app/lib/chat-conversation-ordering.ts` → `src/app/lib/chat-conversation-ordering.test.ts`
-- E2E tests: Centralized in root `tests/` directory, organized by feature category
-  - Example: `tests/chat/send-smoke.test.mjs`, `tests/payment/recharge-package-flow.test.mjs`
+- Co-located with implementation code in `__tests__` directories
+- E2E tests are in separate `e2e/` directory at project root
 
 **Naming:**
-- Unit tests: `{module}.test.{ts|tsx}`
-- E2E tests: `{test-name}.test.mjs`
-- Test file names match their corresponding implementation files when applicable
+- Test files match implementation file names with `.test.` suffix
+  - Unit test: `cn.ts` → `__tests__/cn.test.ts`
+  - Component test: `Button.tsx` → `__tests__/Button.test.tsx`
+  - E2E test: `smoke.spec.ts`
 
 **Structure:**
 ```
-/Users/shanpeifeng/work/hexun/iClaw/
-├── apps/desktop/src/               # Unit tests co-located with source
-│   └── app/lib/
-│       ├── chat-conversation-ordering.ts
-│       └── chat-conversation-ordering.test.ts
-├── services/control-plane/src/     # Unit tests co-located with source
-│   ├── config.ts
-│   └── config.test.ts
-└── tests/                          # Centralized E2E tests
-    ├── chat/
-    ├── payment/
-    ├── auth/
-    ├── install/
-    └── shared/                     # Shared test utilities
+src/
+├── utils/
+│   ├── cn.ts
+│   └── __tests__/
+│       └── cn.test.ts
+├── components/
+│   ├── common/
+│   │   ├── Button.tsx
+│   │   └── __tests__/
+│   │       └── Button.test.tsx
+└── contexts/
+    ├── AuthContext.tsx
+    └── __tests__/
+        └── AuthContext.test.tsx
+e2e/
+├── smoke.spec.ts
+└── report-markdown.spec.ts
 ```
 
 ## Test Structure
 
 **Suite Organization:**
 ```typescript
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
+import { cn } from '../cn';
 
-import { functionUnderTest } from './module.ts';
+describe('cn utility', () => {
+  it('should merge basic tailwind classes', () => {
+    expect(cn('p-2 text-sm', 'p-4')).toBe('text-sm p-4');
+  });
 
-test('test description explaining expected behavior', () => {
-  // Test setup
-  const input = { /* test data */ };
-
-  // Execution
-  const result = functionUnderTest(input);
-
-  // Assertion
-  assert.equal(result.expectedProperty, 'expected value');
+  it('should handle conditional classes', () => {
+    const isTrue = true;
+    const isFalse = false;
+    expect(cn('base-class', isTrue && 'active-class', isFalse && 'hidden-class')).toBe('base-class active-class');
+  });
 });
 ```
 
 **Patterns:**
-- Test functions use descriptive strings explaining what is being tested
-- Arrange-Act-Assert (AAA) pattern followed consistently
-- Setup data defined at the top of test files as constants
-- No describe blocks/tests nesting - flat test structure preferred
+- `describe()` blocks group related tests by feature/module
+- `it()` blocks describe individual test cases with clear, descriptive names
+- Arrange-Act-Assert pattern used for all tests
+- No global setup/teardown unless explicitly needed
 
 ## Mocking
 
-**Framework:** Native Node.js mocking capabilities
+**Framework:** Vitest built-in mocking capabilities
+
 **Patterns:**
 ```typescript
-import { mock } from 'node:test';
-
-test('test with mocked dependency', () => {
-  const mockedFunction = mock.fn(() => 'mocked value');
-  // Use mocked function in test
-});
+// Example mocking pattern (inferred from conventions)
+vi.mock('../api/stockService', () => ({
+  fetchStocks: vi.fn().mockResolvedValue([{ code: '600519', name: '贵州茅台' }])
+}));
 ```
 
 **What to Mock:**
-- External API calls and third-party services
+- External API calls and network requests
 - Database operations in unit tests
-- File system operations
+- Third-party dependencies that are not core to the test
+- Complex dependencies that are slow or flaky
 
 **What NOT to Mock:**
-- Core business logic
-- Utilities and helper functions
-- Types and constants
+- Core business logic being tested
+- Simple utility functions
+- React component props and basic rendering
 
 ## Fixtures and Factories
 
 **Test Data:**
-- Static test data defined as constants within test files
-- Shared test helpers in `tests/shared/` directory
-- CDP (Chrome DevTools Protocol) helpers for UI testing
+```typescript
+// Example test data pattern
+const mockStocks = [
+  { stock_code: '600519', stock_name: '贵州茅台', exchange: 'SH' },
+  { stock_code: '000001', stock_name: '平安银行', exchange: 'SZ' }
+];
+```
 
 **Location:**
-- Shared test utilities: `tests/shared/`
-  - `cdp-helpers.mjs`: UI interaction utilities
-  - `iclaw-app-helpers.mjs`: Application-specific test helpers
-- Component-specific test data co-located with test files
+- Test data defined inline in test files
+- Shared test utilities may be placed in test helpers directory
 
 ## Coverage
 
-**Requirements:** No enforced coverage threshold
+**Requirements:** Not explicitly enforced, but CI runs tests on PRs
+
 **View Coverage:**
 ```bash
-# No built-in coverage command configured
-# Node.js test runner coverage can be enabled via --experimental-test-coverage flag
+# Frontend
+npm run test:coverage
+
+# Python
+python -m pytest --cov=src
 ```
 
 ## Test Types
 
 **Unit Tests:**
-- Scope: Individual functions, utilities, and isolated modules
-- Location: Co-located with source code
-- Execution: Fast, no external dependencies required
-- Example: Testing conversation ordering logic, date utilities, configuration parsing
+- Scope: Individual functions, utilities, and isolated components
+- Approach: Test behavior in isolation, mock external dependencies
+- Coverage: High for core utilities and business logic
 
 **Integration Tests:**
-- Scope: API endpoints, service interactions, database operations
-- Location: Within service directories alongside unit tests
-- Execution: Requires running database and service dependencies
+- Scope: Integration between modules, API endpoints, database operations
+- Approach: Test interactions between components, use test databases
+- Coverage: Moderate, focused on critical workflows
 
 **E2E Tests:**
-- Framework: Custom CDP (Chrome DevTools Protocol) based test framework
-- Scope: Full application flows, UI interactions, end-to-end user journeys
-- Location: Centralized `tests/` directory
-- Categories:
-  - `chat`: Messaging and conversation flows
-  - `payment`: Payment processing and subscription flows
-  - `auth`: Authentication and authorization flows
-  - `install`: Installation and first-run experiences
-- Execution: Requires running application instance and browser automation
-- Features: Screenshot capture, UI interaction simulation, state verification
+- Framework: Playwright
+- Scope: Full application workflows, user journeys
+- Approach: Test complete user flows from UI to backend
+- Coverage: Lower, focused on critical paths and smoke tests
 
 ## Common Patterns
 
 **Async Testing:**
 ```typescript
-test('async test example', async () => {
-  const result = await asyncFunctionUnderTest();
-  assert.equal(result, expectedValue);
+it('should fetch stock data successfully', async () => {
+  const result = await fetchStockData('600519');
+  expect(result).toBeDefined();
+  expect(result.stock_code).toBe('600519');
 });
 ```
 
 **Error Testing:**
 ```typescript
-test('should throw error for invalid input', async () => {
-  await assert.rejects(async () => {
-    await asyncFunctionUnderTest(invalidInput);
-  }, /Expected error message/);
+it('should throw error when fetching invalid stock code', async () => {
+  await expect(fetchStockData('INVALID')).rejects.toThrow('Invalid stock code');
 });
-```
-
-**Wait For Pattern (E2E):**
-```typescript
-const result = await waitFor(
-  'condition description',
-  async () => {
-    const state = await readState();
-    return state.conditionMet ? state : null;
-  },
-  10_000, // timeout in ms
-  1_000   // interval in ms
-);
 ```
 
 ---

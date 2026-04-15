@@ -5,153 +5,124 @@
 ## Directory Layout
 
 ```
-/Users/shanpeifeng/work/hexun/iClaw/
+iClaw/
 ├── apps/                  # User-facing applications
-├── services/              # Backend services
-├── packages/              # Shared libraries and SDKs
-├── admin-web/             # Admin management web interface
-├── config/                # Configuration files for different environments
-├── plugins/               # MCP plugin repository
+├── services/              # Backend services and runtime
+├── packages/              # Shared packages and libraries
 ├── scripts/               # Build, deployment, and utility scripts
-├── tests/                 # Test suites and test utilities
-├── docs/                  # Project documentation
-├── logs/                  # Application log files
-├── .venv/                 # Python virtual environment for data sync
-├── OpenBB/                # OpenBB financial data platform integration
-├── .artifacts/            # Build artifacts and release packages
-├── .planning/             # Planning and analysis documents (current)
-└── CLAUDE.md              # Project-specific instructions for Claude
+├── config/                # Environment and packaging configuration
+├── home-web/              # Marketing and public-facing website
+├── admin-web/             # Admin dashboard web application
+├── daily_stock_analysis/  # Stock analysis sub-project
+└── OpenBB/                # OpenBB financial data platform submodule
 ```
 
 ## Directory Purposes
 
 **apps/:**
-- Purpose: User-facing client applications
-- Contains: Desktop application built with Tauri and React
-- Key files: `apps/desktop/src/main.ts`, `apps/desktop/src/renderer/`
+- Purpose: End-user applications
+- Contains: Desktop client, mobile apps (future)
+- Key files: `apps/desktop/` - Tauri-based desktop application
 
-**services/control-plane/:**
-- Purpose: Backend API server for user management, billing, OEM configuration, and market data
-- Contains: REST API endpoints, business logic, database access, scheduled tasks
-- Key files: `src/server.ts`, `src/service.ts`, `src/sync-tasks/`, `src/oem-service.ts`, `src/portal-service.ts`
+**services/:**
+- Purpose: Backend services and runtime environments
+- Contains: Control plane API, OpenClaw sidecar runtime
+- Key files:
+  - `services/control-plane/` - Cloud backend API service
+  - `services/openclaw/` - Local AI runtime sidecar
 
-**services/openclaw/:**
-- Purpose: Local AI agent runtime service
-- Contains: Agent execution engine, MCP plugin management, Skill runtime, browser automation
-- Key files: `src/main.rs`, `src/plugin/`, `src/skill/`
-
-**packages/sdk/:**
-- Purpose: TypeScript SDK for client applications to interact with backend services
-- Contains: API client implementations, type definitions, request/response utilities
-- Key files: `src/index.ts`, `src/client/`
-
-**packages/shared/:**
-- Purpose: Shared code and type definitions used across all components
-- Contains: Common types, constants, utility functions, validation schemas
-- Key files: `src/types/`, `src/utils/`
-
-**config/:**
-- Purpose: Environment configuration files for different deployment environments
-- Contains: Development, testing, production configuration files, environment variable templates
-- Key files: `config/.env.dev`, `config/.env.test`, `config/.env.prod`
+**packages/:**
+- Purpose: Shared libraries used across the monorepo
+- Contains: API SDK, shared type definitions, common utilities
+- Key files:
+  - `packages/sdk/` - Unified API client SDK
+  - `packages/shared/` - Shared types and utilities
 
 **scripts/:**
-- Purpose: DevOps and utility scripts
-- Contains: Build scripts, deployment scripts, environment switching tools, OEM branding scripts
-- Key files: `scripts/apply-brand.mjs`, `scripts/build-desktop.ts`
+- Purpose: DevOps, build, deployment, and maintenance scripts
+- Contains: Environment management, build pipelines, release automation, database migrations
+- Key files: `scripts/env.sh`, `scripts/dev-all.sh`, `scripts/build-desktop-package.mjs`
 
-**tests/:**
-- Purpose: Test suites for all components
-- Contains: Unit tests, integration tests, end-to-end tests, test utilities
-- Key files: `tests/unit/`, `tests/integration/`, `tests/e2e/`
+**config/:**
+- Purpose: Environment configuration and packaging profiles
+- Contains: Environment-specific settings, OEM branding configurations, packaging templates
+- Key files: `config/packaging/` - Environment-specific packaging configurations
 
 ## Key File Locations
 
 **Entry Points:**
-- `services/control-plane/src/server.ts`: Control-plane API server entry point
-- `apps/desktop/src/main.ts`: Desktop application main process entry point
-- `services/openclaw/src/main.rs`: OpenClaw runtime entry point
-- `admin-web/src/main.tsx`: Admin web interface entry point
+- `apps/desktop/src/main.tsx`: Desktop application entry point
+- `services/control-plane/src/server.ts`: Control plane API server entry point
+- `services/openclaw/src/main.ts`: OpenClaw sidecar runtime entry point
 
 **Configuration:**
-- `.env`, `.env.dev`, `.env.test`, `.env.prod`: Environment variable files (root directory)
-- `services/control-plane/src/config.ts`: Control-plane configuration loader
-- `services/control-plane/ecosystem.config.js`: PM2 deployment configuration
+- `.env.*`: Environment variable files (dev/test/prod)
+- `.env.signing.*`: Signing keys and sensitive configuration
+- `services/control-plane/src/config.ts`: Control plane configuration loader
+- `apps/desktop/src/app/lib/brand.ts`: Branding and OEM configuration
 
 **Core Logic:**
-- `services/control-plane/src/service.ts`: Core control-plane business logic
-- `services/control-plane/src/oem-service.ts`: OEM brand management logic
-- `services/control-plane/src/portal-service.ts`: Portal and application configuration logic
-- `services/control-plane/src/sync-tasks/`: Market data synchronization logic
-
-**Database:**
-- `services/control-plane/src/pg-store.ts`: PostgreSQL data access implementation
-- `services/control-plane/src/sync-tasks/sql/create_tables.sql`: Database schema definition
-- `services/control-plane/src/migrations/`: Database migration files
+- `services/control-plane/src/sync-tasks/`: A股市场数据同步任务实现
+- `services/openclaw/src/skills/`: AI Skill runtime and execution
+- `packages/sdk/src/`: API client implementation
+- `apps/desktop/src/app/components/`: React UI components
 
 **Testing:**
-- `jest.config.js`: Jest test configuration
-- `vitest.config.ts`: Vitest test configuration
-- `tests/`: Test files organized by component and test type
+- `tests/`: End-to-end and integration tests
+- `**/*.test.ts`: Unit tests colocated with source files
+- `apps/desktop/src-tauri/tests/`: Tauri-specific integration tests
 
 ## Naming Conventions
 
 **Files:**
-- Kebab-case for TypeScript/JavaScript files: `sync-stock-basics.ts`, `oem-service.ts`
-- PascalCase for React components: `UserProfile.tsx`, `Dashboard.tsx`
-- Snake_case for Python scripts: `fetch_stock_basics.py`
-- Lowercase with dots for configuration files: `ecosystem.config.js`, `jest.config.js`
+- kebab-case for all TypeScript/JavaScript files: `sync-stock-basics.ts`, `data-source-scheduler.ts`
+- PascalCase for React components: `StoreShelf.tsx`, `Memory.tsx`
+- Test files use `.test.ts` suffix colocated with source files
 
 **Directories:**
-- Kebab-case for all directory names: `sync-tasks/`, `market-data/`
-- Plural form for collection directories: `tasks/`, `utils/`, `types/`
+- kebab-case for all directories: `sync-tasks`, `control-plane`, `market-data`
+- Singular directory names for logical groups: `skill`, `task`, `service`
 
 ## Where to Add New Code
 
 **New Feature:**
-- Primary code: Add to appropriate service directory under `services/control-plane/src/`
-- Tests: Add corresponding test files in `tests/` directory with matching structure
-- API endpoints: Define in `services/control-plane/src/server.ts` with appropriate handlers
+- Primary code: Feature-specific directory under relevant service/app
+- Tests: Colocated with source files as `*.test.ts`
+- Shared types: Add to `packages/shared/src/`
+- API clients: Add to `packages/sdk/src/`
 
 **New Component/Module:**
-- Implementation: Add to `packages/` directory if shared across multiple components, otherwise add to specific service/app directory
-- Exports: Update `index.ts` files to export public interfaces
+- UI components: `apps/desktop/src/app/components/[component-name]/`
+- Backend service: `services/[service-name]/src/[module-name]/`
+- Shared utilities: `packages/shared/src/utils/`
 
 **Utilities:**
-- Shared helpers: Add to `packages/shared/src/utils/`
-- Service-specific utilities: Add to appropriate `utils/` directory within the service
-
-**New Sync Task:**
-- Task implementation: Add to `services/control-plane/src/sync-tasks/tasks/`
-- Python data fetching script: Add to `services/control-plane/src/sync-tasks/python-scripts/`
-- Schedule: Register task in `services/control-plane/src/sync-tasks/index.ts`
+- Shared helpers: `packages/shared/src/utils/`
+- Service-specific utilities: `[service-path]/src/utils/`
+- Script utilities: `scripts/lib/`
 
 ## Special Directories
 
-**services/control-plane/src/sync-tasks/:**
-- Purpose: Market data synchronization system
-- Generated: No, manually maintained
-- Committed: Yes
-
-**.artifacts/:**
-- Purpose: Build outputs and release packages
-- Generated: Yes, created during build process
-- Committed: No, excluded from version control
-
 **logs/:**
-- Purpose: Application log files
-- Generated: Yes, created during runtime
-- Committed: No, excluded from version control
+- Purpose: Application and service log files
+- Generated: Yes
+- Committed: No
+
+**dist/ / build/:**
+- Purpose: Build output directories
+- Generated: Yes
+- Committed: No
 
 **node_modules/:**
-- Purpose: Node.js dependencies
-- Generated: Yes, installed via package manager
-- Committed: No, excluded from version control
+- Purpose: NPM dependencies
+- Generated: Yes
+- Committed: No
 
-**.venv/:**
-- Purpose: Python virtual environment for data synchronization
-- Generated: Yes, created during environment setup
-- Committed: No, excluded from version control
+**services/control-plane/src/sync-tasks/python-scripts/:**
+- Purpose: Python scripts for financial data fetching
+- Generated: No
+- Committed: Yes
+- Special note: Requires Python environment with AKShare, efinance, psycopg2-binary packages
 
 ---
 

@@ -5,106 +5,109 @@
 ## Naming Patterns
 
 **Files:**
-- React components use PascalCase: `SecurityCenterView.tsx`, `SelectionCard.tsx`, `PageLayout.tsx`
-- Utility, service, and non-component files use kebab-case: `chat-conversation-ordering.ts`, `data-source-scheduler.ts`, `task-logger.ts`
-- Test files follow the same naming pattern as implementation files with `.test.` suffix: `chat-conversation-ordering.test.ts`, `send-smoke.test.mjs`
+- kebab-case for TypeScript/JavaScript files: `sync-stock-basics.ts`, `python-runner.ts`
+- PascalCase for React components: `Button.test.tsx`, `StockAutocomplete.test.tsx`
+- Test files use `.test.ts`/`.test.tsx` suffix, placed in `__tests__` directories adjacent to implementation code
+- Python files use snake_case: `fetch-stock-basics.py`, `ci_gate.sh`
 
 **Functions:**
-- Functions use camelCase: `applyConversationMetadataSyncUpdate`, `startSyncTasks`, `downloadAvatar`
-- React component functions use PascalCase matching the filename
+- camelCase for function names: `syncStockBasics()`, `runPythonScript()`
+- PascalCase for React component functions
+- Verb-noun pattern for action functions: `logTaskStart()`, `createPgPool()`
 
 **Variables:**
-- Variables use camelCase: `activeSessionKey`, `nowIso`, `activityChanged`
-- Constants use UPPER_SNAKE_CASE: `BASE_RECORD`, `SCREENSHOT_PATH`
+- camelCase for variable names: `poolInstance`, `syncCount`, `dataSource`
+- UPPER_SNAKE_CASE for constants and environment variables
+- Descriptive names, no abbreviations unless widely understood
 
 **Types:**
-- Type and interface names use PascalCase
-- Type imports are explicitly marked with `type` keyword: `import type { CreateDesktopActionApprovalGrantInput } from './types.ts'`
+- PascalCase for interface and type names: `StockBasic`, `SyncTaskLog`
+- Interface names are nouns describing the data structure
+- Type parameters use single uppercase letters like `T` for generics
 
 ## Code Style
 
 **Formatting:**
-- No dedicated Prettier/BIome config detected
-- Consistent 2-space indentation observed across codebase
-- Double quotes for strings
-- Trailing commas in object/array literals
+- Not explicitly configured in root, individual projects may have their own formatting rules
+- Consistent indentation of 2 spaces observed in TypeScript files
+- Line endings: LF (Unix style)
 
 **Linting:**
-- No ESLint config detected in root
-- TypeScript strict mode enabled: `strict: true` in tsconfig.json
-- Type checking performed via `tsc --noEmit` command
+- ESLint used for frontend projects with TypeScript and React support
+  - Config example: `daily_stock_analysis/apps/dsa-web/eslint.config.js`
+  - Extends: `@eslint/js/recommended`, `typescript-eslint/recommended`, `react-hooks/recommended`
+- Python backend uses flake8 for linting (per CI configuration)
 
 ## Import Organization
 
 **Order:**
-1. Node.js built-in modules first: `import assert from 'node:assert/strict'`, `import { fileURLToPath } from 'node:url'`
-2. External dependencies next: `import react from 'react'`, `import { pg } from 'pg'`
-3. Internal workspace packages: `import { @iclaw/sdk } from '@iclaw/sdk'`
-4. Local relative imports last
+1. Node.js built-in modules (path, url, etc.)
+2. Third-party dependencies
+3. Internal modules (relative imports)
+4. Type imports
 
 **Path Aliases:**
-- Frontend (desktop): `@/*` maps to `src/*`
-- Frontend: `@openclaw-ui/*` maps to shared UI components
-- Workspace packages use `workspace:*` protocol in package.json
+- Not detected in core TypeScript configuration
+- Individual projects may configure aliases in their tsconfig.json
 
 ## Error Handling
 
 **Patterns:**
-- Explicit error handling with try/catch blocks in async functions
-- Node.js `assert/strict` module used for validation in tests
-- Error objects are properly propagated with meaningful messages
+- Try/catch blocks for async operations with explicit error handling
+- Error messages are descriptive and include context
+- Transaction rollback on database operation failures
+- Tasks log errors and update task status before rethrowing
+- Graceful handling of null/undefined values with default fallbacks
 
 ## Logging
 
-**Framework:** Node.js console logging
+**Framework:** Custom logger + console
+
 **Patterns:**
-- Backend logs saved to `logs/openclaw/` directory
-- Latest log available at `logs/openclaw/latest.log`
-- Structured logging with JSON output for machine parsing
+- Use `logInfo()` and `logError()` functions from shared logger module
+- Logs include context about operations (e.g., number of records fetched, task IDs)
+- Errors are logged with full stack traces
+- Task execution logs are persisted to database in `app.sync_task_logs`
 
 ## Comments
 
 **When to Comment:**
-- Complex business logic is documented with inline comments
-- Public API functions have JSDoc/TSDoc comments
-- Test cases have descriptive names explaining expected behavior
+- Public functions and interfaces are documented with JSDoc/TSDoc
+- Complex business logic and non-obvious implementation details are commented
+- TODO comments are used for future work, but kept minimal
+- Comments are in Chinese for business logic, English for technical implementation
 
 **JSDoc/TSDoc:**
 - Used for public API documentation
-- Type information primarily conveyed via TypeScript type annotations
+- Includes parameter descriptions and return value information
+- Example: `/** 同步股票基础信息 */` above function declaration
 
 ## Function Design
 
-**Size:** Functions are kept small and focused on single responsibility
-**Parameters:** Prefer object parameter destructuring for functions with multiple parameters
-**Return Values:** Explicit return types for public functions, implicit for internal helpers
+**Size:** Functions are generally focused on single responsibility
+- Most functions are between 20-100 lines
+- Complex logic is broken into helper functions
+
+**Parameters:**
+- Prefer explicit parameter lists over options objects for simple functions
+- Options objects used for functions with many optional parameters
+- Type definitions for all parameters in TypeScript
+
+**Return Values:**
+- Explicit return types for TypeScript functions
+- Async functions return Promises with typed results
+- Avoid returning null/undefined where possible, use fallbacks
 
 ## Module Design
 
-**Exports:** Named exports preferred over default exports for better tree-shaking and refactoring support
-**Barrel Files:** Minimal usage, modules export directly from their implementation files
+**Exports:**
+- Named exports preferred for multiple exports
+- Default exports used primarily for React components
+- Barrel files (index.ts) used to export public APIs from directories
 
-## Environment Variable Management
-
-**Pattern:**
-- Environment files stored in root as `.env.{environment}` (dev/test/prod)
-- Sensitive signing information stored in separate `.env.signing.{environment}` files
-- Environment switching via `pnpm env:{dev|test|prod|switch}` commands
-- Environment variables loaded via `scripts/run-with-env.mjs` wrapper for all commands
-
-## Commit Message Conventions
-
-**Format:**
-- Conventional Commits format: `<type>: <description>`
-- Common types: `fix:`, `feat:`, `release:`, `chore:`, `docs:`
-- Imperative mood: "Fix orphan chat thinking indicators" not "Fixed" or "Fixes"
-- Lowercase type prefix, capitalized description
-
-## Versioning
-
-**Format:** `MAJOR.MINOR.PATCH+YYYYMMDDHHMM`
-- `+` suffix indicates build number, not used for version comparison
-- Example: `1.0.6+202604141320`
+**Barrel Files:**
+- Used at module boundaries to simplify imports
+- Example: `services/control-plane/src/sync-tasks/index.ts` exports all sync task functions
 
 ---
 
