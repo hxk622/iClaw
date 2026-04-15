@@ -1203,7 +1203,7 @@ export type SkillDistribution = 'cloud';
 export type SkillSource = 'cloud' | 'private';
 export type UserSkillLibrarySource = 'cloud' | 'private';
 export type McpCatalogSource = 'cloud';
-export type UserMcpLibrarySource = 'cloud';
+export type UserMcpLibrarySource = 'cloud' | 'custom';
 export type ExtensionInstallTarget = 'skill' | 'mcp';
 export type ExtensionSetupStatus = 'not_required' | 'configured' | 'missing';
 export type UserPrivateSkillSourceKind = 'github' | 'local';
@@ -1328,6 +1328,40 @@ export type UserMcpLibraryItemView = {
   setup_schema_version: number | null;
   setup_updated_at: string | null;
   installed_at: string;
+  updated_at: string;
+};
+
+export type UserCustomMcpRecord = {
+  id: string;
+  userId: string;
+  appName: string;
+  mcpKey: string;
+  name: string;
+  description: string;
+  transport: 'stdio' | 'http' | 'sse';
+  config: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  enabled: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UserCustomMcpView = {
+  id: string;
+  app_name: string;
+  mcp_key: string;
+  name: string;
+  description: string;
+  transport: 'stdio' | 'http' | 'sse';
+  config: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  enabled: boolean;
+  sort_order: number;
+  setup_status: ExtensionSetupStatus;
+  setup_schema_version: number | null;
+  setup_updated_at: string | null;
+  created_at: string;
   updated_at: string;
 };
 
@@ -1756,6 +1790,20 @@ export type UpdateSkillLibraryItemInput = {
 export type UpdateMcpLibraryItemInput = {
   mcp_key?: string;
   enabled?: boolean;
+};
+
+export type UpsertUserCustomMcpInput = {
+  app_name?: string;
+  mcp_key?: string;
+  name?: string;
+  description?: string;
+  transport?: 'stdio' | 'http' | 'sse' | string | null;
+  enabled?: boolean;
+  sort_order?: number;
+  config?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  setup_values?: Record<string, unknown>;
+  secret_values?: Record<string, string>;
 };
 
 export type UpsertMcpCatalogEntryInput = {

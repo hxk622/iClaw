@@ -191,6 +191,21 @@ interface UpdateMcpLibraryInput {
   enabled: boolean;
 }
 
+interface UpsertCustomMcpInput {
+  token: string;
+  appName: string;
+  mcpKey: string;
+  name: string;
+  description?: string;
+  transport: 'stdio' | 'http' | 'sse';
+  enabled?: boolean;
+  sortOrder?: number;
+  config?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  setupValues?: Record<string, unknown>;
+  secretValues?: Record<string, string>;
+}
+
 interface UpsertExtensionInstallConfigInput {
   token: string;
   extensionType: 'skill' | 'mcp';
@@ -559,12 +574,30 @@ export interface McpCatalogEntryData {
 
 export interface UserMcpLibraryItemData {
   mcp_key: string;
-  source: 'cloud';
+  source: 'cloud' | 'custom';
   enabled: boolean;
   setup_status: 'not_required' | 'configured' | 'missing';
   setup_schema_version: number | null;
   setup_updated_at: string | null;
   installed_at: string;
+  updated_at: string;
+}
+
+export interface UserCustomMcpData {
+  id: string;
+  app_name: string;
+  mcp_key: string;
+  name: string;
+  description: string;
+  transport: 'stdio' | 'http' | 'sse';
+  config: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  enabled: boolean;
+  sort_order: number;
+  setup_status: 'not_required' | 'configured' | 'missing';
+  setup_schema_version: number | null;
+  setup_updated_at: string | null;
+  created_at: string;
   updated_at: string;
 }
 
@@ -2295,6 +2328,47 @@ export class IClawClient {
     return json.data;
   }
 
+  async listCustomMcps(token: string, appName: string): Promise<UserCustomMcpData[]> {
+    const params = new URLSearchParams({ app_name: appName });
+    const res = await this.fetchAuth(`/mcp/custom?${params.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: UserCustomMcpData[]}};
+    return json.data.items;
+  }
+
+  async upsertCustomMcp(input: UpsertCustomMcpInput): Promise<UserCustomMcpData> {
+    const res = await this.fetchAuth('/mcp/custom', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        app_name: input.appName,
+        mcp_key: input.mcpKey,
+        name: input.name,
+        description: input.description,
+        transport: input.transport,
+        enabled: input.enabled,
+        sort_order: input.sortOrder,
+        config: input.config,
+        metadata: input.metadata,
+        setup_values: input.setupValues,
+        secret_values: input.secretValues,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: UserCustomMcpData};
+    return json.data;
+  }
+
   async getExtensionInstallConfig(
     token: string,
     extensionType: 'skill' | 'mcp',
@@ -2430,6 +2504,52 @@ export class IClawClient {
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: {removed: boolean}};
     return json.data;
+  }
+
+  async removeCustomMcp(token: string, appName: string, mcpKey: string): Promise<{removed: boolean}> {
+    const res = await this.fetchAuth('/mcp/custom/remove', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        app_name: appName,
+        mcp_key: mcpKey,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {removed: boolean}};
+    return json.data;
+  }
+
+  async getCustomMcpRuntimeConfig(token: string, appName: string): Promise<Array<{
+    mcp_key: string;
+    transport: 'stdio' | 'http' | 'sse';
+    enabled: boolean;
+    sort_order: number;
+    config: Record<string, unknown>;
+    metadata: Record<string, unknown>;
+  }>> {
+    const params = new URLSearchParams({ app_name: appName });
+    const res = await this.fetchAuth(`/mcp/custom/runtime?${params.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: Array<{
+      mcp_key: string;
+      transport: 'stdio' | 'http' | 'sse';
+      enabled: boolean;
+      sort_order: number;
+      config: Record<string, unknown>;
+      metadata: Record<string, unknown>;
+    }>}};
+    return json.data.items;
   }
 
   async listAgentsCatalog(): Promise<AgentCatalogEntryData[]> {

@@ -24,7 +24,6 @@ import {
   deriveRelatedEntries,
   EMPTY_FILTERS,
   formatRecallState,
-  generateMemoryTags,
   matchesTimeRange,
   normalizeImportedEntry,
   parseMemoryDate,
@@ -44,6 +43,7 @@ export function MemoryView({ title }: { title: string }) {
   const [filters, setFilters] = useState<MemoryFilters>(EMPTY_FILTERS);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<MemoryEditDraft | null>(null);
+  const [tagInput, setTagInput] = useState('');
   const [runtimeStatus, setRuntimeStatus] = useState<MemoryRuntimeStatus | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [memoryDir, setMemoryDir] = useState('');
@@ -96,11 +96,7 @@ export function MemoryView({ title }: { title: string }) {
           return;
         }
 
-        setEntries(
-          (Array.isArray(snapshot.entries) ? snapshot.entries : [])
-            .map((entry) => normalizeImportedEntry(entry))
-            .filter((entry): entry is MemoryEntry => entry !== null),
-        );
+        setEntries(snapshot.entries as MemoryEntry[]);
         setMemoryDir(snapshot.memoryDir);
 
         if (!snapshot.runtimeError) {
@@ -158,12 +154,14 @@ export function MemoryView({ title }: { title: string }) {
       if (filters.domains.length > 0 && !filters.domains.includes(entry.domain)) return false;
       if (filters.types.length > 0 && !filters.types.includes(entry.type)) return false;
       if (filters.tags.length > 0 && !filters.tags.some((tag) => entry.tags.includes(tag))) return false;
+      if (filters.importance.length > 0 && !filters.importance.includes(entry.importance)) return false;
       if (filters.sourceTypes.length > 0 && !filters.sourceTypes.includes(entry.sourceType)) return false;
       if (!matchesTimeRange(entry.updatedAt, filters.timeRange)) return false;
       if (filters.recalledState.length > 0 && !filters.recalledState.includes(formatRecallState(entry))) {
         return false;
       }
       if (filters.onlyAutoCaptured && entry.sourceType !== '自动捕获') return false;
+      if (filters.onlyHighImportance && entry.importance !== '高') return false;
 
       return true;
     });
@@ -210,10 +208,12 @@ export function MemoryView({ title }: { title: string }) {
     filters.domains.length > 0 ||
     filters.types.length > 0 ||
     filters.tags.length > 0 ||
+    filters.importance.length > 0 ||
     filters.sourceTypes.length > 0 ||
     filters.timeRange.length > 0 ||
     filters.recalledState.length > 0 ||
-    filters.onlyAutoCaptured;
+    filters.onlyAutoCaptured ||
+    filters.onlyHighImportance;
 
   const statusSummary = useMemo<MemoryStatusSummary>(() => {
     const total = activeEntries.length;
@@ -262,7 +262,7 @@ export function MemoryView({ title }: { title: string }) {
     }));
   };
 
-  const handleToggleBooleanFilter = (key: 'onlyAutoCaptured') => {
+  const handleToggleBooleanFilter = (key: 'onlyAutoCaptured' | 'onlyHighImportance') => {
     setFilters((current) => ({ ...current, [key]: !current[key] }));
   };
 
@@ -275,11 +275,13 @@ export function MemoryView({ title }: { title: string }) {
     if (!selectedEntry) return;
     setEditingId(selectedEntry.id);
     setDraft(createEditDraft(selectedEntry));
+    setTagInput('');
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
     setDraft(null);
+    setTagInput('');
   };
 
   const handleSaveEdit = async () => {
@@ -292,12 +294,9 @@ export function MemoryView({ title }: { title: string }) {
       content: draft.content.trim() || selectedEntry.content,
       domain: draft.domain,
       type: draft.type,
-      importance: selectedEntry.importance || '中',
+      importance: draft.importance,
       status: draft.status,
-      tags: generateMemoryTags({
-        title: draft.title.trim() || selectedEntry.title,
-        content: draft.content.trim() || selectedEntry.content,
-      }),
+      tags: draft.tags,
       sourceLabel: draft.sourceLabel.trim() || selectedEntry.sourceLabel,
       updatedAt: todayStamp(),
       indexHealth: '待刷新',
@@ -310,6 +309,7 @@ export function MemoryView({ title }: { title: string }) {
       setSelectedId(savedEntry.id);
       setEditingId(null);
       setDraft(null);
+      setTagInput('');
       void reloadSnapshot({
         preserveEntriesOnFailure: true,
         softRuntimeReconnect: true,
@@ -326,14 +326,14 @@ export function MemoryView({ title }: { title: string }) {
     const nextEntry: MemoryEntry = {
       id: createMemoryId(),
       title: '新记忆',
-      summary: '等待补充内容',
+      summary: '等待补充内容和标签',
       content: '',
       domain: '其他',
       type: '事实',
       importance: '中',
       sourceType: '手动创建',
       sourceLabel: '控制台手动创建',
-      tags: [],
+      tags: ['待整理'],
       createdAt: now,
       updatedAt: now,
       lastRecalledAt: null,
@@ -351,6 +351,7 @@ export function MemoryView({ title }: { title: string }) {
       setSelectedId(savedEntry.id);
       setEditingId(savedEntry.id);
       setDraft(createEditDraft(savedEntry));
+      setTagInput('');
       void reloadSnapshot({
         preserveEntriesOnFailure: true,
         softRuntimeReconnect: true,
@@ -445,19 +446,23 @@ export function MemoryView({ title }: { title: string }) {
     }
   };
 
+  const handleAddTagToDraft = () => {
+    if (!draft) return;
+    const next = tagInput.trim();
+    if (!next || draft.tags.includes(next)) return;
+    setDraft({ ...draft, tags: [...draft.tags, next] });
+    setTagInput('');
+  };
+
   const handleMergeSelected = async () => {
     if (!selectedEntry || relatedEntries.length === 0) return;
     const candidate = relatedEntries[0];
-    const mergedContent = `${selectedEntry.content}\n\n[合并补充]\n${candidate.content}`.trim();
 
     const mergedEntry: MemoryEntry = {
       ...selectedEntry,
-      content: mergedContent,
+      content: `${selectedEntry.content}\n\n[合并补充]\n${candidate.content}`.trim(),
       summary: createMemorySummary(`${selectedEntry.summary} ${candidate.summary}`, selectedEntry.title),
-      tags: generateMemoryTags({
-        title: selectedEntry.title,
-        content: mergedContent,
-      }),
+      tags: Array.from(new Set([...selectedEntry.tags, ...candidate.tags])),
       recallCount: selectedEntry.recallCount + candidate.recallCount,
       updatedAt: todayStamp(),
       status: '已确认',
@@ -553,12 +558,14 @@ export function MemoryView({ title }: { title: string }) {
     setSelectedId(id);
     setEditingId(null);
     setDraft(null);
+    setTagInput('');
   };
 
   const handleCloseDrawer = () => {
     setSelectedId(null);
     setEditingId(null);
     setDraft(null);
+    setTagInput('');
   };
 
   return (
@@ -628,10 +635,18 @@ export function MemoryView({ title }: { title: string }) {
           relatedEntries={relatedEntries}
           editing={Boolean(selectedEntry && editingId === selectedEntry.id && draft)}
           draft={draft}
+          tagInput={tagInput}
+          setTagInput={setTagInput}
           onDraftChange={setDraft}
           onStartEdit={handleStartEdit}
           onSaveEdit={handleSaveEdit}
           onCancelEdit={handleCancelEdit}
+          onAddTag={handleAddTagToDraft}
+          onRemoveDraftTag={(tag) =>
+            setDraft((current) =>
+              current ? { ...current, tags: current.tags.filter((item) => item !== tag) } : current,
+            )
+          }
           onMarkConfirmed={handleMarkConfirmed}
           onMerge={handleMergeSelected}
           onForget={handleForgetSelected}

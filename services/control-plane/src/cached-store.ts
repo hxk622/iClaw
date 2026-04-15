@@ -54,9 +54,11 @@ import type {
   UpsertMcpCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
+  UpsertUserCustomMcpInput,
   UpsertUserExtensionInstallConfigInput,
   UsageEventResult,
   UserAgentLibraryRecord,
+  UserCustomMcpRecord,
   UserExtensionInstallConfigRecord,
   UserMcpLibraryRecord,
   UserPrivateSkillRecord,
@@ -1075,6 +1077,12 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     );
   }
 
+  async listUserCustomMcpLibrary(userId: string, appName: string): Promise<UserCustomMcpRecord[]> {
+    return this.getOrLoadValue(`user:custom-mcp:${userId}:${appName}`, USER_MCP_LIBRARY_CACHE_TTL_SECONDS, () =>
+      this.base.listUserCustomMcpLibrary(userId, appName),
+    );
+  }
+
   async listUserExtensionInstallConfigs(
     userId: string,
     extensionType?: ExtensionInstallTarget,
@@ -1159,6 +1167,39 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     if (removed) {
       await this.cache.delete(
         this.userMcpLibraryKey(userId),
+        this.userExtensionInstallConfigsKey(userId),
+        this.userExtensionInstallConfigsKey(userId, 'mcp'),
+        this.userExtensionInstallConfigKey(userId, 'mcp', mcpKey),
+      );
+    }
+    return removed;
+  }
+
+  async upsertUserCustomMcp(
+    userId: string,
+    input: Required<UpsertUserCustomMcpInput> & {
+      app_name: string;
+      mcp_key: string;
+      transport: 'stdio' | 'http' | 'sse';
+      enabled: boolean;
+      sort_order: number;
+    },
+  ): Promise<UserCustomMcpRecord> {
+    const record = await this.base.upsertUserCustomMcp(userId, input);
+    await this.cache.delete(
+      `user:custom-mcp:${userId}:${input.app_name}`,
+      this.userExtensionInstallConfigsKey(userId),
+      this.userExtensionInstallConfigsKey(userId, 'mcp'),
+      this.userExtensionInstallConfigKey(userId, 'mcp', input.mcp_key),
+    );
+    return record;
+  }
+
+  async removeUserCustomMcp(userId: string, appName: string, mcpKey: string): Promise<boolean> {
+    const removed = await this.base.removeUserCustomMcp(userId, appName, mcpKey);
+    if (removed) {
+      await this.cache.delete(
+        `user:custom-mcp:${userId}:${appName}`,
         this.userExtensionInstallConfigsKey(userId),
         this.userExtensionInstallConfigsKey(userId, 'mcp'),
         this.userExtensionInstallConfigKey(userId, 'mcp', mcpKey),

@@ -75,10 +75,12 @@ import type {
   UsageEventResult,
   UserAgentLibraryRecord,
   UserExtensionInstallConfigRecord,
+  UserCustomMcpRecord,
   UserMcpLibraryRecord,
   UserPrivateSkillRecord,
   UserRole,
   UserSkillLibraryRecord,
+  UpsertUserCustomMcpInput,
   UpdateMcpLibraryItemInput,
   UpdateSkillLibraryItemInput,
   UserFileRecord,
@@ -434,6 +436,7 @@ export interface ControlPlaneStore {
   ): Promise<UserPrivateSkillRecord>;
   deleteUserPrivateSkill(userId: string, slug: string): Promise<boolean>;
   listUserMcpLibrary(userId: string): Promise<UserMcpLibraryRecord[]>;
+  listUserCustomMcpLibrary(userId: string, appName: string): Promise<UserCustomMcpRecord[]>;
   listUserExtensionInstallConfigs(
     userId: string,
     extensionType?: ExtensionInstallTarget,
@@ -463,6 +466,17 @@ export interface ControlPlaneStore {
   ): Promise<UserMcpLibraryRecord>;
   updateUserMcp(userId: string, input: Required<UpdateMcpLibraryItemInput>): Promise<UserMcpLibraryRecord | null>;
   removeUserMcp(userId: string, mcpKey: string): Promise<boolean>;
+  upsertUserCustomMcp(
+    userId: string,
+    input: Required<UpsertUserCustomMcpInput> & {
+      app_name: string;
+      mcp_key: string;
+      transport: 'stdio' | 'http' | 'sse';
+      enabled: boolean;
+      sort_order: number;
+    },
+  ): Promise<UserCustomMcpRecord>;
+  removeUserCustomMcp(userId: string, appName: string, mcpKey: string): Promise<boolean>;
   listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]>;
   installUserSkill(
     userId: string,
@@ -510,6 +524,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly skillSyncSources = new Map<string, SkillSyncSourceRecord>();
   private readonly skillSyncRuns = new Map<string, SkillSyncRunRecord>();
   private readonly userMcpLibrary = new Map<string, UserMcpLibraryRecord>();
+  private readonly userCustomMcpLibrary = new Map<string, UserCustomMcpRecord>();
   private readonly userSkillLibrary = new Map<string, UserSkillLibraryRecord>();
   private readonly userPrivateSkills = new Map<string, UserPrivateSkillRecord>();
   private readonly userExtensionInstallConfigs = new Map<string, UserExtensionInstallConfigRecord>();
@@ -2480,6 +2495,12 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return Array.from(this.userMcpLibrary.values()).filter((item) => item.userId === userId);
   }
 
+  async listUserCustomMcpLibrary(userId: string, appName: string): Promise<UserCustomMcpRecord[]> {
+    return Array.from(this.userCustomMcpLibrary.values()).filter(
+      (item) => item.userId === userId && item.appName === appName,
+    );
+  }
+
   async listUserExtensionInstallConfigs(
     userId: string,
     extensionType?: ExtensionInstallTarget,
@@ -2576,6 +2597,46 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
 
   async removeUserMcp(userId: string, mcpKey: string): Promise<boolean> {
     const removed = this.userMcpLibrary.delete(`${userId}:${mcpKey}`);
+    if (removed) {
+      this.userExtensionInstallConfigs.delete(this.extensionInstallConfigKey(userId, 'mcp', mcpKey));
+    }
+    return removed;
+  }
+
+  async upsertUserCustomMcp(
+    userId: string,
+    input: Required<UpsertUserCustomMcpInput> & {
+      app_name: string;
+      mcp_key: string;
+      transport: 'stdio' | 'http' | 'sse';
+      enabled: boolean;
+      sort_order: number;
+    },
+  ): Promise<UserCustomMcpRecord> {
+    const now = new Date().toISOString();
+    const key = `${userId}:${input.app_name}:${input.mcp_key}`;
+    const existing = this.userCustomMcpLibrary.get(key);
+    const record: UserCustomMcpRecord = {
+      id: existing?.id || randomUUID(),
+      userId,
+      appName: input.app_name,
+      mcpKey: input.mcp_key,
+      name: input.name,
+      description: input.description,
+      transport: input.transport,
+      config: input.config,
+      metadata: input.metadata,
+      enabled: input.enabled,
+      sortOrder: input.sort_order,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+    this.userCustomMcpLibrary.set(key, record);
+    return record;
+  }
+
+  async removeUserCustomMcp(userId: string, appName: string, mcpKey: string): Promise<boolean> {
+    const removed = this.userCustomMcpLibrary.delete(`${userId}:${appName}:${mcpKey}`);
     if (removed) {
       this.userExtensionInstallConfigs.delete(this.extensionInstallConfigKey(userId, 'mcp', mcpKey));
     }

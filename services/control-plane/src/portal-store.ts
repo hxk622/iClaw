@@ -64,6 +64,11 @@ import type {
   UpsertPortalRechargePackageInput,
   UpsertPortalSkillInput,
 } from './portal-domain.ts';
+import type {
+  ExtensionInstallTarget,
+  UserCustomMcpRecord,
+  UserExtensionInstallConfigRecord,
+} from './domain.ts';
 
 function buildDefaultMarketingLegalPageContent(appName: string, displayName: string): {
   privacyTitle: string;
@@ -351,6 +356,35 @@ type PortalRechargePackageBindingRow = {
   recommended: boolean;
   is_default: boolean;
   config_json: Record<string, unknown> | null;
+};
+
+type UserCustomMcpRow = {
+  id: string;
+  user_id: string;
+  app_name: string;
+  mcp_key: string;
+  name: string;
+  description: string;
+  transport: 'stdio' | 'http' | 'sse';
+  config_json: Record<string, unknown> | null;
+  metadata_json: Record<string, unknown> | null;
+  enabled: boolean;
+  sort_order: number;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type UserExtensionInstallConfigRow = {
+  user_id: string;
+  extension_type: ExtensionInstallTarget;
+  extension_key: string;
+  schema_version: number | null;
+  status: UserExtensionInstallConfigRecord['status'];
+  config_json: Record<string, unknown> | null;
+  configured_secret_keys: unknown;
+  secret_payload_encrypted: string | null;
+  created_at: Date;
+  updated_at: Date;
 };
 
 type PortalAssetRow = {
@@ -869,6 +903,41 @@ function mapRechargePackageBindingRow(row: PortalRechargePackageBindingRow): Por
     recommended: row.recommended === true,
     default: row.is_default === true,
     config: asJsonObject(row.config_json),
+  };
+}
+
+function mapUserCustomMcpRow(row: UserCustomMcpRow): UserCustomMcpRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    appName: row.app_name,
+    mcpKey: row.mcp_key,
+    name: row.name,
+    description: row.description,
+    transport: row.transport,
+    config: asJsonObject(row.config_json),
+    metadata: asJsonObject(row.metadata_json),
+    enabled: row.enabled,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapUserExtensionInstallConfigRow(
+  row: UserExtensionInstallConfigRow,
+): UserExtensionInstallConfigRecord {
+  return {
+    userId: row.user_id,
+    extensionType: row.extension_type,
+    extensionKey: row.extension_key,
+    schemaVersion: row.schema_version,
+    status: row.status,
+    config: asJsonObject(row.config_json),
+    configuredSecretKeys: asStringArray(row.configured_secret_keys),
+    secretPayloadEncrypted: row.secret_payload_encrypted ?? null,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
   };
 }
 
@@ -2393,6 +2462,64 @@ export class PgPortalStore {
       releases,
       audit,
     };
+  }
+
+  async listUserCustomMcpLibrary(userId: string, appName: string): Promise<UserCustomMcpRecord[]> {
+    const result = await this.pool.query<UserCustomMcpRow>(
+      `
+        select
+          id,
+          user_id,
+          app_name,
+          mcp_key,
+          name,
+          description,
+          transport,
+          config_json,
+          metadata_json,
+          enabled,
+          sort_order,
+          created_at,
+          updated_at
+        from user_custom_mcp_library
+        where user_id = $1 and app_name = $2
+        order by sort_order asc, mcp_key asc
+      `,
+      [userId, appName],
+    );
+    return result.rows.map(mapUserCustomMcpRow);
+  }
+
+  async listUserExtensionInstallConfigs(
+    userId: string,
+    extensionType?: ExtensionInstallTarget,
+  ): Promise<UserExtensionInstallConfigRecord[]> {
+    const values: unknown[] = [userId];
+    let whereSql = 'where user_id = $1';
+    if (extensionType) {
+      values.push(extensionType);
+      whereSql += ` and extension_type = $${values.length}`;
+    }
+    const result = await this.pool.query<UserExtensionInstallConfigRow>(
+      `
+        select
+          user_id,
+          extension_type,
+          extension_key,
+          schema_version,
+          status,
+          config_json,
+          configured_secret_keys,
+          secret_payload_encrypted,
+          created_at,
+          updated_at
+        from user_extension_install_configs
+        ${whereSql}
+        order by extension_type asc, extension_key asc
+      `,
+      values,
+    );
+    return result.rows.map(mapUserExtensionInstallConfigRow);
   }
 
   async upsertApp(input: UpsertPortalAppInput, actorUserId: string | null = null): Promise<PortalAppRecord> {

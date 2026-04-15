@@ -126,12 +126,15 @@ import type {
   UpsertDesktopActionPolicyRuleInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
+  UpsertUserCustomMcpInput,
   UpsertUserExtensionInstallConfigInput,
   UpdateSkillLibraryItemInput,
   UpdateProfileInput,
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryItemView,
+  UserCustomMcpRecord,
+  UserCustomMcpView,
   UserExtensionInstallConfigRecord,
   UserExtensionInstallConfigView,
   UserFileRecord,
@@ -1067,6 +1070,23 @@ function normalizeMcpKey(value: string | undefined): string {
   return normalized;
 }
 
+function normalizeRequiredTextField(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} is required`);
+  }
+  return value.trim();
+}
+
+function normalizeUserCustomMcpTransport(value: unknown): 'stdio' | 'http' | 'sse' {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'http' || normalized === 'sse' || normalized === 'stdio') {
+    return normalized;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'transport must be stdio, http, or sse');
+}
+
 function normalizeOptionalSkillVersion(value: string | undefined): string | undefined {
   const normalized = (value || '').trim();
   return normalized || undefined;
@@ -1904,6 +1924,18 @@ function resolveExtensionSetupState(
   };
 }
 
+function resolveCustomMcpSetupState(configRecord: UserExtensionInstallConfigRecord | null): {
+  setupStatus: ExtensionSetupStatus;
+  setupSchemaVersion: number | null;
+  setupUpdatedAt: string | null;
+} {
+  return {
+    setupStatus: configRecord?.status || 'configured',
+    setupSchemaVersion: configRecord?.schemaVersion ?? null,
+    setupUpdatedAt: configRecord?.updatedAt ?? null,
+  };
+}
+
 function toSkillCatalogEntryView(
   record: SkillCatalogEntryRecord,
   baseUrl?: string,
@@ -1981,7 +2013,7 @@ function toMcpCatalogEntryView(
 
 function toUserMcpLibraryItemView(record: {
   mcpKey: string;
-  source?: 'cloud';
+  source?: 'cloud' | 'custom';
   enabled: boolean;
   setupStatus?: ExtensionSetupStatus;
   setupSchemaVersion?: number | null;
@@ -1998,6 +2030,64 @@ function toUserMcpLibraryItemView(record: {
     setup_updated_at: record.setupUpdatedAt ?? null,
     installed_at: record.installedAt,
     updated_at: record.updatedAt,
+  };
+}
+
+function toUserCustomMcpView(
+  record: UserCustomMcpRecord,
+  setup?: {
+    setupStatus?: ExtensionSetupStatus;
+    setupSchemaVersion?: number | null;
+    setupUpdatedAt?: string | null;
+  } | null,
+): UserCustomMcpView {
+  return {
+    id: record.id,
+    app_name: record.appName,
+    mcp_key: record.mcpKey,
+    name: record.name,
+    description: record.description,
+    transport: record.transport,
+    config: record.config,
+    metadata: record.metadata,
+    enabled: record.enabled,
+    sort_order: record.sortOrder,
+    setup_status: setup?.setupStatus || 'not_required',
+    setup_schema_version: setup?.setupSchemaVersion ?? null,
+    setup_updated_at: setup?.setupUpdatedAt ?? null,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+  };
+}
+
+function toUserCustomMcpRuntimeItem(
+  record: UserCustomMcpRecord,
+  configRecord: UserExtensionInstallConfigRecord | null,
+): {
+  mcp_key: string;
+  transport: 'stdio' | 'http' | 'sse';
+  enabled: boolean;
+  sort_order: number;
+  config: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+} {
+  const secretValues = decryptInstallSecretPayload(configRecord?.secretPayloadEncrypted);
+  return {
+    mcp_key: record.mcpKey,
+    transport: record.transport,
+    enabled: record.enabled,
+    sort_order: record.sortOrder,
+    config: {
+      transport: record.transport,
+      ...record.config,
+      ...configRecord?.config,
+      ...secretValues,
+      enabled: record.enabled,
+    },
+    metadata: {
+      ...record.metadata,
+      source: 'custom',
+    },
   };
 }
 
@@ -5146,6 +5236,93 @@ export class ControlPlaneService {
     const mcpKey = normalizeMcpKey(mcpKeyInput);
     return {
       removed: await this.store.removeUserMcp(user.id, mcpKey),
+    };
+  }
+
+  async listUserCustomMcpLibrary(
+    accessToken: string,
+    appNameInput: string,
+  ): Promise<{items: UserCustomMcpView[]}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const appName = normalizeRequiredTextField(appNameInput, 'app_name');
+    const [items, configs] = await Promise.all([
+      this.store.listUserCustomMcpLibrary(user.id, appName),
+      this.listExtensionConfigMap(user.id, 'mcp'),
+    ]);
+    return {
+      items: items.map((item) =>
+        toUserCustomMcpView(item, resolveCustomMcpSetupState(configs.get(this.extensionConfigMapKey('mcp', item.mcpKey)) || null)),
+      ),
+    };
+  }
+
+  async upsertUserCustomMcp(
+    accessToken: string,
+    input: UpsertUserCustomMcpInput,
+  ): Promise<UserCustomMcpView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const appName = normalizeRequiredTextField(input.app_name, 'app_name');
+    const mcpKey = normalizeMcpKey(input.mcp_key);
+    if (await this.store.getMcpCatalogEntry(mcpKey)) {
+      throw new HttpError(409, 'CONFLICT', 'mcp key already exists in cloud catalog');
+    }
+    const transport = normalizeUserCustomMcpTransport(input.transport);
+    const record = await this.store.upsertUserCustomMcp(user.id, {
+      app_name: appName,
+      mcp_key: mcpKey,
+      name: normalizeRequiredTextField(input.name, 'name'),
+      description: normalizeOptionalCatalogString(input.description, 'description') || '',
+      transport,
+      enabled: normalizeOptionalBoolean(input.enabled, 'enabled') ?? true,
+      sort_order: normalizeOptionalInteger(input.sort_order, 'sort_order') ?? 100,
+      config: asObject(input.config),
+      metadata: asObject(input.metadata),
+      setup_values: asObject(input.setup_values),
+      secret_values: asObject(input.secret_values) as Record<string, string>,
+    });
+    const setupValues = asObject(input.setup_values);
+    const secretValues = asObject(input.secret_values) as Record<string, string>;
+    const configRecord = await this.store.upsertUserExtensionInstallConfig(user.id, {
+      extension_type: 'mcp',
+      extension_key: mcpKey,
+      setup_values: setupValues,
+      secret_values: secretValues,
+      schema_version: null,
+      status: 'configured',
+      configured_secret_keys: Object.keys(secretValues).filter((key) => secretValues[key]?.trim()),
+      secret_payload_encrypted: encryptInstallSecretPayload(secretValues),
+    });
+    return toUserCustomMcpView(record, resolveCustomMcpSetupState(configRecord));
+  }
+
+  async removeUserCustomMcp(
+    accessToken: string,
+    appNameInput: string,
+    mcpKeyInput: string,
+  ): Promise<{removed: boolean}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const appName = normalizeRequiredTextField(appNameInput, 'app_name');
+    const mcpKey = normalizeMcpKey(mcpKeyInput);
+    return {
+      removed: await this.store.removeUserCustomMcp(user.id, appName, mcpKey),
+    };
+  }
+
+  async getUserCustomMcpRuntimeConfig(
+    accessToken: string,
+    appNameInput: string,
+  ): Promise<{items: Array<ReturnType<typeof toUserCustomMcpRuntimeItem>>}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const appName = normalizeRequiredTextField(appNameInput, 'app_name');
+    const [items, configs] = await Promise.all([
+      this.store.listUserCustomMcpLibrary(user.id, appName),
+      this.listExtensionConfigMap(user.id, 'mcp'),
+    ]);
+    return {
+      items: items
+        .filter((item) => item.enabled)
+        .sort((left, right) => left.sortOrder - right.sortOrder || left.mcpKey.localeCompare(right.mcpKey, 'zh-CN'))
+        .map((item) => toUserCustomMcpRuntimeItem(item, configs.get(this.extensionConfigMapKey('mcp', item.mcpKey)) || null)),
     };
   }
 

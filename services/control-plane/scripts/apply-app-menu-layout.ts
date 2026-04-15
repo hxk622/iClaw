@@ -16,7 +16,7 @@ const LICAICLAW_MENU_LAYOUT: MenuLayoutItem[] = [
   { menuKey: 'cron', displayName: '定时任务', groupLabel: '工作台' },
   { menuKey: 'stock-market', displayName: '股票市场', groupLabel: '市场' },
   { menuKey: 'fund-market', displayName: '基金市场', groupLabel: '市场' },
-  { menuKey: 'data-connections', displayName: '数据连接', groupLabel: '通用' },
+  { menuKey: 'data-connections', displayName: '财经MCP', groupLabel: '通用' },
   { menuKey: 'im-bots', displayName: 'IM机器人', groupLabel: '通用' },
   { menuKey: 'memory', displayName: '记忆管理', groupLabel: '通用' },
   { menuKey: 'security', displayName: '安全中心', groupLabel: '通用' },

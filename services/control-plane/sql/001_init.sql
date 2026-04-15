@@ -439,6 +439,23 @@ create table if not exists user_extension_install_configs (
 create index if not exists user_extension_install_configs_user_type_idx
   on user_extension_install_configs (user_id, extension_type, updated_at desc);
 
+create table if not exists user_custom_mcp_library (
+  id uuid primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  app_name text not null,
+  mcp_key text not null,
+  name text not null,
+  description text not null default '',
+  transport text not null default 'stdio',
+  config_json jsonb not null default '{}'::jsonb,
+  metadata_json jsonb not null default '{}'::jsonb,
+  enabled boolean not null default true,
+  sort_order integer not null default 100,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, app_name, mcp_key)
+);
+
 create table if not exists oem_brand_profiles (
   brand_id text primary key,
   tenant_key text not null,
@@ -1977,6 +1994,8 @@ create index if not exists idx_user_skill_library_user_id_installed_at
   on user_skill_library(user_id, installed_at desc);
 create index if not exists idx_user_mcp_library_user_id_installed_at
   on user_mcp_library(user_id, installed_at desc);
+create index if not exists idx_user_custom_mcp_library_user_app_sort
+  on user_custom_mcp_library(user_id, app_name, sort_order asc, mcp_key asc);
 create index if not exists idx_app_payment_provider_overrides_provider_app
   on app_payment_provider_overrides(provider, app_name);
 create index if not exists idx_payment_provider_profiles_scope_lookup

@@ -88,7 +88,7 @@ export function K2CWelcomePage({
             </div>
           </div>
 
-          <h1 className="mt-8 max-w-[14ch] text-[34px] font-semibold tracking-[-0.06em] text-[var(--text-primary)] dark:text-[rgba(248,245,238,0.96)] md:text-[46px]">
+          <h1 className="mt-8 whitespace-nowrap text-[clamp(34px,4vw,46px)] font-semibold tracking-[-0.06em] text-[var(--text-primary)] dark:text-[rgba(248,245,238,0.96)]">
             {profile.expertName}
           </h1>
 

@@ -67,6 +67,7 @@ import type {
 import {buildPortalPublicConfig} from './portal-runtime.ts';
 import type {PgPortalStore} from './portal-store.ts';
 import {DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS} from './recharge-packages.ts';
+import { decryptInstallSecretPayload } from './install-config-secrets.ts';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const defaultLegacyRuntimeBootstrapConfigPath = resolve(
@@ -119,10 +120,15 @@ function cloneJson<T>(value: T): T {
 function buildResolvedMcpServers(
   detail: Pick<PortalAppDetail, 'mcpBindings'>,
   catalog: Array<{mcpKey: string; config: PortalJsonObject}>,
+  customItems: Array<{
+    mcp_key: string;
+    sort_order: number;
+    config: PortalJsonObject;
+    enabled?: boolean;
+  }> = [],
 ): PortalJsonObject {
   const catalogByKey = new Map(catalog.map((item) => [item.mcpKey, item]));
-  return Object.fromEntries(
-    detail.mcpBindings
+  const bundledEntries = detail.mcpBindings
       .filter((item) => item.enabled)
       .sort((left, right) => left.sortOrder - right.sortOrder)
       .map((binding) => {
@@ -135,8 +141,18 @@ function buildResolvedMcpServers(
             enabled: true,
           },
         ] as const;
-      }),
-  );
+      });
+  const customEntries = customItems
+    .filter((item) => item.enabled !== false)
+    .sort((left, right) => left.sort_order - right.sort_order || left.mcp_key.localeCompare(right.mcp_key, 'zh-CN'))
+    .map((item) => [
+      item.mcp_key,
+      {
+        ...cloneJson(asObject(item.config)),
+        enabled: true,
+      },
+    ] as const);
+  return Object.fromEntries([...bundledEntries, ...customEntries]);
 }
 
 function asArray(value: unknown): unknown[] {
@@ -1384,8 +1400,11 @@ export class PortalService {
     baseUrl: string,
     input: {surfaceKey?: string | null} = {},
   ) {
-    await this.authResolver(accessToken);
-    return this.buildResolvedRuntimeConfig(appNameInput, baseUrl, input, {includeSecrets: true});
+    const user = await this.authResolver(accessToken);
+    return this.buildResolvedRuntimeConfig(appNameInput, baseUrl, input, {
+      includeSecrets: true,
+      userId: user.id,
+    });
   }
 
   async deleteMcp(accessToken: string, mcpKeyInput: string) {
@@ -1883,7 +1902,7 @@ export class PortalService {
     appNameInput: string,
     baseUrl: string,
     input: {surfaceKey?: string | null} = {},
-    options: {includeSecrets?: boolean} = {},
+    options: {includeSecrets?: boolean; userId?: string | null} = {},
   ) {
     const appName = normalizeAppName(appNameInput);
     const detail = await this.store.getAppDetail(appName);
@@ -1916,9 +1935,40 @@ export class PortalService {
     const resolvedModels = await this.store.resolveRuntimeModels(appName);
     const resolvedMemoryEmbedding = await this.store.resolveMemoryEmbedding(appName);
     let nextConfig = publicConfig.config;
+    let customMcps: Array<{
+      mcp_key: string;
+      sort_order: number;
+      config: PortalJsonObject;
+      enabled?: boolean;
+    }> = [];
     if (resolvedModels) {
       nextConfig = applyResolvedRuntimeModelsToConfig(nextConfig, resolvedModels, {
         includeSecrets: options.includeSecrets,
+      });
+    }
+    if (options.userId && options.includeSecrets) {
+      const [customItems, extensionConfigs] = await Promise.all([
+        this.store.listUserCustomMcpLibrary(options.userId, appName),
+        this.store.listUserExtensionInstallConfigs(options.userId, 'mcp'),
+      ]);
+      const extensionConfigByKey = new Map(
+        extensionConfigs.map((item) => [item.extensionKey, item] as const),
+      );
+      customMcps = customItems.map((item) => {
+        const configRecord = extensionConfigByKey.get(item.mcpKey) || null;
+        const secretValues = decryptInstallSecretPayload(configRecord?.secretPayloadEncrypted);
+        return {
+          mcp_key: item.mcpKey,
+          sort_order: item.sortOrder,
+          enabled: item.enabled,
+          config: {
+            transport: item.transport,
+            ...cloneJson(item.config),
+            ...(configRecord ? cloneJson(configRecord.config) : {}),
+            ...secretValues,
+            enabled: item.enabled,
+          },
+        };
       });
     }
     nextConfig = {
@@ -1926,7 +1976,7 @@ export class PortalService {
       resolved_mcp_servers: buildResolvedMcpServers({
         ...detail,
         mcpBindings: mergePlatformMcpBindings(detail.app.appName, detail.mcpBindings, platformMcps),
-      }, cloudMcps),
+      }, cloudMcps, customMcps),
     };
     nextConfig = applyResolvedMemoryEmbeddingToConfig(nextConfig, resolvedMemoryEmbedding, {
       includeSecrets: options.includeSecrets,

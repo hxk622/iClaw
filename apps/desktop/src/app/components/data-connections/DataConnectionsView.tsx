@@ -1,23 +1,28 @@
 import { useMemo, useState } from 'react';
+import type { IClawClient } from '@iclaw/sdk';
 import {
   Activity,
+  ChevronDown,
+  ChevronUp,
   Check,
   Clock3,
   Database,
   Globe2,
   Layers3,
+  Plus,
   Search,
-  Sparkles,
 } from 'lucide-react';
+import { CustomMcpModal, DEFAULT_CUSTOM_MCP_DRAFT } from '@/app/components/mcp-store/CustomMcpModal';
+import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
 import { FilterPill } from '@/app/components/ui/FilterPill';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
 import { PressableCard } from '@/app/components/ui/PressableCard';
-import { StatCard } from '@/app/components/ui/StatCard';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { cn } from '@/app/lib/cn';
+import { saveCustomMcp } from '@/app/lib/mcp-store';
 import { capabilityGroups, type Capability } from './data-connections-data';
 
 const STATUS_FILTERS = ['全部', '已支持', '规划中'] as const;
@@ -129,10 +134,28 @@ function CapabilityCard({ capability }: { capability: CapabilityEntry }) {
   );
 }
 
-export function DataConnectionsView({ title }: { title: string }) {
+export function DataConnectionsView({
+  title,
+  client,
+  accessToken,
+  authenticated,
+  onRequestAuth,
+  revalidateBrandRuntimeConfig,
+}: {
+  title: string;
+  client: IClawClient;
+  accessToken: string | null;
+  authenticated: boolean;
+  onRequestAuth: (mode?: 'login' | 'register', nextView?: 'account' | null) => void;
+  revalidateBrandRuntimeConfig: () => Promise<void>;
+}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(['全部']);
   const [selectedStatus, setSelectedStatus] = useState<(typeof STATUS_FILTERS)[number]>('全部');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [customModalOpen, setCustomModalOpen] = useState(false);
+  const [customSaving, setCustomSaving] = useState(false);
+  const [customError, setCustomError] = useState<string | null>(null);
 
   const allCapabilities = useMemo<CapabilityEntry[]>(() => {
     const flattened: CapabilityEntry[] = [];
@@ -214,6 +237,13 @@ export function DataConnectionsView({ title }: { title: string }) {
           contentClassName="space-y-1"
           titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em]"
           descriptionClassName="mt-0 text-[12px] leading-5"
+          actions={
+            <>
+              <Button variant="primary" size="sm" leadingIcon={<Plus className="h-4 w-4" />} onClick={() => setCustomModalOpen(true)}>
+                添加MCP
+              </Button>
+            </>
+          }
         />
 
         <SurfacePanel tone="subtle" className="mt-3 rounded-[20px] p-1.5">
@@ -254,78 +284,78 @@ export function DataConnectionsView({ title }: { title: string }) {
           </div>
         </SurfacePanel>
 
-        <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
+        <div className="mt-3">
           <SurfacePanel className="rounded-[20px] p-4">
-            <div className="flex flex-col gap-3">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder='搜索能力，例如“实时行情”、“财务报表”、“经济日历”'
-                  className="h-10 w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-card)] pl-11 pr-4 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
-                />
-              </div>
-
-              <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                  市场过滤
+                  筛选区
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {marketOptions.map((market) => (
-                    <FilterPill
-                      key={market}
-                      active={selectedMarkets.includes(market)}
-                      onClick={() => handleMarketToggle(market)}
-                      className="px-2.5 py-1 text-[11px]"
-                    >
-                      {market}
-                    </FilterPill>
-                  ))}
+                <div className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                  {activeFilterCount > 0 ? `当前已激活 ${activeFilterCount} 个过滤条件` : '默认收起，按需展开市场与状态筛选'}
                 </div>
               </div>
-
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                  状态过滤
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {STATUS_FILTERS.map((status) => (
-                    <FilterPill
-                      key={status}
-                      active={selectedStatus === status}
-                      onClick={() => setSelectedStatus(status)}
-                      className="px-2.5 py-1 text-[11px]"
-                    >
-                      {status}
-                    </FilterPill>
-                  ))}
-                </div>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                leadingIcon={filtersExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                onClick={() => setFiltersExpanded((current) => !current)}
+              >
+                {filtersExpanded ? '收起筛选' : '展开筛选'}
+              </Button>
             </div>
-          </SurfacePanel>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            <StatCard
-              icon={<Sparkles className="h-5 w-5" />}
-              label="筛选结果"
-              value={filteredCapabilities.length}
-              description={searchQuery.trim() ? `关键词：${searchQuery.trim()}` : '当前显示全部可见能力'}
-              tone="brand"
-            />
-            <StatCard
-              icon={<Globe2 className="h-5 w-5" />}
-              label="激活市场"
-              value={selectedMarkets.includes('全部') ? '全部' : `${selectedMarkets.length} 项`}
-              description={
-                selectedMarkets.includes('全部')
-                  ? '未限制市场范围'
-                  : `当前过滤：${selectedMarkets.join(' / ')}`
-              }
-              tone="default"
-            />
-          </div>
+            {filtersExpanded ? (
+              <div className="mt-3 flex flex-col gap-3">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder='搜索能力，例如“实时行情”、“财务报表”、“经济日历”'
+                    className="h-10 w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-card)] pl-11 pr-4 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                    市场过滤
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {marketOptions.map((market) => (
+                      <FilterPill
+                        key={market}
+                        active={selectedMarkets.includes(market)}
+                        onClick={() => handleMarketToggle(market)}
+                        className="px-2.5 py-1 text-[11px]"
+                      >
+                        {market}
+                      </FilterPill>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                    状态过滤
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {STATUS_FILTERS.map((status) => (
+                      <FilterPill
+                        key={status}
+                        active={selectedStatus === status}
+                        onClick={() => setSelectedStatus(status)}
+                        className="px-2.5 py-1 text-[11px]"
+                      >
+                        {status}
+                      </FilterPill>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </SurfacePanel>
         </div>
 
         {filteredCapabilities.length === 0 ? (
@@ -346,7 +376,46 @@ export function DataConnectionsView({ title }: { title: string }) {
             ))}
           </div>
         )}
+        {customError ? <div className="mt-4 text-[13px] text-[rgb(185,28,28)]">{customError}</div> : null}
       </PageContent>
+      <CustomMcpModal
+        open={customModalOpen}
+        draft={DEFAULT_CUSTOM_MCP_DRAFT}
+        saving={customSaving}
+        onClose={() => {
+          if (!customSaving) {
+            setCustomModalOpen(false);
+          }
+        }}
+        onSubmit={async (payload) => {
+          if (!authenticated || !accessToken) {
+            onRequestAuth('login', 'account');
+            throw new Error('请先登录后再添加自定义 MCP');
+          }
+          setCustomSaving(true);
+          setCustomError(null);
+          try {
+            await saveCustomMcp({
+              client,
+              accessToken,
+              mcpKey: payload.mcpKey,
+              name: payload.name,
+              description: payload.description,
+              transport: payload.transport,
+              config: payload.config,
+              secretValues: payload.secretValues,
+            });
+            await revalidateBrandRuntimeConfig().catch(() => undefined);
+            setCustomModalOpen(false);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : '保存自定义 MCP 失败';
+            setCustomError(message);
+            throw error;
+          } finally {
+            setCustomSaving(false);
+          }
+        }}
+      />
     </PageSurface>
   );
 }

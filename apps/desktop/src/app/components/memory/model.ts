@@ -31,16 +31,19 @@ export type MemoryFilters = {
   domains: MemoryDomain[];
   types: MemoryType[];
   tags: string[];
+  importance: MemoryImportance[];
   sourceTypes: MemorySourceType[];
   timeRange: MemoryTimeRange[];
   recalledState: RecallState[];
   onlyAutoCaptured: boolean;
+  onlyHighImportance: boolean;
 };
 
 export type MemoryArrayFilterKey =
   | 'domains'
   | 'types'
   | 'tags'
+  | 'importance'
   | 'sourceTypes'
   | 'timeRange'
   | 'recalledState';
@@ -50,6 +53,7 @@ export type MemoryEditDraft = {
   content: string;
   domain: MemoryDomain;
   type: MemoryType;
+  importance: MemoryImportance;
   status: MemoryStatus;
   tags: string[];
   sourceLabel: string;
@@ -68,6 +72,7 @@ export type MemoryStatusSummary = {
 
 export const DOMAIN_OPTIONS: MemoryDomain[] = ['财经', '产品', '个人', '项目', '研究', '其他'];
 export const TYPE_OPTIONS: MemoryType[] = ['偏好', '事实', '决策', '实体', '其他'];
+export const IMPORTANCE_OPTIONS: MemoryImportance[] = ['高', '中', '低'];
 export const SOURCE_OPTIONS: MemorySourceType[] = ['手动创建', '自动捕获', '导入', '对话沉淀'];
 export const TIME_RANGE_OPTIONS: MemoryTimeRange[] = ['最近 7 天', '最近 30 天', '全部'];
 export const RECALL_OPTIONS: RecallState[] = ['最近被用到', '从未用到'];
@@ -76,10 +81,12 @@ export const EMPTY_FILTERS: MemoryFilters = {
   domains: [],
   types: [],
   tags: [],
+  importance: [],
   sourceTypes: [],
   timeRange: [],
   recalledState: [],
   onlyAutoCaptured: false,
+  onlyHighImportance: false,
 };
 
 const DOMAIN_BADGE_CLASS: Record<MemoryDomain, string> = {
@@ -116,6 +123,10 @@ export function getDomainBadgeClass(domain: MemoryDomain) {
 
 export function getTypeBadgeClass(type: MemoryType) {
   return TYPE_BADGE_CLASS[type];
+}
+
+export function getImportanceBadgeClass(importance: MemoryImportance) {
+  return IMPORTANCE_BADGE_CLASS[importance];
 }
 
 export function getStatusBadgeClass(status: MemoryStatus) {
@@ -201,133 +212,11 @@ export function createEditDraft(entry: MemoryEntry): MemoryEditDraft {
     content: entry.content,
     domain: entry.domain,
     type: entry.type,
+    importance: entry.importance,
     status: entry.status,
     tags: entry.tags,
     sourceLabel: entry.sourceLabel,
   };
-}
-
-const MEMORY_TAG_STOP_WORDS = new Set([
-  '今天',
-  '当前',
-  '这个',
-  '那个',
-  '这些',
-  '那些',
-  '已经',
-  '需要',
-  '进行',
-  '相关',
-  '问题',
-  '情况',
-  '内容',
-  '信息',
-  '记录',
-  '总结',
-  '分析',
-  '整理',
-  '判断',
-  '关注',
-  '使用',
-  '用户',
-  '我们',
-  '他们',
-  '你们',
-  '如果',
-  '因为',
-  '以及',
-  '或者',
-  '但是',
-  '然后',
-  '所以',
-  '一个',
-  '一些',
-  '没有',
-  '可以',
-  '继续',
-  '本次',
-  '需要',
-  '进行',
-  'about',
-  'with',
-  'from',
-  'that',
-  'this',
-  'have',
-  'will',
-  'your',
-  'they',
-  'them',
-  'what',
-  'when',
-  'where',
-  'which',
-  '因为',
-  '还是',
-]);
-
-const LEGACY_MEMORY_PLACEHOLDER_TAGS = new Set(['待整理']);
-
-function normalizeMemoryTagCandidate(value: string): string | null {
-  const trimmed = value.trim().replace(/[：:，,。！？!?\[\]【】（）()"'“”‘’]/g, '');
-  if (!trimmed) return null;
-  const normalized = trimmed.toLowerCase();
-  if (MEMORY_TAG_STOP_WORDS.has(normalized) || MEMORY_TAG_STOP_WORDS.has(trimmed)) {
-    return null;
-  }
-  const isChinese = /[\p{Script=Han}]/u.test(trimmed);
-  if (isChinese && (trimmed.length < 2 || trimmed.length > 8)) {
-    return null;
-  }
-  if (!isChinese && !/^[a-z0-9][a-z0-9\-+.]{1,23}$/i.test(trimmed)) {
-    return null;
-  }
-  if (!isChinese && trimmed.length < 3) {
-    return null;
-  }
-  return trimmed;
-}
-
-export function generateMemoryTags(input: {
-  title: string;
-  content: string;
-  domain?: MemoryDomain;
-  type?: MemoryType;
-  limit?: number;
-}): string[] {
-  const limit = Math.max(1, input.limit ?? 4);
-  const scored = new Map<string, number>();
-  const addCandidate = (raw: string, weight: number) => {
-    const normalized = normalizeMemoryTagCandidate(raw);
-    if (!normalized) return;
-    scored.set(normalized, (scored.get(normalized) ?? 0) + weight);
-  };
-
-  const collect = (text: string, baseWeight: number) => {
-    if (!text.trim()) return;
-    const chineseTerms = text.match(/[\p{Script=Han}]{2,8}/gu) ?? [];
-    const englishTerms = text.match(/\b[a-zA-Z][a-zA-Z0-9.+-]{2,23}\b/g) ?? [];
-    chineseTerms.forEach((term) => addCandidate(term, baseWeight));
-    englishTerms.forEach((term) => addCandidate(term, baseWeight));
-  };
-
-  collect(input.title, 3);
-  collect(input.content, 1);
-
-  return [...scored.entries()]
-    .sort((left, right) => (right[1] !== left[1] ? right[1] - left[1] : left[0].localeCompare(right[0], 'zh-CN')))
-    .slice(0, limit)
-    .map(([tag]) => tag);
-}
-
-export function sanitizeMemoryTags(tags: string[]): string[] {
-  return Array.from(
-    new Set(
-      tags
-        .map((tag) => tag.trim())
-        .filter((tag) => tag && !LEGACY_MEMORY_PLACEHOLDER_TAGS.has(tag)),
-    ),
-  );
 }
 
 export function todayStamp() {
@@ -361,7 +250,7 @@ export function normalizeImportedEntry(value: unknown): MemoryEntry | null {
   const content = typeof raw.content === 'string' && raw.content.trim() ? raw.content.trim() : title;
   const tags =
     Array.isArray(raw.tags) && raw.tags.every((tag) => typeof tag === 'string')
-      ? sanitizeMemoryTags(raw.tags)
+      ? Array.from(new Set(raw.tags.map((tag) => tag.trim()).filter(Boolean)))
       : [];
   const now = todayStamp();
 
@@ -375,13 +264,15 @@ export function normalizeImportedEntry(value: unknown): MemoryEntry | null {
     content,
     domain: DOMAIN_OPTIONS.includes(raw.domain as MemoryDomain) ? (raw.domain as MemoryDomain) : '其他',
     type: TYPE_OPTIONS.includes(raw.type as MemoryType) ? (raw.type as MemoryType) : '事实',
-    importance: '中',
+    importance: IMPORTANCE_OPTIONS.includes(raw.importance as MemoryImportance)
+      ? (raw.importance as MemoryImportance)
+      : '中',
     sourceType: SOURCE_OPTIONS.includes(raw.sourceType as MemorySourceType)
       ? (raw.sourceType as MemorySourceType)
       : '导入',
     sourceLabel:
       typeof raw.sourceLabel === 'string' && raw.sourceLabel.trim() ? raw.sourceLabel.trim() : '本地 JSON 导入',
-    tags: tags.length > 0 ? tags : generateMemoryTags({ title, content }),
+    tags,
     createdAt: typeof raw.createdAt === 'string' && raw.createdAt.trim() ? raw.createdAt : now,
     updatedAt: typeof raw.updatedAt === 'string' && raw.updatedAt.trim() ? raw.updatedAt : now,
     lastRecalledAt: typeof raw.lastRecalledAt === 'string' && raw.lastRecalledAt.trim() ? raw.lastRecalledAt : null,

@@ -76,9 +76,11 @@ import type {
   UpsertMcpCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
+  UpsertUserCustomMcpInput,
   UpsertUserExtensionInstallConfigInput,
   UsageEventResult,
   UserAgentLibraryRecord,
+  UserCustomMcpRecord,
   UserExtensionInstallConfigRecord,
   UserFileRecord,
   UserMcpLibraryRecord,
@@ -502,9 +504,25 @@ type UserSkillLibraryRow = {
 type UserMcpLibraryRow = {
   user_id: string;
   mcp_key: string;
-  source: 'cloud';
+  source: 'cloud' | 'custom';
   enabled: boolean;
   installed_at: Date;
+  updated_at: Date;
+};
+
+type UserCustomMcpRow = {
+  id: string;
+  user_id: string;
+  app_name: string;
+  mcp_key: string;
+  name: string;
+  description: string;
+  transport: 'stdio' | 'http' | 'sse';
+  config_json: Record<string, unknown> | null;
+  metadata_json: Record<string, unknown> | null;
+  enabled: boolean;
+  sort_order: number;
+  created_at: Date;
   updated_at: Date;
 };
 
@@ -1361,6 +1379,24 @@ function mapUserMcpLibraryRow(row: UserMcpLibraryRow): UserMcpLibraryRecord {
     source: row.source,
     enabled: row.enabled,
     installedAt: row.installed_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapUserCustomMcpRow(row: UserCustomMcpRow): UserCustomMcpRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    appName: row.app_name,
+    mcpKey: row.mcp_key,
+    name: row.name,
+    description: row.description,
+    transport: row.transport,
+    config: parseJsonObject(row.config_json),
+    metadata: parseJsonObject(row.metadata_json),
+    enabled: row.enabled,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
@@ -6320,6 +6356,32 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows.map(mapUserMcpLibraryRow);
   }
 
+  async listUserCustomMcpLibrary(userId: string, appName: string): Promise<UserCustomMcpRecord[]> {
+    const result = await this.pool.query<UserCustomMcpRow>(
+      `
+        select
+          id,
+          user_id,
+          app_name,
+          mcp_key,
+          name,
+          description,
+          transport,
+          config_json,
+          metadata_json,
+          enabled,
+          sort_order,
+          created_at,
+          updated_at
+        from user_custom_mcp_library
+        where user_id = $1 and app_name = $2
+        order by sort_order asc, mcp_key asc
+      `,
+      [userId, appName],
+    );
+    return result.rows.map(mapUserCustomMcpRow);
+  }
+
   async listUserExtensionInstallConfigs(
     userId: string,
     extensionType?: ExtensionInstallTarget,
@@ -6511,6 +6573,94 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       [userId, mcpKey],
     );
     return (libraryResult.rowCount || 0) > 0;
+  }
+
+  async upsertUserCustomMcp(
+    userId: string,
+    input: Required<UpsertUserCustomMcpInput> & {
+      app_name: string;
+      mcp_key: string;
+      transport: 'stdio' | 'http' | 'sse';
+      enabled: boolean;
+      sort_order: number;
+    },
+  ): Promise<UserCustomMcpRecord> {
+    const result = await this.pool.query<UserCustomMcpRow>(
+      `
+        insert into user_custom_mcp_library (
+          id,
+          user_id,
+          app_name,
+          mcp_key,
+          name,
+          description,
+          transport,
+          config_json,
+          metadata_json,
+          enabled,
+          sort_order,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, now(), now())
+        on conflict (user_id, app_name, mcp_key)
+        do update set
+          name = excluded.name,
+          description = excluded.description,
+          transport = excluded.transport,
+          config_json = excluded.config_json,
+          metadata_json = excluded.metadata_json,
+          enabled = excluded.enabled,
+          sort_order = excluded.sort_order,
+          updated_at = now()
+        returning
+          id,
+          user_id,
+          app_name,
+          mcp_key,
+          name,
+          description,
+          transport,
+          config_json,
+          metadata_json,
+          enabled,
+          sort_order,
+          created_at,
+          updated_at
+      `,
+      [
+        randomUUID(),
+        userId,
+        input.app_name,
+        input.mcp_key,
+        input.name,
+        input.description,
+        input.transport,
+        JSON.stringify(input.config || {}),
+        JSON.stringify(input.metadata || {}),
+        input.enabled,
+        input.sort_order,
+      ],
+    );
+    return mapUserCustomMcpRow(result.rows[0]);
+  }
+
+  async removeUserCustomMcp(userId: string, appName: string, mcpKey: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        delete from user_custom_mcp_library
+        where user_id = $1 and app_name = $2 and mcp_key = $3
+      `,
+      [userId, appName, mcpKey],
+    );
+    await this.pool.query(
+      `
+        delete from user_extension_install_configs
+        where user_id = $1 and extension_type = 'mcp' and extension_key = $2
+      `,
+      [userId, mcpKey],
+    );
+    return (result.rowCount || 0) > 0;
   }
 
   async installUserSkill(

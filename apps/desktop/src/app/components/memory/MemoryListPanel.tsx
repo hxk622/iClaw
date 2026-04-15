@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AlertCircle, Archive, CalendarClock, CheckCircle2, Clock3, FolderTree, Search, SearchX, Sparkles } from 'lucide-react';
+import { AlertCircle, Archive, CalendarClock, CheckCircle2, Clock3, FolderTree, Search, SearchX, Sparkles, Star } from 'lucide-react';
 import { cn } from '@/app/lib/cn';
 import type { MemorySearchResult } from '@/app/lib/memory-recall';
 import { Button } from '@/app/components/ui/Button';
@@ -11,6 +11,7 @@ import type { MemoryRuntimeStatus } from '@/app/lib/tauri-memory';
 import type { MemoryEntry } from './model';
 import {
   getDomainBadgeClass,
+  getImportanceBadgeClass,
   getStatusBadgeClass,
   getTypeBadgeClass,
 } from './model';
@@ -147,6 +148,7 @@ export function MemoryListPanel({
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <Badge className={getDomainBadgeClass(entry.domain)}>{entry.domain}</Badge>
                         <Badge className={getTypeBadgeClass(entry.type)}>{entry.type}</Badge>
+                        <Badge className={getImportanceBadgeClass(entry.importance)}>{entry.importance} 重要性</Badge>
                         <Badge className={getStatusBadgeClass(entry.status)}>{entry.status}</Badge>
                         {entry.tags.slice(0, 3).map((tag) => (
                           <Chip key={tag} tone="outline" className="rounded-full px-3 py-1 text-[12px]">
@@ -180,6 +182,7 @@ export function MemoryListPanel({
                     </div>
 
                     <div className="flex min-w-[108px] flex-col items-end gap-2">
+                      <div className="flex items-center gap-1">{getImportanceIcon(entry.importance)}</div>
                       <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
                         <Clock3 size={11} strokeWidth={1.5} />
                         <span>{entry.createdAt}</span>
@@ -226,4 +229,9 @@ function Badge({
   children: ReactNode;
 }) {
   return <span className={cn('inline-flex items-center rounded-full border px-3 py-1 text-[12px]', className)}>{children}</span>;
+}
+
+function getImportanceIcon(importance: MemoryEntry['importance']) {
+  if (importance !== '高') return null;
+  return <Star size={13} fill="#A88C5D" stroke="#A88C5D" strokeWidth={1.5} />;
 }

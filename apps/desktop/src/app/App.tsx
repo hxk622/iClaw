@@ -3284,6 +3284,7 @@ function AuthedView({
             accessToken={accessToken}
             authenticated={authenticated}
             onRequestAuth={onRequestAuth}
+            revalidateBrandRuntimeConfig={revalidateBrandRuntimeConfig}
           />
         </DeferredSurface>
       );
@@ -3292,7 +3293,14 @@ function AuthedView({
     if (viewKey === 'data-connections') {
       return (
         <DeferredSurface title={viewLabel}>
-          <DataConnectionsView title={viewLabel} />
+          <DataConnectionsView
+            title={viewLabel}
+            client={client}
+            accessToken={accessToken}
+            authenticated={authenticated}
+            onRequestAuth={onRequestAuth}
+            revalidateBrandRuntimeConfig={revalidateBrandRuntimeConfig}
+          />
         </DeferredSurface>
       );
     }

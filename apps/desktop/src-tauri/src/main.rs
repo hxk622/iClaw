@@ -116,6 +116,30 @@ struct PublicBrandConfigEnvelope {
     data: Option<PublicBrandConfigData>,
 }
 
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct CustomMcpRuntimeItem {
+    mcp_key: String,
+    transport: String,
+    enabled: bool,
+    sort_order: i64,
+    config: serde_json::Value,
+    metadata: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CustomMcpRuntimeEnvelope {
+    success: bool,
+    data: Option<CustomMcpRuntimeData>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CustomMcpRuntimeData {
+    items: Vec<CustomMcpRuntimeItem>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PublicBrandConfigData {
@@ -2181,6 +2205,67 @@ fn runtime_mcp_servers_from_snapshot(
         fallback.insert(mcp_key, serde_json::Value::Object(config));
     }
     fallback
+}
+
+fn merge_custom_mcp_runtime_items(
+    config: &mut serde_json::Value,
+    items: Vec<CustomMcpRuntimeItem>,
+) {
+    let Some(root) = config.as_object_mut() else {
+        return;
+    };
+
+    let resolved_servers = root
+        .entry(String::from("resolved_mcp_servers"))
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    if !resolved_servers.is_object() {
+        *resolved_servers = serde_json::Value::Object(serde_json::Map::new());
+    }
+    let resolved_servers_object = resolved_servers.as_object_mut().unwrap();
+
+    let mcp_bindings = root
+        .entry(String::from("mcp_bindings"))
+        .or_insert_with(|| serde_json::Value::Array(Vec::new()));
+    if !mcp_bindings.is_array() {
+        *mcp_bindings = serde_json::Value::Array(Vec::new());
+    }
+    let mcp_bindings_array = mcp_bindings.as_array_mut().unwrap();
+
+    for item in items.into_iter().filter(|item| item.enabled) {
+        let mut merged_config = item
+            .config
+            .as_object()
+            .cloned()
+            .unwrap_or_default();
+        merged_config.insert(
+            String::from("transport"),
+            serde_json::Value::String(item.transport.clone()),
+        );
+        merged_config.insert(String::from("enabled"), serde_json::Value::Bool(true));
+        resolved_servers_object.insert(
+            item.mcp_key.clone(),
+            serde_json::Value::Object(merged_config.clone()),
+        );
+
+        let binding_exists = mcp_bindings_array.iter().any(|value| {
+            value
+                .as_object()
+                .and_then(|object| object.get("mcp_key"))
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim() == item.mcp_key)
+                .unwrap_or(false)
+        });
+        if binding_exists {
+            continue;
+        }
+
+        mcp_bindings_array.push(json!({
+            "mcp_key": item.mcp_key,
+            "sort_order": item.sort_order,
+            "config": serde_json::Value::Object(merged_config),
+            "metadata": item.metadata,
+        }));
+    }
 }
 
 fn load_runtime_skill_sync_state(app: &AppHandle) -> Result<Option<RuntimeSkillSyncState>, String> {
@@ -6433,6 +6518,39 @@ fn sync_oem_runtime_snapshot(
         published_version: data.published_version.unwrap_or(0),
         config,
     };
+    let mut snapshot = snapshot;
+
+    if let Ok(Some(tokens)) = load_auth_tokens() {
+        if !tokens.access_token.trim().is_empty() {
+            if let Ok(mut custom_url) =
+                Url::parse(&format!("{trimmed_auth_base_url}/mcp/custom/runtime"))
+            {
+                custom_url
+                    .query_pairs_mut()
+                    .append_pair("app_name", trimmed_brand_id);
+                if let Ok(custom_response) = client
+                    .get(custom_url)
+                    .bearer_auth(tokens.access_token)
+                    .send()
+                {
+                    if custom_response.status().is_success() {
+                        if let Ok(custom_envelope) =
+                            custom_response.json::<CustomMcpRuntimeEnvelope>()
+                        {
+                            if custom_envelope.success {
+                                if let Some(custom_data) = custom_envelope.data {
+                                    merge_custom_mcp_runtime_items(
+                                        &mut snapshot.config,
+                                        custom_data.items,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     let result = save_oem_runtime_snapshot(app.clone(), snapshot);
     match &result {
         Ok(_) => append_desktop_bootstrap_log(&app, "sync_oem_runtime_snapshot: success"),

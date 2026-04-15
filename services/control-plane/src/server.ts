@@ -43,6 +43,7 @@ import type {
   UpsertAdminPaymentProviderProfileInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
+  UpsertUserCustomMcpInput,
   UpsertUserExtensionInstallConfigInput,
   UpdateMcpLibraryItemInput,
   UpdateSkillLibraryItemInput,
@@ -1063,6 +1064,24 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/mcp/custom',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listUserCustomMcpLibrary(
+        requireBearerToken(headers),
+        (url.searchParams.get('app_name') || '').trim(),
+      ),
+  },
+  {
+    method: 'GET',
+    path: '/mcp/custom/runtime',
+    handler: ({headers, url}: HandlerContext) =>
+      service.getUserCustomMcpRuntimeConfig(
+        requireBearerToken(headers),
+        (url.searchParams.get('app_name') || '').trim(),
+      ),
+  },
+  {
+    method: 'GET',
     path: '/extensions/install-config',
     handler: ({headers, url}: HandlerContext) =>
       service.getUserExtensionInstallConfig(
@@ -1091,6 +1110,12 @@ const server = createJsonServer([
     path: '/mcp/library/install',
     handler: ({headers, body}: HandlerContext) =>
       service.installMcp(requireBearerToken(headers), (body || {}) as InstallMcpInput),
+  },
+  {
+    method: 'PUT',
+    path: '/mcp/custom',
+    handler: ({headers, body}: HandlerContext) =>
+      service.upsertUserCustomMcp(requireBearerToken(headers), (body || {}) as UpsertUserCustomMcpInput),
   },
   {
     method: 'POST',
@@ -1128,6 +1153,18 @@ const server = createJsonServer([
     handler: ({headers, body}: HandlerContext) => {
       const data = (body || {}) as {mcp_key?: string};
       return service.removeMcp(requireBearerToken(headers), data.mcp_key || '');
+    },
+  },
+  {
+    method: 'POST',
+    path: '/mcp/custom/remove',
+    handler: ({headers, body}: HandlerContext) => {
+      const data = (body || {}) as {app_name?: string; mcp_key?: string};
+      return service.removeUserCustomMcp(
+        requireBearerToken(headers),
+        data.app_name || '',
+        data.mcp_key || '',
+      );
     },
   },
   {

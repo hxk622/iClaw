@@ -32,6 +32,82 @@ copy_tree() {
   fi
 }
 
+macos_is_system_dylib() {
+  local path="$1"
+  [[ "$path" == /System/* || "$path" == /usr/lib/* || "$path" == /usr/lib/system/* ]]
+}
+
+macos_binary_deps() {
+  local binary="$1"
+  otool -L "$binary" 2>/dev/null | tail -n +2 | awk '{print $1}'
+}
+
+macos_stage_dynamic_deps() {
+  local root_dir="$1"
+  local binary_path="$2"
+  local lib_dir="$3"
+  shift 3 || true
+  local seen_file="${MACOS_DYLIB_SEEN_FILE:-}"
+
+  if [[ -z "$seen_file" ]]; then
+    return 0
+  fi
+
+  mkdir -p "$lib_dir"
+
+  while IFS= read -r dep; do
+    [[ -n "$dep" ]] || continue
+    if macos_is_system_dylib "$dep"; then
+      continue
+    fi
+    if [[ "$dep" == @* ]]; then
+      continue
+    fi
+    if [[ ! -f "$dep" ]]; then
+      continue
+    fi
+
+    local dep_basename
+    dep_basename="$(basename "$dep")"
+    local staged_dep="$lib_dir/$dep_basename"
+
+    if ! grep -Fxq "$dep" "$seen_file"; then
+      printf '%s\n' "$dep" >> "$seen_file"
+      cp "$dep" "$staged_dep"
+      chmod +w "$staged_dep" 2>/dev/null || true
+
+      if [[ "$dep" == *.dylib ]]; then
+        install_name_tool -id "@executable_path/../lib/$dep_basename" "$staged_dep"
+      fi
+
+      macos_stage_dynamic_deps "$root_dir" "$staged_dep" "$lib_dir"
+    fi
+
+    install_name_tool -change "$dep" "@executable_path/../lib/$dep_basename" "$binary_path"
+  done < <(macos_binary_deps "$binary_path")
+}
+
+macos_rewrite_staged_binary_deps() {
+  local binary_path="$1"
+  local lib_dir="$2"
+
+  while IFS= read -r dep; do
+    [[ -n "$dep" ]] || continue
+    if macos_is_system_dylib "$dep"; then
+      continue
+    fi
+    if [[ "$dep" == @* ]]; then
+      continue
+    fi
+
+    local dep_basename
+    dep_basename="$(basename "$dep")"
+    if [[ -f "$lib_dir/$dep_basename" ]]; then
+      install_name_tool -change "$dep" "@executable_path/../lib/$dep_basename" "$binary_path"
+    fi
+  done < <(macos_binary_deps "$binary_path")
+}
+
 infer_target_triple() {
   local os arch
   os="$(uname -s)"
@@ -202,6 +278,8 @@ ARCHIVE_BASENAME="openclaw-runtime-${TARGET_TRIPLE}-${VERSION}"
 STAGE_PARENT="$(mktemp -d "$OUT_DIR/.tmp.XXXXXX")"
 STAGE_DIR="$STAGE_PARENT/$ARCHIVE_BASENAME"
 ARCHIVE_PATH="$OUT_DIR/${ARCHIVE_BASENAME}.tar.gz"
+MACOS_DYLIB_SEEN_FILE="$STAGE_PARENT/.macos-dylibs-seen"
+touch "$MACOS_DYLIB_SEEN_FILE"
 
 mkdir -p "$STAGE_DIR/bin" "$STAGE_DIR/openclaw"
 
@@ -276,6 +354,11 @@ node "$ROOT_DIR/scripts/stage-openclaw-plugins.mjs" \
   --runtime-root "$STAGE_DIR/openclaw" \
   --node-bin "$STAGE_DIR/bin/node" \
   --target-extensions-dir "$STAGE_DIR/openclaw/extensions"
+
+if [[ "$TARGET_TRIPLE" == *apple-darwin* ]]; then
+  macos_stage_dynamic_deps "$STAGE_DIR" "$STAGE_DIR/bin/node" "$STAGE_DIR/lib"
+  macos_rewrite_staged_binary_deps "$STAGE_DIR/bin/node" "$STAGE_DIR/lib"
+fi
 
 cat > "$STAGE_DIR/manifest.json" <<JSON
 {

@@ -1,4 +1,5 @@
-import type { IClawClient, McpCatalogEntryData, UserMcpLibraryItemData } from '@iclaw/sdk';
+import { BRAND } from '@/app/lib/brand';
+import type { IClawClient, McpCatalogEntryData, UserCustomMcpData, UserMcpLibraryItemData } from '@iclaw/sdk';
 import type {
   ExtensionInstallConfigSnapshot,
   ExtensionSetupSchema,
@@ -7,7 +8,7 @@ import type {
 import {parseExtensionSetupSchema} from './extension-setup';
 
 export type McpStoreProtocol = 'STDIO' | 'HTTP' | 'SSE';
-export type McpStoreSource = 'bundled' | 'cloud';
+export type McpStoreSource = 'bundled' | 'cloud' | 'custom';
 export type McpStoreInstallState = 'bundled' | 'installed' | 'available';
 export type McpStoreIconKey = 'browser' | 'search' | 'database' | 'file' | 'finance' | 'dev' | 'automation';
 export type McpStoreTone = 'brand' | 'success' | 'info' | 'warning' | 'neutral';
@@ -224,7 +225,45 @@ function normalizeStoreItem(input: {
   key: string;
   cloud: McpCatalogEntryData | null;
   library: UserMcpLibraryItemData | null;
+  custom: UserCustomMcpData | null;
 }): McpStoreItem {
+  if (input.custom) {
+    const metadata = readObject(input.custom.metadata);
+    const config = readObject(input.custom.config);
+    const categories = parseCategories(metadata);
+    const iconKey = inferIconKey(categories, input.key);
+    const command = readCommand(config);
+    const httpUrl = readHttpUrl(config);
+    return {
+      id: input.custom.id,
+      mcpKey: input.custom.mcp_key,
+      name: input.custom.name.trim() || titleizeMcpKey(input.custom.mcp_key),
+      description: input.custom.description.trim() || '用户自定义 MCP，支持重装后恢复。',
+      source: 'custom',
+      sourceLabel: '自定义MCP',
+      protocol: normalizeProtocol(input.custom.transport),
+      installState: 'installed',
+      defaultInstalled: false,
+      installed: true,
+      userInstalled: true,
+      enabled: input.custom.enabled,
+      canToggle: true,
+      requiresApiKey: inferRequiresApiKey(config, metadata),
+      categories,
+      lastUpdated: readDateLabel(input.custom.updated_at),
+      configSummary: buildConfigSummary(command, httpUrl, config),
+      command,
+      httpUrl,
+      featured: false,
+      iconKey,
+      tone: inferTone(iconKey),
+      metadata,
+      setupSchema: null,
+      setupStatus: input.custom.setup_status,
+      setupSchemaVersion: input.custom.setup_schema_version,
+      setupUpdatedAt: input.custom.setup_updated_at,
+    };
+  }
   const metadata = readObject(input.cloud?.metadata);
   const config = readObject(input.cloud?.config);
   const categories = parseCategories(metadata);
@@ -303,14 +342,16 @@ export async function loadMcpStoreCatalog(input: {
   limit?: number;
   offset?: number;
 }): Promise<McpStoreItem[]> {
-  const [cloudPage, libraryItems] = await Promise.all([
+  const [cloudPage, libraryItems, customItems] = await Promise.all([
     input.client.listMcpCatalogPage({ limit: input.limit ?? 200, offset: input.offset ?? 0 }),
     input.accessToken ? input.client.getMcpLibrary(input.accessToken).catch(() => []) : Promise.resolve([]),
+    input.accessToken ? input.client.listCustomMcps(input.accessToken, BRAND.brandId).catch(() => []) : Promise.resolve([]),
   ]);
 
   const cloudByKey = new Map(cloudPage.items.map((item) => [item.mcp_key, item]));
   const libraryByKey = new Map(libraryItems.map((item) => [item.mcp_key, item]));
-  const keys = Array.from(new Set([...cloudByKey.keys(), ...libraryByKey.keys()]));
+  const customByKey = new Map(customItems.map((item) => [item.mcp_key, item]));
+  const keys = Array.from(new Set([...cloudByKey.keys(), ...libraryByKey.keys(), ...customByKey.keys()]));
 
   return keys
     .map((key) =>
@@ -318,6 +359,7 @@ export async function loadMcpStoreCatalog(input: {
         key,
         cloud: cloudByKey.get(key) || null,
         library: libraryByKey.get(key) || null,
+        custom: customByKey.get(key) || null,
       }),
     )
     .sort(compareMcpStoreItems);
@@ -407,4 +449,44 @@ export async function removeMcpFromLibrary(input: {
     throw new Error('AUTH_REQUIRED');
   }
   return input.client.removeMcpFromLibrary(input.accessToken, input.mcpKey);
+}
+
+export async function saveCustomMcp(input: {
+  client: IClawClient;
+  accessToken: string | null;
+  mcpKey: string;
+  name: string;
+  description?: string;
+  transport: 'stdio' | 'http' | 'sse';
+  config?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  setupValues?: Record<string, unknown>;
+  secretValues?: Record<string, string>;
+}): Promise<UserCustomMcpData> {
+  if (!input.accessToken) {
+    throw new Error('AUTH_REQUIRED');
+  }
+  return input.client.upsertCustomMcp({
+    token: input.accessToken,
+    appName: BRAND.brandId,
+    mcpKey: input.mcpKey,
+    name: input.name,
+    description: input.description,
+    transport: input.transport,
+    config: input.config,
+    metadata: input.metadata,
+    setupValues: input.setupValues,
+    secretValues: input.secretValues,
+  });
+}
+
+export async function removeCustomMcp(input: {
+  client: IClawClient;
+  accessToken: string | null;
+  mcpKey: string;
+}): Promise<{removed: boolean}> {
+  if (!input.accessToken) {
+    throw new Error('AUTH_REQUIRED');
+  }
+  return input.client.removeCustomMcp(input.accessToken, BRAND.brandId, input.mcpKey);
 }

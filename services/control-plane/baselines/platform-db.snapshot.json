@@ -1314,7 +1314,7 @@
         },
         {
           "config": {
-            "display_name": "数据连接",
+            "display_name": "财经MCP",
             "group_label": "通用"
           },
           "enabled": true,
