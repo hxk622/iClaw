@@ -4,20 +4,16 @@ import {
   CheckCircle2,
   GitMerge,
   PencilLine,
-  Tag,
   Trash2,
   X,
-  Star,
 } from 'lucide-react';
 
 import { cn } from '@/app/lib/cn';
-import type { MemoryEditDraft, MemoryEntry, MemoryImportance, MemoryStatus, MemoryType, MemoryDomain } from './model';
+import type { MemoryEditDraft, MemoryEntry, MemoryStatus, MemoryType, MemoryDomain } from './model';
 import {
   DOMAIN_OPTIONS,
   TYPE_OPTIONS,
-  IMPORTANCE_OPTIONS,
   getDomainBadgeClass,
-  getImportanceBadgeClass,
   getIndexHealthClass,
   getStatusBadgeClass,
   getTypeBadgeClass,
@@ -31,14 +27,10 @@ export function MemoryDetailDrawer({
   relatedEntries,
   editing,
   draft,
-  tagInput,
-  setTagInput,
   onDraftChange,
   onStartEdit,
   onSaveEdit,
   onCancelEdit,
-  onAddTag,
-  onRemoveDraftTag,
   onMarkConfirmed,
   onMerge,
   onForget,
@@ -52,14 +44,10 @@ export function MemoryDetailDrawer({
   relatedEntries: MemoryEntry[];
   editing: boolean;
   draft: MemoryEditDraft | null;
-  tagInput: string;
-  setTagInput: (value: string) => void;
   onDraftChange: Dispatch<SetStateAction<MemoryEditDraft | null>>;
   onStartEdit: () => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
-  onAddTag: () => void;
-  onRemoveDraftTag: (tag: string) => void;
   onMarkConfirmed: () => void;
   onMerge: () => void;
   onForget: () => void;
@@ -165,66 +153,14 @@ export function MemoryDetailDrawer({
                   {view.tags.map((tag) => (
                     <Badge key={tag} className="border-none bg-[#ECE7DE] text-[#6B655D] dark:bg-[rgba(214,190,151,0.12)] dark:text-[#D8CEBF]">
                       {tag}
-                      {editing ? (
-                        <button
-                          type="button"
-                          onClick={() => onRemoveDraftTag(tag)}
-                          className="ml-1 cursor-pointer text-[#9A9288] dark:text-[#9C9388]"
-                        >
-                          ×
-                        </button>
-                      ) : null}
                     </Badge>
                   ))}
                 </div>
-
                 {editing ? (
-                  <div className="mt-4 flex gap-2">
-                    <input
-                      value={tagInput}
-                      onChange={(event) => setTagInput(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault();
-                          onAddTag();
-                        }
-                      }}
-                      placeholder="新增标签"
-                      className="flex-1 rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[#F1ECE3]"
-                    />
-                    <Button
-                      onClick={onAddTag}
-                      variant="secondary"
-                      size="sm"
-                      className="rounded-lg px-4 py-2 text-[13px]"
-                    >
-                      添加
-                    </Button>
+                  <div className="mt-3 rounded-lg border border-dashed border-[#DED7CC] px-3.5 py-3 text-[12px] leading-6 text-[#6B655D] dark:border-[rgba(255,255,255,0.1)] dark:text-[#B7AEA2]">
+                    标签会在保存时根据标题和正文自动重新生成。
                   </div>
                 ) : null}
-              </DrawerBlock>
-
-              <DrawerBlock label="重要性">
-                {editing && draft ? (
-                  <SelectField
-                    label="重要性"
-                    value={draft.importance}
-                    options={IMPORTANCE_OPTIONS}
-                    onChange={(value) =>
-                      onDraftChange((current) =>
-                        current ? { ...current, importance: value as MemoryImportance } : current,
-                      )
-                    }
-                  />
-                ) : (
-                  <div className="flex items-center gap-2">
-                    {view.importance === '高' ? (
-                      <Star size={13} fill="#A88C5D" stroke="#A88C5D" strokeWidth={1.5} className="dark:fill-[#DDBE82] dark:stroke-[#DDBE82]" />
-                    ) : null}
-                    <span className="text-[13px] text-[#1A1A18] dark:text-[#F1ECE3]">{view.importance}</span>
-                    <Badge className={getImportanceBadgeClass(view.importance)}>{view.importance}重要性</Badge>
-                  </div>
-                )}
               </DrawerBlock>
 
               <DrawerBlock label="来源与状态">
@@ -356,26 +292,16 @@ export function MemoryDetailDrawer({
                   >
                     编辑
                   </Button>
-                  <div className="flex gap-2.5">
-                    <Button
-                      onClick={onStartEdit}
-                      disabled={busy}
-                      variant="secondary"
-                      className="flex-1 rounded-lg px-3 py-2.5 text-[13px]"
-                      leadingIcon={<Tag size={14} strokeWidth={1.5} />}
-                    >
-                      重打标签
-                    </Button>
-                    <Button
-                      onClick={onMerge}
-                      disabled={busy || relatedEntries.length === 0}
-                      variant="secondary"
-                      className="flex-1 rounded-lg px-3 py-2.5 text-[13px]"
-                      leadingIcon={<GitMerge size={14} strokeWidth={1.5} />}
-                    >
-                      合并
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={onMerge}
+                    disabled={busy || relatedEntries.length === 0}
+                    variant="secondary"
+                    block
+                    className="rounded-lg px-3 py-2.5 text-[13px]"
+                    leadingIcon={<GitMerge size={14} strokeWidth={1.5} />}
+                  >
+                    合并
+                  </Button>
                   <div className="flex gap-2.5">
                     <Button
                       onClick={onForget}

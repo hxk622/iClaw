@@ -29,12 +29,6 @@ const SEARCH_REASON_LABELS = {
   category: '分类',
 } as const;
 
-const IMPORTANCE_RANK: Record<string, number> = {
-  高: 3,
-  中: 2,
-  低: 1,
-};
-
 function normalizeSearchText(value: string) {
   return value.toLocaleLowerCase('zh-CN').replace(/\s+/g, ' ').trim();
 }
@@ -85,11 +79,6 @@ function compareEntries(left: SearchableMemoryEntry, right: SearchableMemoryEntr
   const timeDelta = parseTimestamp(right.updatedAt) - parseTimestamp(left.updatedAt);
   if (timeDelta !== 0) {
     return timeDelta;
-  }
-
-  const importanceDelta = (IMPORTANCE_RANK[right.importance] ?? 0) - (IMPORTANCE_RANK[left.importance] ?? 0);
-  if (importanceDelta !== 0) {
-    return importanceDelta;
   }
 
   const recallDelta = (right.recallCount ?? 0) - (left.recallCount ?? 0);

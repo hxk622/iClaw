@@ -6,7 +6,6 @@ import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import type { MemoryArrayFilterKey, MemoryFilters } from './model';
 import {
   DOMAIN_OPTIONS,
-  IMPORTANCE_OPTIONS,
   RECALL_OPTIONS,
   SOURCE_OPTIONS,
   TIME_RANGE_OPTIONS,
@@ -29,7 +28,7 @@ export function MemoryFilterBar({
   hasActiveFilters: boolean;
   onSearchChange: (value: string) => void;
   onToggleFilter: <K extends MemoryArrayFilterKey>(key: K, value: MemoryFilters[K][number]) => void;
-  onToggleBoolean: (key: 'onlyAutoCaptured' | 'onlyHighImportance') => void;
+  onToggleBoolean: (key: 'onlyAutoCaptured') => void;
   onClear: () => void;
 }) {
   return (
@@ -49,9 +48,6 @@ export function MemoryFilterBar({
           <div className="flex flex-wrap items-center gap-2">
             <FilterChip active={filters.onlyAutoCaptured} onClick={() => onToggleBoolean('onlyAutoCaptured')}>
               仅自动捕获
-            </FilterChip>
-            <FilterChip active={filters.onlyHighImportance} onClick={() => onToggleBoolean('onlyHighImportance')}>
-              仅高重要性
             </FilterChip>
             {hasActiveFilters ? (
               <FilterPill onClick={onClear} className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px]">
@@ -81,18 +77,6 @@ export function MemoryFilterBar({
                 {TYPE_OPTIONS.map((type) => (
                   <FilterChip key={type} active={filters.types.includes(type)} onClick={() => onToggleFilter('types', type)}>
                     {type}
-                  </FilterChip>
-                ))}
-              </InlineFilterGroup>
-
-              <InlineFilterGroup label="重要性">
-                {IMPORTANCE_OPTIONS.map((importance) => (
-                  <FilterChip
-                    key={importance}
-                    active={filters.importance.includes(importance)}
-                    onClick={() => onToggleFilter('importance', importance)}
-                  >
-                    {importance}
                   </FilterChip>
                 ))}
               </InlineFilterGroup>
