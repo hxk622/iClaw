@@ -89,6 +89,8 @@ import {
   findChatConversationBySessionKey,
   linkSessionToConversation,
   readChatConversation,
+  syncChatConversationMetadata,
+  type ChatConversationRestoreContext,
   type ChatConversationKind,
 } from './lib/chat-conversations';
 import { deriveConversationHandoffSummary, readStoredChatSnapshot } from './lib/chat-history';
@@ -541,6 +543,12 @@ function buildConversationBackedChatRoute(params: {
   initialStockContext?: ComposerStockContext | null;
 }): ActiveChatRoute {
   const route = buildActiveChatRoute(params);
+  const restoreContext: Partial<ChatConversationRestoreContext> = {
+    initialAgentSlug: route.initialAgentSlug,
+    initialSkillSlug: route.initialSkillSlug,
+    initialSkillOption: route.initialSkillOption,
+    initialStockContext: route.initialStockContext,
+  };
   if (route.conversationId && readChatConversation(route.conversationId)) {
     return route;
   }
@@ -558,6 +566,7 @@ function buildConversationBackedChatRoute(params: {
     sessionKey: route.sessionKey,
     kind: params.kind ?? 'general',
     title: params.title ?? null,
+    restoreContext,
   });
 
   return {
@@ -2373,7 +2382,12 @@ function AuthedView({
   const showWelcomeBackground =
     !authenticated &&
     authBootstrapReady &&
-    Boolean(welcomePageConfig) &&
+    welcomePageConfig?.enabled !== false;
+  const showChatWelcomeBeforeAuthBootstrap =
+    resolvedPrimaryView === 'chat' &&
+    !showStartupGate &&
+    !authenticated &&
+    !accessToken &&
     welcomePageConfig?.enabled !== false;
   const targetChatSurfaceKey = buildChatSurfaceCacheKey(activeChatRoute);
   const mountedMenuSurfaceKeys = getMountedSurfaceKeys('menu');
@@ -2605,6 +2619,29 @@ function AuthedView({
   useEffect(() => {
     writePersistedActiveChatRoute(activeChatRoute);
   }, [activeChatRoute]);
+
+  useEffect(() => {
+    if (!activeChatRoute.conversationId) {
+      return;
+    }
+    syncChatConversationMetadata({
+      conversationId: activeChatRoute.conversationId,
+      sessionKey: activeChatRoute.sessionKey,
+      restoreContext: {
+        initialAgentSlug: activeChatRoute.initialAgentSlug,
+        initialSkillSlug: activeChatRoute.initialSkillSlug,
+        initialSkillOption: activeChatRoute.initialSkillOption,
+        initialStockContext: activeChatRoute.initialStockContext,
+      },
+    });
+  }, [
+    activeChatRoute.conversationId,
+    activeChatRoute.initialAgentSlug,
+    activeChatRoute.initialSkillOption,
+    activeChatRoute.initialSkillSlug,
+    activeChatRoute.initialStockContext,
+    activeChatRoute.sessionKey,
+  ]);
 
   useEffect(() => {
     if (!isGeneralChatSessionKey(activeChatRoute.sessionKey)) {
@@ -3029,10 +3066,10 @@ function AuthedView({
       initialPromptKey: null,
       focusedTurnId: null,
       focusedTurnKey: null,
-      initialAgentSlug: conversation.activeAgentId ?? null,
-      initialSkillSlug: null,
-      initialSkillOption: null,
-      initialStockContext: null,
+      initialAgentSlug: conversation.restoreContext.initialAgentSlug ?? conversation.activeAgentId ?? null,
+      initialSkillSlug: conversation.restoreContext.initialSkillSlug,
+      initialSkillOption: conversation.restoreContext.initialSkillOption,
+      initialStockContext: conversation.restoreContext.initialStockContext,
     }));
   }, [openChatRoute]);
 
@@ -3522,7 +3559,12 @@ function AuthedView({
               {renderMenuSurface(viewKey)}
             </div>
           ))}
-          {resolvedPrimaryView === 'chat' && !showStartupGate && !authBootstrapReady ? (
+          {showChatWelcomeBeforeAuthBootstrap ? (
+            <div className={buildSurfaceLayerClassName(true)}>
+              <WelcomeBackgroundView welcomePageConfig={welcomePageConfig} onRequestAuth={onRequestAuth} />
+            </div>
+          ) : null}
+          {resolvedPrimaryView === 'chat' && !showStartupGate && !authBootstrapReady && !showChatWelcomeBeforeAuthBootstrap ? (
             <div className={buildSurfaceLayerClassName(true)}>
               <AuthBootstrapPlaceholderView
                 eyebrow="Chat Shell"

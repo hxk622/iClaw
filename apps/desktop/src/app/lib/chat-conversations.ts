@@ -20,6 +20,31 @@ export type ChatConversationKind =
   | 'stock-research'
   | 'fund-research';
 
+export type ChatConversationSkillOption = {
+  slug: string;
+  name: string;
+  market: string;
+  skillType: string;
+  categoryLabel: string;
+};
+
+export type ChatConversationStockContext = {
+  id: string;
+  symbol: string;
+  companyName: string;
+  exchange: 'sh' | 'sz' | 'bj' | 'otc';
+  board: string | null;
+  instrumentKind?: 'stock' | 'fund' | 'etf' | 'qdii';
+  instrumentLabel?: string | null;
+};
+
+export type ChatConversationRestoreContext = {
+  initialAgentSlug: string | null;
+  initialSkillSlug: string | null;
+  initialSkillOption: ChatConversationSkillOption | null;
+  initialStockContext: ChatConversationStockContext | null;
+};
+
 export type ChatConversationHandoffRecord = {
   id: string;
   fromAgentId: string | null;
@@ -42,6 +67,7 @@ export type ChatConversationRecord = {
   createdAt: string;
   updatedAt: string;
   handoffs: ChatConversationHandoffRecord[];
+  restoreContext: ChatConversationRestoreContext;
 };
 
 type EnsureConversationInput = {
@@ -50,6 +76,7 @@ type EnsureConversationInput = {
   kind?: ChatConversationKind;
   title?: string | null;
   summary?: string | null;
+  restoreContext?: Partial<ChatConversationRestoreContext> | null;
 };
 
 type SyncConversationMetadataInput = {
@@ -58,6 +85,7 @@ type SyncConversationMetadataInput = {
   kind?: ChatConversationKind;
   title?: string | null;
   summary?: string | null;
+  restoreContext?: Partial<ChatConversationRestoreContext> | null;
 };
 
 type LinkConversationSessionInput = {
@@ -118,6 +146,88 @@ function normalizeKind(value: unknown): ChatConversationKind {
     value === 'fund-research'
     ? value
     : 'general';
+}
+
+function normalizeInstrumentKind(value: unknown): ChatConversationStockContext['instrumentKind'] {
+  return value === 'stock' || value === 'fund' || value === 'etf' || value === 'qdii'
+    ? value
+    : undefined;
+}
+
+function normalizeExchange(value: unknown): ChatConversationStockContext['exchange'] | null {
+  return value === 'sh' || value === 'sz' || value === 'bj' || value === 'otc' ? value : null;
+}
+
+function normalizeSkillOption(value: unknown): ChatConversationSkillOption | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const slug = normalizeText(raw.slug);
+  const name = normalizeText(raw.name);
+  const market = normalizeText(raw.market);
+  const skillType = normalizeText(raw.skillType);
+  const categoryLabel = normalizeText(raw.categoryLabel);
+  if (!slug || !name || !market || !skillType || !categoryLabel) {
+    return null;
+  }
+  return {
+    slug,
+    name,
+    market,
+    skillType,
+    categoryLabel,
+  };
+}
+
+function normalizeStockContext(value: unknown): ChatConversationStockContext | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const id = normalizeText(raw.id);
+  const symbol = normalizeText(raw.symbol);
+  const companyName = normalizeText(raw.companyName);
+  const exchange = normalizeExchange(raw.exchange);
+  if (!id || !symbol || !companyName || !exchange) {
+    return null;
+  }
+  return {
+    id,
+    symbol,
+    companyName,
+    exchange,
+    board: normalizeText(raw.board),
+    instrumentKind: normalizeInstrumentKind(raw.instrumentKind),
+    instrumentLabel: normalizeText(raw.instrumentLabel),
+  };
+}
+
+function normalizeRestoreContext(value: unknown): ChatConversationRestoreContext {
+  const raw = value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+  return {
+    initialAgentSlug: normalizeText(raw.initialAgentSlug),
+    initialSkillSlug: normalizeText(raw.initialSkillSlug),
+    initialSkillOption: normalizeSkillOption(raw.initialSkillOption),
+    initialStockContext: normalizeStockContext(raw.initialStockContext),
+  };
+}
+
+function mergeRestoreContext(
+  current: ChatConversationRestoreContext,
+  next: Partial<ChatConversationRestoreContext> | null | undefined,
+): ChatConversationRestoreContext {
+  if (!next) {
+    return current;
+  }
+  return {
+    initialAgentSlug: next.initialAgentSlug ?? current.initialAgentSlug,
+    initialSkillSlug: next.initialSkillSlug ?? current.initialSkillSlug,
+    initialSkillOption: next.initialSkillOption ?? current.initialSkillOption,
+    initialStockContext: next.initialStockContext ?? current.initialStockContext,
+  };
 }
 
 function isSeededTestValue(value: string | null | undefined): boolean {
@@ -208,6 +318,7 @@ function normalizeConversationRecord(value: unknown): ChatConversationRecord | n
     createdAt: normalizeText(raw.createdAt) || new Date().toISOString(),
     updatedAt: normalizeText(raw.updatedAt) || normalizeText(raw.createdAt) || new Date().toISOString(),
     handoffs,
+    restoreContext: normalizeRestoreContext(raw.restoreContext),
   };
 }
 
@@ -469,6 +580,7 @@ function repairConversationList(records: ChatConversationRecord[]): ChatConversa
       activeAgentId: record.activeAgentId,
       activeSessionKey: nextActiveSessionKey,
       sessionKeys: nextSessionKeys,
+      restoreContext: record.restoreContext,
       updatedAt: nextUpdatedAt,
     };
   });
@@ -507,6 +619,7 @@ function repairConversationList(records: ChatConversationRecord[]): ChatConversa
       createdAt: latestTurn?.createdAt || snapshotMetadata?.createdAt || new Date().toISOString(),
       updatedAt: latestTurn?.updatedAt || snapshotMetadata?.updatedAt || new Date().toISOString(),
       handoffs: [],
+      restoreContext: normalizeRestoreContext(null),
     });
   });
 
@@ -617,6 +730,7 @@ export function ensureChatConversation(input: EnsureConversationInput): ChatConv
       const updatedRecord: ChatConversationRecord = {
         ...mutation.record,
         kind: matched.kind,
+        restoreContext: mergeRestoreContext(matched.restoreContext, input.restoreContext),
       };
       resolvedConversationId = updatedRecord.id;
       if (mutation.activityChanged) {
@@ -636,6 +750,7 @@ export function ensureChatConversation(input: EnsureConversationInput): ChatConv
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       handoffs: [],
+      restoreContext: mergeRestoreContext(normalizeRestoreContext(null), input.restoreContext),
     };
     resolvedConversationId = createdRecord.id;
     return [createdRecord, ...current];
@@ -686,6 +801,7 @@ export function linkSessionToConversation(input: LinkConversationSessionInput): 
         activeSessionKey: toSessionKey,
         sessionKeys: dedupeSessionKeys(record.sessionKeys, toSessionKey),
         handoffs: nextHandoffs,
+        restoreContext: record.restoreContext,
         updatedAt: record.updatedAt,
       };
     }),
@@ -728,6 +844,7 @@ export function syncChatConversationMetadata(input: SyncConversationMetadataInpu
         createdAt,
         updatedAt: createdAt,
         handoffs: [],
+        restoreContext: mergeRestoreContext(normalizeRestoreContext(null), input.restoreContext),
       };
       resolvedConversationId = createdRecord.id;
       return [createdRecord, ...current];
@@ -752,6 +869,7 @@ export function syncChatConversationMetadata(input: SyncConversationMetadataInpu
     }
 
     const updatedRecord: ChatConversationRecord = mutation.record;
+    updatedRecord.restoreContext = mergeRestoreContext(matched.restoreContext, input.restoreContext);
 
     if (mutation.activityChanged) {
       return [updatedRecord, ...current.filter((record) => record.id !== matched.id)];

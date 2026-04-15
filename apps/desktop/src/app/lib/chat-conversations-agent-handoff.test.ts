@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   ensureChatConversation,
   readChatConversation,
+  syncChatConversationMetadata,
   syncChatConversationActiveAgent,
 } from './chat-conversations.ts';
 
@@ -124,4 +125,55 @@ test('conversation tracks active agent handoffs within one thread', () => {
   const persisted = readChatConversation(created.id);
   assert.equal(persisted?.activeAgentId, null);
   assert.equal(persisted?.handoffs.length, 3);
+});
+
+test('conversation persists restore context for card-entry flows', () => {
+  installWindowStoragePolyfill();
+
+  const created = ensureChatConversation({
+    conversationId: 'conv-stock-research',
+    sessionKey: 'agent:stock-600001:main',
+    kind: 'stock-research',
+    title: '智能股份 600001',
+    restoreContext: {
+      initialAgentSlug: null,
+      initialSkillSlug: 'equity-research',
+      initialSkillOption: {
+        slug: 'equity-research',
+        name: '股票研究',
+        market: 'A股',
+        skillType: 'analysis',
+        categoryLabel: '研究',
+      },
+      initialStockContext: {
+        id: 'stock-600001',
+        symbol: '600001',
+        companyName: '智能股份',
+        exchange: 'sh',
+        board: '主板',
+        instrumentKind: 'stock',
+        instrumentLabel: 'A股',
+      },
+    },
+  });
+
+  assert.equal(created.restoreContext.initialSkillSlug, 'equity-research');
+  assert.equal(created.restoreContext.initialStockContext?.symbol, '600001');
+
+  const synced = syncChatConversationMetadata({
+    conversationId: created.id,
+    sessionKey: created.activeSessionKey,
+    restoreContext: {
+      initialAgentSlug: 'agency-stock-specialist',
+    },
+  });
+
+  assert.equal(synced?.restoreContext.initialAgentSlug, 'agency-stock-specialist');
+  assert.equal(synced?.restoreContext.initialSkillSlug, 'equity-research');
+  assert.equal(synced?.restoreContext.initialStockContext?.companyName, '智能股份');
+
+  const persisted = readChatConversation(created.id);
+  assert.equal(persisted?.restoreContext.initialAgentSlug, 'agency-stock-specialist');
+  assert.equal(persisted?.restoreContext.initialSkillSlug, 'equity-research');
+  assert.equal(persisted?.restoreContext.initialStockContext?.symbol, '600001');
 });

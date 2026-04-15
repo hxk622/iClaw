@@ -55,7 +55,7 @@ async function copyToSnapshot(srcPath, destPath, type) {
   await fs.mkdir(path.dirname(destPath), {recursive: true});
   await fs.rm(destPath, {recursive: true, force: true, maxRetries: 5, retryDelay: 100});
   if (type === 'dir') {
-    await fs.cp(srcPath, destPath, {recursive: true});
+    await fs.cp(srcPath, destPath, {recursive: true, force: true});
     return;
   }
   await fs.copyFile(srcPath, destPath);
