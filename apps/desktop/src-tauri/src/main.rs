@@ -62,6 +62,8 @@ const AUTH_REFRESH_KEY: &str = "refresh_token";
 const AUTH_GATEWAY_TOKEN_KEY: &str = "gateway_token";
 const SHARED_GATEWAY_TOKEN_DIR: &str = ".openclaw";
 const SHARED_GATEWAY_TOKEN_FILE: &str = "gateway-token";
+const DESKTOP_GATEWAY_ALLOWED_ORIGINS: &str =
+    "http://127.0.0.1:1520,http://localhost:1520,tauri://localhost,http://tauri.localhost,https://tauri.localhost";
 const DESKTOP_UPDATER_PUBLIC_KEY: Option<&str> = option_env!("TAURI_UPDATER_PUBLIC_KEY");
 const MEMORY_RUNTIME_STATUS_TIMEOUT_MS: u64 = 2500;
 #[cfg(windows)]
@@ -5878,10 +5880,7 @@ fn generate_openclaw_runtime_config(
     command.env("ICLAW_OPENCLAW_GATEWAY_TOKEN", gateway_token);
     command.env("ICLAW_OPENCLAW_WORKSPACE_DIR", workspace_dir);
     command.env("ICLAW_OPENCLAW_RUNTIME_MODE", "prod");
-    command.env(
-        "ICLAW_OPENCLAW_ALLOWED_ORIGINS",
-        "tauri://localhost,http://tauri.localhost,https://tauri.localhost",
-    );
+    command.env("ICLAW_OPENCLAW_ALLOWED_ORIGINS", DESKTOP_GATEWAY_ALLOWED_ORIGINS);
     command.env("ICLAW_DESKTOP_BRAND_ID", DESKTOP_BRAND_ID);
     command.env("ICLAW_DESKTOP_BUILD_ID", DESKTOP_BUILD_ID);
     command.env("ICLAW_DESKTOP_SOURCE_PROFILE_HASH", DESKTOP_SOURCE_PROFILE_HASH);
@@ -8036,7 +8035,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_memory_cli_json_output, persisted_sidecar_state_matches, PersistedSidecarState,
+        parse_memory_cli_json_output, persisted_sidecar_state_matches,
+        PersistedSidecarState, DESKTOP_GATEWAY_ALLOWED_ORIGINS,
     };
 
     #[test]
@@ -8131,5 +8131,15 @@ mod tests {
         let mut expected_hash = sample_sidecar_state();
         expected_hash.runtime_config_sha256 = String::from("def456");
         assert!(!persisted_sidecar_state_matches(&existing, &expected_hash));
+    }
+
+    #[test]
+    fn desktop_gateway_allowed_origins_cover_web_and_tauri_shells() {
+        let origins: Vec<&str> = DESKTOP_GATEWAY_ALLOWED_ORIGINS.split(',').collect();
+        assert!(origins.contains(&"http://127.0.0.1:1520"));
+        assert!(origins.contains(&"http://localhost:1520"));
+        assert!(origins.contains(&"tauri://localhost"));
+        assert!(origins.contains(&"http://tauri.localhost"));
+        assert!(origins.contains(&"https://tauri.localhost"));
     }
 }

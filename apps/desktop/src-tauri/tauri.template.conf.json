@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "node ../../scripts/sync-openclaw-resources.mjs && pnpm dev --host 0.0.0.0 --port 1520",
     "beforeBuildCommand": "node ../../scripts/sync-openclaw-resources.mjs && pnpm build",
-    "devUrl": "http://localhost:1520",
+    "devUrl": "http://127.0.0.1:1520",
     "frontendDist": "../dist"
   },
   "app": {
