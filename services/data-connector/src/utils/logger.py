@@ -1,7 +1,6 @@
 import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
-from pythonjsonlogger import jsonlogger
 from datetime import datetime
 from typing import Optional
 
@@ -9,7 +8,7 @@ from src.config import settings
 
 
 def setup_logger(name: Optional[str] = None) -> logging.Logger:
-    """Set up structured JSON logger with file and console output."""
+    """Set up simple logger with file and console output."""
     logger = logging.getLogger(name or "data-connector")
     logger.setLevel(settings.LOG_LEVEL.upper())
 
@@ -20,20 +19,9 @@ def setup_logger(name: Optional[str] = None) -> logging.Logger:
     # Create log directory if it doesn't exist
     os.makedirs(settings.LOG_DIR, exist_ok=True)
 
-    # Log format
-    log_format = {
-        "timestamp": "%(asctime)s",
-        "level": "%(levelname)s",
-        "module": "%(module)s",
-        "function": "%(funcName)s",
-        "line": "%(lineno)d",
-        "message": "%(message)s",
-    }
-
-    # JSON formatter
-    formatter = jsonlogger.JsonFormatter(
+    # Simple text formatter
+    formatter = logging.Formatter(
         fmt="%(asctime)s %(levelname)s %(module)s %(funcName)s %(lineno)d %(message)s",
-        rename_fields={"levelname": "level", "asctime": "timestamp"},
         datefmt="%Y-%m-%dT%H:%M:%SZ",
     )
 

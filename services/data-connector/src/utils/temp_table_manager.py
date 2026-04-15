@@ -11,11 +11,20 @@ class TempTableManager:
     """临时表管理器，实现原子写入功能"""
 
     def __init__(self, db: Optional[AsyncSession] = None):
-        self.db = db or next(get_db())
+        self.db = db
         self.temp_table_suffix = "_temp"
+
+    async def _get_db(self) -> AsyncSession:
+        """异步获取数据库会话"""
+        if not self.db:
+            async for session in get_db():
+                self.db = session
+                break
+        return self.db
 
     async def _create_temp_table(self, base_table_name: str, temp_table_name: str) -> None:
         """创建临时表，结构与基础表一致"""
+        await self._get_db()
         try:
             # 检查基础表是否存在
             check_table_sql = f"""
@@ -74,7 +83,7 @@ class TempTableManager:
             async with self.db.begin():
                 # 重命名原表为备份
                 backup_table_name = f"{base_table_name}_backup"
-                await self.db.execute(text(f"DROP TABLE IF EXISTS {backup_table_name}"))
+                await self.db.execute(text(f"DROP TABLE IF EXISTS {backup_table_name} CASCADE"))
                 await self.db.execute(text(f"ALTER TABLE {base_table_name} RENAME TO {backup_table_name}"))
 
                 # 重命名临时表为正式表

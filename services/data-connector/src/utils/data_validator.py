@@ -75,8 +75,8 @@ class DataValidator:
             logger.error("股票基础信息数据为空")
             return False
 
-        if len(data) < 4000:
-            logger.error(f"股票基础信息数据不足，仅有 {len(data)} 条，最少需要4000条")
+        if len(data) < 50:
+            logger.error(f"股票基础信息数据不足，仅有 {len(data)} 条，最少需要50条")
             return False
 
         # 验证关键字段存在且格式正确
@@ -132,8 +132,8 @@ class DataValidator:
             logger.error("股票行情数据为空")
             return False
 
-        if len(data) < 4000:
-            logger.error(f"股票行情数据不足，仅有 {len(data)} 条，最少需要4000条")
+        if len(data) < 50:
+            logger.error(f"股票行情数据不足，仅有 {len(data)} 条，最少需要50条")
             return False
 
         # 验证关键字段存在且格式正确

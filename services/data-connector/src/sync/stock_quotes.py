@@ -3,6 +3,7 @@ from src.providers.provider_scheduler import schedule_stock_quotes
 from src.utils.data_validator import DataValidator
 from src.utils.temp_table_manager import TempTableManager
 from src.utils.logger import logger
+from src.db.session import get_db
 
 
 async def sync_stock_quotes(dry_run: bool = False) -> Optional[List[Dict[str, Any]]]:
@@ -30,8 +31,10 @@ async def sync_stock_quotes(dry_run: bool = False) -> Optional[List[Dict[str, An
 
         # 3. 写入数据库（非 dry_run 模式）
         if not dry_run:
-            temp_table_manager = TempTableManager()
-            await temp_table_manager.atomic_write('stock_quotes', data)
+            async for db in get_db():
+                temp_table_manager = TempTableManager(db=db)
+                await temp_table_manager.atomic_write('stock_quotes', data)
+                break
             logger.info(f"股票行情数据同步完成，数据源: {source}，共 {len(data)} 条记录")
         else:
             logger.info(f"Dry run 模式，股票行情数据拉取成功，数据源: {source}，共 {len(data)} 条记录")

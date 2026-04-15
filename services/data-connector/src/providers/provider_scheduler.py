@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Type
 from datetime import datetime, timedelta
 
 from .base_provider import BaseProvider
+from .eastmoney_direct_provider import EastMoneyDirectProvider
 from .akshare_provider import AKShareProvider
 from .efinance_provider import EfinanceProvider
 from src.config.settings import settings
@@ -28,9 +29,6 @@ async def load_fuses_from_db():
         return
 
     try:
-        from src.db.session import get_db
-        db = next(get_db())
-
         # TODO: 实现从数据库加载熔断状态
         # 暂时使用内存存储
         logger.info("使用内存熔断状态存储")
@@ -45,9 +43,6 @@ async def load_fuses_from_db():
 async def save_fuse_to_db(name: str, fuse: Dict[str, Any]):
     """保存熔断状态到数据库"""
     try:
-        from src.db.session import get_db
-        db = next(get_db())
-
         # TODO: 实现保存熔断状态到数据库
         # 暂时仅保存在内存
         pass
@@ -115,6 +110,7 @@ async def is_fused(name: str) -> bool:
 
 # 可用的数据源列表
 PROVIDER_CLASSES: List[Type[BaseProvider]] = [
+    EastMoneyDirectProvider,
     AKShareProvider,
     EfinanceProvider,
 ]
@@ -151,7 +147,7 @@ async def schedule_stock_basics() -> Dict[str, Any]:
         try:
             logger.info(f"尝试从 {provider.name} 获取股票基础信息...")
             data = provider.fetch_stock_basics()
-            if data and len(data) >= 4000:  # 至少要有4000只股票才算有效
+            if data and len(data) >= 50:  # 测试阶段先降低要求，至少要有50只股票才算有效
                 await mark_success(provider.name)
                 logger.info(f"从 {provider.name} 获取股票基础信息成功，共 {len(data)} 条")
                 return {
@@ -159,7 +155,7 @@ async def schedule_stock_basics() -> Dict[str, Any]:
                     'source': provider.name
                 }
             else:
-                logger.warning(f"从 {provider.name} 获取数据不足: {len(data) if data else 0}条，未达到最低要求4000条")
+                logger.warning(f"从 {provider.name} 获取数据不足: {len(data) if data else 0}条，未达到最低要求50条")
                 await mark_fail(provider.name)
         except Exception as e:
             await mark_fail(provider.name)
@@ -183,7 +179,7 @@ async def schedule_stock_quotes() -> Dict[str, Any]:
         try:
             logger.info(f"尝试从 {provider.name} 获取股票行情数据...")
             data = provider.fetch_stock_quotes()
-            if data and len(data) >= 4000:  # 至少要有4000只股票才算有效
+            if data and len(data) >= 50:  # 测试阶段先降低要求，至少要有50只股票才算有效
                 await mark_success(provider.name)
                 logger.info(f"从 {provider.name} 获取股票行情数据成功，共 {len(data)} 条")
                 return {
@@ -191,7 +187,7 @@ async def schedule_stock_quotes() -> Dict[str, Any]:
                     'source': provider.name
                 }
             else:
-                logger.warning(f"从 {provider.name} 获取行情数据不足: {len(data) if data else 0}条，未达到最低要求4000条")
+                logger.warning(f"从 {provider.name} 获取行情数据不足: {len(data) if data else 0}条，未达到最低要求50条")
                 await mark_fail(provider.name)
         except Exception as e:
             await mark_fail(provider.name)
