@@ -7,7 +7,6 @@ import {fileURLToPath} from 'node:url';
 
 import { downloadAvatar } from './avatar-storage.ts';
 import {downloadPrivateSkillArtifact} from './skill-storage.ts';
-import { startSyncTasks } from './sync-tasks/index.ts';
 import {getCloudSkillArtifactObjectKey} from './cloud-skill-artifacts.ts';
 import {downloadPortalSkillArtifact} from './portal-skill-storage.ts';
 import {
@@ -2313,6 +2312,4 @@ server.listen(config.port, config.listenHost, () => {
       process.exit(1);
     });
   });
-  // 启动行情数据同步定时任务
-  startSyncTasks();
 });
