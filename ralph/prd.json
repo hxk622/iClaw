@@ -1,17 +1,16 @@
 {
-  "project": "iClaw IM Bots Real China Channels",
-  "branchName": "ralph/im-bots-real-china-channels",
-  "description": "Turn the desktop IM Bots view from a static mock setup flow into a real China-channel integration surface backed by packaged OpenClaw plugins, persistent bot records, actual channel config mapping, and meaningful readiness checks.",
+  "project": "iClaw Chat Transport Ownership",
+  "branchName": "ralph/chat-transport-ownership",
+  "description": "Fix the chat page regression where sidecar and gateway are healthy but the main chat surface stays disconnected by moving transport ownership out of ad-hoc embedded consumers into a single app-level gateway connection manager with explicit readiness states.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Package all China IM plugins and the compatible official WeChat plugin into the runtime",
-      "description": "As a release owner, I need the China IM plugin set bundled into the packaged OpenClaw runtime so that the desktop app ships with the full domestic channel surface instead of only the upstream built-ins.",
+      "title": "Add a shared desktop gateway connection manager",
+      "description": "As the desktop shell, I need one app-level gateway connection manager so that websocket connect/auth state is owned outside individual React components.",
       "acceptanceCriteria": [
-        "Packaged plugin manifests include exactly these enabled plugin ids: claw-aegis, dingtalk, feishu-china, qqbot, wecom, wecom-app, wecom-kf, wechat-mp, openclaw-weixin",
-        "Official WeChat plugin is pinned to the legacy-compatible package line for OpenClaw 2026.3.13",
-        "Generated runtime config exposes plugins.entries for the same packaged plugin ids",
-        "Desktop packaged-plugin fixtures stay in sync with the source manifest",
+        "Add a reusable gateway manager module that owns websocket connect, auth handshake, request dispatch, and reconnect state",
+        "Gateway manager exposes explicit transport state for disconnected, connecting, connected, and error",
+        "Gateway manager supports request/response calls without each consumer opening its own WebSocket",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -21,14 +20,14 @@
     },
     {
       "id": "US-002",
-      "title": "Expand the IM bot platform catalog to the full China channel set",
-      "description": "As an operator, I want the IM bot setup catalog to list every packaged China channel with correct metadata so that the UI reflects the real channel advantage surface we now ship.",
+      "title": "Move CronTaskResultSync onto the shared gateway manager",
+      "description": "As the desktop app, I want cron result sync to use the shared gateway manager so that cron background sync no longer creates its own websocket lifecycle.",
       "acceptanceCriteria": [
-        "Desktop IM bot platform catalog includes these platform ids: dingtalk, feishu-china, qqbot, wecom, wecom-app, wecom-kf, wechat-mp, openclaw-weixin",
-        "Each platform entry defines plugin id, display label, guide URL, credential field schema, intro steps, and rollout notes",
-        "Legacy placeholder-only platform ids `feishu` and `qq` are removed from the IM bot catalog",
+        "CronTaskResultSync stops constructing WebSocket directly",
+        "CronTaskResultSync fetches cron data through the shared gateway manager request API",
+        "No ad-hoc gateway connect/auth handshake logic remains inside CronTaskResultSync",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 2,
       "passes": false,
@@ -36,14 +35,14 @@
     },
     {
       "id": "US-003",
-      "title": "Show IM bots page as pure channel entry when no bots exist",
-      "description": "As a first-time user, I want the empty IM bots page to focus on channel onboarding so that I am not distracted by an empty operations layout before any robot exists.",
+      "title": "Define explicit chat transport readiness state in the shell",
+      "description": "As the desktop shell, I need to separate runtime health, gateway transport, chat session readiness, and render readiness so that the UI no longer treats them as one mixed 'connected' flag.",
       "acceptanceCriteria": [
-        "When IM bot count is 0, the page hides the `已创建的机器人` list and the right-side operations panel",
-        "When IM bot count is 0, the page still shows the platform access card area as the primary content",
-        "When IM bot count is greater than 0, the operations area becomes visible again without removing the platform access cards",
+        "Add explicit chat transport readiness state separate from runtime health and render readiness",
+        "Connection card logic reads gateway transport state instead of relying on embedded app.connected alone",
+        "Chat lifecycle helpers distinguish gateway-connected from chat-session-ready",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 3,
       "passes": false,
@@ -51,14 +50,14 @@
     },
     {
       "id": "US-004",
-      "title": "Add a persisted IM bot record store for desktop",
-      "description": "As a desktop app, I need IM bot records stored outside transient React state so that created bots survive reloads and can drive a real management surface.",
+      "title": "Wire OpenClawChatSurface to the shared gateway transport state",
+      "description": "As a user, I want the main chat surface to reflect real gateway readiness so that the chat page stops showing 'connecting' while the gateway is already healthy.",
       "acceptanceCriteria": [
-        "Define a persisted IM bot record schema that stores platform id, credential payload, assistant binding, runtime state, and timestamps",
-        "Implement desktop-side load and save helpers for IM bot records using an existing durable storage location",
-        "Loading the IM bots page initializes from the persisted store instead of a hardcoded empty in-memory list",
+        "OpenClawChatSurface consumes shared gateway transport state from the shell-level manager",
+        "Chat connection card only shows when gateway transport is genuinely unavailable or auth fails",
+        "When gateway transport is connected and chat session bootstraps successfully, the chat page enters a stable ready state",
         "Typecheck passes",
-        "Tests pass"
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
       "passes": false,
@@ -66,14 +65,14 @@
     },
     {
       "id": "US-005",
-      "title": "Make the setup wizard create and update persisted IM bot records",
-      "description": "As an operator, I want the setup wizard to create a real managed bot record so that the bot appears after reload and can be edited from the detail sheet.",
+      "title": "Remove embedded-transport assumptions from chat reconnect logic",
+      "description": "As the maintainer, I need reconnect logic to stop assuming the embedded openclaw-app owns transport truth so that reconnect behavior does not flap when the embedded surface remounts.",
       "acceptanceCriteria": [
-        "Completing the setup wizard creates or updates a persisted IM bot record for the selected platform",
-        "Reloading the desktop app preserves previously created bots and their selected platform metadata",
-        "Editing the detail sheet saves back to the same persisted IM bot record",
+        "Chat reconnect scheduling no longer treats embedded app.connected as the only transport source of truth",
+        "Embedded chat resets do not drop the shell-level gateway transport state",
+        "Transport recovery and render recovery remain distinct code paths",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 5,
       "passes": false,
@@ -81,47 +80,16 @@
     },
     {
       "id": "US-006",
-      "title": "Map persisted IM bot records into real OpenClaw channel configuration",
-      "description": "As a runtime integrator, I need each managed IM bot to emit actual OpenClaw channel config so that packaged plugins can be configured by the desktop UI instead of only showing guide text.",
+      "title": "Add regression coverage for healthy sidecar but disconnected chat UI",
+      "description": "As a release owner, I need regression coverage for the case where sidecar health is live but the chat page incorrectly stays disconnected so that this class of bug cannot silently return.",
       "acceptanceCriteria": [
-        "Saving a bot record writes or updates channel config for the corresponding packaged plugin id in the desktop runtime config source",
-        "Per-platform field mapping covers dingtalk, feishu-china, qqbot, wecom, wecom-app, wecom-kf, wechat-mp, and openclaw-weixin",
-        "OpenClaw runtime config output after save contains the expected channel section for a created bot",
+        "Add automated coverage for sidecar healthy plus gateway transport connected yielding a non-connecting chat surface state",
+        "Add automated coverage that cron background sync does not require its own direct WebSocket constructor",
         "Typecheck passes",
-        "Tests pass"
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-007",
-      "title": "Replace fake IM connection tests with channel-aware readiness diagnostics",
-      "description": "As an operator, I want the test action to diagnose the selected channel configuration and runtime prerequisites so that the setup flow tells me whether the robot is truly ready instead of only checking generic app health.",
-      "acceptanceCriteria": [
-        "Connection test validates required credentials for the selected platform before reporting success",
-        "Connection test verifies packaged plugin presence and local OpenClaw runtime availability",
-        "Test results persist a platform-specific readiness summary onto the managed bot record",
-        "WeChat official plugin path surfaces QR-login-not-completed as a distinct readiness state",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 7,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-008",
-      "title": "Support official WeChat QR-login guidance inside the IM bot setup flow",
-      "description": "As a user configuring personal WeChat, I want the wizard to explain and expose the QR login step for the official plugin so that I can complete the only platform that needs interactive account authorization.",
-      "acceptanceCriteria": [
-        "The `openclaw-weixin` setup flow clearly distinguishes QR login from static credential entry platforms",
-        "Wizard copy references the `openclaw channels login --channel openclaw-weixin` step in the correct place",
-        "The saved bot record can represent pending-login versus logged-in states for `openclaw-weixin`",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 8,
       "passes": false,
       "notes": ""
     }

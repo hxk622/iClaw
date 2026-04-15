@@ -12,6 +12,7 @@ import {
   seedCronNotificationWatermarks,
   shouldNotifyCronRun,
 } from '@/app/lib/cron-notification-watermarks';
+import { getDesktopGatewayConnectionManager } from '@/app/lib/openclaw-gateway-manager';
 
 type CronSchedule =
   | { kind: 'at'; at: string }
@@ -54,169 +55,6 @@ type CronListResult = {
 };
 
 type PersistedCronTurnMap = Record<string, ChatTurnRecord>;
-
-type GatewayResponseFrame = {
-  type: 'res';
-  id: string;
-  ok: boolean;
-  payload?: unknown;
-  error?: {
-    message?: string;
-  };
-};
-
-type GatewayEventFrame = {
-  type: 'event';
-  event: string;
-  payload?: unknown;
-};
-
-type GatewayFrame = GatewayResponseFrame | GatewayEventFrame;
-
-const GATEWAY_CONNECT_SCOPES = ['operator.read', 'operator.write', 'operator.admin'];
-
-function buildGatewayConnectParams(gatewayToken?: string, gatewayPassword?: string): Record<string, unknown> {
-  const token = gatewayToken?.trim() || undefined;
-  const password = gatewayPassword?.trim() || undefined;
-  return {
-    minProtocol: 3,
-    maxProtocol: 3,
-    client: {
-      id: 'openclaw-control-ui',
-      version: 'control-ui',
-      platform: navigator.platform || 'MacIntel',
-      mode: 'webchat',
-    },
-    caps: [],
-    ...(token || password
-      ? {
-          auth: {
-            ...(token ? { token } : {}),
-            ...(password ? { password } : {}),
-          },
-        }
-      : {}),
-    role: 'operator',
-    scopes: GATEWAY_CONNECT_SCOPES,
-  };
-}
-
-function parseGatewayFrame(raw: string): GatewayFrame | null {
-  try {
-    const parsed = JSON.parse(raw) as GatewayFrame | null;
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function requestGateway<T>(input: {
-  gatewayUrl: string;
-  gatewayToken?: string;
-  gatewayPassword?: string;
-  method: string;
-  params?: unknown;
-}): Promise<T> {
-  return new Promise((resolve, reject) => {
-    let ws: WebSocket | null = null;
-    let settled = false;
-    let requestId: string | null = null;
-    let connected = false;
-
-    const cleanup = () => {
-      if (!ws) {
-        return;
-      }
-      const current = ws;
-      ws = null;
-      try {
-        current.close();
-      } catch {
-        // ignore close errors for best-effort background sync
-      }
-    };
-
-    const fail = (error: unknown) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      cleanup();
-      reject(error instanceof Error ? error : new Error(String(error)));
-    };
-
-    const succeed = (payload: unknown) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      cleanup();
-      resolve(payload as T);
-    };
-
-    const sendRequest = (method: string, params?: unknown) => {
-      if (!ws) {
-        fail(new Error('gateway websocket unavailable'));
-        return;
-      }
-      requestId = crypto.randomUUID();
-      ws.send(
-        JSON.stringify({
-          type: 'req',
-          id: requestId,
-          method,
-          params,
-        }),
-      );
-    };
-
-    try {
-      ws = new WebSocket(input.gatewayUrl);
-    } catch (error) {
-      fail(error);
-      return;
-    }
-
-    ws.onmessage = (event) => {
-      const frame = parseGatewayFrame(String(event.data));
-      if (!frame) {
-        return;
-      }
-
-      if (frame.type === 'event' && frame.event === 'connect.challenge') {
-        sendRequest('connect', buildGatewayConnectParams(input.gatewayToken, input.gatewayPassword));
-        return;
-      }
-
-      if (frame.type !== 'res' || !requestId || frame.id !== requestId) {
-        return;
-      }
-
-      if (!frame.ok) {
-        fail(frame.error?.message || 'gateway request failed');
-        return;
-      }
-
-      if (!connected) {
-        connected = true;
-        sendRequest(input.method, input.params);
-        return;
-      }
-
-      succeed(frame.payload);
-    };
-
-    ws.onerror = () => {
-      fail(new Error('gateway websocket error'));
-    };
-
-    ws.onclose = () => {
-      if (!settled) {
-        fail(new Error('gateway websocket closed'));
-      }
-    };
-  });
-}
 
 function trimText(value: string, limit: number): string {
   if (value.length <= limit) {
@@ -327,20 +165,19 @@ export function CronTaskResultSync({
     }
 
     let cancelled = false;
+    const gatewayManager = getDesktopGatewayConnectionManager({
+      gatewayUrl,
+      gatewayToken,
+      gatewayPassword,
+    });
 
     const syncOnce = async () => {
       try {
-        const listResult = await requestGateway<CronListResult>({
-          gatewayUrl,
-          gatewayToken,
-          gatewayPassword,
-          method: 'cron.list',
-          params: {
+        const listResult = await gatewayManager.request<CronListResult>('cron.list', {
             includeDisabled: true,
             limit: 100,
             sortBy: 'nextRunAtMs',
             sortDir: 'asc',
-          },
         });
         if (cancelled) {
           return;

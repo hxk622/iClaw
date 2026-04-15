@@ -1,6 +1,5 @@
 Ralph Progress
 ==============
 
-Project: iClaw IM Bots Real China Channels
-Branch: ralph/im-bots-real-china-channels
-
+Project: iClaw Chat Transport Ownership
+Branch: ralph/chat-transport-ownership
