@@ -777,19 +777,32 @@ export const BrandDetailPanel = forwardRef<BrandDetailPanelHandle, BrandDetailPa
   );
   const buildMenuDraftItems = (items: Array<{ menuKey: string; enabled: boolean; displayName: string; group: string }>) => {
     const nonLegacyMenus = availableMenus.filter((item) => item.category !== 'legacy');
-    const itemMap = new Map(
-      items
-        .filter((item) => item.menuKey)
-        .map((item) => [item.menuKey, item] as const),
+    if (nonLegacyMenus.length === 0) {
+      return items.slice();
+    }
+
+    const catalogByKey = new Map(
+      nonLegacyMenus
+        .filter((item) => item.key)
+        .map((item) => [item.key, item] as const),
     );
-    return nonLegacyMenus.length
-      ? nonLegacyMenus.map((item) => itemMap.get(item.key) || {
+    const seen = new Set<string>();
+    const orderedItems = items
+      .filter((item) => item.menuKey && catalogByKey.has(item.menuKey))
+      .map((item) => {
+        seen.add(item.menuKey);
+        return item;
+      });
+    const missingItems = nonLegacyMenus
+      .filter((item) => !seen.has(item.key))
+      .map((item) => ({
         menuKey: item.key,
         enabled: false,
         displayName: '',
         group: '',
-      })
-      : items.slice();
+      }));
+
+    return [...orderedItems, ...missingItems];
   };
   const [menuDraft, setMenuDraft] = useState<
     Array<{ menuKey: string; enabled: boolean; displayName: string; group: string }>
