@@ -6,7 +6,7 @@ import time
 import asyncio
 import uvicorn
 
-from src.config import settings
+from src.config import settings, get_cors_allowed_origins
 from src.db import check_db_connection
 from src.utils.logger import logger
 from src.middleware.metrics import PrometheusMiddleware, metrics_endpoint
@@ -29,9 +29,10 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+allowed_origins = get_cors_allowed_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -65,6 +66,13 @@ async def startup_event():
     """Run on application startup."""
     logger.info(f"Starting Data Connector Service in {settings.ENV} environment")
     logger.info(f"Listening on {settings.HOST}:{settings.PORT}")
+
+    # Log CORS configuration
+    allowed_origins = get_cors_allowed_origins()
+    if allowed_origins == ["*"]:
+        logger.warning("⚠️ CORS is configured to allow all origins. This is NOT recommended for production environments.")
+    else:
+        logger.info(f"CORS allowed origins: {', '.join(allowed_origins)}")
 
     # Start concurrency limiters
     start_all_limiters()

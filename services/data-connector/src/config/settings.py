@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     SCHEDULER_ENABLED: bool = True  # Whether to enable built-in scheduler
     SCHEDULER_TIMEZONE: str = "Asia/Shanghai"  # Timezone for scheduler
 
+    # CORS configuration
+    CORS_ALLOWED_ORIGINS: str = ""  # Comma-separated list of allowed origins
+    CORS_ALLOW_ALL_ORIGINS: bool = False  # Whether to allow all origins (not recommended for production)
+
     class Config:
         env_file = ".env"
         case_sensitive = True
@@ -41,3 +45,29 @@ settings = Settings()
 def get_settings() -> Settings:
     """Get application settings instance."""
     return settings
+
+def get_cors_allowed_origins() -> list[str]:
+    """
+    Get CORS allowed origins from settings, with environment-specific defaults.
+
+    - Development environment: Allow localhost and 127.0.0.1 on any port
+    - Production environment: Allow *.iclaw.com and internal.iclaw.com by default
+    - Custom origins can be set via CORS_ALLOWED_ORIGINS environment variable
+    """
+    if settings.CORS_ALLOW_ALL_ORIGINS:
+        return ["*"]
+
+    if settings.CORS_ALLOWED_ORIGINS:
+        return [origin.strip() for origin in settings.CORS_ALLOWED_ORIGINS.split(",") if origin.strip()]
+
+    # Environment-specific defaults
+    if settings.ENV == "dev":
+        return [
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+        ]
+    else:
+        return [
+            "https://*.iclaw.com",
+            "https://internal.iclaw.com",
+        ]
