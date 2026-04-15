@@ -42,6 +42,7 @@
     ],
     "windows": {
       "nsis": {
+        "installMode": "perMachine",
         "installerIcon": "installer-generated/nsis-installer.ico"
       }
     },

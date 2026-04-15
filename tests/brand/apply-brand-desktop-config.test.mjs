@@ -60,7 +60,9 @@ test('apply-brand materializes desktop title and version from the selected brand
       const expectedName = brandId === 'iclaw' ? 'iClaw' : generatedConfig.productName;
       assert.equal(tauriConfig.productName, expectedName);
       assert.equal(tauriConfig.app?.windows?.[0]?.title, expectedName);
+      assert.equal(tauriConfig.bundle?.windows?.nsis?.installMode, 'perMachine');
       assert.equal(generatedConfig.productName, expectedName);
+      assert.equal(generatedConfig.bundle?.windows?.nsis?.installMode, 'perMachine');
       assert.equal(generatedConfig.version, '1.0.6+202604141320');
       assert.equal(generatedBrand.build?.version, '1.0.6+202604141320');
       assert.equal(generatedBrand.build?.stamp?.brandId, brandId);

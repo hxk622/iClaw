@@ -4758,7 +4758,10 @@ fn current_platform_version() -> Option<String> {
     }
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("cmd").args(["/C", "ver"]).output().ok()?;
+        let mut command = Command::new("cmd");
+        command.args(["/C", "ver"]);
+        configure_background_child_process(&mut command);
+        let output = command.output().ok()?;
         if !output.status.success() {
             return None;
         }
@@ -5252,7 +5255,10 @@ fn port_listener_pids(port: u16) -> Vec<u32> {
 
 #[cfg(windows)]
 fn port_listener_pids(port: u16) -> Vec<u32> {
-    let output = match Command::new("netstat").args(["-ano", "-p", "tcp"]).output() {
+    let mut command = Command::new("netstat");
+    command.args(["-ano", "-p", "tcp"]);
+    configure_background_child_process(&mut command);
+    let output = match command.output() {
         Ok(output) if output.status.success() => output,
         _ => return Vec::new(),
     };
@@ -5345,10 +5351,10 @@ fn inspect_process(pid: u32) -> Option<ListeningProcess> {
 
 #[cfg(windows)]
 fn inspect_process(pid: u32) -> Option<ListeningProcess> {
-    let output = Command::new("tasklist")
-        .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
-        .output()
-        .ok()?;
+    let mut command = Command::new("tasklist");
+    command.args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"]);
+    configure_background_child_process(&mut command);
+    let output = command.output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -5397,8 +5403,10 @@ fn terminate_pid(pid: u32) -> bool {
 
 #[cfg(windows)]
 fn terminate_pid(pid: u32) -> bool {
-    Command::new("taskkill")
-        .args(["/PID", &pid.to_string(), "/T", "/F"])
+    let mut command = Command::new("taskkill");
+    command.args(["/PID", &pid.to_string(), "/T", "/F"]);
+    configure_background_child_process(&mut command);
+    command
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
@@ -5862,6 +5870,7 @@ fn generate_openclaw_runtime_config(
     let snapshot_path = oem_runtime_snapshot_path(app)?;
     let brand_stamp_path = openclaw_brand_stamp_path(app)?;
     let mut command = Command::new(&node_path);
+    configure_background_child_process(&mut command);
     command.arg(node_command_safe_path(&generator_path));
     command.env("ICLAW_OPENCLAW_CONFIG_PATH", config_path);
     command.env("ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH", &runtime_config_path);
