@@ -87,7 +87,7 @@ export async function authenticateDesktopPage(page) {
   if (existingTokens.access_token && existingTokens.refresh_token) {
     await reloadPage(page.cdp);
     try {
-      await waitForChatComposer(page.cdp);
+      await waitForInteractiveChatComposer(page.cdp);
       return existingTokens;
     } catch (error) {
       console.warn('[tests] stored auth tokens were present but did not yield an authenticated desktop session', error);
@@ -97,7 +97,7 @@ export async function authenticateDesktopPage(page) {
   const tokens = await loginWithPassword();
   await seedAuthTokens(page.cdp, tokens);
   await reloadPage(page.cdp);
-  await waitForChatComposer(page.cdp);
+  await waitForInteractiveChatComposer(page.cdp);
   return tokens;
 }
 
@@ -140,6 +140,31 @@ export async function waitForChatComposer(cdp) {
         `),
       ),
     30_000,
+  );
+}
+
+export async function waitForInteractiveChatComposer(cdp) {
+  await waitForChatComposer(cdp);
+  return waitFor(
+    'interactive chat composer ready',
+    async () =>
+      evalJSON(
+        cdp,
+        activeSurfaceExpression(`
+          const editor = activeWrapper?.querySelector('.iclaw-composer__editor');
+          const submit = activeWrapper?.querySelector('.iclaw-composer__submit');
+          const diagnostics = window.__ICLAW_OPENCLAW_DIAGNOSTICS__ || null;
+          return editor instanceof HTMLElement &&
+            submit instanceof HTMLButtonElement &&
+            editor.isContentEditable &&
+            diagnostics?.connected === true &&
+            diagnostics?.modelsLoading === false
+            ? true
+            : null;
+        `),
+      ),
+    30_000,
+    300,
   );
 }
 

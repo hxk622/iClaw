@@ -9325,19 +9325,13 @@ export function OpenClawChatSurface({
                 data-session-transitioning={shellTransitioning ? 'true' : 'false'}
                 data-surface-reactivating={showSurfaceReactivationMask ? 'true' : 'false'}
               >
-                {!showWelcomePage ? (
-                  <div
-                    ref={hostRef}
-                    className={`openclaw-chat-surface min-h-0 flex-1 overflow-hidden ${
-                      allowImmediateEmptySessionUi ? 'pointer-events-none opacity-0' : ''
-                    }`}
-                  />
-                ) : (
-                  <div
-                    aria-hidden="true"
-                    className="openclaw-chat-surface min-h-0 flex-1 overflow-hidden opacity-0 pointer-events-none"
-                  />
-                )}
+                <div
+                  ref={hostRef}
+                  aria-hidden={showWelcomePage ? 'true' : undefined}
+                  className={`openclaw-chat-surface min-h-0 flex-1 overflow-hidden ${
+                    showWelcomePage || allowImmediateEmptySessionUi ? 'pointer-events-none opacity-0' : ''
+                  }`}
+                />
 
                 {showWelcomePage ? (
                   <K2CWelcomePage

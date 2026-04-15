@@ -7,6 +7,7 @@ import {
   openDesktopPage,
   readActiveChatState,
   waitForChatComposer,
+  waitForInteractiveChatComposer,
 } from '../shared/iclaw-app-helpers.mjs';
 
 const SCREENSHOT_PATH = process.env.ICLAW_TEST_SCREENSHOT_PATH || '/tmp/iclaw-chat-send-smoke.png';
@@ -18,6 +19,7 @@ async function main() {
   try {
     await authenticateDesktopPage(page);
     await waitForChatComposer(page.cdp);
+    await waitForInteractiveChatComposer(page.cdp);
 
     const before = await readActiveChatState(page.cdp);
     await evalJSON(
