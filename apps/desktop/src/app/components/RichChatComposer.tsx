@@ -164,6 +164,7 @@ type ComposerTokenMeta = {
 type RichChatComposerProps = {
   authBaseUrl: string;
   connected: boolean;
+  gatewayReady?: boolean;
   busy: boolean;
   sendDisabledReason?: string | null;
   sessionTransitioning?: boolean;
@@ -649,6 +650,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     {
       authBaseUrl,
       connected,
+      gatewayReady = false,
       busy,
       sendDisabledReason = null,
       sessionTransitioning = false,
@@ -2154,13 +2156,18 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, [mentionMenuOpen, mentionMenuSource, stockMenuOpen, stockMenuSource, syncMentionMenuPosition, syncStockMenuPosition]);
 
     const composerBusy = busy || isSubmitting;
+    const canComposeWhileDisconnected = queueWhileConnecting;
+    const composerInteractive = connected || canComposeWhileDisconnected;
+    const gatewayConnecting = !connected && gatewayReady;
     const showAbortAction = composerBusy && !hasContent;
     const submitLabel = showAbortAction ? '停止' : busy && hasContent ? '加入队列' : '发送';
     const sendState = showAbortAction ? 'busy' : hasContent ? 'ready' : 'empty';
     const submitDisabledReason =
       sendDisabledReason ||
-      (!connected && !queueWhileConnecting
-        ? '等待网关连接后才能发送'
+      (!connected && !canComposeWhileDisconnected
+        ? gatewayConnecting
+          ? '聊天内核重连中，请稍后发送'
+          : '等待网关连接后才能发送'
         : !composerBusy && !hasContent
           ? '输入内容后才能发送'
           : null);
@@ -2168,7 +2175,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       findComposerModelOption(modelOptions, selectedModelId) ?? modelOptions[0] ?? null;
     const modelTriggerLabel = (() => {
       if (!connected) {
-        return '模型未连接';
+        return gatewayConnecting ? '聊天重连中' : '模型未连接';
       }
       if (selectedModel) {
         return selectedModel.label;
@@ -2180,7 +2187,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     })();
     const modelTriggerDetail = (() => {
       if (!connected) {
-        return '等待网关连接';
+        return gatewayConnecting ? '网关已连接，正在恢复聊天内核' : '等待网关连接';
       }
       if (selectedModel) {
         return selectedModel.badge ? `${selectedModel.badge} · ${selectedModel.detail}` : selectedModel.detail;
@@ -3472,13 +3479,19 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
 
               {!hasContent ? (
                 <div className="iclaw-composer__placeholder" aria-hidden="true">
-                  {connected ? composerPlaceholder : '网关未连接，暂时无法发送'}
+                  {connected
+                    ? composerPlaceholder
+                    : gatewayConnecting
+                      ? canComposeWhileDisconnected
+                        ? '聊天内核重连中，可先输入并排队发送'
+                        : '聊天内核重连中，请稍候'
+                      : '网关未连接，暂时无法发送'}
                 </div>
               ) : null}
               <div
                 ref={editorRef}
                 className="iclaw-composer__editor"
-                contentEditable={connected}
+                contentEditable={composerInteractive}
                 suppressContentEditableWarning
                 role="textbox"
                 aria-multiline="true"

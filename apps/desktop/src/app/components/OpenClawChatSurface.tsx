@@ -9459,6 +9459,7 @@ export function OpenClawChatSurface({
                   authBaseUrl={authBaseUrl}
                   ref={composerRef}
                   connected={status.connected}
+                  gatewayReady={gatewayTransportState.ready}
                   busy={status.busy}
                   sendDisabledReason={effectiveSendBlockedReason}
                   dropActive={shellDropActive}
