@@ -3,11 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/app/components/ui/Button';
 import { cn } from '@/app/lib/cn';
-import { formatChatTurnRelativeTime, useChatTurns } from '@/app/lib/chat-turns';
+import { formatChatTurnRelativeTime } from '@/app/lib/chat-turns';
 import {
   renameChatConversation,
-  useChatConversations,
 } from '@/app/lib/chat-conversations';
+import { useChatConversationProjections } from '@/app/lib/chat-conversation-projection';
 import { deleteChatConversationThread } from '@/app/lib/chat-conversation-actions';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import { BRAND } from '@/app/lib/brand';
@@ -29,8 +29,7 @@ export function RecentConversationsList({
   onDeleteConversation,
   onOpenMore,
 }: RecentConversationsListProps) {
-  const conversations = useChatConversations();
-  const recentTurns = useChatTurns();
+  const projections = useChatConversationProjections(BRAND.brandId);
   const [menuConversationId, setMenuConversationId] = useState<string | null>(null);
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [pendingSelectionConversationId, setPendingSelectionConversationId] = useState<string | null>(null);
@@ -48,49 +47,16 @@ export function RecentConversationsList({
       const parsed = new Date(value).getTime();
       return Number.isFinite(parsed) ? parsed : 0;
     };
-    const recentTurnByConversation = new Map<string, (typeof recentTurns)[number]>();
-    recentTurns
-      .filter((turn) => turn.source === 'chat')
-      .forEach((turn) => {
-      if (!recentTurnByConversation.has(turn.conversationId)) {
-        recentTurnByConversation.set(turn.conversationId, turn);
-      }
-      });
-
-    return conversations
-      .map((conversation) => {
-        const matchedTurn = recentTurnByConversation.get(conversation.id) ?? null;
-        const hasDisplayableMetadata = Boolean(
-          conversation.title?.trim() ||
-          conversation.summary?.trim() ||
-          matchedTurn?.title?.trim() ||
-          matchedTurn?.summary?.trim() ||
-          matchedTurn?.prompt?.trim(),
-        );
-        if (!hasDisplayableMetadata) {
-          return null;
-        }
-        const conversationTitle =
-          conversation.title?.trim() ||
-          matchedTurn?.title?.trim() ||
-          matchedTurn?.prompt?.trim() ||
-          '未命名对话';
-        const conversationSummary =
-          conversation.summary?.trim() ||
-          matchedTurn?.summary?.trim() ||
-          matchedTurn?.prompt?.trim() ||
-          '继续查看这条对话的上下文与结果。';
-        return {
-          id: conversation.id,
-          title: conversationTitle,
-          summary: conversationSummary,
-          updatedAt: conversation.updatedAt,
-        };
-      })
-      .filter((conversation): conversation is { id: string; title: string; summary: string; updatedAt: string } => Boolean(conversation))
+    return projections
+      .map((projection) => ({
+        id: projection.conversationId,
+        title: projection.displayTitle,
+        summary: projection.displaySummary,
+        updatedAt: projection.updatedAt,
+      }))
       .sort((left, right) => parseTimestamp(right.updatedAt) - parseTimestamp(left.updatedAt))
       .slice(0, SIDEBAR_CONVERSATION_LIMIT);
-  }, [conversations, recentTurns]);
+  }, [projections]);
 
   useEffect(() => {
     if (!menuConversationId && !renamingConversationId) {

@@ -1,6 +1,10 @@
+import {writeFile} from 'node:fs/promises';
+
 const CDP_LIST_URL = 'http://127.0.0.1:9223/json/list';
 const CDP_VERSION_URL = 'http://127.0.0.1:9223/json/version';
 const APP_URL = 'http://127.0.0.1:1520/chat?session=main';
+const SCREENSHOT_PATH =
+  process.env.ICLAW_TEST_SCREENSHOT_PATH || '/tmp/iclaw-chat-single-track-seeded-switch.png';
 
 class CDP {
   constructor(url) {
@@ -161,9 +165,14 @@ async function readActiveState(cdp) {
     cdp,
     activeSurfaceExpression(`
       const app = activeWrapper?.querySelector('openclaw-app') || document.querySelector('openclaw-app');
-      const persistenceScope = localStorage.getItem('iclaw:chat.user_scope') || 'guest';
+      const persistenceScope =
+        localStorage.getItem('licaiclaw:chat.user_scope') ||
+        localStorage.getItem('iclaw:chat.user_scope') ||
+        'guest';
       const activeRoute = JSON.parse(
-        localStorage.getItem(\`iclaw.desktop.active-chat-route.v1:scope:\${persistenceScope}\`) || 'null',
+        localStorage.getItem(\`licaiclaw:desktop.active-chat-route.v1:scope:\${persistenceScope}\`) ||
+        localStorage.getItem(\`iclaw.desktop.active-chat-route.v1:scope:\${persistenceScope}\`) ||
+        'null',
       );
       const userTexts = Array.from(activeWrapper?.querySelectorAll('.chat-group.user .chat-text') || [])
         .map((node) => (node.textContent || '').trim())
@@ -343,35 +352,45 @@ async function seedStorage(cdp, seedData) {
   return evalJSON(
     cdp,
     `(() => {
-      const scope = ${JSON.stringify(`cdp-seeded-scope-${seedData.convB}`)};
+      const scope =
+        localStorage.getItem('licaiclaw:chat.user_scope') ||
+        localStorage.getItem('iclaw:chat.user_scope') ||
+        'guest';
       const conversationKey = 'iclaw.chat.conversations.v1:scope:' + scope;
       const turnKey = 'iclaw.chat.turns.v1:scope:' + scope;
-      const activeRouteKey = 'iclaw.desktop.active-chat-route.v1:scope:' + scope;
+      const activeRouteKey = 'licaiclaw:desktop.active-chat-route.v1:scope:' + scope;
+      const activeRouteGlobalKey = 'licaiclaw:desktop.active-chat-route.global.v1';
+      const legacyActiveRouteKey = 'iclaw.desktop.active-chat-route.v1:scope:' + scope;
+      const legacyActiveRouteGlobalKey = 'iclaw.desktop.active-chat-route.global.v1';
       const workspaceSceneKey = 'iclaw.desktop.active-workspace-scene.v1:scope:' + scope;
+      const selectedConversationKey = 'iclaw.desktop.selected-conversation.v1:scope:' + scope;
       const appNames = ['iclaw', 'licaiclaw'];
-      const previousIclawScope = localStorage.getItem('iclaw:chat.user_scope');
-      const previousLicaiclawScope = localStorage.getItem('licaiclaw:chat.user_scope');
-      localStorage.setItem('iclaw:chat.user_scope', scope);
-      localStorage.setItem('licaiclaw:chat.user_scope', scope);
       localStorage.setItem(conversationKey, JSON.stringify(${JSON.stringify(seedData.conversations)}));
       localStorage.setItem(turnKey, JSON.stringify(${JSON.stringify(seedData.turns)}));
-      localStorage.setItem(
-        activeRouteKey,
-        JSON.stringify({
-          conversationId: ${JSON.stringify(seedData.convB)},
-          sessionKey: ${JSON.stringify(seedData.sessionB)},
-          initialPrompt: null,
-          initialPromptKey: null,
-          initialAgentSlug: null,
-          initialSkillSlug: null,
-          initialSkillOption: null,
-          initialStockContext: null,
-        }),
-      );
+      const routePayload = JSON.stringify({
+        conversationId: ${JSON.stringify(seedData.convB)},
+        sessionKey: ${JSON.stringify(seedData.sessionB)},
+        initialPrompt: null,
+        initialPromptKey: null,
+        initialAgentSlug: null,
+        initialSkillSlug: null,
+        initialSkillOption: null,
+        initialStockContext: null,
+      });
+      localStorage.setItem(activeRouteKey, routePayload);
+      localStorage.setItem(activeRouteGlobalKey, routePayload);
+      localStorage.setItem(legacyActiveRouteKey, routePayload);
+      localStorage.setItem(legacyActiveRouteGlobalKey, routePayload);
       localStorage.setItem(
         workspaceSceneKey,
         JSON.stringify({
-          primaryView: 'cron',
+          primaryView: 'chat',
+          selectedConversationId: ${JSON.stringify(seedData.convB)},
+        }),
+      );
+      localStorage.setItem(
+        selectedConversationKey,
+        JSON.stringify({
           selectedConversationId: ${JSON.stringify(seedData.convB)},
         }),
       );
@@ -400,9 +419,11 @@ async function seedStorage(cdp, seedData) {
         conversationKey,
         turnKey,
         activeRouteKey,
+        activeRouteGlobalKey,
+        legacyActiveRouteKey,
+        legacyActiveRouteGlobalKey,
         workspaceSceneKey,
-        previousIclawScope,
-        previousLicaiclawScope,
+        selectedConversationKey,
       };
     })()`,
   );
@@ -421,7 +442,11 @@ async function cleanupSeededStorage(cdp, seededStorage) {
       localStorage.removeItem(seededStorage.conversationKey);
       localStorage.removeItem(seededStorage.turnKey);
       localStorage.removeItem(seededStorage.activeRouteKey);
+      localStorage.removeItem(seededStorage.activeRouteGlobalKey);
+      localStorage.removeItem(seededStorage.legacyActiveRouteKey);
+      localStorage.removeItem(seededStorage.legacyActiveRouteGlobalKey);
       localStorage.removeItem(seededStorage.workspaceSceneKey);
+      localStorage.removeItem(seededStorage.selectedConversationKey);
       appNames.forEach((appName) => {
         Object.keys(localStorage).forEach((key) => {
           if (!key.includes(\`:scope:\${seededStorage.scope}\`)) {
@@ -432,16 +457,6 @@ async function cleanupSeededStorage(cdp, seededStorage) {
           }
         });
       });
-      if (seededStorage.previousIclawScope === null) {
-        localStorage.removeItem('iclaw:chat.user_scope');
-      } else {
-        localStorage.setItem('iclaw:chat.user_scope', seededStorage.previousIclawScope);
-      }
-      if (seededStorage.previousLicaiclawScope === null) {
-        localStorage.removeItem('licaiclaw:chat.user_scope');
-      } else {
-        localStorage.setItem('licaiclaw:chat.user_scope', seededStorage.previousLicaiclawScope);
-      }
       window.dispatchEvent(new CustomEvent('iclaw:chat-conversations:updated'));
       window.dispatchEvent(new CustomEvent('iclaw:chat-turns:updated'));
       return true;
@@ -526,6 +541,8 @@ async function main() {
     );
 
     const sidebar = await readSidebarRecent(cdp);
+    const screenshot = await cdp.send('Page.captureScreenshot', {format: 'png'});
+    await writeFile(SCREENSHOT_PATH, Buffer.from(screenshot.data, 'base64'));
     console.log(
       JSON.stringify(
         {
@@ -535,6 +552,7 @@ async function main() {
           afterSwitchToA: switchedToA?.appDiagnostics?.activeChatRoute?.conversationId ?? null,
           afterSwitchToB: switchedBackToB?.appDiagnostics?.activeChatRoute?.conversationId ?? null,
           sidebar,
+          screenshot: SCREENSHOT_PATH,
           success: true,
         },
         null,

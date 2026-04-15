@@ -149,6 +149,11 @@ import {
   resolveInitialPrimaryView,
   writePersistedWorkspaceScene,
 } from './lib/chat-navigation';
+import {
+  readPersistedChatRouteSnapshot,
+  writePersistedChatRouteSnapshot,
+  type PersistedChatRouteSnapshot,
+} from './lib/chat-route-persistence';
 
 declare global {
   interface Window {
@@ -320,8 +325,6 @@ const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' =
   String(import.meta.env.VITE_BUILD_CHANNEL || '').trim().toLowerCase() === 'dev' ? 'dev' : 'prod';
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
 const DESKTOP_UPDATE_REVALIDATE_TTL_MS = 15 * 60 * 1000;
-const ACTIVE_CHAT_ROUTE_STORAGE_KEY = 'iclaw.desktop.active-chat-route.v1';
-const ACTIVE_CHAT_ROUTE_GLOBAL_STORAGE_KEY = 'iclaw.desktop.active-chat-route.global.v1';
 const DESKTOP_RUNTIME_PLATFORM: 'windows' | 'macos' | 'linux' | 'web' =
   typeof navigator === 'undefined'
     ? 'web'
@@ -344,19 +347,6 @@ type ActiveChatRoute = {
   initialSkillSlug: string | null;
   initialSkillOption: ComposerSkillOption | null;
   initialStockContext: ComposerStockContext | null;
-};
-
-type PersistedChatRouteSnapshot = {
-  conversationId?: unknown;
-  sessionKey?: unknown;
-  initialPrompt?: unknown;
-  initialPromptKey?: unknown;
-  focusedTurnId?: unknown;
-  focusedTurnKey?: unknown;
-  initialAgentSlug?: unknown;
-  initialSkillSlug?: unknown;
-  initialSkillOption?: unknown;
-  initialStockContext?: unknown;
 };
 
 function normalizeOptionalText(value: unknown): string | null {
@@ -440,9 +430,7 @@ function normalizePersistedStockContext(value: unknown): ComposerStockContext | 
 }
 
 function readPersistedActiveChatRoute(): ActiveChatRoute | null {
-  const snapshot =
-    readCacheJson<PersistedChatRouteSnapshot>(ACTIVE_CHAT_ROUTE_GLOBAL_STORAGE_KEY) ??
-    readCacheJson<PersistedChatRouteSnapshot>(buildChatScopedStorageKey(ACTIVE_CHAT_ROUTE_STORAGE_KEY));
+  const snapshot = readPersistedChatRouteSnapshot();
   if (!snapshot || typeof snapshot !== 'object') {
     return null;
   }
@@ -469,31 +457,20 @@ function readPersistedActiveChatRoute(): ActiveChatRoute | null {
 }
 
 function writePersistedActiveChatRoute(route: ActiveChatRoute | null): void {
-  if (!route) {
-    writeCacheJson(ACTIVE_CHAT_ROUTE_GLOBAL_STORAGE_KEY, null);
-    writeCacheJson(buildChatScopedStorageKey(ACTIVE_CHAT_ROUTE_STORAGE_KEY), null);
-    return;
-  }
-  writeCacheJson(ACTIVE_CHAT_ROUTE_GLOBAL_STORAGE_KEY, {
-    conversationId: route.conversationId,
-    sessionKey: route.sessionKey,
-    initialPrompt: route.initialPrompt,
-    initialPromptKey: route.initialPromptKey,
-    initialAgentSlug: route.initialAgentSlug,
-    initialSkillSlug: route.initialSkillSlug,
-    initialSkillOption: route.initialSkillOption,
-    initialStockContext: route.initialStockContext,
-  });
-  writeCacheJson(buildChatScopedStorageKey(ACTIVE_CHAT_ROUTE_STORAGE_KEY), {
-    conversationId: route.conversationId,
-    sessionKey: route.sessionKey,
-    initialPrompt: route.initialPrompt,
-    initialPromptKey: route.initialPromptKey,
-    initialAgentSlug: route.initialAgentSlug,
-    initialSkillSlug: route.initialSkillSlug,
-    initialSkillOption: route.initialSkillOption,
-    initialStockContext: route.initialStockContext,
-  });
+  writePersistedChatRouteSnapshot(
+    route
+      ? {
+          conversationId: route.conversationId,
+          sessionKey: route.sessionKey,
+          initialPrompt: route.initialPrompt,
+          initialPromptKey: route.initialPromptKey,
+          initialAgentSlug: route.initialAgentSlug,
+          initialSkillSlug: route.initialSkillSlug,
+          initialSkillOption: route.initialSkillOption,
+          initialStockContext: route.initialStockContext,
+        }
+      : null,
+  );
 }
 
 function buildActiveChatRoute(params: {
@@ -2289,6 +2266,7 @@ function AuthedView({
   const lastResolvedPrimaryViewRef = useRef<PrimaryView | null>(null);
   const chatRuntimeAuthRef = useRef(authenticated);
   const initialChatRouteRef = useRef<ActiveChatRoute>(resolveInitialChatRoute());
+  const lastRehydratedChatScopeRef = useRef<string | null>(null);
   const sidebarCollapsedStorageKey = useMemo(
     () => resolveSidebarCollapsedStorageKey(currentUser),
     [currentUser],
@@ -2354,6 +2332,7 @@ function AuthedView({
     [enabledMenuKeys],
   );
   const fallbackPrimaryView = availablePrimaryViews[0] || 'chat';
+  const resolvedChatPersistenceScope = resolveAuthUserPersistenceScope(currentUser) ?? 'guest';
   const resolvedPrimaryView =
     primaryView === 'task-center'
       ? 'task-center'
@@ -2428,6 +2407,50 @@ function AuthedView({
   useEffect(() => {
     writePersistedWorkspaceScene({selectedConversationId: selectedTaskCenterConversationId});
   }, [selectedTaskCenterConversationId]);
+
+  useEffect(() => {
+    if (!authBootstrapReady) {
+      return;
+    }
+    if (lastRehydratedChatScopeRef.current === resolvedChatPersistenceScope) {
+      return;
+    }
+    lastRehydratedChatScopeRef.current = resolvedChatPersistenceScope;
+
+    const currentRoute = activeChatRouteRef.current;
+    if (!canReuseEmptyUnnamedGeneralConversation(currentRoute, BRAND.brandId)) {
+      return;
+    }
+
+    const persistedRoute = readPersistedActiveChatRoute();
+    if (!persistedRoute) {
+      return;
+    }
+
+    if (
+      persistedRoute.sessionKey === currentRoute.sessionKey &&
+      persistedRoute.conversationId === currentRoute.conversationId
+    ) {
+      return;
+    }
+
+    openChatRoute(
+      buildConversationBackedChatRoute({
+        sessionKey: persistedRoute.sessionKey,
+        conversationId: persistedRoute.conversationId,
+        kind: 'general',
+        initialPrompt: persistedRoute.initialPrompt,
+        initialPromptKey: persistedRoute.initialPromptKey,
+        focusedTurnId: null,
+        focusedTurnKey: null,
+        initialAgentSlug: persistedRoute.initialAgentSlug,
+        initialSkillSlug: persistedRoute.initialSkillSlug,
+        initialSkillOption: persistedRoute.initialSkillOption,
+        initialStockContext: persistedRoute.initialStockContext,
+      }),
+      {forceRemount: true},
+    );
+  }, [authBootstrapReady, openChatRoute, resolvedChatPersistenceScope]);
 
   useEffect(() => {
     writeCacheString(sidebarCollapsedStorageKey, sidebarCollapsed ? '1' : '0');
