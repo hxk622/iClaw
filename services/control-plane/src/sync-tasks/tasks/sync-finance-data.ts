@@ -32,7 +32,7 @@ export interface FinanceData {
  * 同步季度财务数据
  */
 export async function syncFinanceData() {
-  const scriptPath = path.join(__dirname, '../python-scripts/fetch-finance-data.py');
+  const scriptPath = path.join(__dirname, '../python-scripts/fetch_finance_data.py');
   const pool = getPool();
   const taskId = await logTaskStart('sync_finance_data');
 

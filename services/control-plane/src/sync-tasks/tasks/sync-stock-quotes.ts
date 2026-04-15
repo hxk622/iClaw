@@ -70,8 +70,9 @@ export async function syncStockQuotes() {
       const insertQuery = `
         INSERT INTO stock_quotes (
           stock_code, trade_date, open, high, low, close, volume, amount,
-          change, change_percent, turnover_rate, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)
+          change, change_percent, turnover_rate, pe_ttm, pb, total_market_cap,
+          float_market_cap, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP)
       `;
 
       for (const quote of quotes) {
@@ -86,7 +87,11 @@ export async function syncStockQuotes() {
           quote.amount || 0,
           quote.change || 0,
           quote.change_percent || 0,
-          quote.turnover_rate || 0
+          quote.turnover_rate || 0,
+          quote.pe_ttm || 0,
+          quote.pb || 0,
+          quote.total_market_cap || 0,
+          quote.float_market_cap || 0
         ]);
       }
 
