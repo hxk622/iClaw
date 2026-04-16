@@ -15,7 +15,7 @@ fi
 : "${ICLAW_CONTROL_PLANE_USER:=root}"
 
 : "${ICLAW_ICLAW_DOMAIN:=https://iclaw.aiyuanxi.com}"
-: "${ICLAW_CAICLAW_DOMAIN:=https://caiclaw.aiyuanxi.com}"
+: "${ICLAW_CAICLAW_DOMAIN:=${ICLAW_LICAICLAW_DOMAIN:-https://caiclaw.aiyuanxi.com}}"
 
 : "${ICLAW_DEPLOY_CONTROL_PLANE:=1}"
 : "${ICLAW_DEPLOY_ADMIN:=0}"

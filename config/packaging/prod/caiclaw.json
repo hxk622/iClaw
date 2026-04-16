@@ -1,0 +1,103 @@
+{
+  "brandId": "caiclaw",
+  "productName": "理财客",
+  "displayName": "理财客",
+  "websiteTitle": "理财客",
+  "defaultThemeMode": "dark",
+  "sidebarSubtitle": "",
+  "legalName": "理财客",
+  "bundleIdentifier": "ai.caiclaw.desktop",
+  "authService": "ai.caiclaw.desktop",
+  "theme": {
+    "dark": {
+      "primary": "#B49A70",
+      "onPrimary": "#11100F",
+      "primaryHover": "#C2AA82"
+    },
+    "light": {
+      "primary": "#A88C5D",
+      "onPrimary": "#1A1A18",
+      "primaryHover": "#8F7751"
+    }
+  },
+  "assets": {
+    "faviconIco": "services/control-plane/assets/licaiclaw/favicon.ico",
+    "faviconPng": "services/control-plane/assets/licaiclaw/favicon.png",
+    "appleTouchIcon": "services/control-plane/assets/licaiclaw/apple-touch-icon.png",
+    "installerHero": "services/control-plane/assets/licaiclaw/installer-hero.png",
+    "tauriIconsDir": "services/control-plane/assets/licaiclaw/tauri-icons",
+    "logoMaster": "services/control-plane/assets/licaiclaw/logo-master.png",
+    "homeLogo": "services/control-plane/assets/licaiclaw/home-logo.jpg",
+    "homeHeroArt": null,
+    "homeHeroLayer1": null,
+    "homeHeroLayer2": null,
+    "homeHeroPhoto": null
+  },
+  "storage": {
+    "namespace": "caiclaw"
+  },
+  "endpoints": {
+    "authBaseUrl": "https://caiclaw.aiyuanxi.com"
+  },
+  "oauth": {
+    "wechat": {
+      "appId": "",
+      "redirectUri": ""
+    },
+    "google": {
+      "clientId": "",
+      "redirectUri": ""
+    }
+  },
+  "website": {
+    "homeTitle": "理财客官网",
+    "metaDescription": "理财客官网，面向财富管理场景的本地 AI 客户端。",
+    "brandLabel": "理财客",
+    "kicker": "Official Website",
+    "heroTitlePre": "把 AI 装进你的财富工作流",
+    "heroTitleMain": "打开就能干活",
+    "heroDescription": "理财客面向财富管理场景设计。少一点配置，多一点交付。",
+    "topCtaLabel": "下载",
+    "scrollLabel": "向下下载",
+    "downloadTitle": "下载理财客"
+  },
+  "distribution": {
+    "artifactBaseName": "LiCaiClaw",
+    "downloads": {
+      "dev": {
+        "bucket": "caiclaw-dev",
+        "publicBaseUrl": "http://127.0.0.1:9000/caiclaw-dev"
+      },
+      "prod": {
+        "bucket": "caiclaw-prod",
+        "publicBaseUrl": "https://caiclaw.aiyuanxi.com/downloads"
+      }
+    },
+    "home": {
+      "nginxPath": "/var/www/caiclaw/home"
+    }
+  },
+  "runtimeDistribution": {
+    "minioPrefix": "runtime",
+    "dev": {
+      "bucket": "caiclaw-dev",
+      "publicBaseUrl": "http://127.0.0.1:9000/caiclaw-dev"
+    },
+    "prod": {
+      "bucket": "caiclaw-prod",
+      "publicBaseUrl": "https://caiclaw.aiyuanxi.com"
+    }
+  },
+  "controlPlane": {
+    "serviceName": "caiclaw-control-plane",
+    "s3Bucket": "caiclaw-files",
+    "redisKeyPrefix": "caiclaw:control-plane",
+    "allowedOrigins": [
+      "http://127.0.0.1:1520",
+      "http://localhost:1520",
+      "https://tauri.localhost",
+      "http://tauri.localhost",
+      "tauri://localhost"
+    ]
+  }
+}
