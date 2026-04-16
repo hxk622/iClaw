@@ -31,6 +31,7 @@
             "menus": [
               "chat",
               "cron",
+              "knowledge-library",
               "im-bots",
               "lobster-store",
               "mcp-store",
@@ -647,6 +648,14 @@
           "enabled": true,
           "menuKey": "cron",
           "sortOrder": 20
+        },
+        {
+          "config": {
+            "group_label": "工作台"
+          },
+          "enabled": true,
+          "menuKey": "knowledge-library",
+          "sortOrder": 25
         },
         {
           "config": {
@@ -1293,6 +1302,15 @@
           "enabled": true,
           "menuKey": "cron",
           "sortOrder": 50
+        },
+        {
+          "config": {
+            "display_name": "知识库",
+            "group_label": "工作台"
+          },
+          "enabled": true,
+          "menuKey": "knowledge-library",
+          "sortOrder": 55
         },
         {
           "config": {
@@ -6229,6 +6247,18 @@
           "sourceType": "baseline_seed"
         },
         "routeKey": "investment-experts"
+      },
+      {
+        "active": true,
+        "category": "sidebar",
+        "displayName": "知识库",
+        "iconKey": "knowledge-library",
+        "menuKey": "knowledge-library",
+        "metadata": {
+          "enabled_by_default": true,
+          "sourceType": "baseline_seed"
+        },
+        "routeKey": "knowledge-library"
       },
       {
         "active": true,

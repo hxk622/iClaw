@@ -14,6 +14,7 @@ const LICAICLAW_MENU_LAYOUT: MenuLayoutItem[] = [
   { menuKey: 'finance-skills', displayName: '财经技能', groupLabel: '工作台' },
   { menuKey: 'foundation-skills', displayName: '基础技能', groupLabel: '工作台' },
   { menuKey: 'cron', displayName: '定时任务', groupLabel: '工作台' },
+  { menuKey: 'knowledge-library', displayName: '知识库', groupLabel: '工作台' },
   { menuKey: 'stock-market', displayName: '股票市场', groupLabel: '市场' },
   { menuKey: 'fund-market', displayName: '基金市场', groupLabel: '市场' },
   { menuKey: 'data-connections', displayName: '财经MCP', groupLabel: '通用' },
