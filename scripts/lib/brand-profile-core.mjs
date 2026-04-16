@@ -20,6 +20,9 @@ function cacheRootFor(rootDir, brandId) {
 function pnpmCommand() {
   const nodeBinDir = path.dirname(process.execPath);
   const bundledCorepack = path.join(nodeBinDir, process.platform === 'win32' ? 'corepack.cmd' : 'corepack');
+  if (process.platform === 'win32') {
+    return [process.execPath, path.join(nodeBinDir, 'node_modules', 'corepack', 'dist', 'corepack.js'), 'pnpm'];
+  }
   return [bundledCorepack, 'pnpm'];
 }
 

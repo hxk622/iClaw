@@ -98,6 +98,29 @@ function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+export function normalizeTauriError(error: unknown, fallback: string): Error {
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    return message ? error : new Error(fallback);
+  }
+  if (typeof error === 'string') {
+    const message = error.trim();
+    return new Error(message || fallback);
+  }
+  if (error && typeof error === 'object') {
+    const message =
+      'message' in error && typeof error.message === 'string'
+        ? error.message.trim()
+        : 'error' in error && typeof error.error === 'string'
+          ? error.error.trim()
+          : '';
+    if (message) {
+      return new Error(message);
+    }
+  }
+  return new Error(fallback);
+}
+
 export async function loadRuntimeConfig(): Promise<RuntimeConfig | null> {
   if (!isTauriRuntime()) return null;
   return invoke<RuntimeConfig>('load_runtime_config');
@@ -110,7 +133,11 @@ export async function saveRuntimeConfig(config: RuntimeConfig): Promise<boolean>
 
 export async function installRuntime(): Promise<boolean> {
   if (!isTauriRuntime()) return false;
-  return invoke<boolean>('install_runtime');
+  try {
+    return await invoke<boolean>('install_runtime');
+  } catch (error) {
+    throw normalizeTauriError(error, 'runtime install failed');
+  }
 }
 
 export async function diagnoseRuntime(): Promise<RuntimeDiagnosis | null> {

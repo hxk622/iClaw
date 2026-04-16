@@ -370,12 +370,19 @@ function loadModelLogoManifest(baseUrl: string) {
 }
 
 function resolvePublicBaseUrl(headers: Record<string, string | string[] | undefined>): string {
+  const hostHeader = headers.host;
+  const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+  if (host?.trim()) {
+    const protoHeader = headers['x-forwarded-proto'];
+    const protoValue = Array.isArray(protoHeader) ? protoHeader[0] : protoHeader;
+    const protocol = (protoValue || 'http').trim() || 'http';
+    return `${protocol}://${host.trim()}`;
+  }
+
   if (config.apiUrl.trim()) {
     return config.apiUrl.trim().replace(/\/$/, '');
   }
 
-  const hostHeader = headers.host;
-  const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
   const protoHeader = headers['x-forwarded-proto'];
   const protoValue = Array.isArray(protoHeader) ? protoHeader[0] : protoHeader;
   const protocol = (protoValue || 'http').trim() || 'http';

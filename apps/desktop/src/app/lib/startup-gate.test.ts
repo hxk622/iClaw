@@ -202,3 +202,33 @@ test('resolveDesktopStartupSnapshot classifies runtime install errors as termina
   assert.equal(snapshot.phase, 'blocked_runtime_install');
   assert.equal(snapshot.shouldShowError, true);
 });
+
+test('buildInstallerViewModel preserves raw runtime install errors', () => {
+  const view = buildInstallerViewModel({
+    brandDisplayName: 'iClaw',
+    runtimeReady: false,
+    runtimeChecking: false,
+    runtimeInstalling: false,
+    healthy: false,
+    healthError: null,
+    runtimeInstallError:
+      'failed to stage bundled runtime archive C:/bundle.tar.gz -> C:/Users/test/runtime.tar.gz: Access is denied. (os error 5)',
+    runtimeDiagnosis: {
+      runtime_found: false,
+      runtime_installable: true,
+      runtime_path: null,
+      runtime_version: '2026.3.13',
+      runtime_download_url: 'https://downloads.example.com/runtime.tar.gz',
+      skills_dir_ready: true,
+      mcp_config_ready: true,
+      work_dir: 'D:/runtime/work',
+      log_dir: 'D:/runtime/logs',
+    },
+    runtimeInstallProgress: null,
+    startupDiagnostics: null,
+    lastRuntimeProgress: 12,
+  });
+
+  assert.equal(view.state, 'error');
+  assert.match(view.errorMessage || '', /Access is denied/);
+});

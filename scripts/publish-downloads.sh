@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RELEASE_DIR="$ROOT_DIR/dist/releases"
 ENV_NAME="${1:-dev}"
 KEEP_VERSIONS="${ICLAW_KEEP_VERSIONS:-2}"
+MANIFEST_VERSION_OVERRIDE="${ICLAW_RELEASE_VERSION:-${ICLAW_DESKTOP_RELEASE_VERSION:-}}"
 
 export ICLAW_PACKAGING_ENV="$ENV_NAME"
 ARTIFACT_BASE_NAME="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.artifactBaseName | tail -n1)"
@@ -38,7 +39,57 @@ native_updater_enabled() {
   [[ "${ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER:-}" =~ ^(1|true|TRUE|yes|YES)$ ]]
 }
 
-node "$ROOT_DIR/scripts/generate-desktop-release-manifests.mjs" --channel "$ENV_NAME"
+trim_string() {
+  local raw="${1:-}"
+  printf '%s' "$raw" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+resolve_manifest_version() {
+  local explicit_version=""
+  explicit_version="$(trim_string "$MANIFEST_VERSION_OVERRIDE")"
+  if [[ -n "$explicit_version" ]]; then
+    printf '%s\n' "$explicit_version"
+    return 0
+  fi
+
+  local files=""
+  local pattern=""
+  for pattern in \
+    "${ARTIFACT_BASE_NAME}"_*_x64_"${ENV_NAME}".exe \
+    "${ARTIFACT_BASE_NAME}"_*_aarch64_"${ENV_NAME}".exe \
+    "${ARTIFACT_BASE_NAME}"_*_x64_"${ENV_NAME}".dmg \
+    "${ARTIFACT_BASE_NAME}"_*_aarch64_"${ENV_NAME}".dmg; do
+    local matched=""
+    matched="$(cd "$RELEASE_DIR" && ls -1 $pattern 2>/dev/null | sort -V || true)"
+    if [[ -n "$matched" ]]; then
+      files+=$'\n'"$matched"
+    fi
+  done
+
+  files="$(printf '%s\n' "$files" | sed '/^$/d' | sort -V || true)"
+  if [[ -z "$files" ]]; then
+    echo "No release artifacts found in $RELEASE_DIR for manifest generation (${ARTIFACT_BASE_NAME}, ${ENV_NAME})" >&2
+    exit 1
+  fi
+
+  local latest_file=""
+  latest_file="$(printf '%s\n' "$files" | tail -n1)"
+  local latest_basename=""
+  latest_basename="$(basename "$latest_file")"
+  local release_version=""
+  release_version="$(printf '%s\n' "$latest_basename" | sed -E "s/^${ARTIFACT_BASE_NAME}_(.+)_(x64|aarch64)_${ENV_NAME}\.(dmg|exe)$/\\1/")"
+  release_version="$(trim_string "$release_version")"
+  if [[ -z "$release_version" || "$release_version" == "$latest_basename" ]]; then
+    echo "Failed to infer manifest version from artifact: $latest_basename" >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$release_version"
+}
+
+MANIFEST_VERSION="$(resolve_manifest_version)"
+echo "[publish-downloads] using manifest version: $MANIFEST_VERSION"
+node "$ROOT_DIR/scripts/generate-desktop-release-manifests.mjs" --channel "$ENV_NAME" --version "$MANIFEST_VERSION"
 
 local_prune() {
   local channel="$1"

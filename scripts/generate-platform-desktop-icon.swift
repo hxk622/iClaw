@@ -27,11 +27,11 @@ func makeStyle(for platform: Platform) -> Style {
     )
   case .windows:
     return Style(
-      subjectScale: 1.12,
+      subjectScale: 1.18,
       subjectXOffset: 0,
-      subjectYOffset: 0,
-      clipInset: 24,
-      clipRadius: 200
+      subjectYOffset: 4,
+      clipInset: 18,
+      clipRadius: 220
     )
   }
 }

@@ -110,11 +110,12 @@ function runCapture(command, args, options = {}) {
 function pnpmCommand() {
   const nodeBinDir = path.dirname(process.execPath);
   const bundledCorepack = path.join(nodeBinDir, process.platform === 'win32' ? 'corepack.cmd' : 'corepack');
+  const bundledCorepackJs = path.join(nodeBinDir, 'node_modules', 'corepack', 'dist', 'corepack.js');
   if (process.platform === 'win32') {
     return {
-      command: bundledCorepack,
-      args: ['pnpm'],
-      shell: true,
+      command: process.execPath,
+      args: [bundledCorepackJs, 'pnpm'],
+      shell: false,
     };
   }
   return {
@@ -126,12 +127,14 @@ function pnpmCommand() {
 function tauriBinaryPath() {
   if (process.platform === 'win32') {
     return {
-      command: path.join(desktopDir, 'node_modules', '.bin', 'tauri.CMD'),
-      shell: true,
+      command: process.execPath,
+      args: [path.join(desktopDir, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')],
+      shell: false,
     };
   }
   return {
     command: path.join(desktopDir, 'node_modules', '.bin', 'tauri'),
+    args: [],
     shell: false,
   };
 }
@@ -730,7 +733,7 @@ async function writeTempTauriConfig({ stagePaths }) {
   const config = JSON.parse(await fs.readFile(stagePaths.tauriGeneratedConfigPath, 'utf8'));
   config.build = config.build || {};
   config.build.beforeBuildCommand = '';
-  config.build.frontendDist = path.join(desktopDir, 'dist');
+  config.build.frontendDist = '../dist';
   config.bundle = config.bundle || {};
   if (!isTruthyEnv(process.env.ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER)) {
     config.bundle.createUpdaterArtifacts = false;
@@ -755,6 +758,17 @@ async function writeTempTauriConfig({ stagePaths }) {
   await fs.mkdir(path.dirname(tempConfigPath), { recursive: true });
   await fs.writeFile(tempConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
   return tempConfigPath;
+}
+
+async function stageFrontendDist(stagePaths) {
+  const sourceDistDir = path.join(desktopDir, 'dist');
+  const stagedDistDir = path.join(stagePaths.desktopRoot, 'dist');
+  if (!(await pathExists(sourceDistDir))) {
+    throw new Error(`desktop packaging aborted: frontend dist missing at ${sourceDistDir}`);
+  }
+  await fs.rm(stagedDistDir, { recursive: true, force: true });
+  await fs.mkdir(path.dirname(stagedDistDir), { recursive: true });
+  await fs.cp(sourceDistDir, stagedDistDir, { recursive: true });
 }
 
 async function preparePackagingResourcesSource(resourcesSourceDir) {
@@ -2018,8 +2032,9 @@ async function main() {
     tempTauriConfigPath = await writeTempTauriConfig({ stagePaths });
 
     run(pnpm.command, [...pnpm.args, '--dir', desktopDir, 'build'], { env, shell: pnpm.shell });
+    await stageFrontendDist(stagePaths);
     const tauri = tauriBinaryPath();
-    run(tauri.command, ['build', '--config', tempTauriConfigPath, '--bundles', tauriBundle, ...forwardedArgs], {
+    run(tauri.command, [...(tauri.args || []), 'build', '--config', tempTauriConfigPath, '--bundles', tauriBundle, ...forwardedArgs], {
       cwd: desktopDir,
       env: {
         ...tauriBuildEnv,
