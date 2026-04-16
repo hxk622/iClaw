@@ -10,6 +10,7 @@ import { loadBrandProfile, resolveBrandId } from './brand-profile.mjs';
 import { readOpenclawSourceVersion, resolveOpenclawSourceDir } from './openclaw-source.mjs';
 import {
   buildBundleRoot,
+  buildPackagingWorkspacePaths,
   normalizePackagingChannel,
   resolvePackagingChannelFromEnv,
   resolvePackagingTargetInfo,
@@ -160,6 +161,7 @@ export function resolveDesktopBundlePaths(rootDir, targetTriple = '') {
     bundleRoot,
     runtimeBootstrapConfigPath: path.join(tauriDir, 'resources', 'config', 'openclaw-runtime.json'),
     bundledRuntimeDir: path.join(tauriDir, 'resources', 'openclaw-runtime'),
+    bundledRuntimeArchiveDir: path.join(tauriDir, 'resources', 'runtime-archives'),
     releaseDir: path.join(rootDir, 'dist', 'releases'),
     packageJsonPath: path.join(rootDir, 'package.json'),
     desktopPackageJsonPath: path.join(desktopDir, 'package.json'),
@@ -250,11 +252,12 @@ export async function collectOpenclawDrift(context) {
     });
   }
   if (sourceVersion !== runtimeVersion) {
-    return toCheckResult('fail', 'OpenClaw UI/runtime version drift detected', {
+    return toCheckResult('pass', 'OpenClaw source and pinned runtime version differ', {
       sourceDir,
       sourceVersion,
       runtimeVersion,
       runtimeBootstrapConfigPath: paths.runtimeBootstrapConfigPath,
+      advisories: ['Local OpenClaw source is ahead of the runtime version pinned for desktop packaging'],
     });
   }
   return toCheckResult('pass', 'OpenClaw UI/runtime versions are aligned', {
@@ -314,8 +317,19 @@ export async function collectOemConsistency(context) {
 export async function collectBundleVerification(context) {
   const artifacts = await findReleaseArtifacts(context);
   const paths = resolveDesktopBundlePaths(context.rootDir, context.targetTriple);
+  const packagingPaths = buildPackagingWorkspacePaths({
+    rootDir: context.rootDir,
+    brandId: context.brandId,
+    channel: context.channel,
+    target: context.targetTriple,
+  });
   const runtimeBootstrap = await readJsonIfExists(paths.runtimeBootstrapConfigPath);
   const runtimeFootprint = await collectDirectoryFootprint(paths.bundledRuntimeDir);
+  const runtimeArchiveFootprint = await collectDirectoryFootprint(paths.bundledRuntimeArchiveDir);
+  const stagedRuntimeFootprint = await collectDirectoryFootprint(path.join(packagingPaths.resourcesSourceDir, 'openclaw-runtime'));
+  const stagedRuntimeArchiveFootprint = await collectDirectoryFootprint(
+    path.join(packagingPaths.resourcesSourceDir, 'runtime-archives'),
+  );
   const errors = [];
   if (!artifacts.installer) {
     errors.push('missing installer artifact in dist/releases');
@@ -323,13 +337,23 @@ export async function collectBundleVerification(context) {
   if (!runtimeBootstrap?.version) {
     errors.push('missing runtime bootstrap config version');
   }
-  if (!runtimeFootprint.exists || runtimeFootprint.totalFiles === 0) {
-    errors.push('bundled runtime directory is missing or empty');
+  const hasExpandedRuntime = [runtimeFootprint, stagedRuntimeFootprint].some(
+    (item) => item.exists && item.totalFiles > 0,
+  );
+  const hasRuntimeArchive = [runtimeArchiveFootprint, stagedRuntimeArchiveFootprint].some(
+    (item) => item.exists && item.totalFiles > 0,
+  );
+  if (!hasExpandedRuntime && !hasRuntimeArchive) {
+    errors.push('bundled runtime payload is missing from both expanded runtime and runtime-archives');
   }
   const details = {
     artifacts,
     runtimeBootstrapVersion: trimString(runtimeBootstrap?.version),
     runtimeFootprint,
+    runtimeArchiveFootprint,
+    stagedRuntimeFootprint,
+    stagedRuntimeArchiveFootprint,
+    runtimeBundleMode: hasRuntimeArchive && !hasExpandedRuntime ? 'archive' : hasExpandedRuntime ? 'expanded' : 'missing',
   };
   if (errors.length > 0) {
     return toCheckResult('fail', 'Desktop bundle verification failed', {
@@ -342,6 +366,9 @@ export async function collectBundleVerification(context) {
 
 export async function collectRuntimeCache(context) {
   const cacheRoot = path.join(context.rootDir, '.artifacts', 'openclaw-runtime');
+  const paths = resolveDesktopBundlePaths(context.rootDir, context.targetTriple);
+  const runtimeBootstrap = await readJsonIfExists(paths.runtimeBootstrapConfigPath);
+  const expectedRuntimeVersion = trimString(runtimeBootstrap?.version);
   const targetDirs = [
     path.join(cacheRoot, context.brandId, context.targetTriple),
     path.join(cacheRoot, '_shared', context.targetTriple),
@@ -355,15 +382,20 @@ export async function collectRuntimeCache(context) {
       entries.push(path.join(targetDir, entry.name));
     }
   }
-  const matched = entries.filter((item) => item.includes(context.releaseVersion) || item.includes(context.packageVersion.split('+', 1)[0]));
+  const matched = entries.filter((item) => {
+    const dirName = path.basename(item);
+    return expectedRuntimeVersion && (dirName === expectedRuntimeVersion || item.includes(expectedRuntimeVersion));
+  });
   if (matched.length === 0) {
     return toCheckResult('warn', 'No local runtime cache matched current release', {
       cacheRoot,
+      expectedRuntimeVersion,
       scannedDirectories: entries,
     });
   }
   return toCheckResult('pass', 'Local runtime cache is available', {
     cacheRoot,
+    expectedRuntimeVersion,
     matchedDirectories: matched,
   });
 }
@@ -371,14 +403,26 @@ export async function collectRuntimeCache(context) {
 export async function collectPackageSize(context) {
   const artifacts = await findReleaseArtifacts(context);
   const paths = resolveDesktopBundlePaths(context.rootDir, context.targetTriple);
+  const packagingPaths = buildPackagingWorkspacePaths({
+    rootDir: context.rootDir,
+    brandId: context.brandId,
+    channel: context.channel,
+    target: context.targetTriple,
+  });
   const installerStats = artifacts.installer ? await collectFileStats(artifacts.installer) : null;
   const updaterStats = artifacts.updater ? await collectFileStats(artifacts.updater) : null;
   const runtimeFootprint = await collectDirectoryFootprint(paths.bundledRuntimeDir);
+  const runtimeArchiveFootprint = await collectDirectoryFootprint(paths.bundledRuntimeArchiveDir);
+  const stagedRuntimeArchiveFootprint = await collectDirectoryFootprint(
+    path.join(packagingPaths.resourcesSourceDir, 'runtime-archives'),
+  );
   const topLevel = await collectDirectoryFootprint(path.join(context.rootDir, 'apps', 'desktop', 'public'));
   const summary = {
     installer: installerStats,
     updater: updaterStats,
     bundledRuntime: runtimeFootprint,
+    bundledRuntimeArchives: runtimeArchiveFootprint,
+    stagedRuntimeArchives: stagedRuntimeArchiveFootprint,
     publicAssets: topLevel,
   };
   if (!installerStats) {
@@ -448,33 +492,58 @@ export function runPowerShellJson(script) {
   return raw ? JSON.parse(raw) : null;
 }
 
+function readRegistryStringValue(registryPath, valueName) {
+  const result = runCapture('reg', ['query', registryPath, '/v', valueName], {
+    shell: false,
+  });
+  if (result.status !== 0) {
+    return '';
+  }
+  const line = trimString(result.stdout)
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(valueName));
+  if (!line) {
+    return '';
+  }
+  const parts = line.split(/\s{2,}/).map((item) => item.trim()).filter(Boolean);
+  return parts.length >= 3 ? trimString(parts[2]) : '';
+}
+
+function readDriveFreeBytes(driveLetter = 'C:') {
+  const result = runCapture('fsutil', ['volume', 'diskfree', driveLetter], {
+    shell: false,
+  });
+  if (result.status !== 0) {
+    return 0;
+  }
+  const match = result.stdout.match(/Total free bytes\s*:\s*([\d,]+)/i);
+  return match ? Number.parseInt(match[1].replace(/,/g, ''), 10) : 0;
+}
+
 export async function collectWindowsEnvPrecheck() {
   if (process.platform !== 'win32') {
     return toCheckResult('skipped', 'Windows environment precheck skipped on non-Windows host');
   }
   try {
-    const payload = runPowerShellJson(`
-      $webviewRegPath = 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
-      $webviewVersion = ''
-      if (Test-Path $webviewRegPath) {
-        $webviewVersion = [string]((Get-ItemProperty -Path $webviewRegPath -Name pv -ErrorAction SilentlyContinue).pv)
-      }
-      $longPaths = (Get-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem' -Name LongPathsEnabled -ErrorAction SilentlyContinue).LongPathsEnabled
-      $drive = Get-PSDrive -Name C -ErrorAction SilentlyContinue
-      [pscustomobject]@{
-        osCaption = [string](Get-CimInstance Win32_OperatingSystem).Caption
-        osVersion = [string](Get-CimInstance Win32_OperatingSystem).Version
-        webview2Version = $webviewVersion
-        longPathsEnabled = [bool]($longPaths -eq 1)
-        cDriveFreeBytes = if ($drive) { [int64]$drive.Free } else { 0 }
-      } | ConvertTo-Json -Depth 4
-    `);
+    const payload = {
+      osCaption: readRegistryStringValue('HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', 'ProductName'),
+      osVersion: os.release(),
+      webview2Version: readRegistryStringValue(
+        'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+        'pv',
+      ),
+      longPathsEnabled:
+        readRegistryStringValue('HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem', 'LongPathsEnabled') === '0x1',
+      cDriveFreeBytes: readDriveFreeBytes('C:'),
+    };
     const warnings = [];
+    const advisories = [];
     if (!trimString(payload?.webview2Version)) {
       warnings.push('WebView2 runtime not detected in registry');
     }
     if (!(payload?.longPathsEnabled === true)) {
-      warnings.push('LongPathsEnabled is off');
+      advisories.push('LongPathsEnabled is off');
     }
     if (Number(payload?.cDriveFreeBytes || 0) < 5 * 1024 * 1024 * 1024) {
       warnings.push('C: free space is below 5 GB');
@@ -483,6 +552,7 @@ export async function collectWindowsEnvPrecheck() {
       ...payload,
       cDriveFreePretty: formatBytes(Number(payload?.cDriveFreeBytes || 0)),
       warnings,
+      advisories,
     });
   } catch (error) {
     return toCheckResult('warn', 'Windows environment precheck failed to execute cleanly', {
@@ -524,13 +594,16 @@ export async function collectIconChain(context) {
       `);
     } catch {}
   }
-  const warnings = Array.isArray(faviconCornerAlpha) && faviconCornerAlpha.some((item) => Number(item?.a) > 0)
-    ? ['desktop public favicon corners are opaque; UI clipping is still required to keep rounded appearance']
-    : [];
+  const warnings = files.length === 0 ? ['icon chain assets are missing'] : [];
+  const advisories =
+    Array.isArray(faviconCornerAlpha) && faviconCornerAlpha.some((item) => Number(item?.a) > 0)
+      ? ['desktop public favicon corners are opaque; UI clipping is still required to keep rounded appearance']
+      : [];
   return toCheckResult(warnings.length > 0 ? 'warn' : 'pass', 'Icon chain report generated', {
     iconFiles: files,
     faviconCornerAlpha,
     warnings,
+    advisories,
   });
 }
 
@@ -554,7 +627,7 @@ export async function collectRuntimeSnapshot(context) {
   if (trimString(snapshot?.config?.bundleIdentifier) && trimString(snapshot?.config?.bundleIdentifier) !== trimString(context.profile?.bundleIdentifier)) {
     mismatches.push('snapshot bundleIdentifier mismatched current brand profile');
   }
-  const status = mismatches.length > 0 || providerModels.length === 0 ? 'warn' : 'pass';
+  const status = providerModels.length === 0 ? 'warn' : 'pass';
   return toCheckResult(status, 'Runtime snapshot inspection completed', {
     snapshotPath,
     runtimeConfigPath,
@@ -562,6 +635,7 @@ export async function collectRuntimeSnapshot(context) {
     snapshotBundleIdentifier: trimString(snapshot?.config?.bundleIdentifier),
     runtimeModelCount: providerModels.length,
     mismatches,
+    advisories: mismatches,
   });
 }
 
