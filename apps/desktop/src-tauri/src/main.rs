@@ -8228,7 +8228,7 @@ mod tests {
         PersistedSidecarState {
             pid: Some(1234),
             port: 2126,
-            brand_id: String::from("licaiclaw"),
+            brand_id: String::from("caiclaw"),
             app_version: String::from("1.0.4+202604101315"),
             runtime_published_version: 3,
             runtime_config_sha256: String::from("abc123"),

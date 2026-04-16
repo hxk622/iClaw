@@ -159,6 +159,7 @@ const AUTH_AGREEMENT_LABELS: Record<string, string> = {
 const DEFAULT_ENABLED_MENU_KEYS = [
   'chat',
   'cron',
+  'thought-library',
   'investment-experts',
   'stock-market',
   'fund-market',
@@ -176,6 +177,7 @@ const DEFAULT_ENABLED_MENU_KEYS = [
 const DEFAULT_MENU_UI_CONFIG: Record<string, RequiredResolvedMenuUiConfig> = {
   chat: { displayName: '智能对话', group: '工作台', iconKey: 'chat' },
   cron: { displayName: '定时任务', group: '工作台', iconKey: 'cron' },
+  'thought-library': { displayName: '思维库', group: '工作台', iconKey: 'thought-library' },
   'investment-experts': { displayName: '智能投资专家', group: '商店', iconKey: 'investment-experts' },
   'stock-market': { displayName: '股票市场', group: '市场', iconKey: 'stock-market' },
   'fund-market': { displayName: '基金市场', group: '市场', iconKey: 'fund-market' },
@@ -197,7 +199,7 @@ function buildDefaultAuthExperiencePreset(brandId: string, displayName: string, 
   const productLabel = String(displayName || brandId || '本产品').trim() || '本产品';
   const legalEntity = String(legalName || displayName || brandId || '本产品').trim() || '本产品';
   const socialNotice = '微信和 Gmail 登录暂未开放，请先使用账号密码登录。';
-  if (normalizedBrandId === 'licaiclaw') {
+  if (normalizedBrandId === 'caiclaw' || normalizedBrandId === 'licaiclaw') {
     return {
       title: '登录后继续使用理财研究与额度体系',
       subtitle: `${productLabel} 面向财富管理、基金投顾与长期配置场景，协议文案会更强调信息披露、风险揭示与用户自主决策。`,
@@ -625,7 +627,7 @@ export function resolveRequiredEnabledMenuKeys(config: Record<string, unknown> |
   if (!resolved || resolved.length === 0) {
     return [...DEFAULT_ENABLED_MENU_KEYS];
   }
-  return resolved;
+  return normalizeMenuKeys([...resolved, 'thought-library']);
 }
 
 export function resolveMenuDisplayNames(config: Record<string, unknown> | null | undefined): Record<string, string> | null {

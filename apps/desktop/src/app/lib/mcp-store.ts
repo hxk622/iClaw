@@ -24,6 +24,7 @@ export type McpStoreItem = {
   protocol: McpStoreProtocol;
   installState: McpStoreInstallState;
   defaultInstalled: boolean;
+  bundledBy: 'platform' | 'oem' | null;
   installed: boolean;
   userInstalled: boolean;
   enabled: boolean;
@@ -31,6 +32,8 @@ export type McpStoreItem = {
   requiresApiKey: boolean;
   categories: string[];
   lastUpdated: string;
+  rawTransport: 'stdio' | 'http' | 'sse' | null;
+  rawConfig: Record<string, unknown>;
   configSummary: string | null;
   command: string | null;
   httpUrl: string | null;
@@ -63,6 +66,11 @@ function readStringArray(value: unknown): string[] {
   return value
     .map((item) => (typeof item === 'string' ? item.trim() : ''))
     .filter(Boolean);
+}
+
+function readAppBinding(metadata: Record<string, unknown>): Record<string, unknown> | null {
+  const value = metadata.app_binding;
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
 function titleizeMcpKey(value: string): string {
@@ -107,6 +115,29 @@ function parseCategories(metadata: Record<string, unknown>): string[] {
     if (deduped.size >= 5) break;
   }
   return Array.from(deduped);
+}
+
+function resolveBundledBy(metadata: Record<string, unknown>, defaultInstalled: boolean): 'platform' | 'oem' | null {
+  if (!defaultInstalled) {
+    return null;
+  }
+  const appBinding = readAppBinding(metadata);
+  const managedBy = readString(appBinding?.managed_by)?.toLowerCase();
+  if (managedBy === 'platform') {
+    return 'platform';
+  }
+  return 'oem';
+}
+
+function resolveBundledSourceLabel(metadata: Record<string, unknown>, defaultInstalled: boolean): string {
+  const bundledBy = resolveBundledBy(metadata, defaultInstalled);
+  if (bundledBy === 'platform') {
+    return '平台预置';
+  }
+  if (bundledBy === 'oem') {
+    return 'OEM预置';
+  }
+  return '系统预置';
 }
 
 function isSecretEnvKey(key: string): boolean {
@@ -244,6 +275,7 @@ function normalizeStoreItem(input: {
       protocol: normalizeProtocol(input.custom.transport),
       installState: 'installed',
       defaultInstalled: false,
+      bundledBy: null,
       installed: true,
       userInstalled: true,
       enabled: input.custom.enabled,
@@ -251,6 +283,8 @@ function normalizeStoreItem(input: {
       requiresApiKey: inferRequiresApiKey(config, metadata),
       categories,
       lastUpdated: readDateLabel(input.custom.updated_at),
+      rawTransport: input.custom.transport,
+      rawConfig: config,
       configSummary: buildConfigSummary(command, httpUrl, config),
       command,
       httpUrl,
@@ -283,10 +317,11 @@ function normalizeStoreItem(input: {
       input.cloud?.description?.trim() ||
       '来自云端目录的 MCP 连接，后续可按策略同步到本地运行时。',
     source,
-    sourceLabel: defaultInstalled ? 'OEM预置' : resolveCloudSourceLabel(metadata),
+    sourceLabel: defaultInstalled ? resolveBundledSourceLabel(metadata, defaultInstalled) : resolveCloudSourceLabel(metadata),
     protocol: normalizeProtocol(input.cloud?.transport || null),
     installState: defaultInstalled ? 'bundled' : input.library ? 'installed' : 'available',
     defaultInstalled,
+    bundledBy: resolveBundledBy(metadata, defaultInstalled),
     installed,
     userInstalled: Boolean(input.library),
     enabled: defaultInstalled ? true : input.library?.enabled !== false,
@@ -294,6 +329,11 @@ function normalizeStoreItem(input: {
     requiresApiKey: inferRequiresApiKey(config, metadata),
     categories,
     lastUpdated: readDateLabel(input.cloud?.updated_at || input.library?.updated_at || null),
+    rawTransport:
+      input.cloud?.transport === 'sse' || input.cloud?.transport === 'http' || input.cloud?.transport === 'stdio'
+        ? input.cloud.transport
+        : null,
+    rawConfig: config,
     configSummary: buildConfigSummary(command, httpUrl, config),
     command,
     httpUrl,
@@ -306,6 +346,47 @@ function normalizeStoreItem(input: {
     setupSchemaVersion: input.library?.setup_schema_version ?? setupSchema?.version ?? null,
     setupUpdatedAt: input.library?.setup_updated_at ?? null,
   };
+}
+
+export function isFinanceMcpStoreItem(item: McpStoreItem): boolean {
+  const metadata = item.metadata || {};
+  const category = readString((metadata as Record<string, unknown>).category)?.toLowerCase();
+  if (category === 'finance') {
+    return true;
+  }
+
+  const categoryCandidates = item.categories.map((entry) => entry.trim().toLowerCase());
+  if (
+    categoryCandidates.some((entry) =>
+      ['finance', '财经', '金融', '行情', '宏观', '基金', '股票', '证券', '投资', '量化', '加密'].includes(entry),
+    )
+  ) {
+    return true;
+  }
+
+  if (item.iconKey === 'finance') {
+    return true;
+  }
+
+  const haystack = `${item.mcpKey} ${item.name} ${item.description}`.toLowerCase();
+  return [
+    'finance',
+    'stock',
+    'fund',
+    'macro',
+    'etf',
+    'fred',
+    'yahoo',
+    'sec',
+    'alpaca',
+    'alphavantage',
+    'fmp',
+    'fingpt',
+    'edgar',
+    '财经',
+    '金融',
+    '行情',
+  ].some((keyword) => haystack.includes(keyword));
 }
 
 function compareMcpStoreItems(left: McpStoreItem, right: McpStoreItem): number {
@@ -489,4 +570,30 @@ export async function removeCustomMcp(input: {
     throw new Error('AUTH_REQUIRED');
   }
   return input.client.removeCustomMcp(input.accessToken, BRAND.brandId, input.mcpKey);
+}
+
+export async function updateCustomMcpEnabledState(input: {
+  client: IClawClient;
+  accessToken: string | null;
+  item: McpStoreItem;
+  enabled: boolean;
+}): Promise<UserCustomMcpData> {
+  if (!input.accessToken) {
+    throw new Error('AUTH_REQUIRED');
+  }
+  const transport = input.item.rawTransport;
+  if (!transport) {
+    throw new Error('CUSTOM_MCP_TRANSPORT_MISSING');
+  }
+  return input.client.upsertCustomMcp({
+    token: input.accessToken,
+    appName: BRAND.brandId,
+    mcpKey: input.item.mcpKey,
+    name: input.item.name,
+    description: input.item.description,
+    transport,
+    config: input.item.rawConfig,
+    metadata: input.item.metadata,
+    enabled: input.enabled,
+  });
 }

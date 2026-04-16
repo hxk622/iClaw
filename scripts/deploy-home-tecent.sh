@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 MODE="${1:-prod}"
 
-DEFAULT_BRAND="${ICLAW_HOME_BRAND:-${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-licaiclaw}}}"
+DEFAULT_BRAND="${ICLAW_HOME_BRAND:-${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-caiclaw}}}"
 DEFAULT_TARGETS="172.17.0.5,172.17.0.9"
 
 DEPLOY_SUCCESS=0

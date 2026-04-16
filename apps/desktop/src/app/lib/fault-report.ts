@@ -37,6 +37,11 @@ export type SubmitAutoDiagnosticUploadInput = {
   onUploadProgress?: (progress: { loaded: number; total: number | null; percent: number | null }) => void;
 };
 
+export type SubmittedDesktopFaultReport = DesktopFaultReportData & {
+  reportId: string;
+  fileSizeBytes: number;
+};
+
 function summarizeFaultReportPrepareInput(input: DesktopFaultReportPrepareInput) {
   return {
     entry: input.entry,
@@ -99,13 +104,34 @@ function decodeBase64ToBytes(value: string): Uint8Array {
   return bytes;
 }
 
+function normalizeDesktopFaultReportResult(result: DesktopFaultReportData): SubmittedDesktopFaultReport {
+  const reportId =
+    typeof (result as { reportId?: unknown }).reportId === 'string' && (result as { reportId?: string }).reportId?.trim()
+      ? (result as { reportId: string }).reportId.trim()
+      : typeof result.report_id === 'string' && result.report_id.trim()
+        ? result.report_id.trim()
+        : '';
+  const fileSizeBytes =
+    typeof (result as { fileSizeBytes?: unknown }).fileSizeBytes === 'number' && Number.isFinite((result as { fileSizeBytes?: number }).fileSizeBytes)
+      ? Number((result as { fileSizeBytes: number }).fileSizeBytes)
+      : typeof result.file_size_bytes === 'number' && Number.isFinite(result.file_size_bytes)
+        ? Number(result.file_size_bytes)
+        : 0;
+
+  return {
+    ...result,
+    reportId,
+    fileSizeBytes,
+  };
+}
+
 function resolveReleaseChannel(): 'dev' | 'prod' {
   return import.meta.env.DEV ? 'dev' : 'prod';
 }
 
 export async function submitDesktopFaultReport(
   input: SubmitDesktopFaultReportInput,
-): Promise<DesktopFaultReportData> {
+): Promise<SubmittedDesktopFaultReport> {
   console.info('[fault-report] manual submit start', {
     entry: input.entry,
     failureStage: input.failureStage,
@@ -164,7 +190,7 @@ export async function submitDesktopFaultReport(
     });
 
     input.onPhaseChange?.('uploading');
-    const result = await input.client.uploadDesktopFaultReport({
+    const rawResult = await input.client.uploadDesktopFaultReport({
       token: input.accessToken || null,
       payload,
       fileName: prepared.fileName,
@@ -172,6 +198,7 @@ export async function submitDesktopFaultReport(
       file: archiveBytes,
       onProgress: input.onUploadProgress,
     });
+    const result = normalizeDesktopFaultReportResult(rawResult);
     console.info('[fault-report] manual upload success', {
       reportId: result.reportId,
       fileSizeBytes: result.fileSizeBytes,

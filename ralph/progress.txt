@@ -1,0 +1,5 @@
+Ralph Progress
+==============
+
+Project: iClaw Thought Library Shell Phase 2
+Branch: ralph/thought-library-shell

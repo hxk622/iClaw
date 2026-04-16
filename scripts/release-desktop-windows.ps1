@@ -1,5 +1,5 @@
 param(
-  [string]$Brand = $(if ($env:APP_NAME) { $env:APP_NAME } elseif ($env:ICLAW_PORTAL_APP_NAME) { $env:ICLAW_PORTAL_APP_NAME } else { 'licaiclaw' }),
+  [string]$Brand = $(if ($env:APP_NAME) { $env:APP_NAME } elseif ($env:ICLAW_PORTAL_APP_NAME) { $env:ICLAW_PORTAL_APP_NAME } else { 'caiclaw' }),
   [string]$ReleaseVersion = '',
   [string[]]$Channels = @('dev', 'prod'),
   [string[]]$Targets = @('x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'),

@@ -38,7 +38,7 @@ function asString(value: unknown): string {
 
 function createLicaiclawWelcomePreset(baseUrl: string): WelcomePresetInput {
   return {
-    appName: 'licaiclaw',
+    appName: 'caiclaw',
     entryLabel: '',
     kolName: '理财客',
     expertName: '我是一只会赚钱的小龙虾',
@@ -117,7 +117,7 @@ async function main() {
     }
 
     const preset =
-      appName === 'licaiclaw'
+      appName === 'caiclaw' || appName === 'licaiclaw'
         ? createLicaiclawWelcomePreset(publicBaseUrl)
         : (() => {
             throw new Error(`unsupported welcome preset app: ${appName}`);

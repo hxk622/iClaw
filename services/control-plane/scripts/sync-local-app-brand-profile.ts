@@ -63,7 +63,7 @@ function normalizeWebsite(raw: unknown, displayName: string) {
 }
 
 function defaultMarketingTemplateKey(brandId: string): string {
-  return brandId === 'licaiclaw' ? 'wealth-premium' : 'classic-download';
+  return brandId === 'caiclaw' || brandId === 'licaiclaw' ? 'wealth-premium' : 'classic-download';
 }
 
 function normalizeMarketingSite(raw: unknown, brandId: string) {

@@ -70,7 +70,7 @@ export const BRAND = {
       "bundleIdentifier": "ai.licaiclaw.desktop",
       "artifactBaseName": "LiCaiClaw",
       "buildId": "202604152241",
-      "sourceProfileHash": "8ef2b81847bd033095030563090d2cc838b0a3eca087c9c59ff32ccf6b6e2951"
+      "sourceProfileHash": "af812b57f57b8b455287b246e55bfa5748bc62e78cccc4a6c7ae6b982b6fa0e3"
     }
   }
 } as const;

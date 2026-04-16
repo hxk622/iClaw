@@ -15,7 +15,7 @@ fi
 : "${ICLAW_CONTROL_PLANE_USER:=root}"
 
 : "${ICLAW_ICLAW_DOMAIN:=https://iclaw.aiyuanxi.com}"
-: "${ICLAW_LICAICLAW_DOMAIN:=https://caiclaw.aiyuanxi.com}"
+: "${ICLAW_CAICLAW_DOMAIN:=https://caiclaw.aiyuanxi.com}"
 
 : "${ICLAW_DEPLOY_CONTROL_PLANE:=1}"
 : "${ICLAW_DEPLOY_ADMIN:=0}"
@@ -86,7 +86,7 @@ resolve_brand_domain() {
   local brand="$1"
   case "$brand" in
     iclaw) printf '%s' "$ICLAW_ICLAW_DOMAIN" ;;
-    licaiclaw) printf '%s' "$ICLAW_LICAICLAW_DOMAIN" ;;
+    caiclaw|licaiclaw) printf '%s' "$ICLAW_CAICLAW_DOMAIN" ;;
     *)
       echo "Unsupported brand: $brand" >&2
       exit 1
@@ -224,12 +224,12 @@ main() {
   fi
 
   if [[ "$ICLAW_DEPLOY_LICAICLAW_HOME" == "1" ]]; then
-    deploy_home_web_brand "licaiclaw" "$ICLAW_LICAICLAW_DOMAIN" "$(resolve_brand_nginx_path licaiclaw)"
+    deploy_home_web_brand "caiclaw" "$ICLAW_CAICLAW_DOMAIN" "$(resolve_brand_nginx_path caiclaw)"
   fi
 
   if [[ "$ICLAW_DEPLOY_SMOKE_CHECK" == "1" ]]; then
     smoke_check_domain "iclaw" "$ICLAW_ICLAW_DOMAIN" "classic-download" "iClaw 官网"
-    smoke_check_domain "licaiclaw" "$ICLAW_LICAICLAW_DOMAIN" "wealth-premium" "理财客官网"
+    smoke_check_domain "caiclaw" "$ICLAW_CAICLAW_DOMAIN" "wealth-premium" "理财客官网"
   fi
 
   echo

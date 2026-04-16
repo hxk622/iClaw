@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { loadBrandProfile, resolveBrandId } from './lib/brand-profile.mjs';
@@ -221,6 +223,143 @@ async function apiUploadBinary(baseUrl, accessToken, requestPath, filePath, cont
   return payload;
 }
 
+function runCapture(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? rootDir,
+    env: options.env ?? process.env,
+    shell: options.shell ?? false,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  return result;
+}
+
+function runChecked(command, args, options = {}) {
+  const result = runCapture(command, args, options);
+  if (result.status !== 0) {
+    throw new Error(result.stderr?.trim() || result.stdout?.trim() || `${command} failed`);
+  }
+  return result;
+}
+
+function parseJsonFromCommandOutput(output) {
+  const raw = trimString(output);
+  const firstBrace = raw.indexOf('{');
+  const lastBrace = raw.lastIndexOf('}');
+  if (firstBrace < 0 || lastBrace < firstBrace) {
+    throw new Error(`Expected JSON in command output, got: ${raw.slice(0, 240)}`);
+  }
+  return JSON.parse(raw.slice(firstBrace, lastBrace + 1));
+}
+
+function resolveRemoteControlPlaneTarget() {
+  return {
+    host: trimString(process.env.ICLAW_CONTROL_PLANE_HOST) || '115.191.6.179',
+    user: trimString(process.env.ICLAW_CONTROL_PLANE_USER) || 'root',
+    path: trimString(process.env.ICLAW_CONTROL_PLANE_PATH) || '/opt/iclaw',
+  };
+}
+
+function shouldUseRemoteDesktopReleaseUpload() {
+  const mode = trimString(process.env.ICLAW_DESKTOP_RELEASE_UPLOAD_MODE).toLowerCase();
+  if (mode === 'remote') return true;
+  if (mode === 'local') return false;
+  const endpoint = trimString(process.env.S3_ENDPOINT);
+  return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(endpoint);
+}
+
+async function uploadArtifactDirect({ brandId, channel, platform, arch, artifactType, filePath, contentType }) {
+  const scriptPath = path.join(rootDir, 'services', 'control-plane', 'scripts', 'upload-desktop-release-file.ts');
+  const result = runCapture(
+    process.execPath,
+    [
+      '--experimental-strip-types',
+      scriptPath,
+      '--app',
+      brandId,
+      '--channel',
+      channel,
+      '--platform',
+      platform,
+      '--arch',
+      arch,
+      '--artifact-type',
+      artifactType,
+      '--file',
+      filePath,
+      '--content-type',
+      contentType,
+    ],
+    {
+      cwd: rootDir,
+      env: process.env,
+    },
+  );
+  if (result.status !== 0) {
+    throw new Error(result.stderr?.trim() || result.stdout?.trim() || `${scriptPath} failed`);
+  }
+  return parseJsonFromCommandOutput(result.stdout || '{}');
+}
+
+async function uploadArtifactViaRemoteHost({ brandId, channel, platform, arch, artifactType, filePath, contentType }) {
+  const remote = resolveRemoteControlPlaneTarget();
+  const remoteTarget = `${remote.user}@${remote.host}`;
+  const remoteTempDir = `/tmp/iclaw-desktop-release-${Date.now()}`;
+  const remoteFilePath = `${remoteTempDir}/${path.basename(filePath)}`;
+
+  runChecked('ssh', [remoteTarget, `mkdir -p ${JSON.stringify(remoteTempDir)}`]);
+  runChecked('scp', [filePath, `${remoteTarget}:${remoteFilePath}`]);
+
+  try {
+    const remoteScript = `${remote.path}/services/control-plane/scripts/upload-desktop-release-file.ts`;
+    const result = runCapture('ssh', [
+      remoteTarget,
+      [
+        'cd',
+        JSON.stringify(remote.path),
+        '&&',
+        'node',
+        'scripts/run-with-env.mjs',
+        'prod',
+        'node',
+        '--experimental-strip-types',
+        remoteScript,
+        '--app',
+        brandId,
+        '--channel',
+        channel,
+        '--platform',
+        platform,
+        '--arch',
+        arch,
+        '--artifact-type',
+        artifactType,
+        '--file',
+        remoteFilePath,
+        '--content-type',
+        contentType,
+      ].join(' '),
+    ]);
+    if (result.status !== 0) {
+      throw new Error(result.stderr?.trim() || result.stdout?.trim() || `remote upload failed for ${path.basename(filePath)}`);
+    }
+    return parseJsonFromCommandOutput(result.stdout || '{}');
+  } finally {
+    runCapture('ssh', [remoteTarget, `rm -rf ${JSON.stringify(remoteTempDir)}`]);
+  }
+}
+
+async function registerUploadedArtifact(baseUrl, accessToken, requestPath, payload) {
+  return apiFetchJson(baseUrl, accessToken, requestPath, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+}
+
 async function findTargetArtifacts({ releaseDir, artifactBaseName, channel, appVersion, target }) {
   const entries = await fs.readdir(releaseDir, { withFileTypes: true });
   const files = entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
@@ -284,10 +423,41 @@ function inferContentType(filePath) {
 
 async function publishTarget({ baseUrl, accessToken, brandId, channel, version, notes, target, policy }) {
   const targetPrefix = `/admin/portal/apps/${encodeURIComponent(brandId)}/desktop-release/${encodeURIComponent(channel)}/${encodeURIComponent(target.platform)}/${encodeURIComponent(target.arch)}`;
-  await apiUploadBinary(baseUrl, accessToken, `${targetPrefix}/installer`, target.installerPath, inferContentType(target.installerPath));
+  const uploadArtifact = shouldUseRemoteDesktopReleaseUpload() ? uploadArtifactViaRemoteHost : uploadArtifactDirect;
+  const installerUpload = await uploadArtifact({
+    brandId,
+    channel,
+    platform: target.platform,
+    arch: target.arch,
+    artifactType: 'installer',
+    filePath: target.installerPath,
+    contentType: inferContentType(target.installerPath),
+  });
+  await registerUploadedArtifact(baseUrl, accessToken, `${targetPrefix}/installer/register`, installerUpload);
   if (target.updaterPath && target.signaturePath) {
-    await apiUploadBinary(baseUrl, accessToken, `${targetPrefix}/updater`, target.updaterPath, inferContentType(target.updaterPath));
-    await apiUploadBinary(baseUrl, accessToken, `${targetPrefix}/signature`, target.signaturePath, inferContentType(target.signaturePath));
+    const updaterUpload = await uploadArtifact({
+      brandId,
+      channel,
+      platform: target.platform,
+      arch: target.arch,
+      artifactType: 'updater',
+      filePath: target.updaterPath,
+      contentType: inferContentType(target.updaterPath),
+    });
+    await registerUploadedArtifact(baseUrl, accessToken, `${targetPrefix}/updater/register`, updaterUpload);
+    const signatureUpload = await uploadArtifact({
+      brandId,
+      channel,
+      platform: target.platform,
+      arch: target.arch,
+      artifactType: 'signature',
+      filePath: target.signaturePath,
+      contentType: inferContentType(target.signaturePath),
+    });
+    await registerUploadedArtifact(baseUrl, accessToken, `${targetPrefix}/signature/register`, {
+      ...signatureUpload,
+      signature: trimString(await fs.readFile(target.signaturePath, 'utf8')),
+    });
   }
   await apiFetchJson(baseUrl, accessToken, `${targetPrefix}/publish`, {
     method: 'POST',
