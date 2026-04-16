@@ -13,6 +13,8 @@ fi
 : "${ICLAW_CONTROL_PLANE_USER:=root}"
 : "${ICLAW_CONTROL_PLANE_PATH:=/opt/iclaw}"
 : "${ICLAW_CONTROL_PLANE_PM2_APP:=iclaw-control-plane}"
+: "${ICLAW_CONTROL_PLANE_INSTALL_DEPS:=1}"
+: "${ICLAW_CONTROL_PLANE_HEALTH_TIMEOUT_SECONDS:=90}"
 
 REMOTE="${ICLAW_CONTROL_PLANE_USER}@${ICLAW_CONTROL_PLANE_HOST}"
 LOCAL_PROD_ENV_FILE="${ROOT_DIR}/.env.prod"
@@ -50,6 +52,18 @@ node "$ROOT_DIR/scripts/write-build-info.mjs" \
 
 echo "Deploying control-plane source -> ${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane"
 
+sync_path "$ROOT_DIR/package.json" "${ICLAW_CONTROL_PLANE_PATH}/package.json"
+sync_path "$ROOT_DIR/pnpm-lock.yaml" "${ICLAW_CONTROL_PLANE_PATH}/pnpm-lock.yaml"
+sync_path "$ROOT_DIR/pnpm-workspace.yaml" "${ICLAW_CONTROL_PLANE_PATH}/pnpm-workspace.yaml"
+sync_path "$ROOT_DIR/admin-web/package.json" "${ICLAW_CONTROL_PLANE_PATH}/admin-web/package.json"
+sync_path "$ROOT_DIR/apps/desktop/package.json" "${ICLAW_CONTROL_PLANE_PATH}/apps/desktop/package.json"
+sync_path "$ROOT_DIR/home-web/package.json" "${ICLAW_CONTROL_PLANE_PATH}/home-web/package.json"
+sync_path "$ROOT_DIR/packages/shared/package.json" "${ICLAW_CONTROL_PLANE_PATH}/packages/shared/package.json"
+sync_path "$ROOT_DIR/packages/sdk/package.json" "${ICLAW_CONTROL_PLANE_PATH}/packages/sdk/package.json"
+sync_path \
+  "$ROOT_DIR/services/control-plane/package.json" \
+  "${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/package.json"
+
 sync_path \
   "$ROOT_DIR/services/control-plane/assets/" \
   "${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/assets/"
@@ -70,18 +84,34 @@ sync_path \
   "$ROOT_DIR/services/control-plane/build-info.json" \
   "${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/build-info.json"
 
+if [[ "$ICLAW_CONTROL_PLANE_INSTALL_DEPS" == "1" ]]; then
+  echo "Installing workspace dependencies on remote host"
+  ssh "${REMOTE}" "cd ${ICLAW_CONTROL_PLANE_PATH} && pnpm install --frozen-lockfile --ignore-scripts"
+else
+  echo "Skipping remote pnpm install because ICLAW_CONTROL_PLANE_INSTALL_DEPS=${ICLAW_CONTROL_PLANE_INSTALL_DEPS}"
+fi
+
 echo "Restarting PM2 app: ${ICLAW_CONTROL_PLANE_PM2_APP}"
 ssh "${REMOTE}" "cd ${ICLAW_CONTROL_PLANE_PATH} && pm2 restart ${ICLAW_CONTROL_PLANE_PM2_APP}"
 
 echo "Waiting for control-plane health on prod"
 ssh "${REMOTE}" '
-for _ in $(seq 1 40); do
+timeout_seconds='"${ICLAW_CONTROL_PLANE_HEALTH_TIMEOUT_SECONDS}"'
+for _ in $(seq 1 "$timeout_seconds"); do
   if curl -fsS http://127.0.0.1:2130/health >/dev/null 2>&1; then
     exit 0
   fi
   sleep 1
 done
 echo "control-plane health check timed out after restart" >&2
+echo "==== PM2 STATUS ====" >&2
+pm2 status '"${ICLAW_CONTROL_PLANE_PM2_APP}"' >&2 || true
+echo "==== PORT 2130 ====" >&2
+ss -ltnp | grep 2130 >&2 || true
+echo "==== LAST ERROR LOGS ====" >&2
+tail -n 120 ~/.pm2/logs/'"${ICLAW_CONTROL_PLANE_PM2_APP}"'-error.log >&2 || true
+echo "==== LAST OUT LOGS ====" >&2
+tail -n 120 ~/.pm2/logs/'"${ICLAW_CONTROL_PLANE_PM2_APP}"'-out.log >&2 || true
 exit 1
 '
 

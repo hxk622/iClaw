@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DESKTOP_DIR="$ROOT_DIR/apps/desktop"
 TAURI_DIR="${ICLAW_TAURI_STAGE_DIR:-$DESKTOP_DIR/src-tauri}"
+REAL_TAURI_DIR="$DESKTOP_DIR/src-tauri"
 
 target=""
 profile="release"
@@ -59,6 +60,18 @@ bundle_dir="$target_dir/bundle"
 macos_dir="$bundle_dir/macos"
 dmg_dir="$bundle_dir/dmg"
 app_bundle_path="$macos_dir/$product_name.app"
+if [[ ! -d "$app_bundle_path" && "$TAURI_DIR" != "$REAL_TAURI_DIR" ]]; then
+  fallback_target_dir="$REAL_TAURI_DIR/target"
+  if [[ -n "$target" ]]; then
+    fallback_target_dir="$fallback_target_dir/$target"
+  fi
+  fallback_target_dir="$fallback_target_dir/$profile"
+  fallback_app_bundle_path="$fallback_target_dir/bundle/macos/$product_name.app"
+  if [[ -d "$fallback_app_bundle_path" ]]; then
+    echo "Falling back to real app bundle: $fallback_app_bundle_path"
+    app_bundle_path="$fallback_app_bundle_path"
+  fi
+fi
 installer_assets_dir="$TAURI_DIR/installer-generated"
 dmg_background_path="$installer_assets_dir/dmg-background.png"
 dmg_volume_icon_path="$installer_assets_dir/dmg-volume.icns"

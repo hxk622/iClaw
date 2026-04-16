@@ -7,7 +7,6 @@ import {fileURLToPath} from 'node:url';
 
 import { downloadAvatar } from './avatar-storage.ts';
 import {downloadPrivateSkillArtifact} from './skill-storage.ts';
-import { startSyncTasks } from './sync-tasks/index.ts';
 import {getCloudSkillArtifactObjectKey} from './cloud-skill-artifacts.ts';
 import {downloadPortalSkillArtifact} from './portal-skill-storage.ts';
 import {
@@ -50,6 +49,7 @@ import type {
   UpdateProfileInput,
   UsageEventInput,
   WorkspaceBackupInput,
+  McpCatalogEntryView,
   SkillCatalogEntryView,
 } from './domain.ts';
 
@@ -84,7 +84,7 @@ import type {
 } from './runtime-release-domain.ts';
 import {PgPortalStore} from './portal-store.ts';
 import {PortalService} from './portal-service.ts';
-import {mergePlatformSkillBindings} from './platform-inheritance.ts';
+import {mergePlatformMcpBindings, mergePlatformSkillBindings} from './platform-inheritance.ts';
 import {resolveSkillCatalogVisibilityMode} from './portal-skill-catalog-policy.ts';
 import {ensureControlPlaneSchema, PgControlPlaneStore} from './pg-store.ts';
 import {createRedisKeyValueCache} from './redis-cache.ts';
@@ -100,6 +100,24 @@ import {
 } from './desktop-update-api.ts';
 import type {KeyValueCache} from './cache.ts';
 import type {ControlPlaneStore} from './store.ts';
+
+function isTruthyEnv(value: string | undefined): boolean {
+  return /^(1|true|yes|on)$/i.test((value || '').trim());
+}
+
+async function startOptionalSyncTasks(): Promise<void> {
+  if (!isTruthyEnv(process.env.ICLAW_ENABLE_SYNC_TASKS)) {
+    logInfo('market sync tasks disabled; set ICLAW_ENABLE_SYNC_TASKS=1 to enable');
+    return;
+  }
+  try {
+    const {startSyncTasks} = await import('./sync-tasks/index.ts');
+    startSyncTasks();
+    logInfo('market sync tasks started');
+  } catch (error) {
+    logWarn('market sync tasks failed to start; continuing without background sync', {error});
+  }
+}
 
 if (!config.databaseUrl) {
   throw new Error('[control-plane] DATABASE_URL is required; in-memory storage has been removed');
@@ -497,6 +515,49 @@ function decorateSkillCatalogItemsForApp(
     const managedBy = typeof bindingConfig.managed_by === 'string' ? bindingConfig.managed_by.trim() : '';
     return {
       ...item,
+      metadata: {
+        ...(item.metadata || {}),
+        default_installed: true,
+        app_binding: {
+          app_name: appName,
+          enabled: true,
+          source_layer: sourceLayer || 'oem_bundled',
+          managed_by: managedBy || (sourceLayer === 'platform_bundled' ? 'platform' : 'oem'),
+        },
+      },
+    };
+  });
+}
+
+function decorateMcpCatalogItemsForApp(
+  items: McpCatalogEntryView[],
+  appName: string,
+  bindings: Array<{mcpKey: string; enabled: boolean; config?: Record<string, unknown> | null}>,
+): McpCatalogEntryView[] {
+  const bindingByKey = new Map(
+    bindings
+      .map((binding) => {
+        const mcpKey = String(binding.mcpKey || '').trim();
+        if (!mcpKey) return null;
+        return [mcpKey, binding] as const;
+      })
+      .filter(Boolean) as Array<readonly [string, {mcpKey: string; enabled: boolean; config?: Record<string, unknown> | null}]>,
+  );
+
+  return items.map((item) => {
+    const binding = bindingByKey.get(item.mcp_key);
+    if (!binding || binding.enabled === false) {
+      return item;
+    }
+    const bindingConfig =
+      binding.config && typeof binding.config === 'object' && !Array.isArray(binding.config)
+        ? binding.config
+        : {};
+    const sourceLayer = typeof bindingConfig.source_layer === 'string' ? bindingConfig.source_layer.trim() : '';
+    const managedBy = typeof bindingConfig.managed_by === 'string' ? bindingConfig.managed_by.trim() : '';
+    return {
+      ...item,
+      default_installed: true,
       metadata: {
         ...(item.metadata || {}),
         default_installed: true,
@@ -934,16 +995,27 @@ const server = createJsonServer([
     handler: async ({headers, url}: HandlerContext) => {
       const appName = resolveRequestedAppName(headers, url);
       const detail = appName ? await portalStore.getAppDetail(appName).catch(() => null) : null;
+      const platformMcps = detail ? await portalStore.listMcps().catch(() => []) : [];
+      const mergedMcpBindings = detail
+        ? mergePlatformMcpBindings(detail.app.appName, detail.mcpBindings, platformMcps)
+        : [];
       const defaultInstalledKeys = new Set(
-        (detail?.mcpBindings || [])
+        mergedMcpBindings
           .filter((item) => item.enabled)
           .map((item) => item.mcpKey),
       );
-      return service.listMcpCatalog(
+      const page = await service.listMcpCatalog(
         defaultInstalledKeys,
         Number.parseInt(url.searchParams.get('limit') || '', 10),
         Number.parseInt(url.searchParams.get('offset') || '', 10),
       );
+      if (!detail) {
+        return page;
+      }
+      return {
+        ...page,
+        items: decorateMcpCatalogItemsForApp(page.items, detail.app.appName, mergedMcpBindings),
+      };
     },
   },
   {
@@ -1998,6 +2070,18 @@ const server = createJsonServer([
   },
   {
     method: 'POST',
+    path: '/admin/portal/apps/:appName/desktop-release/:channel/:platform/:arch/:artifactType/register',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.registerDesktopReleaseArtifact(requireBearerToken(headers), params.appName || '', {
+        ...((body || {}) as Record<string, unknown>),
+        channel: params.channel || '',
+        platform: params.platform || '',
+        arch: params.arch || '',
+        artifactType: params.artifactType || '',
+      }),
+  },
+  {
+    method: 'POST',
     path: '/admin/portal/apps/:appName/desktop-release/:channel/:platform/:arch/publish',
     handler: ({headers, params, body}: HandlerContext) =>
       portalService.publishDesktopRelease(requireBearerToken(headers), params.appName || '', {
@@ -2181,6 +2265,12 @@ const server = createJsonServer([
       ),
   },
   {
+    method: 'POST',
+    path: '/portal/im-bots/preflight',
+    handler: ({headers, body}: HandlerContext) =>
+      service.preflightImBotConnection(requireBearerToken(headers), (body || {}) as Record<string, unknown>),
+  },
+  {
     method: 'GET',
     path: '/admin/portal/model-logo-presets',
     handler: ({headers}: HandlerContext) => {
@@ -2350,6 +2440,5 @@ server.listen(config.port, config.listenHost, () => {
       process.exit(1);
     });
   });
-  // 启动行情数据同步定时任务
-  startSyncTasks();
+  void startOptionalSyncTasks();
 });

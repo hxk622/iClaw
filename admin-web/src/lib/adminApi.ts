@@ -11,10 +11,12 @@ import type {
   UserActionDiagnosticUploadRecord,
 } from './adminTypes';
 
-export const API_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '').trim().replace(/\/+$/, '');
+export const API_BASE_URL = ((import.meta.env?.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '').trim().replace(/\/+$/, '');
 export const PRIMARY_PAYMENT_PROVIDER = 'wechat_qr';
 
 const TOKEN_STORAGE_KEY = 'iclaw.admin-web.tokens';
+const DEFAULT_OVERVIEW_CORE_TIMEOUT_MS = 12_000;
+const DEFAULT_OVERVIEW_OPTIONAL_TIMEOUT_MS = 6_000;
 const PAYMENT_PROVIDER_CONFIG_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no'] as const;
 const PAYMENT_PROVIDER_SECRET_FIELDS = ['api_v3_key', 'private_key_pem'] as const;
 const PAYMENT_GATEWAY_CONFIG_FIELDS = ['partner_id', 'gateway'] as const;
@@ -87,6 +89,62 @@ export async function apiFetch(path: string, init: RequestInit = {}, options: { 
     }
   }
   return parseResponse(response);
+}
+
+async function apiFetchWithTimeout(
+  path: string,
+  init: RequestInit = {},
+  options: { skipRefresh?: boolean } = {},
+  timeoutMs = DEFAULT_OVERVIEW_OPTIONAL_TIMEOUT_MS,
+) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return apiFetch(path, init, options);
+  }
+
+  const controller = new AbortController();
+  const upstreamSignal = init.signal;
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const relayAbort = () => controller.abort();
+
+  if (upstreamSignal) {
+    if (upstreamSignal.aborted) {
+      controller.abort();
+    } else {
+      upstreamSignal.addEventListener('abort', relayAbort, { once: true });
+    }
+  }
+
+  try {
+    return await apiFetch(
+      path,
+      {
+        ...init,
+        signal: controller.signal,
+      },
+      options,
+    );
+  } catch (error) {
+    if (timedOut) {
+      throw new Error(`请求超时（${timeoutMs}ms）：${path}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    upstreamSignal?.removeEventListener('abort', relayAbort);
+  }
+}
+
+async function withOverviewFallback<T>(label: string, load: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await load();
+  } catch (error) {
+    console.warn(`[admin-web] overview bootstrap skipped ${label}`, error);
+    return fallback;
+  }
 }
 
 export function toArray<T>(value: unknown): T[] {
@@ -200,7 +258,35 @@ function upsertBlock(page: Record<string, unknown>, matcherPrefix: string, fallb
   return next;
 }
 
-export async function loadOverviewData(): Promise<OverviewData> {
+function createOverviewAppDetailFallback(app: Record<string, unknown>) {
+  return {
+    app,
+    skillBindings: [],
+    mcpBindings: [],
+    modelBindings: [],
+    menuBindings: [],
+    rechargePackageBindings: [],
+    composerControlBindings: [],
+    composerShortcutBindings: [],
+    assets: [],
+    releases: [],
+    audit: [],
+    versions: [],
+  };
+}
+
+export async function loadOverviewData(options: {
+  coreTimeoutMs?: number;
+  optionalTimeoutMs?: number;
+} = {}): Promise<OverviewData> {
+  const coreTimeoutMs =
+    Number.isFinite(options.coreTimeoutMs) && Number(options.coreTimeoutMs) > 0
+      ? Number(options.coreTimeoutMs)
+      : DEFAULT_OVERVIEW_CORE_TIMEOUT_MS;
+  const optionalTimeoutMs =
+    Number.isFinite(options.optionalTimeoutMs) && Number(options.optionalTimeoutMs) > 0
+      ? Number(options.optionalTimeoutMs)
+      : DEFAULT_OVERVIEW_OPTIONAL_TIMEOUT_MS;
   const [
     user,
     appsData,
@@ -228,45 +314,70 @@ export async function loadOverviewData(): Promise<OverviewData> {
     runtimeBindingHistoryData,
     runtimeBootstrapSourceData,
   ] = await Promise.all([
-    apiFetch('/auth/me', { method: 'GET' }),
-    apiFetch('/admin/portal/apps', { method: 'GET' }),
-    apiFetch('/admin/agents/catalog', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/catalog/skills', { method: 'GET' }),
-    apiFetch('/admin/portal/catalog/mcps', { method: 'GET' }),
-    apiFetch('/admin/portal/catalog/models', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/model-provider-profiles', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/memory-embedding-profiles', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/model-logo-presets', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/catalog/menus', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/catalog/composer-controls', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/catalog/composer-shortcuts', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/catalog/recharge-packages', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/payments/gateway-config', { method: 'GET' }).catch(() => null),
-    apiFetch(`/admin/payments/provider-profiles?provider=${encodeURIComponent(PRIMARY_PAYMENT_PROVIDER)}`, { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch(`/admin/payments/provider-bindings?provider=${encodeURIComponent(PRIMARY_PAYMENT_PROVIDER)}`, { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/payments/orders?limit=200', { method: 'GET' }),
-    apiFetch('/admin/skills/catalog?limit=100&offset=0', { method: 'GET' }).catch(() => ({ items: [], total: 0, limit: 100, offset: 0, has_more: false, next_offset: null })),
-    apiFetch('/admin/skills/sync/sources', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/skills/sync/runs', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/mcp/catalog', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/runtime-releases?limit=200', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/runtime-bindings?limit=200', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/runtime-binding-history?limit=200', { method: 'GET' }).catch(() => ({ items: [] })),
-    apiFetch('/admin/portal/runtime-bootstrap-source', { method: 'GET' }).catch(() => null),
+    apiFetchWithTimeout('/auth/me', { method: 'GET' }, {}, coreTimeoutMs),
+    apiFetchWithTimeout('/admin/portal/apps', { method: 'GET' }, {}, coreTimeoutMs),
+    withOverviewFallback('agent catalog', () => apiFetchWithTimeout('/admin/agents/catalog', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('platform skills', () => apiFetchWithTimeout('/admin/portal/catalog/skills', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('platform mcps', () => apiFetchWithTimeout('/admin/portal/catalog/mcps', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('platform models', () => apiFetchWithTimeout('/admin/portal/catalog/models', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('model provider profiles', () => apiFetchWithTimeout('/admin/portal/model-provider-profiles', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('memory embedding profiles', () => apiFetchWithTimeout('/admin/portal/memory-embedding-profiles', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('model logo presets', () => apiFetchWithTimeout('/admin/portal/model-logo-presets', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('menu catalog', () => apiFetchWithTimeout('/admin/portal/catalog/menus', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('composer control catalog', () => apiFetchWithTimeout('/admin/portal/catalog/composer-controls', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('composer shortcut catalog', () => apiFetchWithTimeout('/admin/portal/catalog/composer-shortcuts', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('recharge package catalog', () => apiFetchWithTimeout('/admin/portal/catalog/recharge-packages', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('payment gateway config', () => apiFetchWithTimeout('/admin/payments/gateway-config', { method: 'GET' }, {}, optionalTimeoutMs), null),
+    withOverviewFallback(
+      'payment provider profiles',
+      () => apiFetchWithTimeout(`/admin/payments/provider-profiles?provider=${encodeURIComponent(PRIMARY_PAYMENT_PROVIDER)}`, { method: 'GET' }, {}, optionalTimeoutMs),
+      { items: [] },
+    ),
+    withOverviewFallback(
+      'payment provider bindings',
+      () => apiFetchWithTimeout(`/admin/payments/provider-bindings?provider=${encodeURIComponent(PRIMARY_PAYMENT_PROVIDER)}`, { method: 'GET' }, {}, optionalTimeoutMs),
+      { items: [] },
+    ),
+    withOverviewFallback('payment orders', () => apiFetchWithTimeout('/admin/payments/orders?limit=200', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback(
+      'cloud skills catalog',
+      () => apiFetchWithTimeout('/admin/skills/catalog?limit=100&offset=0', { method: 'GET' }, {}, optionalTimeoutMs),
+      { items: [], total: 0, limit: 100, offset: 0, has_more: false, next_offset: null },
+    ),
+    withOverviewFallback('skill sync sources', () => apiFetchWithTimeout('/admin/skills/sync/sources', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('skill sync runs', () => apiFetchWithTimeout('/admin/skills/sync/runs', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('cloud mcp catalog', () => apiFetchWithTimeout('/admin/mcp/catalog', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('runtime releases', () => apiFetchWithTimeout('/admin/portal/runtime-releases?limit=200', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('runtime bindings', () => apiFetchWithTimeout('/admin/portal/runtime-bindings?limit=200', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('runtime binding history', () => apiFetchWithTimeout('/admin/portal/runtime-binding-history?limit=200', { method: 'GET' }, {}, optionalTimeoutMs), { items: [] }),
+    withOverviewFallback('runtime bootstrap source', () => apiFetchWithTimeout('/admin/portal/runtime-bootstrap-source', { method: 'GET' }, {}, optionalTimeoutMs), null),
   ]);
 
   const apps = toArray<Record<string, unknown>>(asObject(appsData).items);
   const details = await Promise.all(
     apps.map(async (app) => {
       const appName = stringValue(app.appName);
-      const detail = await apiFetch(`/admin/portal/apps/${encodeURIComponent(appName)}`, { method: 'GET' });
-      return detail;
+      return withOverviewFallback(
+        `app detail ${appName}`,
+        () => apiFetchWithTimeout(`/admin/portal/apps/${encodeURIComponent(appName)}`, { method: 'GET' }, {}, optionalTimeoutMs),
+        createOverviewAppDetailFallback(app),
+      );
     }),
   );
   const overrides = await Promise.all(
     apps.map(async (app) => {
       const appName = stringValue(app.appName);
-      const detail = await apiFetch(`/admin/portal/apps/${encodeURIComponent(appName)}/model-provider-override`, { method: 'GET' }).catch(() => null);
+      const detail = await withOverviewFallback(
+        `model provider override ${appName}`,
+        () =>
+          apiFetchWithTimeout(
+            `/admin/portal/apps/${encodeURIComponent(appName)}/model-provider-override`,
+            { method: 'GET' },
+            {},
+            optionalTimeoutMs,
+          ),
+        null,
+      );
       return [appName, detail] as const;
     }),
   );
@@ -276,9 +387,19 @@ export async function loadOverviewData(): Promise<OverviewData> {
   await Promise.all(
     apps.map(async (app) => {
       const appName = stringValue(app.appName);
-      const detail = await apiFetch(`/admin/payments/gateway-config?scope_type=app&scope_key=${encodeURIComponent(appName)}`, {
-        method: 'GET',
-      }).catch(() => null);
+      const detail = await withOverviewFallback(
+        `payment gateway config ${appName}`,
+        () =>
+          apiFetchWithTimeout(
+            `/admin/payments/gateway-config?scope_type=app&scope_key=${encodeURIComponent(appName)}`,
+            {
+              method: 'GET',
+            },
+            {},
+            optionalTimeoutMs,
+          ),
+        null,
+      );
       paymentGatewayConfigs[appName] = detail && typeof detail === 'object' ? asObject(detail) : null;
     }),
   );

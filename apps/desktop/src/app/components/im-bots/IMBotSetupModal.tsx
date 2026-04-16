@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ImBotConnectionPreflightResult } from '@iclaw/sdk';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -56,24 +57,28 @@ export interface IMBotDraft {
   platformId: IMPlatformId;
   triggerMode: TriggerMode;
   replyFormat: ReplyFormat;
+  credentials: Record<string, string>;
+  preflightResult: ImBotConnectionPreflightResult | null;
 }
 
 interface IMBotSetupModalProps {
   platform: IMPlatformMeta | null;
   open: boolean;
   onClose: () => void;
+  onValidateConnection: (
+    platformId: IMPlatformId,
+    credentials: Record<string, string>,
+  ) => Promise<ImBotConnectionPreflightResult>;
   onComplete: (draft: IMBotDraft) => void;
 }
 
-type WizardStep = 1 | 2 | 3 | 4 | 5;
-type TestStatus = 'idle' | 'testing' | 'success' | 'error';
+type WizardStep = 1 | 2 | 3 | 4;
 
 const stepLabels: Array<{ step: WizardStep; label: string }> = [
   { step: 1, label: '创建应用' },
   { step: 2, label: '填写凭据' },
-  { step: 3, label: '测试连接' },
-  { step: 4, label: '行为配置' },
-  { step: 5, label: '完成接入' },
+  { step: 3, label: '行为配置' },
+  { step: 4, label: '完成接入' },
 ];
 
 const triggerModeOptions: Array<{ value: TriggerMode; label: string; description: string }> = [
@@ -91,7 +96,7 @@ const replyFormatOptions: Array<{ value: ReplyFormat; label: string; description
 const completionChecklist = [
   '在平台侧创建并配置应用',
   '填写基础凭据与回调信息',
-  '完成一次标准连接测试',
+  '完成一次真实平台预检',
   '设置默认触发与回复策略',
   '启用一个新的 iClaw 机器人实例',
 ];
@@ -106,6 +111,7 @@ export function IMBotSetupModal({
   platform,
   open,
   onClose,
+  onValidateConnection,
   onComplete,
 }: IMBotSetupModalProps) {
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
@@ -114,7 +120,8 @@ export function IMBotSetupModal({
   const [replyFormat, setReplyFormat] = useState<ReplyFormat>('card');
   const [keywordDraft, setKeywordDraft] = useState('AI助手');
   const [offlineReply, setOfflineReply] = useState('我现在暂时离线，稍后会继续处理你的消息。');
-  const [testStatus, setTestStatus] = useState<TestStatus>('idle');
+  const [preflightResult, setPreflightResult] = useState<ImBotConnectionPreflightResult | null>(null);
+  const [preflightStatus, setPreflightStatus] = useState<'idle' | 'running'>('idle');
 
   useEffect(() => {
     if (!open || !platform) return;
@@ -127,7 +134,8 @@ export function IMBotSetupModal({
     );
     setKeywordDraft('AI助手');
     setOfflineReply('我现在暂时离线，稍后会继续处理你的消息。');
-    setTestStatus('idle');
+    setPreflightResult(null);
+    setPreflightStatus('idle');
 
     const nextCredentials: Record<string, string> = {};
     for (const field of platform.credentialFields) {
@@ -138,17 +146,6 @@ export function IMBotSetupModal({
     setCredentials(nextCredentials);
   }, [open, platform]);
 
-  useEffect(() => {
-    if (currentStep !== 3 || testStatus !== 'idle') return;
-    const timer = window.setTimeout(() => {
-      setTestStatus('testing');
-      window.setTimeout(() => {
-        setTestStatus('success');
-      }, 1100);
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [currentStep, testStatus]);
-
   const canAdvanceFromCredentials = useMemo(() => {
     if (!platform) return false;
     return platform.credentialFields.every((field) => {
@@ -156,6 +153,17 @@ export function IMBotSetupModal({
       return Boolean((credentials[field.key] || '').trim());
     });
   }, [credentials, platform]);
+
+  const isRealPreflightSupported = useMemo(
+    () =>
+      platform
+        ? platform.id === 'dingtalk' ||
+          platform.id === 'feishu-china' ||
+          platform.id === 'wecom-app' ||
+          platform.id === 'wechat-mp'
+        : false,
+    [platform],
+  );
 
   if (!open || !platform) return null;
 
@@ -166,11 +174,33 @@ export function IMBotSetupModal({
       item.step < currentStep ? 'completed' : item.step === currentStep ? 'current' : 'upcoming',
   }));
 
-  const completionItems = completionChecklist.map((item, index) => ({
-    id: item,
-    label: item,
-    completed: index < currentStep - 1,
-  }));
+  const completionItems = [
+    {
+      id: completionChecklist[0],
+      label: completionChecklist[0],
+      completed: currentStep >= 2,
+    },
+    {
+      id: completionChecklist[1],
+      label: completionChecklist[1],
+      completed: currentStep >= 3 || (currentStep === 2 && canAdvanceFromCredentials),
+    },
+    {
+      id: completionChecklist[2],
+      label: completionChecklist[2],
+      completed: Boolean(preflightResult?.ok),
+    },
+    {
+      id: completionChecklist[3],
+      label: completionChecklist[3],
+      completed: currentStep >= 4,
+    },
+    {
+      id: completionChecklist[4],
+      label: completionChecklist[4],
+      completed: currentStep === 4,
+    },
+  ];
 
   const tipItems = platform.testHints.map((hint) => ({
     id: hint,
@@ -178,7 +208,24 @@ export function IMBotSetupModal({
     icon: <Info className="h-[13px] w-[13px]" />,
   }));
 
-  const primaryActionLabel = currentStep === 5 ? '完成' : '下一步';
+  const primaryActionLabel = currentStep === 4 ? '完成' : '下一步';
+
+  const handleCredentialChange = (fieldKey: string, value: string) => {
+    setCredentials((prev) => ({ ...prev, [fieldKey]: value }));
+    setPreflightResult(null);
+    setPreflightStatus('idle');
+  };
+
+  const handleRunPreflight = async () => {
+    if (!platform || !canAdvanceFromCredentials || preflightStatus === 'running') return;
+    setPreflightStatus('running');
+    try {
+      const result = await onValidateConnection(platform.id, credentials);
+      setPreflightResult(result);
+    } finally {
+      setPreflightStatus('idle');
+    }
+  };
 
   const handleCopy = async (value: string) => {
     try {
@@ -194,19 +241,21 @@ export function IMBotSetupModal({
       return;
     }
     if (currentStep === 2 && canAdvanceFromCredentials) {
+      if (!isRealPreflightSupported) {
+        return;
+      }
+      if (!preflightResult?.ok) {
+        return;
+      }
       setCurrentStep(3);
       return;
     }
-    if (currentStep === 3 && testStatus === 'success') {
+    if (currentStep === 3) {
       setCurrentStep(4);
       return;
     }
     if (currentStep === 4) {
-      setCurrentStep(5);
-      return;
-    }
-    if (currentStep === 5) {
-      onComplete({ platformId: platform.id, triggerMode, replyFormat });
+      onComplete({ platformId: platform.id, triggerMode, replyFormat, credentials, preflightResult });
       onClose();
     }
   };
@@ -215,9 +264,6 @@ export function IMBotSetupModal({
     if (currentStep === 1) {
       onClose();
       return;
-    }
-    if (currentStep === 3) {
-      setTestStatus('idle');
     }
     setCurrentStep((prev) => Math.max(1, prev - 1) as WizardStep);
   };
@@ -346,7 +392,7 @@ export function IMBotSetupModal({
                       <div className="flex items-center gap-3">
                         <input
                           value={credentials[field.key] || ''}
-                          onChange={(event) => setCredentials((prev) => ({ ...prev, [field.key]: event.target.value }))}
+                          onChange={(event) => handleCredentialChange(field.key, event.target.value)}
                           readOnly={field.readOnly}
                           placeholder={field.placeholder}
                           className={cn(
@@ -377,6 +423,117 @@ export function IMBotSetupModal({
                   ))}
                 </SurfacePanel>
 
+                <SurfacePanel className="space-y-3.5 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h4 className="text-[14px] font-medium text-[#1A1916] dark:text-[#F5F4F2]">真实连接测试</h4>
+                      <p className="mt-1 text-[12px] leading-[1.55] text-[#6B6863] dark:text-[#A39F9A]">
+                        直接调用平台官方接口校验应用凭据，不再使用本地 timer 或 runtime 健康检查冒充成功。
+                      </p>
+                    </div>
+                    {isRealPreflightSupported ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          void handleRunPreflight();
+                        }}
+                        disabled={!canAdvanceFromCredentials || preflightStatus === 'running'}
+                        leadingIcon={
+                          preflightStatus === 'running' ? <Loader2 className="h-4 w-4 animate-spin" /> : undefined
+                        }
+                      >
+                        {preflightStatus === 'running' ? '测试中' : '测试连接'}
+                      </Button>
+                    ) : (
+                      <span title="开发中" className="inline-flex cursor-not-allowed">
+                        <Button variant="secondary" size="sm" disabled>
+                          开发中
+                        </Button>
+                      </span>
+                    )}
+                  </div>
+
+                  {isRealPreflightSupported ? (
+                    preflightResult ? (
+                      <div
+                        className={cn(
+                          'rounded-[16px] border px-4 py-3',
+                          preflightResult.ok
+                            ? 'border-[#C9E3D1] bg-[#F4FBF6] dark:border-[#31573D] dark:bg-[#16241A]'
+                            : 'border-[#F3D2AE] bg-[#FFF8F1] dark:border-[#6B4B2E] dark:bg-[#241C16]',
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={cn(
+                              'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+                              preflightResult.ok
+                                ? 'bg-[#2F5D3E]/12 text-[#2F5D3E] dark:bg-[#3A6B4A]/24 dark:text-[#A8E2BA]'
+                                : 'bg-[#B86B19]/12 text-[#B86B19] dark:bg-[#8B5B1F]/24 dark:text-[#F2C28D]',
+                            )}
+                          >
+                            {preflightResult.ok ? (
+                              <CheckCircle2 className="h-4 w-4" />
+                            ) : (
+                              <AlertTriangle className="h-4 w-4" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[13px] font-medium text-[#1A1916] dark:text-[#F5F4F2]">
+                              {preflightResult.ok ? '预检通过' : '预检未通过'}
+                            </div>
+                            <p className="mt-1 text-[12px] leading-[1.6] text-[#6B6863] dark:text-[#A39F9A]">
+                              {preflightResult.message}
+                            </p>
+                            <div className="mt-3 space-y-2">
+                              {preflightResult.checks.map((check) => (
+                                <div
+                                  key={check.id}
+                                  className="rounded-[12px] border border-[#E8E6E3] bg-white/80 px-3 py-2 dark:border-[#2D2C2A] dark:bg-[#242320]"
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-[12px] font-medium text-[#1A1916] dark:text-[#F5F4F2]">
+                                      {check.label}
+                                    </div>
+                                    <span
+                                      className={cn(
+                                        'rounded-full px-2 py-0.5 text-[11px]',
+                                        check.status === 'success'
+                                          ? 'bg-[#DDEEE2] text-[#2F5D3E] dark:bg-[#23372A] dark:text-[#A8E2BA]'
+                                          : check.status === 'warning'
+                                            ? 'bg-[#F8E7CF] text-[#9C651F] dark:bg-[#3B2A18] dark:text-[#F2C28D]'
+                                            : 'bg-[#F7DDDD] text-[#9F2F2F] dark:bg-[#3C2020] dark:text-[#FFB4B4]',
+                                      )}
+                                    >
+                                      {check.status === 'success'
+                                        ? '通过'
+                                        : check.status === 'warning'
+                                          ? '注意'
+                                          : '失败'}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-[12px] leading-[1.55] text-[#6B6863] dark:text-[#A39F9A]">
+                                    {check.detail}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-[16px] border border-dashed border-[#E0DCD6] bg-[#FCFBF9] px-4 py-3 text-[12px] leading-[1.6] text-[#6B6863] dark:border-[#34322F] dark:bg-[#201F1D] dark:text-[#A39F9A]">
+                        完成字段填写后，点“测试连接”即可发起真实平台预检。只有预检通过，才允许进入下一步。
+                      </div>
+                    )
+                  ) : (
+                    <div className="rounded-[16px] border border-dashed border-[#E0DCD6] bg-[#FCFBF9] px-4 py-3 text-[12px] leading-[1.6] text-[#6B6863] dark:border-[#34322F] dark:bg-[#201F1D] dark:text-[#A39F9A]">
+                      当前平台还没有接上真实官方预检链路，所以这里保持禁用，也不再允许按“已接入成功”继续流转。
+                    </div>
+                  )}
+                </SurfacePanel>
+
                 <SurfacePanel tone="subtle" className="p-3.5">
                   <div className="flex items-start gap-3">
                     <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#9D8B6F] dark:text-[#C9B896]" />
@@ -389,62 +546,6 @@ export function IMBotSetupModal({
             ) : null}
 
             {currentStep === 3 ? (
-              <div className="space-y-5">
-                <div>
-                  <h3 className="text-base tracking-tight text-[#1A1916] dark:text-[#F5F4F2]">
-                    测试连接
-                  </h3>
-                  <p className="mt-2 text-[13px] leading-relaxed text-[#6B6863] dark:text-[#A39F9A]">
-                    系统会模拟一次标准连接检查，确认平台凭据、事件入口和 iClaw 接收链路都已经准备完成。
-                  </p>
-                </div>
-
-                <SurfacePanel className="flex min-h-[320px] items-center justify-center p-8">
-                  {testStatus === 'testing' ? (
-                    <div className="flex flex-col items-center gap-4 text-center">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#E8E6E3] bg-white shadow-sm dark:border-[#2D2C2A] dark:bg-[#242320]">
-                        <Loader2 className="h-8 w-8 animate-spin text-[#9D8B6F] dark:text-[#C9B896]" />
-                      </div>
-                      <div className="text-[18px] font-semibold text-[#1A1916] dark:text-[#F5F4F2]">正在验证连接</div>
-                      <p className="max-w-[360px] text-[14px] leading-7 text-[#6B6863] dark:text-[#A39F9A]">
-                        正在校验平台凭据、消息入口与回调链路，请稍候。
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {testStatus === 'success' ? (
-                    <div className="flex flex-col items-center gap-4 text-center">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#2F5D3E]/10 bg-[#2F5D3E]/12 text-[#2F5D3E] shadow-[0_10px_30px_rgba(47,93,62,0.10)] dark:border-[#3A6B4A]/20 dark:bg-[#3A6B4A]/24 dark:text-[#A8E2BA] dark:shadow-[0_12px_32px_rgba(0,0,0,0.24)]">
-                        <CheckCircle2 className="h-8 w-8" />
-                      </div>
-                      <div className="text-[18px] font-semibold text-[#1A1916] dark:text-[#F5F4F2]">
-                        {platform.label}连接测试通过
-                      </div>
-                      <p className="max-w-[390px] text-[14px] leading-7 text-[#6B6863] dark:text-[#A39F9A]">
-                        凭据校验、连接建立和回调链路均已通过。可以继续设置机器人的默认行为，并在完成后启用它。
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {testStatus === 'error' ? (
-                    <div className="flex flex-col items-center gap-4 text-center">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(245,158,11,0.12)] text-[rgb(180,83,9)] dark:bg-[rgba(245,158,11,0.18)] dark:text-[#FFD49A]">
-                        <AlertTriangle className="h-8 w-8" />
-                      </div>
-                      <div className="text-[18px] font-semibold text-[#1A1916] dark:text-[#F5F4F2]">连接测试失败</div>
-                      <p className="max-w-[360px] text-[14px] leading-7 text-[#6B6863] dark:text-[#A39F9A]">
-                        请检查平台凭据是否填写完整、回调地址是否可访问，以及当前企业应用权限是否已开通。
-                      </p>
-                      <Button variant="secondary" size="sm" onClick={() => setTestStatus('idle')}>
-                        重新测试
-                      </Button>
-                    </div>
-                  ) : null}
-                </SurfacePanel>
-              </div>
-            ) : null}
-
-            {currentStep === 4 ? (
               <div className="space-y-5">
                 <div>
                   <h3 className="text-base tracking-tight text-[#1A1916] dark:text-[#F5F4F2]">
@@ -512,16 +613,16 @@ export function IMBotSetupModal({
               </div>
             ) : null}
 
-            {currentStep === 5 ? (
+            {currentStep === 4 ? (
               <div className="flex min-h-[420px] flex-col items-center justify-center text-center">
                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#2F5D3E]/12 text-[#2F5D3E] dark:bg-[#3A6B4A]/24 dark:text-[#A8E2BA]">
-                  <CheckCircle2 className="h-10 w-10" />
+                  <Info className="h-10 w-10" />
                 </div>
                 <h3 className="mt-6 text-[29px] font-semibold tracking-[-0.05em] text-[#1A1916] dark:text-[#F5F4F2]">
                   {platform.label}机器人已接入成功
                 </h3>
                 <p className="mt-4 max-w-[520px] text-[14px] leading-8 text-[#6B6863] dark:text-[#A39F9A]">
-                  这个机器人现在会出现在 IM机器人视图区的已创建列表里。接下来你可以进入详情页继续绑定默认助手、会话策略和消息模板。
+                  这个机器人现在会出现在 IM机器人视图区的已创建列表里。平台凭据已经完成真实预检，接下来你可以进入详情页继续绑定默认助手、会话策略和消息模板。
                 </p>
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
                   <span className="rounded-full border border-[#E8E6E3] bg-white px-3 py-1 text-[12px] text-[#6B6863] dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#A39F9A]">
@@ -543,7 +644,7 @@ export function IMBotSetupModal({
 
         <div className="flex items-center justify-between border-t border-[#E8E6E3] px-10 py-5 dark:border-[#2D2C2A]">
           <div className="text-[13px] text-[#9B9691] dark:text-[#6B6863]">
-            {currentStep < 5 ? `步骤 ${currentStep} / 5` : '接入已准备完成'}
+            {currentStep < 4 ? `步骤 ${currentStep} / 4` : '接入已准备完成'}
           </div>
 
           <div className="flex items-center gap-3">
@@ -555,8 +656,8 @@ export function IMBotSetupModal({
               size="sm"
               onClick={handleNext}
               disabled={
-                (currentStep === 2 && !canAdvanceFromCredentials) ||
-                (currentStep === 3 && testStatus !== 'success')
+                currentStep === 2 &&
+                (!canAdvanceFromCredentials || !isRealPreflightSupported || !preflightResult?.ok)
               }
               className="rounded-lg px-6 py-2.5"
             >

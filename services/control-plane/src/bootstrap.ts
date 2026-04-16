@@ -15,9 +15,38 @@ const LEGACY_DEFAULT_INVESTMENT_CATEGORY_FIXUPS: Record<string, {from: string[];
   'a-share-value-hunter': {from: ['stock'], to: 'value'},
   'us-value-compass': {from: ['global'], to: 'value'},
 };
-const DEFAULT_CATALOGS_BOOTSTRAP_VERSION = 3;
+const LEGACY_DEFAULT_INVESTMENT_EXPERT_AVATAR_URLS = new Set([
+  'https://images.unsplash.com/photo-1738566061505-556830f8b8f5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+  'https://images.unsplash.com/photo-1739300293504-234817eead52?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+  'https://images.unsplash.com/photo-1758599543154-76ec1c4257df?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+  'https://images.unsplash.com/photo-1772987057599-2f1088c1e993?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+  'https://images.unsplash.com/photo-1701463387028-3947648f1337?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+  'https://images.unsplash.com/photo-1579540830482-659e7518c895?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+]);
+const DEFAULT_CATALOGS_BOOTSTRAP_VERSION = 4;
 const DEFAULT_CATALOGS_STATE_KEY = 'bootstrap/default-catalogs';
 const DEFAULT_CATALOG_UPSERT_CONCURRENCY = 12;
+
+function readMetadataString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+const DEFAULT_INVESTMENT_EXPERT_AVATAR_BY_SLUG = new Map(
+  DEFAULT_AGENT_CATALOG_SEEDS.flatMap((agent) => {
+    const metadata =
+      agent.metadata && typeof agent.metadata === 'object' && !Array.isArray(agent.metadata)
+        ? (agent.metadata as Record<string, unknown>)
+        : null;
+    if (!metadata || readMetadataString(metadata.surface) !== 'investment-experts') {
+      return [];
+    }
+    if (readMetadataString(metadata.persona_type) === 'real-persona') {
+      return [];
+    }
+    const avatarUrl = readMetadataString(metadata.avatar_url);
+    return avatarUrl ? [[agent.slug, avatarUrl] as const] : [];
+  }),
+);
 
 function buildDefaultCatalogsHash(): string {
   return createHash('sha256')
@@ -214,6 +243,50 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
     }
 
     metadata.investment_category = fixup.to;
+    const record = await store.upsertAgentCatalogEntry({
+      slug: existing.slug,
+      name: existing.name,
+      description: existing.description,
+      category: existing.category,
+      publisher: existing.publisher,
+      featured: existing.featured,
+      official: existing.official,
+      tags: existing.tags,
+      capabilities: existing.capabilities,
+      use_cases: existing.useCases,
+      metadata,
+      sort_order: existing.sortOrder,
+      active: existing.active,
+    });
+    existingAgentMap.set(record.slug, record);
+  }
+
+  for (const [slug, avatarUrl] of DEFAULT_INVESTMENT_EXPERT_AVATAR_BY_SLUG) {
+    const existing = existingAgentMap.get(slug) || null;
+    if (!existing || existing.active === false) {
+      continue;
+    }
+
+    const metadata =
+      existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+        ? ({...existing.metadata} as Record<string, unknown>)
+        : {};
+    const surface = readMetadataString(metadata.surface);
+    const personaType = readMetadataString(metadata.persona_type);
+    const currentAvatar = readMetadataString(metadata.avatar_url);
+    const shouldReplaceAvatar =
+      surface === 'investment-experts' &&
+      personaType !== 'real-persona' &&
+      currentAvatar !== avatarUrl &&
+      (!currentAvatar ||
+        currentAvatar.startsWith('https://i.pravatar.cc/') ||
+        LEGACY_DEFAULT_INVESTMENT_EXPERT_AVATAR_URLS.has(currentAvatar));
+
+    if (!shouldReplaceAvatar) {
+      continue;
+    }
+
+    metadata.avatar_url = avatarUrl;
     const record = await store.upsertAgentCatalogEntry({
       slug: existing.slug,
       name: existing.name,

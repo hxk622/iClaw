@@ -4,6 +4,7 @@
 
 ## 1. 版本与构建
 
+- [ ] 已执行 `node scripts/release-preflight.mjs --release-version <x.y.z.build>`，并处理阻断项
 - [ ] 版本号已更新（app/package/tauri 配置一致）
 - [ ] 本次测试报告已创建到 `docs/version_record/test_report/`
 - [ ] 发版文档已填写 `test_report` 字段并指向对应测试报告

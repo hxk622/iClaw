@@ -38,6 +38,37 @@ export interface DesktopUpdateHintInput {
   arch?: string;
 }
 
+export type ImBotPlatformId =
+  | 'feishu-china'
+  | 'dingtalk'
+  | 'wecom'
+  | 'wecom-app'
+  | 'wecom-kf'
+  | 'qqbot'
+  | 'wechat-mp'
+  | 'openclaw-weixin';
+
+export interface ImBotConnectionPreflightInput {
+  token: string;
+  platformId: ImBotPlatformId;
+  credentials: Record<string, string>;
+  callbackUrl?: string;
+}
+
+export interface ImBotConnectionPreflightCheck {
+  id: string;
+  label: string;
+  status: 'success' | 'warning' | 'failure';
+  detail: string;
+}
+
+export interface ImBotConnectionPreflightResult {
+  ok: boolean;
+  supported: boolean;
+  message: string;
+  checks: ImBotConnectionPreflightCheck[];
+}
+
 export interface StreamCallbacks {
   onStart?: (payload: unknown) => void;
   onDelta?: (text: string, payload: unknown) => void;
@@ -1899,6 +1930,25 @@ export class IClawClient {
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as { data: { items: ClientPerfSampleData[] } };
     return Array.isArray(json.data?.items) ? json.data.items : [];
+  }
+
+  async preflightImBotConnection(input: ImBotConnectionPreflightInput): Promise<ImBotConnectionPreflightResult> {
+    const res = await this.fetchAuth('/portal/im-bots/preflight', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${input.token.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        platform_id: input.platformId,
+        credentials: input.credentials,
+        callback_url: input.callbackUrl,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as { data: ImBotConnectionPreflightResult };
+    return json.data;
   }
 
   async listMarketStocksPage(options?: {

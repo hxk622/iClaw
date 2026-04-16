@@ -8,6 +8,7 @@ import {logWarn} from './logger.ts';
 import {
   deletePortalDesktopReleaseFile,
   downloadPortalDesktopReleaseFile,
+  statPortalDesktopReleaseFile,
   uploadPortalDesktopReleaseFile,
 } from './portal-desktop-release-storage.ts';
 import {
@@ -1666,6 +1667,106 @@ export class PortalService {
     await this.saveAppConfig(detail.app, nextConfig, actor.id);
 
     if (previousFile?.objectKey && previousFile.objectKey !== upload.objectKey) {
+      await deletePortalDesktopReleaseFile(previousFile.objectKey).catch((error) => {
+        logWarn('failed to delete previous desktop release file', {
+          appName,
+          channel,
+          platform,
+          arch,
+          artifactType,
+          objectKey: previousFile.objectKey,
+          error,
+        });
+      });
+    }
+
+    return {
+      channel,
+      platform,
+      arch,
+      artifactType,
+      file: artifactType === 'signature' ? target.signature : artifactType === 'updater' ? target.updater : target.installer,
+      desktopRelease: releaseConfig,
+    };
+  }
+
+  async registerDesktopReleaseArtifact(
+    accessToken: string,
+    appNameInput: string,
+    input: {
+      channel?: string | null;
+      platform?: string | null;
+      arch?: string | null;
+      artifactType?: string | null;
+      storageProvider?: string | null;
+      objectKey?: string | null;
+      fileName?: string | null;
+      contentType?: string | null;
+      sha256?: string | null;
+      sizeBytes?: number | null;
+      uploadedAt?: string | null;
+      signature?: string | null;
+    },
+  ) {
+    const actor = await this.requireAdmin(accessToken);
+    const detail = await this.getAppDetailOrThrow(appNameInput);
+    const appName = detail.app.appName;
+    const channel = normalizeDesktopReleaseChannel(input.channel);
+    const platform = normalizeDesktopReleasePlatform(input.platform);
+    const arch = normalizeDesktopReleaseArch(input.arch);
+    const artifactType = normalizeDesktopReleaseArtifactType(input.artifactType);
+    if (!platform || !arch) {
+      throw new HttpError(400, 'BAD_REQUEST', 'platform and arch are required');
+    }
+
+    const objectKey = normalizeRequiredString(input.objectKey, 'object_key');
+    const fileName = normalizeRequiredString(input.fileName, 'file_name');
+    const uploadedAt = normalizeOptionalString(input.uploadedAt, 'uploaded_at') || new Date().toISOString();
+    const storageProvider = normalizeOptionalString(input.storageProvider, 'storage_provider') || 's3';
+    const sha256 = normalizeRequiredString(input.sha256, 'sha256');
+    const head = await statPortalDesktopReleaseFile(objectKey);
+    const sizeBytes = normalizeOptionalInteger(input.sizeBytes, 'size_bytes', head.sizeBytes);
+    const contentType =
+      normalizeOptionalString(input.contentType, 'content_type') || head.contentType || 'application/octet-stream';
+
+    const releaseConfig = readPortalDesktopReleaseConfig(detail.app.config);
+    const channelState = releaseConfig.channels[channel];
+    const nextDraft = cloneJson(channelState.draft);
+    const target = upsertPortalDesktopReleaseTarget(nextDraft.targets, platform, arch);
+    const previousFile =
+      artifactType === 'installer'
+        ? target.installer
+        : artifactType === 'updater'
+          ? target.updater
+          : target.signature;
+
+    const registeredFile = {
+      storageProvider,
+      objectKey,
+      contentType,
+      fileName,
+      sha256,
+      sizeBytes,
+      uploadedAt,
+    };
+
+    if (artifactType === 'signature') {
+      const signature = normalizeRequiredString(input.signature, 'signature');
+      target.signature = {
+        ...registeredFile,
+        signature,
+      };
+    } else if (artifactType === 'updater') {
+      target.updater = registeredFile;
+    } else {
+      target.installer = registeredFile;
+    }
+
+    channelState.draft = nextDraft;
+    const nextConfig = writePortalDesktopReleaseConfig(asObject(detail.app.config), releaseConfig);
+    await this.saveAppConfig(detail.app, nextConfig, actor.id);
+
+    if (previousFile?.objectKey && previousFile.objectKey !== objectKey) {
       await deletePortalDesktopReleaseFile(previousFile.objectKey).catch((error) => {
         logWarn('failed to delete previous desktop release file', {
           appName,

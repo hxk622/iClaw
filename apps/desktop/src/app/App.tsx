@@ -20,6 +20,11 @@ import {
   trackClientCrash,
   trackClientMetricEvent,
 } from './lib/client-metrics';
+import {
+  buildInstallFailureDiagnostic,
+  shouldTrackInstallStart,
+  shouldTrackInstallSuccess,
+} from './lib/install-metrics';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
 import {
   detectPortConflicts,
@@ -196,6 +201,11 @@ const DataConnectionsView = lazy(() =>
 const InvestmentExpertsView = lazy(() =>
   import('./components/investment-experts/InvestmentExpertsView').then((module) => ({
     default: module.InvestmentExpertsView,
+  })),
+);
+const ThoughtLibraryView = lazy(() =>
+  import('./components/thought-library/ThoughtLibraryView').then((module) => ({
+    default: module.ThoughtLibraryView,
   })),
 );
 const LobsterStoreView = lazy(() =>
@@ -673,6 +683,7 @@ type ChatSurfaceRuntimeState = {
 const PRIMARY_VIEW_ORDER: PrimaryView[] = [
   'chat',
   'cron',
+  'thought-library',
   'investment-experts',
   'stock-market',
   'fund-market',
@@ -1009,7 +1020,9 @@ export default function App() {
   const launchSuccessTrackedRef = useRef(false);
   const initialPagePerfTrackedRef = useRef(false);
   const installStartTrackedRef = useRef(false);
+  const installSuccessTrackedRef = useRef(false);
   const lastInstallFailureSignatureRef = useRef('');
+  const lastInstallAutoDiagnosticSignatureRef = useRef('');
   const lastLaunchFailureSignatureRef = useRef('');
   const [brandRuntimeReady, setBrandRuntimeReady] = useState(!IS_TAURI_RUNTIME);
   const [brandShellConfig, setBrandShellConfig] = useState<Record<string, unknown> | null>(null);
@@ -1570,7 +1583,13 @@ export default function App() {
   }, [recordMetric]);
 
   useEffect(() => {
-    if (!IS_TAURI_RUNTIME || !shouldShowStartupGate || installStartTrackedRef.current) {
+    if (
+      !shouldTrackInstallStart({
+        isTauriRuntime: IS_TAURI_RUNTIME,
+        shouldShowStartupGate,
+        installStartTracked: installStartTrackedRef.current,
+      })
+    ) {
       return;
     }
     installStartTrackedRef.current = true;
@@ -1580,6 +1599,26 @@ export default function App() {
       },
     });
   }, [IS_TAURI_RUNTIME, recordMetric, runtimeInstallProgress?.phase, shouldShowStartupGate]);
+
+  useEffect(() => {
+    if (
+      !shouldTrackInstallSuccess({
+        isTauriRuntime: IS_TAURI_RUNTIME,
+        healthy,
+        installStartTracked: installStartTrackedRef.current,
+        installSuccessTracked: installSuccessTrackedRef.current,
+      })
+    ) {
+      return;
+    }
+    installSuccessTrackedRef.current = true;
+    void recordMetric('install_success', {
+      result: 'success',
+      payload: {
+        completion_stage: runtimeInstallProgress?.phase || 'startup_gate_completed',
+      },
+    });
+  }, [IS_TAURI_RUNTIME, healthy, recordMetric, runtimeInstallProgress?.phase]);
 
   useEffect(() => {
     if (!IS_TAURI_RUNTIME || !healthy || launchSuccessTrackedRef.current) {
@@ -1630,23 +1669,81 @@ export default function App() {
   }, [accessToken, authBootstrapReady, client]);
 
   useEffect(() => {
-    if (installerView.state !== 'error') {
+    const installFailure = buildInstallFailureDiagnostic({
+      installerState: installerView.state,
+      errorTitle: installerView.errorTitle,
+      errorMessage: installerView.errorMessage,
+      runtimeInstallProgressPhase: runtimeInstallProgress?.phase || null,
+      healthError,
+    });
+    if (!installFailure) {
       return;
     }
-    const signature = `${installerView.errorTitle || ''}::${installerView.errorMessage || ''}::${runtimeInstallProgress?.phase || ''}`;
-    if (!signature.trim() || lastInstallFailureSignatureRef.current === signature) {
+    if (lastInstallFailureSignatureRef.current === installFailure.signature) {
       return;
     }
-    lastInstallFailureSignatureRef.current = signature;
+    lastInstallFailureSignatureRef.current = installFailure.signature;
     void recordMetric('install_failed', {
       result: 'failed',
       payload: {
-        failure_stage: runtimeInstallProgress?.phase || 'runtime_install',
-        error_title: installerView.errorTitle || null,
-        error_message: installerView.errorMessage || null,
+        failure_stage: installFailure.failureStage,
+        error_title: installFailure.title,
+        error_message: installFailure.message,
       },
     });
-  }, [installerView.errorMessage, installerView.errorTitle, installerView.state, recordMetric, runtimeInstallProgress?.phase]);
+  }, [
+    healthError,
+    installerView.errorMessage,
+    installerView.errorTitle,
+    installerView.state,
+    recordMetric,
+    runtimeInstallProgress?.phase,
+  ]);
+
+  useEffect(() => {
+    const installFailure = buildInstallFailureDiagnostic({
+      installerState: installerView.state,
+      errorTitle: installerView.errorTitle,
+      errorMessage: installerView.errorMessage,
+      runtimeInstallProgressPhase: runtimeInstallProgress?.phase || null,
+      healthError,
+    });
+    if (!installFailure) {
+      return;
+    }
+    if (lastInstallAutoDiagnosticSignatureRef.current === installFailure.signature) {
+      return;
+    }
+    lastInstallAutoDiagnosticSignatureRef.current = installFailure.signature;
+    void submitAutoDiagnosticUpload({
+      client,
+      accessToken,
+      installSessionId: installSessionIdRef.current,
+      failureStage: installFailure.failureStage,
+      errorTitle: installFailure.title,
+      errorMessage: installFailure.message,
+      extraDiagnostics: {
+        source: 'startup-gate-error',
+        health_error: healthError || null,
+        runtime_install_phase: runtimeInstallProgress?.phase || null,
+      },
+    }).catch((error) => {
+      console.error('[fault-report] auto submit install failure', {
+        failureStage: installFailure.failureStage,
+        title: installFailure.title,
+        message: installFailure.message,
+        error,
+      });
+    });
+  }, [
+    accessToken,
+    client,
+    healthError,
+    installerView.errorMessage,
+    installerView.errorTitle,
+    installerView.state,
+    runtimeInstallProgress?.phase,
+  ]);
 
   useEffect(() => {
     if (!healthError) {
@@ -3014,6 +3111,31 @@ function AuthedView({
     }));
   };
 
+  const handleOpenThoughtLibraryContextConversation = useCallback(
+    (input: { title: string; prompt: string }) => {
+      if (desktopUpdateNewRunBlockedReason) {
+        setPrimaryView('chat');
+        return;
+      }
+      const seed = `thought-library-${Date.now()}`;
+      openChatRoute(
+        buildConversationBackedChatRoute({
+          sessionKey: createScopedChatSessionKey(seed),
+          kind: 'general',
+          title: input.title,
+          initialPrompt: input.prompt,
+          initialPromptKey: seed,
+          initialAgentSlug: null,
+          initialSkillSlug: null,
+          initialSkillOption: null,
+          initialStockContext: null,
+        }),
+      );
+      setPrimaryView('chat');
+    },
+    [desktopUpdateNewRunBlockedReason, openChatRoute, setPrimaryView],
+  );
+
   const handleStartNewChat = useCallback(() => {
     if (desktopUpdateNewRunBlockedReason) {
       setPrimaryView('chat');
@@ -3218,6 +3340,29 @@ function AuthedView({
             authenticated={authenticated}
             onRequestAuth={onRequestAuth}
             onStartConversation={handleStartInvestmentExpertConversation}
+          />
+        </DeferredSurface>
+      );
+    }
+
+    if (viewKey === 'thought-library') {
+      return (
+        <DeferredSurface title={viewLabel}>
+          <ThoughtLibraryView
+            title={viewLabel}
+            onOpenContextChat={handleOpenThoughtLibraryContextConversation}
+            gatewayUrl={GATEWAY_WS_URL}
+            gatewayToken={gatewayAuth.token}
+            gatewayPassword={gatewayAuth.password}
+            authBaseUrl={AUTH_BASE_URL}
+            appName={BRAND.brandId}
+            client={client}
+            accessToken={accessToken}
+            currentUser={currentUser}
+            authenticated={authenticated}
+            onRequestAuth={onRequestAuth}
+            inputComposerConfig={inputComposerConfig}
+            welcomePageConfig={welcomePageConfig}
           />
         </DeferredSurface>
       );
@@ -3466,6 +3611,8 @@ function AuthedView({
     return null;
   };
 
+  const shellSidebarCollapsed = sidebarCollapsed || resolvedPrimaryView === 'thought-library';
+
   return (
     <div className="relative h-screen overflow-hidden bg-[var(--bg-page)]">
       <CronTaskResultSync
@@ -3477,12 +3624,12 @@ function AuthedView({
       />
       <div
         className="absolute inset-y-0 left-0 z-[3] transition-[width] duration-[180ms]"
-        style={{ width: sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH }}
+        style={{ width: shellSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH }}
       >
         <Sidebar
           user={currentUser}
           activeView={resolvedPrimaryView}
-          collapsed={sidebarCollapsed}
+          collapsed={shellSidebarCollapsed}
           onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
           enabledMenuKeys={enabledMenuKeys}
           menuUiConfig={menuUiConfig}
@@ -3523,9 +3670,9 @@ function AuthedView({
       </div>
       <div
         className="absolute inset-y-0 right-0 z-[1] isolate flex min-w-0 flex-col overflow-hidden transition-[left] duration-[180ms] [contain:layout_paint_style]"
-        style={{ left: sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH }}
+        style={{ left: shellSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH }}
       >
-        {resolvedPrimaryView === 'data-connections' || headerConfig.enabled === false ? null : (
+        {resolvedPrimaryView === 'data-connections' || resolvedPrimaryView === 'thought-library' || headerConfig.enabled === false ? null : (
           <IClawHeader
             config={headerConfig}
             balance={creditBalance?.total_available_balance ?? creditBalance?.available_balance ?? creditBalance?.balance ?? null}

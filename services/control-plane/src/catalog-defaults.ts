@@ -91,6 +91,33 @@ const DEFAULT_GLOBAL_FINANCE_MCP_KEYS = ['browser', 'tavily', 'serper', 'yahoo-f
 const DEFAULT_MACRO_MCP_KEYS = ['browser', 'tavily', 'serper', 'yahoo-finance', 'fred'];
 const AGENT_REACH_SOURCE_URL = 'https://github.com/Panniantong/Agent-Reach';
 
+const INVESTMENT_EXPERT_AVATAR_BY_SLUG = {
+  'a-share-value-hunter': '/agent-avatars/investment-experts/a-share-value-hunter.png',
+  'a-share-dividend-defender': '/agent-avatars/investment-experts/a-share-dividend-defender.png',
+  'a-share-quant-pilot': '/agent-avatars/investment-experts/a-share-quant-pilot.png',
+  'a-share-rotation-strategist': '/agent-avatars/investment-experts/a-share-rotation-strategist.png',
+  'a-share-event-driven-scout': '/agent-avatars/investment-experts/a-share-event-driven-scout.png',
+  'a-share-sentiment-gap-analyst': '/agent-avatars/investment-experts/a-share-sentiment-gap-analyst.png',
+  'a-share-insider-signal-pro': '/agent-avatars/investment-experts/a-share-insider-signal-pro.png',
+  'a-share-small-cap-alpha': '/agent-avatars/investment-experts/a-share-small-cap-alpha.png',
+  'a-share-tech-valuation-bench': '/agent-avatars/investment-experts/a-share-tech-valuation-bench.png',
+  'a-share-portfolio-architect': '/agent-avatars/investment-experts/a-share-portfolio-architect.png',
+  'us-value-compass': '/agent-avatars/investment-experts/us-value-compass.png',
+  'us-dividend-compounder': '/agent-avatars/investment-experts/us-dividend-compounder.png',
+  'us-quant-factor-lab': '/agent-avatars/investment-experts/us-quant-factor-lab.png',
+  'us-sector-rotation-expert': '/agent-avatars/investment-experts/us-sector-rotation-expert.png',
+  'us-special-situations-desk': '/agent-avatars/investment-experts/us-special-situations-desk.png',
+  'us-sentiment-gap-analyst': '/agent-avatars/investment-experts/us-sentiment-gap-analyst.png',
+  'us-insider-tracker-pro': '/agent-avatars/investment-experts/us-insider-tracker-pro.png',
+  'us-small-cap-alpha-finder': '/agent-avatars/investment-experts/us-small-cap-alpha-finder.png',
+  'us-tech-valuation-bench': '/agent-avatars/investment-experts/us-tech-valuation-bench.png',
+  'us-portfolio-risk-copilot': '/agent-avatars/investment-experts/us-portfolio-risk-copilot.png',
+} as const;
+
+function investmentExpertAvatar(slug: keyof typeof INVESTMENT_EXPERT_AVATAR_BY_SLUG): string {
+  return INVESTMENT_EXPERT_AVATAR_BY_SLUG[slug];
+}
+
 function buildAgentReachMetadata(input: {
   slug: string;
   version?: string;
@@ -1311,7 +1338,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '低估值筛选 · 红利质量 · 长线配置',
       investmentCategory: 'value',
-      avatarUrl: 'https://i.pravatar.cc/160?img=11',
+      avatarUrl: investmentExpertAvatar('a-share-value-hunter'),
       usageCount: 12543,
       taskCount: 8932,
       rating: 4.9,
@@ -1372,7 +1399,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '高股息筛选 · 现金流核验 · 收益配置',
       investmentCategory: 'income',
-      avatarUrl: 'https://i.pravatar.cc/160?img=12',
+      avatarUrl: investmentExpertAvatar('a-share-dividend-defender'),
       usageCount: 10432,
       taskCount: 7210,
       rating: 4.8,
@@ -1432,7 +1459,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '多因子模型 · 系统选股 · 风格暴露',
       investmentCategory: 'quant',
-      avatarUrl: 'https://i.pravatar.cc/160?img=13',
+      avatarUrl: investmentExpertAvatar('a-share-quant-pilot'),
       usageCount: 9876,
       taskCount: 6543,
       rating: 4.8,
@@ -1493,7 +1520,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '宏观周期 · 板块轮动 · 中期配置',
       investmentCategory: 'macro',
-      avatarUrl: 'https://i.pravatar.cc/160?img=14',
+      avatarUrl: investmentExpertAvatar('a-share-rotation-strategist'),
       usageCount: 8421,
       taskCount: 6028,
       rating: 4.8,
@@ -1553,7 +1580,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '并购重组 · 回购增持 · 特殊情境',
       investmentCategory: 'event',
-      avatarUrl: 'https://i.pravatar.cc/160?img=15',
+      avatarUrl: investmentExpertAvatar('a-share-event-driven-scout'),
       usageCount: 7910,
       taskCount: 4986,
       rating: 4.8,
@@ -1614,7 +1641,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '情绪错杀 · 预期差修复 · 逆向研究',
       investmentCategory: 'sentiment',
-      avatarUrl: 'https://i.pravatar.cc/160?img=16',
+      avatarUrl: investmentExpertAvatar('a-share-sentiment-gap-analyst'),
       usageCount: 6840,
       taskCount: 4615,
       rating: 4.7,
@@ -1674,7 +1701,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '管理层增减持 · 大股东动向 · 信号过滤',
       investmentCategory: 'signal',
-      avatarUrl: 'https://i.pravatar.cc/160?img=17',
+      avatarUrl: investmentExpertAvatar('a-share-insider-signal-pro'),
       usageCount: 7654,
       taskCount: 5432,
       rating: 4.7,
@@ -1734,7 +1761,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '小市值成长 · 高弹性 · 覆盖不足',
       investmentCategory: 'growth',
-      avatarUrl: 'https://i.pravatar.cc/160?img=18',
+      avatarUrl: investmentExpertAvatar('a-share-small-cap-alpha'),
       usageCount: 7225,
       taskCount: 5120,
       rating: 4.7,
@@ -1794,7 +1821,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '科技估值 · 热门赛道 · 泡沫识别',
       investmentCategory: 'technology',
-      avatarUrl: 'https://i.pravatar.cc/160?img=19',
+      avatarUrl: investmentExpertAvatar('a-share-tech-valuation-bench'),
       usageCount: 8364,
       taskCount: 5908,
       rating: 4.8,
@@ -1855,7 +1882,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '组合体检 · 资产配置 · 风险收益优化',
       investmentCategory: 'portfolio',
-      avatarUrl: 'https://i.pravatar.cc/160?img=20',
+      avatarUrl: investmentExpertAvatar('a-share-portfolio-architect'),
       usageCount: 9132,
       taskCount: 6488,
       rating: 4.9,
@@ -1916,7 +1943,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '低估值筛选 · 股息质量 · 长期配置',
       investmentCategory: 'value',
-      avatarUrl: 'https://i.pravatar.cc/160?img=21',
+      avatarUrl: investmentExpertAvatar('us-value-compass'),
       usageCount: 9321,
       taskCount: 6880,
       rating: 4.9,
@@ -1977,7 +2004,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '股息贵族 · 分红增长 · 收益复利',
       investmentCategory: 'income',
-      avatarUrl: 'https://i.pravatar.cc/160?img=22',
+      avatarUrl: investmentExpertAvatar('us-dividend-compounder'),
       usageCount: 8510,
       taskCount: 6024,
       rating: 4.8,
@@ -2037,7 +2064,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '多因子模型 · 规则选股 · 风格归因',
       investmentCategory: 'quant',
-      avatarUrl: 'https://i.pravatar.cc/160?img=23',
+      avatarUrl: investmentExpertAvatar('us-quant-factor-lab'),
       usageCount: 8092,
       taskCount: 5661,
       rating: 4.8,
@@ -2098,7 +2125,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '宏观周期 · 板块轮动 · 全球视角',
       investmentCategory: 'macro',
-      avatarUrl: 'https://i.pravatar.cc/160?img=24',
+      avatarUrl: investmentExpertAvatar('us-sector-rotation-expert'),
       usageCount: 8543,
       taskCount: 6021,
       rating: 4.8,
@@ -2158,7 +2185,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '并购拆分 · 回购重组 · 特殊情境',
       investmentCategory: 'event',
-      avatarUrl: 'https://i.pravatar.cc/160?img=25',
+      avatarUrl: investmentExpertAvatar('us-special-situations-desk'),
       usageCount: 7336,
       taskCount: 4980,
       rating: 4.8,
@@ -2219,7 +2246,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '叙事错位 · 预期修复 · 逆向机会',
       investmentCategory: 'sentiment',
-      avatarUrl: 'https://i.pravatar.cc/160?img=26',
+      avatarUrl: investmentExpertAvatar('us-sentiment-gap-analyst'),
       usageCount: 6615,
       taskCount: 4431,
       rating: 4.7,
@@ -2279,7 +2306,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: 'SEC Form 4 · 管理层信号 · 行为过滤',
       investmentCategory: 'signal',
-      avatarUrl: 'https://i.pravatar.cc/160?img=27',
+      avatarUrl: investmentExpertAvatar('us-insider-tracker-pro'),
       usageCount: 7130,
       taskCount: 5024,
       rating: 4.7,
@@ -2339,7 +2366,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '低覆盖小盘 · 高成长 · 早期发现',
       investmentCategory: 'growth',
-      avatarUrl: 'https://i.pravatar.cc/160?img=28',
+      avatarUrl: investmentExpertAvatar('us-small-cap-alpha-finder'),
       usageCount: 6898,
       taskCount: 4722,
       rating: 4.7,
@@ -2399,7 +2426,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '大科技估值 · AI浪潮 · 预期交易',
       investmentCategory: 'technology',
-      avatarUrl: 'https://i.pravatar.cc/160?img=29',
+      avatarUrl: investmentExpertAvatar('us-tech-valuation-bench'),
       usageCount: 9450,
       taskCount: 6894,
       rating: 4.9,
@@ -2460,7 +2487,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     metadata: buildInvestmentExpertMetadata({
       subtitle: '组合体检 · 风险暴露 · 资产优化',
       investmentCategory: 'portfolio',
-      avatarUrl: 'https://i.pravatar.cc/160?img=30',
+      avatarUrl: investmentExpertAvatar('us-portfolio-risk-copilot'),
       usageCount: 9246,
       taskCount: 6617,
       rating: 4.9,

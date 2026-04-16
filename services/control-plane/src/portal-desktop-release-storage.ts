@@ -198,6 +198,27 @@ export async function downloadPortalDesktopReleaseFile(objectKeyInput: string): 
   }
 }
 
+export async function statPortalDesktopReleaseFile(objectKeyInput: string): Promise<{
+  contentType: string;
+  sizeBytes: number;
+}> {
+  const objectKey = assertSupportedObjectKey(objectKeyInput);
+  const client = getS3Client();
+  try {
+    const head = await client.send(new HeadObjectCommand({Bucket: getBucket(), Key: objectKey}));
+    return {
+      contentType: head.ContentType || 'application/octet-stream',
+      sizeBytes: Number(head.ContentLength || 0) || 0,
+    };
+  } catch (error) {
+    const name = typeof error === 'object' && error && 'name' in error ? String(error.name) : '';
+    if (name === 'NotFound' || name === 'NoSuchKey') {
+      throw new HttpError(404, 'NOT_FOUND', 'desktop release file not found');
+    }
+    throw error;
+  }
+}
+
 export async function deletePortalDesktopReleaseFile(objectKeyInput: string): Promise<void> {
   const objectKey = assertSupportedObjectKey(objectKeyInput);
   const client = getS3Client();
