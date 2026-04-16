@@ -129,6 +129,18 @@ APP_NAME=iclaw ICLAW_BRAND=iclaw bash scripts/publish-downloads.sh prod
 APP_NAME=licaiclaw ICLAW_BRAND=licaiclaw bash scripts/publish-downloads.sh prod
 ```
 
+如需显式钉死某次补包的公开四段版本，必须带上：
+
+```bash
+APP_NAME=licaiclaw ICLAW_BRAND=licaiclaw ICLAW_RELEASE_VERSION=1.0.7.202604161352 bash scripts/publish-downloads.sh prod
+```
+
+脚本口径：
+
+- 优先使用 `ICLAW_RELEASE_VERSION` / `ICLAW_DESKTOP_RELEASE_VERSION`
+- 若未显式传入，则自动扫描 `dist/releases/`，选择当前品牌、当前 channel 下最新 installer 文件名中的四段版本
+- 禁止再仅依据 `package.json` 的 `semver+build` 生成 `latest-prod*.json`，否则会把 manifest 回滚到旧包
+
 必须验证：
 
 - 下载页对外版本号与文件名一致

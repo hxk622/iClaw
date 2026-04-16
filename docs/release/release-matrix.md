@@ -156,6 +156,7 @@ bash scripts/publish-downloads.sh prod
 
 - 在当前规范下，macOS `prod` 发布应显式限制为 `aarch64-apple-darwin`
 - `scripts/publish-downloads.sh prod` 默认上传 installer 和 manifest；若本次显式生成了 updater 产物，也会一并上传
+- `scripts/publish-downloads.sh` 生成 manifest 时，优先读取 `ICLAW_RELEASE_VERSION` / `ICLAW_DESKTOP_RELEASE_VERSION`；未显式传入时，自动以 `dist/releases` 中当前品牌当前 channel 的最新 installer 四段版本为真值，不能再回落到 `package.json`
 - prod 构建必须通过签名校验；macOS 公证失败时不会产出可公开发布的 prod 包
 - 如果 `home-web` 需要展示下载链接，发布时应显式传入本次对外版本，例如 `ICLAW_HOME_PUBLIC_RELEASE_VERSION=<releaseVersion>`，避免页面继续显示旧时间戳
 
