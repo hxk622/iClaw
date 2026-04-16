@@ -6,6 +6,7 @@ import {
   type InstallerViewModel,
 } from './startup-gate';
 import { startSidecarWithTimeout } from './sidecar-start-timeout.ts';
+import { normalizeTauriError } from './tauri-runtime-config';
 import type {
   RuntimeDiagnosis,
   RuntimeInstallProgress,
@@ -167,7 +168,7 @@ export function useDesktopStartupController(
       await params.installRuntime();
       await checkRuntime();
     } catch (error) {
-      setRuntimeInstallError(error instanceof Error ? error.message : 'runtime install failed');
+      setRuntimeInstallError(normalizeTauriError(error, 'runtime install failed').message);
     } finally {
       setRuntimeInstalling(false);
     }
@@ -300,7 +301,7 @@ export function useDesktopStartupController(
         applyRuntimeDiagnosis(nextDiagnosis);
       } catch (error) {
         if (!cancelled) {
-          setRuntimeInstallError(error instanceof Error ? error.message : 'runtime install failed');
+          setRuntimeInstallError(normalizeTauriError(error, 'runtime install failed').message);
         }
       } finally {
         if (!cancelled) {

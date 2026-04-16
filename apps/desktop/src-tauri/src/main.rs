@@ -6585,8 +6585,17 @@ fn sync_oem_runtime_snapshot(
 
 #[tauri::command]
 fn install_runtime(app: AppHandle) -> Result<bool, String> {
-    install_runtime_internal(&app)?;
-    Ok(true)
+    append_desktop_bootstrap_log(&app, "install_runtime: begin");
+    match install_runtime_internal(&app) {
+        Ok(_) => {
+            append_desktop_bootstrap_log(&app, "install_runtime: success");
+            Ok(true)
+        }
+        Err(error) => {
+            append_desktop_bootstrap_log(&app, &format!("install_runtime: error {error}"));
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]

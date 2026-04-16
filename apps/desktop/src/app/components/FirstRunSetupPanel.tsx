@@ -271,15 +271,28 @@ export function FirstRunSetupPanel({
               </div>
             ) : null}
             {hasError ? (
-              <Button
-                variant="primary"
-                size="md"
-                block
-                leadingIcon={<RefreshCcw className="h-4 w-4" />}
-                onClick={() => void onRetry()}
-              >
-                重新尝试
-              </Button>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button
+                  variant="primary"
+                  size="md"
+                  block
+                  leadingIcon={<RefreshCcw className="h-4 w-4" />}
+                  onClick={() => void onRetry()}
+                >
+                  重新尝试
+                </Button>
+                {onReportFault ? (
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    block
+                    leadingIcon={<Upload className="h-4 w-4" />}
+                    onClick={onReportFault}
+                  >
+                    故障上报
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         )}
