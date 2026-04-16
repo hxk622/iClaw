@@ -18,6 +18,39 @@
 - [release-checklist.md](./release-checklist.md)
 - [desktop-auto-update-force-restore-design.md](../design/desktop-auto-update-force-restore-design.md)
 
+## 0. 自动化入口
+
+本仓库已补齐 Windows 发版防踩坑自动化，统一入口如下：
+
+```bash
+node scripts/release-create-version-record.mjs --release-version <1.0.x.yyyymmddHHMM>
+node scripts/release-guard.mjs --brand <iclaw|caiclaw> --channel prod --target x86_64-pc-windows-msvc --release-version <1.0.x.yyyymmddHHMM> --write-version-record
+node scripts/release-orchestrate-windows.mjs --brand <iclaw|caiclaw> --channel prod --target x86_64-pc-windows-msvc --release-version <1.0.x.yyyymmddHHMM>
+```
+
+其中：
+
+- `release-create-version-record` 负责补齐 `version_record` 和 `test_report`
+- `release-guard` 负责统一生成发版守护报告，并把结果回填到版本记录
+- `release-orchestrate-windows` 负责串起建档、守护检查、打包、再次守护、发布入口
+
+## 0.1 已脚本化沉淀的 12 项
+
+以下 12 项已落到脚本/SOP，不再靠口头记忆：
+
+1. OpenClaw UI/runtime 版本一致性检查
+2. OEM 品牌一致性检查
+3. 桌面 bundle 完整性检查
+4. 发版 smoke/守护入口统一
+5. 本地 runtime cache 检查与复用约束
+6. 安装包体积与 runtime 体积统计
+7. 安装/启动日志指标提取
+8. Windows 环境预检查
+9. 图标链路检查
+10. 本地 runtime snapshot / openclaw.json 检查
+11. 发布链路命令统一输出
+12. `version_record` / `test_report` 自动补齐与回填
+
 ## 2. 当前冻结口径
 
 ### 2.1 Windows 更新主链路
@@ -105,6 +138,13 @@ git tag release-1.0.5.202604111430
 2. 确认 `.artifacts/openclaw-runtime/` 缓存命中或对应 runtime 已准备好
 3. 确认不要并行打两个品牌
 4. 在当前宿主先空跑一轮打包脚本，避免 PowerShell / NSIS 参数差异
+5. 先执行一次：
+
+```bash
+node scripts/release-guard.mjs --brand <brand> --channel prod --target x86_64-pc-windows-msvc --release-version <version> --write-version-record
+```
+
+必须检查 `dist/release-guard/*.json` 输出。
 
 ### 4.3 桌面构建
 
@@ -282,6 +322,14 @@ pnpm deploy:prod:marketing
 - 多品牌并行复用同一工作区
 - 在没有机器侧日志时靠猜测做 RCA
 - 为一个未证实的问题引入体积几乎翻倍的默认依赖
+
+## 8.1 当前自动守护报告位置
+
+- 守护报告输出目录：`dist/release-guard/`
+- 版本记录目录：`docs/version_record/`
+- 测试报告目录：`docs/version_record/test_report/`
+
+每次正式发版都必须至少保留一份与当前公开版本号一致的守护报告。
 
 ## 9. 下一步必做改造
 

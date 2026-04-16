@@ -1,8 +1,8 @@
 {
   "name": "iclaw-monorepo",
   "private": true,
-  "version": "1.0.7+202604152241",
-  "releaseVersion": "1.0.7.202604152241",
+  "version": "1.0.8+202604161818",
+  "releaseVersion": "1.0.8.202604161818",
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "dev": "pnpm dev:all",
@@ -54,6 +54,9 @@
     "build:openclaw-runtime": "node scripts/run-bash.mjs scripts/build-openclaw-runtime.sh",
     "publish:openclaw-runtime": "node scripts/run-bash.mjs scripts/publish-openclaw-runtime.sh",
     "publish:desktop-release": "node scripts/run-with-env.mjs prod node scripts/publish-desktop-release.mjs",
+    "release:create-record": "node scripts/release-create-version-record.mjs",
+    "release:guard": "node scripts/release-guard.mjs",
+    "release:orchestrate:windows": "node scripts/release-orchestrate-windows.mjs",
     "doctor:desktop-update": "node scripts/run-with-env.mjs dev node scripts/doctor-desktop-update.mjs --channel dev",
     "self-test:desktop-update": "node scripts/self-test-desktop-update.mjs",
     "migrate:skill-catalog-table": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane migrate:skill-catalog-table",
