@@ -2443,11 +2443,20 @@ export class PgPortalStore {
   }
 
   async getAppDetail(appName: string): Promise<PortalAppDetail | null> {
-    const state = await readAppSnapshotState(this.pool, appName);
+    const candidates = appName === 'caiclaw' ? ['caiclaw', 'licaiclaw'] : [appName];
+    let state: PortalAppSnapshotState | null = null;
+    let resolvedAppName = appName;
+    for (const candidate of candidates) {
+      state = await readAppSnapshotState(this.pool, candidate);
+      if (state) {
+        resolvedAppName = candidate;
+        break;
+      }
+    }
     if (!state) return null;
     const [releases, audit] = await Promise.all([
-      listReleasesByApp(this.pool, appName, 20),
-      listAuditByApp(this.pool, appName, 20),
+      listReleasesByApp(this.pool, resolvedAppName, 20),
+      listAuditByApp(this.pool, resolvedAppName, 20),
     ]);
     return {
       app: state.app,

@@ -113,6 +113,26 @@ bundle_dir_for_target() {
   esac
 }
 
+stage_bundle_dir_for_target() {
+  local brand_id="$1"
+  local target="$2"
+  local stage_tauri_root=""
+
+  stage_tauri_root="$(
+    node --input-type=module -e "
+      import {readActiveDesktopBrandStage} from './scripts/lib/desktop-brand-context.mjs';
+      const stage = await readActiveDesktopBrandStage({rootDir: process.cwd(), brandId: process.argv[1]});
+      process.stdout.write(stage.paths.tauriRoot);
+    " "$brand_id" 2>/dev/null
+  )" || true
+
+  if [[ -z "$stage_tauri_root" ]]; then
+    return 0
+  fi
+
+  printf '%s\n' "$stage_tauri_root/target/$target/release/bundle"
+}
+
 find_latest_file() {
   local dir="$1"
   local pattern="$2"
@@ -195,6 +215,8 @@ build_one() {
 
   local bundle_dir
   bundle_dir="$(bundle_dir_for_target "$target")"
+  local fallback_bundle_dir=""
+  fallback_bundle_dir="$(stage_bundle_dir_for_target "$current_brand_id" "$target")"
 
   if [[ "$target" == *-apple-darwin ]]; then
     local installer_dir="$bundle_dir/dmg"
@@ -214,6 +236,25 @@ build_one() {
           "${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}.dmg" \
           "${current_artifact_base_name}_${APP_VERSION}_${arch_label}.dmg"
       )" || true
+    fi
+    if [[ ! -f "$installer_path" && -n "$fallback_bundle_dir" ]]; then
+      installer_dir="$fallback_bundle_dir/dmg"
+      if [[ "$channel" == "dev" || "$channel" == "prod" ]]; then
+        installer_path="$(
+          find_first_matching_file \
+            "$installer_dir" \
+            "${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}_${channel}.dmg" \
+            "${current_artifact_base_name}_${APP_VERSION}_${arch_label}_${channel}.dmg" \
+            "${current_artifact_base_name}_${PUBLIC_APP_VERSION}.*_${arch_label}_${channel}.dmg"
+        )" || true
+      else
+        installer_path="$(
+          find_first_matching_file \
+            "$installer_dir" \
+            "${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}.dmg" \
+            "${current_artifact_base_name}_${APP_VERSION}_${arch_label}.dmg"
+        )" || true
+      fi
     fi
     if [[ ! -f "$installer_path" ]]; then
       echo "Expected DMG not found under: $installer_dir (artifactBaseName=$current_artifact_base_name appVersion=$APP_VERSION arch=$arch_label)" >&2

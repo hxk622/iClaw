@@ -299,6 +299,13 @@ function normalizeAppName(value: string): string {
   return normalized;
 }
 
+function resolveAppLookupCandidates(appName: string): string[] {
+  if (appName === 'caiclaw') {
+    return ['caiclaw', 'licaiclaw'];
+  }
+  return [appName];
+}
+
 function inferArtifactFormat(entry: {
   artifactFormat?: string | null;
   artifactUrl?: string | null;
@@ -470,12 +477,18 @@ async function main() {
   const portalStore = new PgPortalStore(config.databaseUrl);
   const controlStore = new PgControlPlaneStore(config.databaseUrl);
   try {
-    const [detail, catalogMcps, platformSkills, platformMcps] = await Promise.all([
-      portalStore.getAppDetail(appName),
+    const [catalogMcps, platformSkills, platformMcps] = await Promise.all([
       controlStore.listMcpCatalogAdmin(),
       portalStore.listSkills(),
       portalStore.listMcps(),
     ]);
+    let detail: Awaited<ReturnType<typeof portalStore.getAppDetail>> = null;
+    for (const candidate of resolveAppLookupCandidates(appName)) {
+      detail = await portalStore.getAppDetail(candidate);
+      if (detail) {
+        break;
+      }
+    }
     if (!detail) {
       throw new Error(`portal app not found: ${appName}`);
     }
