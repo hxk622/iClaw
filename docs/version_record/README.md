@@ -7,6 +7,8 @@
 - 每次发版/线上修复都必须新增：
   - `docs/version_record/<version>.md`
   - `docs/version_record/test_report/<version>.md`
+- 自 `2026-04-16` 起，新增发版文档中的业务品牌对外名称统一写为 `caiclaw`
+- 历史文档中的 `licaiclaw` 属于旧内部标识，允许保留用于追溯；但新增记录、结论、摘要、对外说明不再使用该称呼
 - 发版文档必须填写：
   - `test_report: docs/version_record/test_report/<version>.md`
 - 发版前必须跑通 `P0` 用户级自动化测试；如有豁免，必须在：

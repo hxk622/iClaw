@@ -1,6 +1,6 @@
 # Windows Desktop Release SOP
 
-更新时间：2026-04-11
+更新时间：2026-04-16
 
 ## 1. 目标
 
@@ -33,6 +33,13 @@ node scripts/release-orchestrate-windows.mjs --brand <iclaw|caiclaw> --channel p
 - `release-create-version-record` 负责补齐 `version_record` 和 `test_report`
 - `release-guard` 负责统一生成发版守护报告，并把结果回填到版本记录
 - `release-orchestrate-windows` 负责串起建档、守护检查、打包、再次守护、发布入口
+
+## 0.2 品牌命名冻结规则
+
+- 自 2026-04-16 起，业务品牌对外统一命名为 `caiclaw`
+- 文档、发布记录、测试报告、对外沟通、下载链接说明中，默认使用 `caiclaw`
+- 历史文档、历史脚本参数、历史构建产物中出现的 `licaiclaw`，视为旧内部标识，不再作为新增文档的首选称呼
+- 如脚本/配置/数据库字段仍需兼容历史标识，必须在实现层做兼容；对外口径不再回退到 `licaiclaw`
 
 ## 0.1 已脚本化沉淀的 12 项
 
@@ -100,7 +107,7 @@ node scripts/release-orchestrate-windows.mjs --brand <iclaw|caiclaw> --channel p
    - `desktop`
 5. 已明确两个品牌是否都要发：
    - `iclaw`
-   - `licaiclaw`
+   - `caiclaw`
 6. 已明确本次 Windows 目标架构：
    - 正式默认 `x86_64-pc-windows-msvc`
 7. 已确认不在同一工作区直接并行打多个品牌
