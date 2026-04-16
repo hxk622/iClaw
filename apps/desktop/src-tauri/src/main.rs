@@ -3972,7 +3972,12 @@ fn node_options_safe_path(path: &Path) -> String {
         .strip_prefix(r"\\?\")
         .or_else(|| raw.strip_prefix("//?/"))
         .unwrap_or(raw.as_ref());
-    normalized.replace('\\', "/")
+    let normalized = normalized.replace('\\', "/");
+    if normalized.chars().any(char::is_whitespace) {
+        format!("\"{}\"", normalized.replace('"', "\\\""))
+    } else {
+        normalized
+    }
 }
 
 fn node_command_safe_path(path: &Path) -> String {
@@ -8184,9 +8189,11 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_memory_cli_json_output, persisted_sidecar_state_matches,
-        PersistedSidecarState, DESKTOP_GATEWAY_ALLOWED_ORIGINS,
+        node_options_safe_path, parse_memory_cli_json_output,
+        persisted_sidecar_state_matches, PersistedSidecarState,
+        DESKTOP_GATEWAY_ALLOWED_ORIGINS,
     };
+    use std::path::Path;
 
     #[test]
     fn parse_memory_cli_json_output_accepts_plain_json() {
@@ -8290,5 +8297,29 @@ mod tests {
         assert!(origins.contains(&"tauri://localhost"));
         assert!(origins.contains(&"http://tauri.localhost"));
         assert!(origins.contains(&"https://tauri.localhost"));
+    }
+
+    #[test]
+    fn node_options_safe_path_quotes_paths_with_spaces() {
+        let value = node_options_safe_path(Path::new(
+            r"\\?\C:\Program Files\理财客\resources\runtime\node-fetch-user-agent.cjs",
+        ));
+
+        assert_eq!(
+            value,
+            "\"C:/Program Files/理财客/resources/runtime/node-fetch-user-agent.cjs\""
+        );
+    }
+
+    #[test]
+    fn node_options_safe_path_keeps_plain_paths_unquoted() {
+        let value = node_options_safe_path(Path::new(
+            r"\\?\C:\Users\HX\AppData\Roaming\ai.licaiclaw.desktop\openclaw\runtime\hook.cjs",
+        ));
+
+        assert_eq!(
+            value,
+            "C:/Users/HX/AppData/Roaming/ai.licaiclaw.desktop/openclaw/runtime/hook.cjs"
+        );
     }
 }
