@@ -39,7 +39,7 @@ const result = spawnSync(command, args, {
     ...packagingOverlayEnv,
     ...packagingSourceEnv,
   },
-  shell: process.platform === 'win32',
+  shell: false,
 });
 
 if (result.error) {

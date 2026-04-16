@@ -110,11 +110,12 @@ function runCapture(command, args, options = {}) {
 function pnpmCommand() {
   const nodeBinDir = path.dirname(process.execPath);
   const bundledCorepack = path.join(nodeBinDir, process.platform === 'win32' ? 'corepack.cmd' : 'corepack');
+  const bundledCorepackJs = path.join(nodeBinDir, 'node_modules', 'corepack', 'dist', 'corepack.js');
   if (process.platform === 'win32') {
     return {
-      command: bundledCorepack,
-      args: ['pnpm'],
-      shell: true,
+      command: process.execPath,
+      args: [bundledCorepackJs, 'pnpm'],
+      shell: false,
     };
   }
   return {
@@ -126,12 +127,14 @@ function pnpmCommand() {
 function tauriBinaryPath() {
   if (process.platform === 'win32') {
     return {
-      command: path.join(desktopDir, 'node_modules', '.bin', 'tauri.CMD'),
-      shell: true,
+      command: process.execPath,
+      args: [path.join(desktopDir, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')],
+      shell: false,
     };
   }
   return {
     command: path.join(desktopDir, 'node_modules', '.bin', 'tauri'),
+    args: [],
     shell: false,
   };
 }
@@ -2031,7 +2034,7 @@ async function main() {
     run(pnpm.command, [...pnpm.args, '--dir', desktopDir, 'build'], { env, shell: pnpm.shell });
     await stageFrontendDist(stagePaths);
     const tauri = tauriBinaryPath();
-    run(tauri.command, ['build', '--config', tempTauriConfigPath, '--bundles', tauriBundle, ...forwardedArgs], {
+    run(tauri.command, [...(tauri.args || []), 'build', '--config', tempTauriConfigPath, '--bundles', tauriBundle, ...forwardedArgs], {
       cwd: desktopDir,
       env: {
         ...tauriBuildEnv,
