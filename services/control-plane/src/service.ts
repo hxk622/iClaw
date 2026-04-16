@@ -228,6 +228,48 @@ const CLIENT_PERF_METRIC_NAMES = new Set<ClientPerfMetricName>([
   'cpu_percent',
 ]);
 
+type ImBotPlatformId =
+  | 'feishu-china'
+  | 'dingtalk'
+  | 'wecom'
+  | 'wecom-app'
+  | 'wecom-kf'
+  | 'qqbot'
+  | 'wechat-mp'
+  | 'openclaw-weixin';
+
+type ImBotConnectionPreflightCheck = {
+  id: string;
+  label: string;
+  status: 'success' | 'warning' | 'failure';
+  detail: string;
+};
+
+type ImBotConnectionPreflightResult = {
+  ok: boolean;
+  supported: boolean;
+  message: string;
+  checks: ImBotConnectionPreflightCheck[];
+};
+
+type JsonFetchResult = {
+  ok: boolean;
+  status: number;
+  text: string;
+  json: Record<string, unknown> | null;
+};
+
+const IM_BOT_PLATFORM_IDS = new Set<ImBotPlatformId>([
+  'feishu-china',
+  'dingtalk',
+  'wecom',
+  'wecom-app',
+  'wecom-kf',
+  'qqbot',
+  'wechat-mp',
+  'openclaw-weixin',
+]);
+
 function resolvePublicApiBaseUrl(): string {
   if (config.apiUrl.trim()) {
     return config.apiUrl.trim().replace(/\/$/, '');
@@ -281,6 +323,53 @@ function normalizeMarketFundLimit(limitInput?: number | null): number {
     return MARKET_FUND_DEFAULT_LIMIT;
   }
   return Math.min(normalized, MARKET_FUND_MAX_LIMIT);
+}
+
+function normalizeImBotPlatformId(value: unknown): ImBotPlatformId {
+  const normalized = String(value || '').trim().toLowerCase() as ImBotPlatformId;
+  if (!IM_BOT_PLATFORM_IDS.has(normalized)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'platform_id is invalid');
+  }
+  return normalized;
+}
+
+function normalizeStringRecord(value: unknown, field: string): Record<string, string> {
+  const record = asObject(value);
+  const normalized: Record<string, string> = {};
+  for (const [key, rawValue] of Object.entries(record)) {
+    const normalizedKey = key.trim();
+    if (!normalizedKey) continue;
+    normalized[normalizedKey] = String(rawValue ?? '').trim();
+  }
+  if (Object.keys(normalized).length === 0) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} is required`);
+  }
+  return normalized;
+}
+
+async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = 15_000): Promise<JsonFetchResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    let json: Record<string, unknown> | null = null;
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      json = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+    } catch {}
+    return {
+      ok: response.ok,
+      status: response.status,
+      text,
+      json,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function normalizeIdentifier(value: string, field: string): string {
@@ -5691,6 +5780,310 @@ export class ControlPlaneService {
         : 200;
     const summaries = await this.store.listRunBillingSummariesBySession(user.id, sessionKey, limit);
     return summaries.map(toRunBillingSummaryView);
+  }
+
+  async preflightImBotConnection(
+    accessToken: string,
+    input: Record<string, unknown>,
+  ): Promise<ImBotConnectionPreflightResult> {
+    await this.getUserForAccessToken(accessToken);
+
+    const platformId = normalizeImBotPlatformId(input.platform_id);
+    const credentials = normalizeStringRecord(input.credentials, 'credentials');
+    const callbackUrl = String(input.callback_url || credentials.callback_url || '').trim();
+
+    if (platformId === 'dingtalk') {
+      const clientId = normalizeRequiredTextField(credentials.client_id, 'credentials.client_id');
+      const clientSecret = normalizeRequiredTextField(credentials.client_secret, 'credentials.client_secret');
+
+      try {
+        const tokenResponse = await fetchJsonWithTimeout('https://api.dingtalk.com/v1.0/oauth2/accessToken', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            appKey: clientId,
+            appSecret: clientSecret,
+          }),
+        });
+
+        const token = typeof tokenResponse.json?.accessToken === 'string' ? tokenResponse.json.accessToken.trim() : '';
+        if (tokenResponse.ok && token) {
+          return {
+            ok: true,
+            supported: true,
+            message: '钉钉应用凭据校验通过，可以继续完成接入。',
+            checks: [
+              {
+                id: 'oauth_token',
+                label: '获取应用访问令牌',
+                status: 'success',
+                detail: '钉钉官方接口已成功返回 access token。',
+              },
+            ],
+          };
+        }
+
+        return {
+          ok: false,
+          supported: true,
+          message: '钉钉应用凭据校验失败，请检查 Client ID / Client Secret。',
+          checks: [
+            {
+              id: 'oauth_token',
+              label: '获取应用访问令牌',
+              status: 'failure',
+              detail:
+                (typeof tokenResponse.json?.message === 'string' && tokenResponse.json.message.trim()) ||
+                (typeof tokenResponse.json?.errmsg === 'string' && tokenResponse.json.errmsg.trim()) ||
+                `钉钉接口返回异常，HTTP ${tokenResponse.status}。`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          supported: true,
+          message: '钉钉官方接口暂时不可达，当前无法完成真实连接测试。',
+          checks: [
+            {
+              id: 'oauth_token',
+              label: '获取应用访问令牌',
+              status: 'failure',
+              detail: error instanceof Error ? error.message : '请求钉钉接口失败。',
+            },
+          ],
+        };
+      }
+    }
+
+    if (platformId === 'feishu-china') {
+      const appId = normalizeRequiredTextField(credentials.app_id, 'credentials.app_id');
+      const appSecret = normalizeRequiredTextField(credentials.app_secret, 'credentials.app_secret');
+
+      try {
+        const tokenResponse = await fetchJsonWithTimeout(
+          'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              app_id: appId,
+              app_secret: appSecret,
+            }),
+          },
+        );
+
+        const code = typeof tokenResponse.json?.code === 'number' ? tokenResponse.json.code : null;
+        const token =
+          typeof tokenResponse.json?.tenant_access_token === 'string' ? tokenResponse.json.tenant_access_token.trim() : '';
+        if (tokenResponse.ok && code === 0 && token) {
+          return {
+            ok: true,
+            supported: true,
+            message: '飞书应用凭据校验通过，可以继续完成接入。',
+            checks: [
+              {
+                id: 'tenant_token',
+                label: '获取 tenant access token',
+                status: 'success',
+                detail: '飞书开放平台已成功返回 tenant_access_token。',
+              },
+            ],
+          };
+        }
+
+        return {
+          ok: false,
+          supported: true,
+          message: '飞书应用凭据校验失败，请检查 App ID / App Secret。',
+          checks: [
+            {
+              id: 'tenant_token',
+              label: '获取 tenant access token',
+              status: 'failure',
+              detail:
+                (typeof tokenResponse.json?.msg === 'string' && tokenResponse.json.msg.trim()) ||
+                `飞书接口返回异常，HTTP ${tokenResponse.status}。`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          supported: true,
+          message: '飞书官方接口暂时不可达，当前无法完成真实连接测试。',
+          checks: [
+            {
+              id: 'tenant_token',
+              label: '获取 tenant access token',
+              status: 'failure',
+              detail: error instanceof Error ? error.message : '请求飞书接口失败。',
+            },
+          ],
+        };
+      }
+    }
+
+    if (platformId === 'wecom-app') {
+      const corpId = normalizeRequiredTextField(credentials.corp_id, 'credentials.corp_id');
+      const agentId = normalizeRequiredTextField(credentials.agent_id, 'credentials.agent_id');
+      const secret = normalizeRequiredTextField(credentials.secret, 'credentials.secret');
+
+      try {
+        const tokenUrl = new URL('https://qyapi.weixin.qq.com/cgi-bin/gettoken');
+        tokenUrl.searchParams.set('corpid', corpId);
+        tokenUrl.searchParams.set('corpsecret', secret);
+        const tokenResponse = await fetchJsonWithTimeout(tokenUrl.toString(), {method: 'GET'});
+        const accessToken =
+          typeof tokenResponse.json?.access_token === 'string' ? tokenResponse.json.access_token.trim() : '';
+        const errcode = typeof tokenResponse.json?.errcode === 'number' ? tokenResponse.json.errcode : null;
+        const tokenOk = tokenResponse.ok && errcode === 0 && accessToken;
+
+        const checks: ImBotConnectionPreflightCheck[] = [
+          {
+            id: 'corp_token',
+            label: '获取企业 access token',
+            status: tokenOk ? 'success' : 'failure',
+            detail: tokenOk
+              ? '企微官方接口已成功返回 access_token。'
+              : (typeof tokenResponse.json?.errmsg === 'string' && tokenResponse.json.errmsg.trim()) ||
+                `企微 token 接口返回异常，HTTP ${tokenResponse.status}。`,
+          },
+        ];
+
+        if (callbackUrl) {
+          checks.push({
+            id: 'callback_url',
+            label: '回调地址已生成',
+            status: 'success',
+            detail: callbackUrl,
+          });
+        }
+
+        if (!tokenOk) {
+          return {
+            ok: false,
+            supported: true,
+            message: '企微自建应用凭据校验失败，请检查 Corp ID / Secret。',
+            checks,
+          };
+        }
+
+        const agentUrl = new URL('https://qyapi.weixin.qq.com/cgi-bin/agent/get');
+        agentUrl.searchParams.set('access_token', accessToken);
+        agentUrl.searchParams.set('agentid', agentId);
+        const agentResponse = await fetchJsonWithTimeout(agentUrl.toString(), {method: 'GET'});
+        const agentErrcode = typeof agentResponse.json?.errcode === 'number' ? agentResponse.json.errcode : null;
+        const agentOk = agentResponse.ok && agentErrcode === 0;
+
+        checks.push({
+          id: 'agent_visibility',
+          label: '校验应用 Agent ID',
+          status: agentOk ? 'success' : 'failure',
+          detail: agentOk
+            ? 'Agent ID 已验证通过，企微可识别该应用。'
+            : (typeof agentResponse.json?.errmsg === 'string' && agentResponse.json.errmsg.trim()) ||
+              `企微应用查询接口返回异常，HTTP ${agentResponse.status}。`,
+        });
+
+        return {
+          ok: agentOk,
+          supported: true,
+          message: agentOk
+            ? '企微自建应用凭据校验通过，可以继续完成接入。'
+            : '企微自建应用校验失败，请检查 Agent ID 是否正确。',
+          checks,
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          supported: true,
+          message: '企微官方接口暂时不可达，当前无法完成真实连接测试。',
+          checks: [
+            {
+              id: 'corp_token',
+              label: '获取企业 access token',
+              status: 'failure',
+              detail: error instanceof Error ? error.message : '请求企微接口失败。',
+            },
+          ],
+        };
+      }
+    }
+
+    if (platformId === 'wechat-mp') {
+      const appId = normalizeRequiredTextField(credentials.app_id, 'credentials.app_id');
+      const appSecret = normalizeRequiredTextField(credentials.app_secret, 'credentials.app_secret');
+
+      try {
+        const tokenUrl = new URL('https://api.weixin.qq.com/cgi-bin/token');
+        tokenUrl.searchParams.set('grant_type', 'client_credential');
+        tokenUrl.searchParams.set('appid', appId);
+        tokenUrl.searchParams.set('secret', appSecret);
+        const tokenResponse = await fetchJsonWithTimeout(tokenUrl.toString(), {method: 'GET'});
+        const accessToken =
+          typeof tokenResponse.json?.access_token === 'string' ? tokenResponse.json.access_token.trim() : '';
+        const errcode = typeof tokenResponse.json?.errcode === 'number' ? tokenResponse.json.errcode : 0;
+
+        const checks: ImBotConnectionPreflightCheck[] = [];
+        if (callbackUrl) {
+          checks.push({
+            id: 'callback_url',
+            label: '回调地址已生成',
+            status: 'success',
+            detail: callbackUrl,
+          });
+        }
+        checks.push({
+          id: 'mp_token',
+          label: '获取公众号 access token',
+          status: tokenResponse.ok && errcode === 0 && accessToken ? 'success' : 'failure',
+          detail:
+            tokenResponse.ok && errcode === 0 && accessToken
+              ? '微信公众平台已成功返回 access_token。'
+              : (typeof tokenResponse.json?.errmsg === 'string' && tokenResponse.json.errmsg.trim()) ||
+                `微信公众号接口返回异常，HTTP ${tokenResponse.status}。`,
+        });
+
+        return {
+          ok: tokenResponse.ok && errcode === 0 && Boolean(accessToken),
+          supported: true,
+          message:
+            tokenResponse.ok && errcode === 0 && accessToken
+              ? '微信公众号凭据校验通过，可以继续完成接入。'
+              : '微信公众号凭据校验失败，请检查 App ID / App Secret。',
+          checks,
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          supported: true,
+          message: '微信公众号官方接口暂时不可达，当前无法完成真实连接测试。',
+          checks: [
+            {
+              id: 'mp_token',
+              label: '获取公众号 access token',
+              status: 'failure',
+              detail: error instanceof Error ? error.message : '请求微信公众号接口失败。',
+            },
+          ],
+        };
+      }
+    }
+
+    return {
+      ok: false,
+      supported: false,
+      message: '当前平台暂未支持真实连接测试，先不开放完成接入。',
+      checks: [
+        {
+          id: 'platform_support',
+          label: '平台支持状态',
+          status: 'warning',
+          detail: '这一平台还没有接上真实官方预检链路，当前仅保留展示，不允许按“已接入成功”继续流转。',
+        },
+      ],
+    };
   }
 
   private async getUserForAccessToken(accessToken: string) {

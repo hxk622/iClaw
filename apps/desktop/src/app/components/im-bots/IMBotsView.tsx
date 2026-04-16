@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
-import type { IClawClient } from '@iclaw/sdk';
+import type { IClawClient, ImBotConnectionPreflightResult } from '@iclaw/sdk';
 import {
   Activity,
   AlertCircle,
@@ -8,20 +8,16 @@ import {
   BotMessageSquare,
   Building2,
   ChevronRight,
-  CheckCircle2,
   Clock3,
   Link2,
   MessageCircle,
   MessageSquare,
   Power,
   Radio,
-  RefreshCw,
-  SendHorizontal,
   Settings2,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
-  TestTube2,
   Users,
   X,
 } from 'lucide-react';
@@ -36,6 +32,7 @@ import { PressableCard } from '@/app/components/ui/PressableCard';
 import { SelectionCard } from '@/app/components/ui/SelectionCard';
 import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { cn } from '@/app/lib/cn';
+import { readAuth } from '@/app/lib/auth-storage';
 import { pushAppNotification } from '@/app/lib/task-notifications';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import dingtalkLogo from '@/app/assets/im-bots/dingtalk.png';
@@ -53,7 +50,6 @@ type IMBotHealthState =
   | 'callback_issue'
   | 'paused';
 type SideTab = 'todo' | 'health' | 'audit';
-type BotTestStatus = 'idle' | 'testing' | 'success';
 type BotAuditTone = 'success' | 'warning' | 'info';
 type BindingScope = 'organization' | 'group' | 'private';
 
@@ -92,9 +88,8 @@ interface ManagedBot {
   offlineReply: string;
   welcomeTemplate: string;
   unavailableTemplate: string;
-  testStatus: BotTestStatus;
-  lastTestMessage: string;
-  lastTestResponse: string;
+  credentials: Record<string, string>;
+  lastPreflightResult: ImBotConnectionPreflightResult | null;
   auditLogs: AuditEntry[];
 }
 
@@ -409,11 +404,18 @@ const platformMetaList: PlatformCardMeta[] = [
 
 const initialBots: ManagedBot[] = [];
 
-export function IMBotsView({ title, client }: { title: string; client: IClawClient }) {
+export function IMBotsView({
+  title,
+  client,
+}: {
+  title: string;
+  client: IClawClient;
+}) {
   const [bots, setBots] = useState<ManagedBot[]>(initialBots);
   const [activeSideTab, setActiveSideTab] = useState<SideTab>('todo');
   const [selectedPlatformId, setSelectedPlatformId] = useState<IMPlatformId | null>(null);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
+  const [testingBotId, setTestingBotId] = useState<string | null>(null);
 
   const selectedPlatform = useMemo(
     () => platformMetaList.find((item) => item.id === selectedPlatformId) ?? null,
@@ -528,6 +530,27 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
     [bots],
   );
 
+  const resolveAccessToken = async (): Promise<string | null> => {
+    const storedAuth = await readAuth();
+    return storedAuth?.accessToken?.trim() || null;
+  };
+
+  const validateConnection = async (
+    platformId: IMPlatformId,
+    credentials: Record<string, string>,
+  ): Promise<ImBotConnectionPreflightResult> => {
+    const token = await resolveAccessToken();
+    if (!token) {
+      throw new Error('当前未获取到登录态，无法发起真实平台连接测试。');
+    }
+    return client.preflightImBotConnection({
+      token,
+      platformId,
+      credentials,
+      callbackUrl: credentials.callback_url || undefined,
+    });
+  };
+
   const handleCompleteSetup = (draft: IMBotDraft) => {
     const meta = platformMetaList.find((item) => item.id === draft.platformId);
     if (!meta) return;
@@ -537,21 +560,26 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
     setBots((prev) => {
       const existing = prev.find((item) => item.id === nextId);
       if (existing) {
+        const nextHealthState = resolveBotHealthState(true, existing.assistantId, draft.preflightResult);
         return prev.map((item) =>
           item.id === nextId
             ? {
                 ...item,
                 enabled: true,
-                healthState: item.assistantId ? 'healthy' : 'needs_setup',
+                healthState: nextHealthState,
                 lastActive: '刚刚',
                 lastTestAt: '刚刚',
-                healthSummary: item.assistantId
-                  ? '平台接入已更新完成，默认助手保留，最近一次测试通过。'
-                  : '平台接入已更新完成，但还没有绑定默认助手与会话范围。',
+                healthSummary: resolveBotHealthSummary(nextHealthState, draft.preflightResult, existing.assistantId),
                 triggerMode: formatTriggerMode(draft.triggerMode),
                 replyFormat: formatReplyFormat(draft.replyFormat),
+                credentials: draft.credentials,
+                lastPreflightResult: draft.preflightResult,
                 auditLogs: [
-                  createAuditEntry('success', '平台接入已更新', `${meta.label} 的连接配置已重新保存并通过测试。`),
+                  createAuditEntry(
+                    draft.preflightResult?.ok ? 'success' : 'warning',
+                    '平台接入已更新',
+                    draft.preflightResult?.message || `${meta.label} 的连接配置已重新保存。`,
+                  ),
                   ...item.auditLogs,
                 ],
               }
@@ -559,6 +587,7 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
         );
       }
 
+      const nextHealthState = resolveBotHealthState(true, null, draft.preflightResult);
       return [
         ...prev,
         {
@@ -568,23 +597,26 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
           company: '待完善',
           assistantId: null,
           assistant: '未绑定默认助手',
-          healthState: 'needs_setup',
+          healthState: nextHealthState,
           enabled: true,
           lastActive: '刚刚',
           lastTestAt: '刚刚',
-          healthSummary: '平台连接已建立，但默认助手、会话范围和首条测试消息还没有完成。',
+          healthSummary: resolveBotHealthSummary(nextHealthState, draft.preflightResult, null),
           triggerMode: formatTriggerMode(draft.triggerMode),
           replyFormat: formatReplyFormat(draft.replyFormat),
           bindingScope: 'organization',
           offlineReply: '我现在暂时离线，稍后会继续处理你的消息。',
           welcomeTemplate: '你好，我是{{assistant}}，可以直接把问题发给我。',
           unavailableTemplate: '我暂时无法完成这次请求，已记录到日志，请稍后重试。',
-          testStatus: 'idle',
-          lastTestMessage: '',
-          lastTestResponse: '',
+          credentials: draft.credentials,
+          lastPreflightResult: draft.preflightResult,
           auditLogs: [
-            createAuditEntry('warning', '待完成默认助手绑定', '接入成功后，建议先绑定默认助手，再进行第一条测试消息。'),
-            createAuditEntry('success', '平台接入完成', `${meta.label} 连接配置已建立，最近一次接入测试通过。`),
+            createAuditEntry('warning', '待完成默认助手绑定', '接入成功后，建议先绑定默认助手，再进行一次真实重测。'),
+            createAuditEntry(
+              draft.preflightResult?.ok ? 'success' : 'warning',
+              '平台接入完成',
+              draft.preflightResult?.message || `${meta.label} 连接配置已建立。`,
+            ),
           ],
         },
       ];
@@ -600,21 +632,12 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
     setBots((prev) =>
       prev.map((bot) => {
         if (bot.id !== botId) return bot;
-        const nextHealthState = bot.enabled
-          ? updates.assistantId
-            ? 'healthy'
-            : 'needs_setup'
-          : 'paused';
+        const nextHealthState = resolveBotHealthState(bot.enabled, updates.assistantId, bot.lastPreflightResult);
         return {
           ...bot,
           ...updates,
           healthState: nextHealthState,
-          healthSummary:
-            nextHealthState === 'healthy'
-              ? '默认助手与会话范围已完成配置，最近一次连接检查正常。'
-              : nextHealthState === 'paused'
-                ? '机器人已停用，不再接收新消息。'
-                : '连接已建立，但默认助手或会话绑定还没有完成。',
+          healthSummary: resolveBotHealthSummary(nextHealthState, bot.lastPreflightResult, updates.assistantId),
           lastActive: '刚刚',
           auditLogs: [
             createAuditEntry(
@@ -656,21 +679,12 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
       prev.map((bot) => {
         if (bot.id !== botId) return bot;
         const nextEnabled = !bot.enabled;
-        const nextHealthState = nextEnabled
-          ? bot.assistantId
-            ? 'healthy'
-            : 'needs_setup'
-          : 'paused';
+        const nextHealthState = resolveBotHealthState(nextEnabled, bot.assistantId, bot.lastPreflightResult);
         return {
           ...bot,
           enabled: nextEnabled,
           healthState: nextHealthState,
-          healthSummary:
-            nextHealthState === 'paused'
-              ? '机器人已停用，不再接收新消息。'
-              : nextHealthState === 'healthy'
-                ? '机器人已启用，最近一次健康检查正常。'
-                : '机器人已启用，但还没有绑定默认助手。',
+          healthSummary: resolveBotHealthSummary(nextHealthState, bot.lastPreflightResult, bot.assistantId),
           lastActive: '刚刚',
           auditLogs: [
             createAuditEntry(
@@ -687,15 +701,25 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
 
   const handleRunConnectionTest = async (botId: string) => {
     const targetBot = bots.find((bot) => bot.id === botId) ?? null;
+    if (!targetBot) return;
+    if (!isRealPreflightSupported(targetBot.platformId)) {
+      pushAppNotification({
+        tone: 'error',
+        source: 'system',
+        title: '当前平台暂不支持真实测试',
+        text: '这个平台还没有接上官方预检链路，当前不开放重测。',
+      });
+      return;
+    }
 
+    setTestingBotId(botId);
     setBots((prev) =>
       prev.map((bot) =>
         bot.id === botId
           ? {
               ...bot,
-              testStatus: 'testing',
               auditLogs: [
-                createAuditEntry('info', '开始连接测试', '已触发一次即时连通性检查，正在验证平台链路与回调状态。'),
+                createAuditEntry('info', '开始实链路验证', '已触发一次真实平台预检，正在校验官方接口返回。'),
                 ...bot.auditLogs,
               ],
             }
@@ -705,39 +729,28 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
     pushAppNotification({
       tone: 'info',
       source: 'system',
-      title: '已开始机器人测试',
-      text: targetBot ? `正在检查「${targetBot.name}」的平台链路与 runtime 连接。` : '正在检查机器人平台链路与 runtime 连接。',
+      title: '已开始真实连接测试',
+      text: `正在校验「${targetBot.name}」的平台应用凭据。`,
     });
 
     try {
-      await client.health();
+      const result = await validateConnection(targetBot.platformId, targetBot.credentials);
       setBots((prev) =>
         prev.map((bot) => {
           if (bot.id !== botId) return bot;
-          const nextHealthState = bot.enabled
-            ? bot.assistantId
-              ? 'healthy'
-              : 'needs_setup'
-            : 'paused';
+          const nextHealthState = resolveBotHealthState(bot.enabled, bot.assistantId, result);
           return {
             ...bot,
-            testStatus: 'success',
             healthState: nextHealthState,
             lastTestAt: '刚刚',
             lastActive: '刚刚',
-            healthSummary:
-              nextHealthState === 'healthy'
-                ? '本地 iClaw 运行时与 gateway 连接正常，默认助手配置也已就绪。'
-                : nextHealthState === 'paused'
-                  ? 'runtime 健康检查通过，但机器人当前处于停用状态。'
-                  : 'runtime 健康检查通过，但默认助手还没有配置完成。',
+            lastPreflightResult: result,
+            healthSummary: resolveBotHealthSummary(nextHealthState, result, bot.assistantId),
             auditLogs: [
               createAuditEntry(
-                'success',
-                '连接测试通过',
-                nextHealthState === 'healthy'
-                  ? '本地 runtime、gateway 与默认助手检查均通过。'
-                  : '本地 runtime 检查通过，但仍建议继续完成默认助手绑定。',
+                result.ok ? 'success' : 'warning',
+                result.ok ? '实链路验证通过' : '实链路验证失败',
+                result.message,
               ),
               ...bot.auditLogs,
             ],
@@ -745,158 +758,37 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
         }),
       );
       pushAppNotification({
-        tone: 'success',
+        tone: result.ok ? 'success' : 'error',
         source: 'system',
-        title: '机器人测试通过',
-        text: targetBot?.assistantId
-          ? `「${targetBot.name}」连接正常，默认助手链路也已就绪。`
-          : `「${targetBot?.name ?? '当前机器人'}」连接正常，但还没有绑定默认助手。`,
+        title: result.ok ? '真实连接测试通过' : '真实连接测试未通过',
+        text: result.message,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : '本地 runtime 健康检查失败';
+      const message = error instanceof Error ? error.message : '真实平台预检请求失败';
       setBots((prev) =>
         prev.map((bot) =>
           bot.id === botId
             ? {
                 ...bot,
-                testStatus: 'idle',
                 healthState: 'connectivity_issue',
                 lastActive: '刚刚',
-                healthSummary: '本地 iClaw 运行时或 gateway 当前不可用，无法完成真实连接测试。',
-                lastTestResponse: message,
+                healthSummary: '真实平台预检请求失败，当前无法确认外部 IM 平台链路状态。',
                 auditLogs: [
-                  createAuditEntry('warning', '连接测试失败', message),
-                  ...bot.auditLogs,
-                ],
-              }
-          : bot,
-        ),
-      );
-      pushAppNotification({
-        tone: 'error',
-        source: 'system',
-        title: '机器人测试失败',
-        text: targetBot ? `「${targetBot.name}」测试失败：${message}` : message,
-      });
-    }
-  };
-
-  const handleSendTestMessage = async (botId: string, message: string) => {
-    const trimmed = message.trim();
-    if (!trimmed) return;
-
-    setBots((prev) =>
-      prev.map((bot) => {
-        if (bot.id !== botId) return bot;
-        if (!bot.assistantId) {
-          return {
-            ...bot,
-            lastTestMessage: trimmed,
-            lastTestResponse: '未发送：请先绑定默认助手。',
-            healthState: 'needs_setup',
-            healthSummary: '连接可用，但默认助手尚未绑定，暂时不能做完整对话测试。',
-            auditLogs: [
-              createAuditEntry('warning', '测试消息未发送', '当前还没有绑定默认助手，无法完成完整会话测试。'),
-              ...bot.auditLogs,
-            ],
-          };
-        }
-        return {
-          ...bot,
-          testStatus: 'testing',
-          lastTestMessage: trimmed,
-          auditLogs: [
-            createAuditEntry('info', '发送测试消息', `已从管理台发起一条测试消息：“${trimmed}”`),
-            ...bot.auditLogs,
-          ],
-        };
-      }),
-    );
-
-    const responseChunks: string[] = [];
-
-    try {
-      await client.streamChat(
-        {
-          message: trimmed,
-        },
-        {
-          onDelta: (text) => {
-            responseChunks.push(text);
-            setBots((prev) =>
-              prev.map((bot) =>
-                bot.id === botId
-                  ? {
-                      ...bot,
-                      lastTestResponse: responseChunks.join(''),
-                    }
-                  : bot,
-              ),
-            );
-          },
-          onEnd: () => {
-            setBots((prev) =>
-              prev.map((bot) => {
-                if (bot.id !== botId || !bot.assistantId) return bot;
-                const nextResponse = responseChunks.join('').trim() || `已由${bot.assistant}返回一条测试回复。`;
-                return {
-                  ...bot,
-                  testStatus: 'success',
-                  healthState: bot.enabled ? 'healthy' : 'paused',
-                  lastTestAt: '刚刚',
-                  lastActive: '刚刚',
-                  lastTestResponse: nextResponse,
-                  healthSummary: bot.enabled
-                    ? 'runtime 对话测试已通过，可以继续在真实 IM 会话中灰度验证。'
-                    : '机器人已停用，但 runtime 对话测试已通过。',
-                  auditLogs: [
-                    createAuditEntry('success', '测试消息已返回', `默认助手“${bot.assistant}”已成功处理一条真实 runtime 测试消息。`),
-                    ...bot.auditLogs,
-                  ],
-                };
-              }),
-            );
-          },
-          onError: (error) => {
-            setBots((prev) =>
-              prev.map((bot) =>
-                bot.id === botId
-                  ? {
-                      ...bot,
-                      testStatus: 'idle',
-                      healthState: 'connectivity_issue',
-                      lastTestResponse: error.message || '测试消息调用失败',
-                      healthSummary: '测试消息未能从本地 runtime 返回，请先检查 gateway 或本地运行状态。',
-                      auditLogs: [
-                        createAuditEntry('warning', '测试消息失败', error.message || '测试消息调用失败'),
-                        ...bot.auditLogs,
-                      ],
-                    }
-                  : bot,
-              ),
-            );
-          },
-        },
-      );
-    } catch (error) {
-      const messageText = error instanceof Error ? error.message : '测试消息调用失败';
-      setBots((prev) =>
-        prev.map((bot) =>
-          bot.id === botId
-            ? {
-                ...bot,
-                testStatus: 'idle',
-                healthState: 'connectivity_issue',
-                lastTestResponse: messageText,
-                healthSummary: '测试消息未能从本地 runtime 返回，请先检查 gateway 或本地运行状态。',
-                auditLogs: [
-                  createAuditEntry('warning', '测试消息失败', messageText),
+                  createAuditEntry('warning', '实链路验证失败', message),
                   ...bot.auditLogs,
                 ],
               }
             : bot,
         ),
       );
+      pushAppNotification({
+        tone: 'error',
+        source: 'system',
+        title: '真实连接测试失败',
+        text: targetBot ? `「${targetBot.name}」测试失败：${message}` : message,
+      });
+    } finally {
+      setTestingBotId((current) => (current === botId ? null : current));
     }
   };
 
@@ -957,11 +849,11 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
                     bot={bot}
                     meta={meta}
                     onOpenDetails={() => setSelectedBotId(bot.id)}
+                    onToggleEnabled={() => handleToggleBot(bot.id)}
                     onRunConnectionTest={() => {
-                      setSelectedBotId(bot.id);
                       void handleRunConnectionTest(bot.id);
                     }}
-                    onToggleEnabled={() => handleToggleBot(bot.id)}
+                    isTesting={testingBotId === bot.id}
                   />
                 );
               })}
@@ -1005,6 +897,7 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
         platform={selectedPlatform}
         open={Boolean(selectedPlatform)}
         onClose={() => setSelectedPlatformId(null)}
+        onValidateConnection={validateConnection}
         onComplete={handleCompleteSetup}
       />
 
@@ -1018,7 +911,7 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
         onSaveTemplates={handleUpdateBotTemplates}
         onToggleEnabled={handleToggleBot}
         onRunConnectionTest={handleRunConnectionTest}
-        onSendTestMessage={handleSendTestMessage}
+        isTesting={selectedBot ? testingBotId === selectedBot.id : false}
       />
     </PageSurface>
   );
@@ -1070,14 +963,16 @@ function ManagedBotCard({
   bot,
   meta,
   onOpenDetails,
-  onRunConnectionTest,
   onToggleEnabled,
+  onRunConnectionTest,
+  isTesting,
 }: {
   bot: ManagedBot;
   meta: PlatformCardMeta;
   onOpenDetails: () => void;
-  onRunConnectionTest: () => void;
   onToggleEnabled: () => void;
+  onRunConnectionTest: () => void;
+  isTesting: boolean;
 }) {
   const healthMeta = getHealthMeta(bot.healthState);
 
@@ -1123,12 +1018,12 @@ function ManagedBotCard({
           <Button
             variant="secondary"
             size="sm"
-            leadingIcon={<TestTube2 className={cn('h-4 w-4', bot.testStatus === 'testing' && 'animate-spin')} />}
+            leadingIcon={<Clock3 className="h-3.5 w-3.5" />}
             onClick={onRunConnectionTest}
-            disabled={bot.testStatus === 'testing'}
+            disabled={isTesting}
             className="px-3 py-1.5 text-[12px]"
           >
-            测试连通
+            {isTesting ? '测试中' : '重测连接'}
           </Button>
           <Button
             variant={bot.enabled ? 'success' : 'secondary'}
@@ -1446,7 +1341,7 @@ function IMBotDetailSheet({
   onSaveTemplates,
   onToggleEnabled,
   onRunConnectionTest,
-  onSendTestMessage,
+  isTesting,
 }: {
   open: boolean;
   bot: ManagedBot | null;
@@ -1462,15 +1357,14 @@ function IMBotDetailSheet({
     updates: Pick<ManagedBot, 'welcomeTemplate' | 'unavailableTemplate'>,
   ) => void;
   onToggleEnabled: (botId: string) => void;
-  onRunConnectionTest: (botId: string) => Promise<void> | void;
-  onSendTestMessage: (botId: string, message: string) => Promise<void> | void;
+  onRunConnectionTest: (botId: string) => void;
+  isTesting: boolean;
 }) {
   const [draftName, setDraftName] = useState('');
   const [draftCompany, setDraftCompany] = useState('');
   const [draftAssistantId, setDraftAssistantId] = useState<string | null>(null);
   const [draftBindingScope, setDraftBindingScope] = useState<BindingScope>('organization');
   const [draftOfflineReply, setDraftOfflineReply] = useState('');
-  const [draftTestMessage, setDraftTestMessage] = useState('请给我一句上线自检回复');
   const [draftWelcomeTemplate, setDraftWelcomeTemplate] = useState('');
   const [draftUnavailableTemplate, setDraftUnavailableTemplate] = useState('');
 
@@ -1481,7 +1375,6 @@ function IMBotDetailSheet({
     setDraftAssistantId(bot.assistantId);
     setDraftBindingScope(bot.bindingScope);
     setDraftOfflineReply(bot.offlineReply);
-    setDraftTestMessage('请给我一句上线自检回复');
     setDraftWelcomeTemplate(bot.welcomeTemplate);
     setDraftUnavailableTemplate(bot.unavailableTemplate);
   }, [bot]);
@@ -1548,11 +1441,11 @@ function IMBotDetailSheet({
                 <Button
                   variant="secondary"
                   size="sm"
-                  leadingIcon={<RefreshCw className={cn('h-4 w-4', bot.testStatus === 'testing' && 'animate-spin')} />}
+                  leadingIcon={<Clock3 className="h-4 w-4" />}
                   onClick={() => onRunConnectionTest(bot.id)}
-                  disabled={bot.testStatus === 'testing'}
+                  disabled={isTesting}
                 >
-                  测试连通
+                  {isTesting ? '测试中' : '重测连接'}
                 </Button>
                 <Button
                   variant={bot.enabled ? 'ghost' : 'success'}
@@ -1591,13 +1484,35 @@ function IMBotDetailSheet({
               className="bg-white/76 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
             />
             <InfoTile
-              label="最近连接测试"
-              value={bot.lastTestAt ?? '还未执行'}
-              description={bot.lastTestAt ? '可以继续在下方测试面板中发送一条消息。' : '建议先执行一次连接测试，确认平台链路是通的。'}
-              tone={bot.lastTestAt ? 'success' : 'warning'}
+              label="实链路测试"
+              value={
+                bot.lastPreflightResult
+                  ? bot.lastPreflightResult.ok
+                    ? '已通过'
+                    : '未通过'
+                  : '未验证'
+              }
+              description={bot.lastPreflightResult?.message || '尚未获得最近一次真实平台预检结果。'}
+              tone={bot.lastPreflightResult ? (bot.lastPreflightResult.ok ? 'success' : 'warning') : 'neutral'}
               className="dark:border-[rgba(255,255,255,0.08)]"
             />
           </section>
+
+          {bot.lastPreflightResult?.checks.length ? (
+            <DrawerSection title="最近实链路验证" icon={<Link2 className="h-5 w-5" />}>
+              <div className="mt-4 space-y-3">
+                {bot.lastPreflightResult.checks.map((check) => (
+                  <InfoTile
+                    key={check.id}
+                    label={check.label}
+                    value={check.status === 'success' ? '通过' : check.status === 'warning' ? '注意' : '失败'}
+                    description={check.detail}
+                    tone={check.status === 'success' ? 'success' : 'warning'}
+                  />
+                ))}
+              </div>
+            </DrawerSection>
+          ) : null}
 
           <DrawerSection title="基础信息与默认助手" icon={<BotMessageSquare className="h-5 w-5" />}>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -1726,58 +1641,6 @@ function IMBotDetailSheet({
             </div>
           </DrawerSection>
 
-          <DrawerSection
-            title="测试面板"
-            icon={<TestTube2 className="h-5 w-5" />}
-            description="先做连接测试，再发一条测试消息。这样用户可以在管理台内确认平台链路和默认助手回复都已打通。"
-          >
-            <div className="mt-4 rounded-[22px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4">
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-                <label className="space-y-2">
-                  <div className="text-[13px] font-medium text-[var(--text-primary)]">测试消息</div>
-                  <input
-                    value={draftTestMessage}
-                    onChange={(event) => setDraftTestMessage(event.target.value)}
-                    className={DETAIL_INPUT_CLASS}
-                  />
-                </label>
-                <div className="flex items-end gap-3">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    leadingIcon={<RefreshCw className={cn('h-4 w-4', bot.testStatus === 'testing' && 'animate-spin')} />}
-                    onClick={() => onRunConnectionTest(bot.id)}
-                    disabled={bot.testStatus === 'testing'}
-                  >
-                    连接测试
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    leadingIcon={<SendHorizontal className="h-4 w-4" />}
-                    onClick={() => onSendTestMessage(bot.id, draftTestMessage)}
-                    disabled={bot.testStatus === 'testing' || !draftTestMessage.trim()}
-                  >
-                    发测试消息
-                  </Button>
-                </div>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <InfoTile
-                  label="最近一次测试消息"
-                  value={bot.lastTestMessage || '还没有发送过测试消息'}
-                  className="min-h-[104px]"
-                />
-                <InfoTile
-                  label="最近一次测试回复"
-                  value={bot.lastTestResponse || '还没有收到测试回复'}
-                  tone={bot.lastTestResponse ? 'success' : 'neutral'}
-                  className="min-h-[104px]"
-                />
-              </div>
-            </div>
-          </DrawerSection>
-
           <DrawerSection title="最近审计日志" icon={<ShieldCheck className="h-5 w-5" />}>
             <div className="mt-4 space-y-3">
               {bot.auditLogs.slice(0, 6).map((item) => (
@@ -1828,6 +1691,55 @@ function IMBotDetailSheet({
   );
 }
 
+function isRealPreflightSupported(platformId: IMPlatformId): boolean {
+  return (
+    platformId === 'dingtalk' ||
+    platformId === 'feishu-china' ||
+    platformId === 'wecom-app' ||
+    platformId === 'wechat-mp'
+  );
+}
+
+function resolveBotHealthState(
+  enabled: boolean,
+  assistantId: string | null,
+  preflightResult: ImBotConnectionPreflightResult | null,
+): IMBotHealthState {
+  if (!enabled) {
+    return 'paused';
+  }
+  if (!preflightResult?.ok) {
+    if (preflightResult?.checks.some((check) => check.id === 'callback_url' && check.status === 'failure')) {
+      return 'callback_issue';
+    }
+    if (preflightResult?.checks.some((check) => check.id.includes('permission') && check.status === 'failure')) {
+      return 'permission_issue';
+    }
+    return 'connectivity_issue';
+  }
+  return assistantId ? 'healthy' : 'needs_setup';
+}
+
+function resolveBotHealthSummary(
+  healthState: IMBotHealthState,
+  preflightResult: ImBotConnectionPreflightResult | null,
+  assistantId: string | null,
+): string {
+  if (healthState === 'paused') {
+    return '机器人已停用，不再接收新消息。';
+  }
+  if (!preflightResult) {
+    return '还没有真实平台预检结果，请先完成一次连接测试。';
+  }
+  if (!preflightResult.ok) {
+    return preflightResult.message;
+  }
+  if (!assistantId) {
+    return `${preflightResult.message} 但默认助手还没有绑定完成。`;
+  }
+  return `${preflightResult.message} 默认助手也已绑定完成。`;
+}
+
 function getHealthMeta(state: IMBotHealthState): {
   label: string;
   description: string;
@@ -1845,7 +1757,7 @@ function getHealthMeta(state: IMBotHealthState): {
     case 'needs_setup':
       return {
         label: '待完成配置',
-        description: '连接已建立，但默认助手、会话范围或首条测试消息还没完成。',
+        description: '真实平台预检已通过，但默认助手或会话范围还没有配置完成。',
         chipTone: 'warning',
         panelTone: 'warning',
       };

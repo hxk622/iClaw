@@ -2181,6 +2181,12 @@ const server = createJsonServer([
       ),
   },
   {
+    method: 'POST',
+    path: '/portal/im-bots/preflight',
+    handler: ({headers, body}: HandlerContext) =>
+      service.preflightImBotConnection(requireBearerToken(headers), (body || {}) as Record<string, unknown>),
+  },
+  {
     method: 'GET',
     path: '/admin/portal/model-logo-presets',
     handler: ({headers}: HandlerContext) => {
