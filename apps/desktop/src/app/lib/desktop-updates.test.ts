@@ -6,6 +6,8 @@ import {
   normalizeDesktopUpdateEnforcementState,
   resolveDesktopUpdateArtifactUrl,
   resolveDesktopUpdateGateState,
+  resolveDesktopUpdateSceneOverlayView,
+  resolveDesktopUpdateScenePrimaryView,
 } from './desktop-updates.ts';
 
 test('formatDesktopUpdateVersion removes build metadata from display label', () => {
@@ -241,4 +243,17 @@ test('resolveDesktopUpdateArtifactUrl throws when manifest request fails', async
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('resolveDesktopUpdateScenePrimaryView returns only supported primary views', () => {
+  assert.equal(resolveDesktopUpdateScenePrimaryView('memory', ['chat', 'memory', 'cron']), 'memory');
+  assert.equal(resolveDesktopUpdateScenePrimaryView('unknown', ['chat', 'memory', 'cron']), null);
+  assert.equal(resolveDesktopUpdateScenePrimaryView('', ['chat', 'memory', 'cron']), null);
+});
+
+test('resolveDesktopUpdateSceneOverlayView returns only supported overlay views', () => {
+  assert.equal(resolveDesktopUpdateSceneOverlayView('settings'), 'settings');
+  assert.equal(resolveDesktopUpdateSceneOverlayView('account'), 'account');
+  assert.equal(resolveDesktopUpdateSceneOverlayView('recharge'), 'recharge');
+  assert.equal(resolveDesktopUpdateSceneOverlayView('other'), null);
 });

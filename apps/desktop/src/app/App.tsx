@@ -115,6 +115,8 @@ import {
   clearDesktopUpdateSceneSnapshot,
   formatDesktopUpdateVersion,
   normalizeDesktopUpdateEnforcementState,
+  resolveDesktopUpdateSceneOverlayView,
+  resolveDesktopUpdateScenePrimaryView,
   readSkippedDesktopUpdateVersion,
   readDesktopUpdateSceneSnapshot,
   resolveDesktopUpdateGateState,
@@ -1996,6 +1998,12 @@ export default function App() {
     if (formatDesktopUpdateVersion(DESKTOP_APP_VERSION) !== formatDesktopUpdateVersion(snapshot.targetVersion)) {
       return;
     }
+    const restoredPrimaryView = resolveDesktopUpdateScenePrimaryView(snapshot.primaryView, PRIMARY_VIEW_ORDER);
+    const restoredOverlayView = resolveDesktopUpdateSceneOverlayView(snapshot.overlayView);
+    if (restoredPrimaryView) {
+      setPrimaryView(restoredPrimaryView);
+    }
+    setOverlayView(restoredOverlayView);
     void clearDesktopUpdateSceneSnapshot()
       .then(() => {
         setDesktopUpdateStatusMessage('已恢复到升级前页面。');
@@ -2088,6 +2096,14 @@ export default function App() {
     setDesktopUpdateError(null);
     setDesktopUpdateStatusMessage(null);
     try {
+      if (IS_TAURI_RUNTIME) {
+        await writeDesktopUpdateSceneSnapshot({
+          targetVersion: effectiveDesktopUpdateHint.latestVersion,
+          installerUrl: null,
+          primaryView,
+          overlayView,
+        });
+      }
       const result = await executeDesktopUpdateUpgrade({
         hint: effectiveDesktopUpdateHint,
         config: {
@@ -2125,6 +2141,11 @@ export default function App() {
       setDesktopUpdateActionState(result.actionState);
       setDesktopUpdateStatusMessage(result.statusMessage);
     } catch (error) {
+      if (IS_TAURI_RUNTIME) {
+        void clearDesktopUpdateSceneSnapshot().catch((clearError) => {
+          console.warn('[desktop] failed to clear desktop update scene snapshot after upgrade error', clearError);
+        });
+      }
       desktopUpdateAutoTriggeredVersionRef.current = null;
       setDesktopUpdateActionState('idle');
       setDesktopUpdateError(error instanceof Error ? error.message : '打开更新链接失败');
@@ -2221,6 +2242,7 @@ export default function App() {
           ensureRuntimeReadyForRecovery={ensureChatRuntimeReady}
           onChatBusyChange={setChatSurfaceBusy}
           desktopUpdateChecking={desktopUpdateActionState === 'checking'}
+          desktopUpdateUpgrading={desktopUpdateActionState === 'downloading' || desktopUpdateActionState === 'opened'}
           desktopUpdateReadyToRestart={desktopUpdateActionState === 'ready-to-restart'}
           desktopUpdateStatusMessage={desktopUpdateStatusMessage}
         />
@@ -2334,6 +2356,7 @@ interface AuthedViewProps {
   >;
   onChatBusyChange: (busy: boolean) => void;
   desktopUpdateChecking: boolean;
+  desktopUpdateUpgrading: boolean;
   desktopUpdateReadyToRestart: boolean;
   desktopUpdateStatusMessage: string | null;
 }
@@ -2379,6 +2402,7 @@ function AuthedView({
   ensureRuntimeReadyForRecovery,
   onChatBusyChange,
   desktopUpdateChecking,
+  desktopUpdateUpgrading,
   desktopUpdateReadyToRestart,
   desktopUpdateStatusMessage,
 }: AuthedViewProps) {
@@ -3675,9 +3699,11 @@ function AuthedView({
           desktopUpdateEnforcementState={desktopUpdateEnforcementState}
           desktopUpdatePolicyLabel={desktopUpdatePolicyLabel}
           desktopUpdateChecking={desktopUpdateChecking}
+          desktopUpdateUpgrading={desktopUpdateUpgrading}
           desktopUpdateReadyToRestart={desktopUpdateReadyToRestart}
           desktopUpdateStatusMessage={desktopUpdateStatusMessage}
           onCheckForDesktopUpdates={onCheckForDesktopUpdates}
+          onUpgradeDesktopApp={onUpgradeDesktopApp}
           onRestartDesktopApp={onRestartDesktopApp}
         />
       );

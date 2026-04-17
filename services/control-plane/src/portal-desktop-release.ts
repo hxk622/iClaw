@@ -375,6 +375,26 @@ function resolveEnforcementState(mandatory: boolean, allowCurrentRunToFinish: bo
   return allowCurrentRunToFinish ? 'required_after_run' : 'required_now';
 }
 
+function resolveReleasePolicyState(input: {
+  release: PortalDesktopReleaseTargetRelease;
+  appVersion: string;
+  updateAvailable: boolean;
+}): Pick<
+  PortalDesktopReleaseHint,
+  'mandatory' | 'enforcementState' | 'blockNewRuns' | 'reasonCode' | 'reasonMessage'
+> {
+  const mandatory =
+    input.updateAvailable &&
+    (input.release.policy.mandatory || isForcedUpdate(input.release.policy, input.appVersion));
+  return {
+    mandatory,
+    enforcementState: resolveEnforcementState(mandatory, input.release.policy.allowCurrentRunToFinish),
+    blockNewRuns: mandatory,
+    reasonCode: input.release.policy.reasonCode,
+    reasonMessage: input.release.policy.reasonMessage,
+  };
+}
+
 function findTarget(
   targets: PortalDesktopReleaseTarget[],
   platform: DesktopReleasePlatform | '',
@@ -544,15 +564,19 @@ export function resolvePortalDesktopReleaseHint(input: {
   const latestVersion = trimString(release.version);
   if (!latestVersion) return null;
   const updateAvailable = compareDesktopReleaseVersions(latestVersion, appVersion) > 0;
-  const mandatory = updateAvailable && (release.policy.mandatory || isForcedUpdate(release.policy, appVersion));
+  const policyState = resolveReleasePolicyState({
+    release,
+    appVersion,
+    updateAvailable,
+  });
   return {
     latestVersion,
     updateAvailable,
-    mandatory,
-    enforcementState: resolveEnforcementState(mandatory, release.policy.allowCurrentRunToFinish),
-    blockNewRuns: mandatory,
-    reasonCode: release.policy.reasonCode,
-    reasonMessage: release.policy.reasonMessage,
+    mandatory: policyState.mandatory,
+    enforcementState: policyState.enforcementState,
+    blockNewRuns: policyState.blockNewRuns,
+    reasonCode: policyState.reasonCode,
+    reasonMessage: policyState.reasonMessage,
     manifestUrl: buildPortalDesktopReleaseManifestUrl({
       baseUrl: input.baseUrl,
       appName: input.appName,
@@ -591,9 +615,14 @@ export function resolvePortalDesktopUpdaterPayload(input: {
   if (!target) return null;
   const release = resolveTargetRelease(target, published);
   const latestVersion = trimString(release.version);
-  if (!latestVersion || compareDesktopReleaseVersions(latestVersion, appVersion) <= 0) return null;
+  const updateAvailable = Boolean(latestVersion) && compareDesktopReleaseVersions(latestVersion, appVersion) > 0;
+  if (!latestVersion || !updateAvailable) return null;
   if (!target?.updater || !target.signature?.signature) return null;
-  const mandatory = release.policy.mandatory || isForcedUpdate(release.policy, appVersion);
+  const policyState = resolveReleasePolicyState({
+    release,
+    appVersion,
+    updateAvailable,
+  });
   return {
     version: latestVersion,
     url: buildPortalDesktopReleaseArtifactUrl({
@@ -607,11 +636,11 @@ export function resolvePortalDesktopUpdaterPayload(input: {
     signature: target.signature.signature,
     notes: release.notes,
     pubDate: release.publishedAt || target.updater.uploadedAt || null,
-    mandatory,
-    enforcementState: resolveEnforcementState(mandatory, release.policy.allowCurrentRunToFinish),
-    blockNewRuns: mandatory,
-    reasonCode: release.policy.reasonCode,
-    reasonMessage: release.policy.reasonMessage,
+    mandatory: policyState.mandatory,
+    enforcementState: policyState.enforcementState,
+    blockNewRuns: policyState.blockNewRuns,
+    reasonCode: policyState.reasonCode,
+    reasonMessage: policyState.reasonMessage,
     externalDownloadUrl: buildPortalDesktopReleaseArtifactUrl({
       baseUrl: input.baseUrl,
       appName: input.appName,

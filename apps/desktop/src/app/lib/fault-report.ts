@@ -105,15 +105,19 @@ function decodeBase64ToBytes(value: string): Uint8Array {
 }
 
 function normalizeDesktopFaultReportResult(result: DesktopFaultReportData): SubmittedDesktopFaultReport {
+  const camelResult = result as unknown as {
+    reportId?: unknown;
+    fileSizeBytes?: unknown;
+  };
   const reportId =
-    typeof (result as { reportId?: unknown }).reportId === 'string' && (result as { reportId?: string }).reportId?.trim()
-      ? (result as { reportId: string }).reportId.trim()
+    typeof camelResult.reportId === 'string' && camelResult.reportId.trim()
+      ? camelResult.reportId.trim()
       : typeof result.report_id === 'string' && result.report_id.trim()
         ? result.report_id.trim()
         : '';
   const fileSizeBytes =
-    typeof (result as { fileSizeBytes?: unknown }).fileSizeBytes === 'number' && Number.isFinite((result as { fileSizeBytes?: number }).fileSizeBytes)
-      ? Number((result as { fileSizeBytes: number }).fileSizeBytes)
+    typeof camelResult.fileSizeBytes === 'number' && Number.isFinite(camelResult.fileSizeBytes)
+      ? Number(camelResult.fileSizeBytes)
       : typeof result.file_size_bytes === 'number' && Number.isFinite(result.file_size_bytes)
         ? Number(result.file_size_bytes)
         : 0;

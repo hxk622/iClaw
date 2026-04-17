@@ -518,7 +518,7 @@ function isManagedBotRecord(value: unknown): value is ManagedBot {
     typeof record.triggerMode === 'string' &&
     typeof record.replyFormat === 'string' &&
     typeof record.bindingScope === 'string' &&
-    record.credentials &&
+    Boolean(record.credentials) &&
     typeof record.credentials === 'object' &&
     Array.isArray(record.auditLogs) &&
     record.auditLogs.every((entry) => isAuditEntryRecord(entry))
@@ -884,7 +884,7 @@ export function IMBotsView({
       }
       const healthy = await restartImBotRuntime(client);
       pushAppNotification({
-        tone: healthy ? 'success' : 'warning',
+        tone: healthy ? 'success' : 'info',
         source: 'system',
         title: healthy ? '机器人配置已生效' : '机器人配置已保存',
         text: healthy

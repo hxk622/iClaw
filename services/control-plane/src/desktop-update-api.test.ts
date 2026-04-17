@@ -13,6 +13,7 @@ function buildPublishedConfig(input: {
   version: string;
   mandatory?: boolean;
   allowCurrentRunToFinish?: boolean;
+  extraTargets?: PortalDesktopReleaseTarget[];
 }): Record<string, unknown> {
   const target: PortalDesktopReleaseTarget = {
     platform: 'darwin',
@@ -106,7 +107,7 @@ function buildPublishedConfig(input: {
         published: {
           version: input.version,
           notes: 'Desktop release notes',
-          targets: [target],
+          targets: [target, ...(input.extraTargets || [])],
           policy: {
             mandatory: Boolean(input.mandatory),
             forceUpdateBelowVersion: null,
@@ -232,6 +233,90 @@ test('desktop updater route returns signed native updater payload', async () => 
   assert.equal(payload.enforcement_state, 'recommended');
   assert.match(String(payload.url || ''), /artifact_type=updater/);
   assert.match(String(payload.external_download_url || ''), /artifact_type=installer/);
+});
+
+test('desktop update hint and updater routes return aligned policy fields for windows targets', async () => {
+  const {findRoute} = createDesktopUpdateApiHarness(
+    buildPublishedConfig({
+      version: '1.0.2+202604041200',
+      extraTargets: [
+        {
+          platform: 'windows',
+          arch: 'x64',
+          installer: {
+            storageProvider: 's3',
+            objectKey: 'desktop/windows/x64/iClaw.exe',
+            contentType: 'application/vnd.microsoft.portable-executable',
+            fileName: 'iClaw.exe',
+            sha256: 'windows-installer-sha',
+            sizeBytes: 2048,
+            uploadedAt: '2026-04-04T00:00:00.000Z',
+          },
+          updater: {
+            storageProvider: 's3',
+            objectKey: 'desktop/windows/x64/iClaw.nsis.zip',
+            contentType: 'application/zip',
+            fileName: 'iClaw.nsis.zip',
+            sha256: 'windows-updater-sha',
+            sizeBytes: 1024,
+            uploadedAt: '2026-04-04T00:00:00.000Z',
+          },
+          signature: {
+            storageProvider: 's3',
+            objectKey: 'desktop/windows/x64/iClaw.nsis.zip.sig',
+            contentType: 'text/plain',
+            fileName: 'iClaw.nsis.zip.sig',
+            sha256: 'windows-sig-sha',
+            sizeBytes: 128,
+            uploadedAt: '2026-04-04T00:00:00.000Z',
+            signature: 'signed-windows-updater-payload',
+          },
+          release: {
+            version: '1.0.2+202604041200',
+            notes: 'Windows release notes',
+            publishedAt: '2026-04-04T00:00:00.000Z',
+            policy: {
+              mandatory: true,
+              forceUpdateBelowVersion: null,
+              allowCurrentRunToFinish: true,
+              reasonCode: 'desktop_update',
+              reasonMessage: 'Windows update required after current run.',
+            },
+          },
+        },
+      ],
+    }),
+  );
+
+  const hint = await findRoute('/desktop/update-hint').handler({
+    body: undefined,
+    requestId: 'req-test',
+    headers: {},
+    params: {},
+    url: new URL(
+      'http://127.0.0.1:2130/desktop/update-hint?app_name=iclaw&current_version=1.0.1%2B202604021919&target=windows&arch=x64&channel=prod',
+    ),
+  }) as Record<string, unknown>;
+
+  const response = await findRoute('/desktop/update').handler({
+    body: undefined,
+    requestId: 'req-test',
+    headers: {},
+    params: {},
+    url: new URL(
+      'http://127.0.0.1:2130/desktop/update?app_name=iclaw&current_version=1.0.1%2B202604021919&target=windows&arch=x64&channel=prod',
+    ),
+  });
+  assert.ok(response && typeof response === 'object' && 'body' in response);
+  const raw = response as {body: string | Buffer};
+  const payload = JSON.parse(String(raw.body)) as Record<string, unknown>;
+
+  assert.equal(hint.enforcementState, payload.enforcement_state);
+  assert.equal(hint.blockNewRuns, payload.block_new_runs);
+  assert.equal(hint.reasonCode, payload.reason_code);
+  assert.equal(hint.reasonMessage, payload.reason_message);
+  assert.equal(payload.enforcement_state, 'required_after_run');
+  assert.equal(payload.reason_message, 'Windows update required after current run.');
 });
 
 test('desktop updater route returns 204 when the app is unmanaged', async () => {

@@ -7,16 +7,22 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { loadBrandProfile, resolveBrandId } from './lib/brand-profile.mjs';
+import {
+  classifyDesktopReleaseUpdaterState,
+  nativeUpdaterExpected,
+  resolveDesktopReleaseTargetArtifacts,
+  supportedDesktopReleaseTargets,
+} from './lib/desktop-release-artifacts.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const defaultReleaseDir = path.join(rootDir, 'dist', 'releases');
-const supportedTargets = [
-  { platform: 'windows', arch: 'x64', installerExt: 'exe', updaterExt: 'nsis.zip' },
-  { platform: 'windows', arch: 'aarch64', installerExt: 'exe', updaterExt: 'nsis.zip' },
-  { platform: 'darwin', arch: 'x64', installerExt: 'dmg', updaterExt: 'app.tar.gz' },
-  { platform: 'darwin', arch: 'aarch64', installerExt: 'dmg', updaterExt: 'app.tar.gz' },
-];
+const supportedTargets = supportedDesktopReleaseTargets.map(({ platform, arch, installerExt, updaterExt }) => ({
+  platform,
+  arch,
+  installerExt,
+  updaterExt,
+}));
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -118,10 +124,6 @@ function parseArgs(argv) {
   };
 }
 
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 function splitVersion(version) {
   const normalized = trimString(version);
   const [baseVersion] = normalized.split('+', 1);
@@ -129,20 +131,6 @@ function splitVersion(version) {
     fullVersion: normalized,
     baseVersion: trimString(baseVersion),
   };
-}
-
-function isReleaseForAppVersion(releaseVersion, appVersion) {
-  const { fullVersion, baseVersion } = splitVersion(appVersion);
-  return (
-    releaseVersion === fullVersion ||
-    releaseVersion.startsWith(`${fullVersion}.`) ||
-    releaseVersion === baseVersion ||
-    releaseVersion.startsWith(`${baseVersion}.`)
-  );
-}
-
-function compareByName(a, b) {
-  return a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' });
 }
 
 function resolveControlPlaneBaseUrl(profile) {
@@ -360,54 +348,41 @@ async function registerUploadedArtifact(baseUrl, accessToken, requestPath, paylo
   });
 }
 
-async function findTargetArtifacts({ releaseDir, artifactBaseName, channel, appVersion, target }) {
+async function findTargetArtifacts({ releaseDir, artifactBaseName, channel, appVersion, target, updaterExpected }) {
   const entries = await fs.readdir(releaseDir, { withFileTypes: true });
   const files = entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
-  const installerPattern = new RegExp(
-    `^${escapeRegExp(artifactBaseName)}_(?<releaseVersion>.+)_${escapeRegExp(target.arch)}_${escapeRegExp(channel)}\\.${escapeRegExp(target.installerExt)}$`,
-  );
-  const installerMatches = files
-    .map((fileName) => {
-      const match = fileName.match(installerPattern);
-      if (!match?.groups?.releaseVersion) return null;
-      if (!isReleaseForAppVersion(match.groups.releaseVersion, appVersion)) return null;
-      return {
-        fileName,
-        releaseVersion: match.groups.releaseVersion,
-      };
-    })
-    .filter(Boolean)
-    .sort((left, right) => compareByName(left.fileName, right.fileName));
-
-  const latestInstaller = installerMatches.at(-1);
-  if (!latestInstaller) {
+  const artifacts = resolveDesktopReleaseTargetArtifacts({
+    releaseDir,
+    artifactBaseName,
+    channel,
+    appVersion,
+    target: {
+      ...target,
+      publicPlatform: target.platform === 'darwin' ? 'mac' : target.platform,
+    },
+    files,
+  });
+  if (!artifacts) {
     return null;
   }
-
-  const updaterName = `${artifactBaseName}_${latestInstaller.releaseVersion}_${target.arch}_${channel}.${target.updaterExt}`;
-  const signatureName = `${updaterName}.sig`;
-  const hasUpdater = files.includes(updaterName);
-  const hasSignature = files.includes(signatureName);
-  const treatUpdaterAsOptional = target.platform === 'windows';
-  if (hasUpdater !== hasSignature && !treatUpdaterAsOptional) {
-    throw new Error(`Incomplete release files for ${target.platform}/${target.arch}: updater and signature must either both exist or both be omitted for ${latestInstaller.releaseVersion}`);
-  }
-  if (hasUpdater !== hasSignature && treatUpdaterAsOptional) {
-    process.stderr.write(
-      [
-        `[desktop-release] windows updater artifacts are partial for ${target.platform}/${target.arch}/${latestInstaller.releaseVersion};`,
-        'installer-driven release flow will continue with installer only.',
-      ].join(' ') + '\n',
+  const classification = classifyDesktopReleaseUpdaterState(artifacts, { updaterExpected });
+  if (classification.status === 'missing-signature' || classification.status === 'missing-updater') {
+    throw new Error(
+      `Incomplete release files for ${target.platform}/${target.arch}/${artifacts.releaseVersion}: ${classification.message}`,
     );
   }
-  const useUpdaterArtifacts = hasUpdater && hasSignature;
+  if (classification.status === 'missing-updater-and-signature') {
+    throw new Error(
+      `Missing signed updater artifacts for ${target.platform}/${target.arch}/${artifacts.releaseVersion}: ${classification.message}`,
+    );
+  }
 
   return {
     platform: target.platform,
     arch: target.arch,
-    installerPath: path.join(releaseDir, latestInstaller.fileName),
-    updaterPath: useUpdaterArtifacts ? path.join(releaseDir, updaterName) : null,
-    signaturePath: useUpdaterArtifacts ? path.join(releaseDir, signatureName) : null,
+    installerPath: artifacts.installerPath,
+    updaterPath: artifacts.updaterPath,
+    signaturePath: artifacts.signaturePath,
   };
 }
 
@@ -503,6 +478,7 @@ async function main() {
     throw new Error('No publish targets matched --platform/--arch filters');
   }
 
+  const updaterExpected = nativeUpdaterExpected(process.env);
   let publishedCount = 0;
   for (const target of filteredTargets) {
     const artifacts = await findTargetArtifacts({
@@ -511,6 +487,7 @@ async function main() {
       channel: args.channel,
       appVersion,
       target,
+      updaterExpected,
     });
     if (!artifacts) {
       continue;

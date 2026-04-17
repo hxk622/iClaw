@@ -2517,6 +2517,12 @@ body {
   overflow-x: hidden;
 }
 
+.knowledge-library-embedded-chat > div > div {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-inline: 0 !important;
+}
+
 .knowledge-library-embedded-chat .openclaw-chat-surface {
   --chat-surface-panel-border: rgba(0, 0, 0, 0.08);
   --chat-surface-panel-border-strong: rgba(0, 0, 0, 0.12);
@@ -2542,7 +2548,7 @@ body {
 .knowledge-library-embedded-chat :root[data-chat-layout-preset='column'] .openclaw-chat-surface .chat-thread {
   width: 100%;
   max-width: 100%;
-  padding-inline: 12px;
+  padding-inline: 0;
   overflow-x: hidden;
 }
 
@@ -2611,10 +2617,12 @@ body {
 
 .knowledge-library-embedded-chat .iclaw-composer__selectors {
   gap: 6px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
+  width: 100%;
+  min-width: 0;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__selectors::-webkit-scrollbar {
@@ -2630,6 +2638,7 @@ body {
   padding: 0;
   justify-content: center;
   gap: 0;
+  flex: 0 0 34px;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__selector-trigger-main {
@@ -2668,6 +2677,8 @@ body {
 .knowledge-library-embedded-chat .iclaw-composer__input-shell {
   min-width: 0;
   width: 100%;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__footer {
@@ -2697,6 +2708,8 @@ body {
   width: 100%;
   min-width: 0;
   overflow-x: auto;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__actions {
@@ -2715,6 +2728,7 @@ body {
 .knowledge-library-embedded-chat .iclaw-composer__model-trigger {
   flex: 1 1 auto;
   max-width: none;
+  width: 100%;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__submit {
@@ -2737,6 +2751,23 @@ body {
 .knowledge-library-embedded-chat .iclaw-composer__editor {
   padding-left: 0;
   padding-right: 0;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__active-chip {
+  width: 100%;
+  border-radius: 12px;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__active-chip-main,
+.knowledge-library-embedded-chat .iclaw-composer__active-chip-text {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__active-chip-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__active-controls,

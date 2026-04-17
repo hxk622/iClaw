@@ -214,6 +214,88 @@ test('resolvePortalDesktopUpdaterPayload returns required_now force update when 
   assert.equal(payload.blockNewRuns, true);
 });
 
+test('resolvePortalDesktopReleaseHint and updater payload share the same policy fields for windows targets', () => {
+  const config = buildPublishedConfig({
+    version: '1.0.2+202604041200',
+    extraTargets: [
+      {
+        platform: 'windows',
+        arch: 'x64',
+        installer: {
+          storageProvider: 's3',
+          objectKey: 'desktop/windows/x64/iClaw.exe',
+          contentType: 'application/vnd.microsoft.portable-executable',
+          fileName: 'iClaw.exe',
+          sha256: 'windows-installer-sha',
+          sizeBytes: 2048,
+          uploadedAt: '2026-04-04T00:00:00.000Z',
+        },
+        updater: {
+          storageProvider: 's3',
+          objectKey: 'desktop/windows/x64/iClaw.nsis.zip',
+          contentType: 'application/zip',
+          fileName: 'iClaw.nsis.zip',
+          sha256: 'windows-updater-sha',
+          sizeBytes: 1024,
+          uploadedAt: '2026-04-04T00:00:00.000Z',
+        },
+        signature: {
+          storageProvider: 's3',
+          objectKey: 'desktop/windows/x64/iClaw.nsis.zip.sig',
+          contentType: 'text/plain',
+          fileName: 'iClaw.nsis.zip.sig',
+          sha256: 'windows-sig-sha',
+          sizeBytes: 128,
+          uploadedAt: '2026-04-04T00:00:00.000Z',
+          signature: 'signed-windows-updater-payload',
+        },
+        release: {
+          version: '1.0.2+202604041200',
+          notes: 'Windows release notes',
+          publishedAt: '2026-04-04T00:00:00.000Z',
+          policy: {
+            mandatory: true,
+            forceUpdateBelowVersion: null,
+            allowCurrentRunToFinish: false,
+            reasonCode: 'desktop_update',
+            reasonMessage: 'Windows must update now.',
+          },
+        },
+      },
+    ],
+  });
+
+  const hint = resolvePortalDesktopReleaseHint({
+    baseUrl: 'https://updates.example.com',
+    appName: 'iclaw',
+    config,
+    appVersion: '1.0.1+202604021919',
+    channel: 'prod',
+    platform: 'windows',
+    arch: 'x64',
+  });
+
+  const payload = resolvePortalDesktopUpdaterPayload({
+    baseUrl: 'https://updates.example.com',
+    appName: 'iclaw',
+    config,
+    appVersion: '1.0.1+202604021919',
+    channel: 'prod',
+    platform: 'windows',
+    arch: 'x64',
+  });
+
+  assert.ok(hint);
+  assert.ok(payload);
+  assert.equal(hint.mandatory, payload.mandatory);
+  assert.equal(hint.enforcementState, payload.enforcementState);
+  assert.equal(hint.blockNewRuns, payload.blockNewRuns);
+  assert.equal(hint.reasonCode, payload.reasonCode);
+  assert.equal(hint.reasonMessage, payload.reasonMessage);
+  assert.equal(payload.enforcementState, 'required_now');
+  assert.equal(payload.reasonMessage, 'Windows must update now.');
+});
+
 test('resolvePortalDesktopReleaseHint upgrades to mandatory when forceUpdateBelowVersion is hit', () => {
   const config = buildPublishedConfig({
     version: '1.0.2+202604041200',

@@ -4,12 +4,13 @@ import assert from 'node:assert/strict';
 import {
   deriveOpenClawGatewayReadiness,
   deriveOpenClawChatSurfaceLifecycle,
+  type OpenClawChatSurfaceLifecycleInput,
   shouldAllowDisconnectedComposerQueue,
   shouldShowOpenClawConnectionCard,
   shouldShowOpenClawWelcomePage,
 } from './openclaw-chat-connection.ts';
 
-function buildInput(overrides = {}) {
+function buildInput(overrides: Partial<OpenClawChatSurfaceLifecycleInput> = {}): OpenClawChatSurfaceLifecycleInput {
   return {
     optimisticEmptySessionActive: false,
     statusConnected: false,

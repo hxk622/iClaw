@@ -37,7 +37,7 @@ function makeSkill(input: Partial<SkillStoreItem> & Pick<SkillStoreItem, 'slug' 
     sourceUrl: input.sourceUrl ?? null,
     metadata: input.metadata || {},
     setupSchema: input.setupSchema ?? null,
-    setupStatus: input.setupStatus || 'ready',
+    setupStatus: input.setupStatus ?? 'not_required',
     setupSchemaVersion: input.setupSchemaVersion ?? null,
     setupUpdatedAt: input.setupUpdatedAt ?? null,
   };

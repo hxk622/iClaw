@@ -1814,7 +1814,7 @@ export class IClawClient {
       input.file instanceof Blob
         ? input.file
         : input.file instanceof Uint8Array
-          ? new Blob([input.file], { type: input.contentType || 'application/zip' })
+          ? new Blob([Uint8Array.from(input.file)], { type: input.contentType || 'application/zip' })
           : new Blob([input.file], { type: input.contentType || 'application/zip' });
     const formData = new FormData();
     formData.append('file', file, input.fileName.trim() || 'fault-report.zip');
@@ -1883,7 +1883,7 @@ export class IClawClient {
       input.file instanceof Blob
         ? input.file
         : input.file instanceof Uint8Array
-          ? new Blob([input.file], { type: input.contentType || 'application/zip' })
+          ? new Blob([Uint8Array.from(input.file)], { type: input.contentType || 'application/zip' })
           : new Blob([input.file], { type: input.contentType || 'application/zip' });
     const formData = new FormData();
     formData.append('file', file, input.fileName.trim() || 'diagnostic-upload.zip');

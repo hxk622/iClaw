@@ -48,63 +48,79 @@ function trimString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+async function startInstallerFallback(input: {
+  hint: DesktopUpdateHint;
+  deps: DesktopUpdateUpgradeDeps;
+  artifactUrl: string;
+}): Promise<DesktopUpdateUpgradeResult> {
+  const { hint, deps, artifactUrl } = input;
+  await deps.onBeforeInstallerLaunch?.({ hint, artifactUrl });
+  const started = await deps.downloadAndLaunchDesktopInstaller({
+    artifactUrl,
+    version: hint.latestVersion,
+    artifactSha256: null,
+  });
+  if (!started) {
+    if (deps.platform !== 'windows') {
+      deps.openExternal(artifactUrl);
+      return {
+        mode: 'external',
+        actionState: 'opened',
+        openedUrl: artifactUrl,
+        statusMessage: '已打开更新下载页。',
+      };
+    }
+    throw new Error('桌面安装器启动失败');
+  }
+  return {
+    mode: 'installer',
+    actionState: 'opened',
+    statusMessage: '已启动安装器，正在完成升级。',
+  };
+}
+
 export async function executeDesktopUpdateUpgrade(input: {
   hint: DesktopUpdateHint;
   config: DesktopUpdateUpgradeConfig;
   deps: DesktopUpdateUpgradeDeps;
 }): Promise<DesktopUpdateUpgradeResult> {
   const { hint, config, deps } = input;
-
-  if (deps.isTauriRuntime && deps.platform === 'windows') {
-    const resolveArtifactUrl = deps.resolveDesktopUpdateArtifactUrl || resolveDesktopUpdateArtifactUrl;
-    const artifactUrl = trimString(await resolveArtifactUrl(hint));
-    if (!artifactUrl) {
-      throw new Error('当前更新源未提供安装包地址');
-    }
-    await deps.onBeforeInstallerLaunch?.({ hint, artifactUrl });
-    const started = await deps.downloadAndLaunchDesktopInstaller({
-      artifactUrl,
-      version: hint.latestVersion,
-      artifactSha256: null,
-    });
-    if (!started) {
-      throw new Error('桌面安装器启动失败');
-    }
-    return {
-      mode: 'installer',
-      actionState: 'opened',
-      statusMessage: '已启动安装器，正在完成升级。',
-    };
-  }
+  const resolveArtifactUrl = deps.resolveDesktopUpdateArtifactUrl || resolveDesktopUpdateArtifactUrl;
 
   if (deps.isTauriRuntime) {
-    const updaterCheck = await deps.checkDesktopUpdate(config);
+    let updaterCheck: DesktopUpdateCheckResult | null = null;
+    try {
+      updaterCheck = await deps.checkDesktopUpdate(config);
+    } catch {
+      updaterCheck = null;
+    }
     if (updaterCheck?.supported && updaterCheck.available) {
-      const started = await deps.downloadAndInstallDesktopUpdate();
-      if (!started) {
-        throw new Error('桌面更新下载未启动');
+      try {
+        const started = await deps.downloadAndInstallDesktopUpdate();
+        if (started) {
+          return {
+            mode: 'native',
+            actionState: 'downloading',
+            progress: 5,
+            detail: '正在准备下载更新包。',
+          };
+        }
+      } catch {
+        // Fall through to installer fallback when native updater cannot start.
       }
-      return {
-        mode: 'native',
-        actionState: 'downloading',
-        progress: 5,
-        detail: '正在准备下载更新包。',
-      };
     }
 
-    const externalDownloadUrl = trimString(updaterCheck?.external_download_url);
-    if (externalDownloadUrl) {
-      deps.openExternal(externalDownloadUrl);
-      return {
-        mode: 'external',
-        actionState: 'opened',
-        openedUrl: externalDownloadUrl,
-        statusMessage: '已打开更新下载页。',
-      };
+    const runtimeArtifactUrl = trimString(updaterCheck?.external_download_url);
+    const artifactUrl = runtimeArtifactUrl || trimString(await resolveArtifactUrl(hint));
+    if (artifactUrl) {
+      return startInstallerFallback({
+        hint,
+        deps,
+        artifactUrl,
+      });
     }
   }
 
-  const resolveArtifactUrl = deps.resolveDesktopUpdateArtifactUrl || resolveDesktopUpdateArtifactUrl;
   const artifactUrl = await resolveArtifactUrl(hint);
   const targetUrl = artifactUrl || trimString(hint.manifestUrl);
   if (!targetUrl) {

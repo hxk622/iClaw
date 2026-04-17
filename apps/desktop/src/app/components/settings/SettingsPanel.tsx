@@ -20,9 +20,11 @@ interface SettingsPanelProps {
   desktopUpdateEnforcementState: 'recommended' | 'required_after_run' | 'required_now';
   desktopUpdatePolicyLabel: string;
   desktopUpdateChecking: boolean;
+  desktopUpdateUpgrading: boolean;
   desktopUpdateReadyToRestart: boolean;
   desktopUpdateStatusMessage: string | null;
   onCheckForDesktopUpdates: () => void;
+  onUpgradeDesktopApp: () => void;
   onRestartDesktopApp: () => void;
 }
 
@@ -36,9 +38,11 @@ export function SettingsPanel({
   desktopUpdateEnforcementState,
   desktopUpdatePolicyLabel,
   desktopUpdateChecking,
+  desktopUpdateUpgrading,
   desktopUpdateReadyToRestart,
   desktopUpdateStatusMessage,
   onCheckForDesktopUpdates,
+  onUpgradeDesktopApp,
   onRestartDesktopApp,
 }: SettingsPanelProps) {
   const { hasUnsavedChangesForSection, resetSettings } = useSettings();
@@ -58,9 +62,11 @@ export function SettingsPanel({
             enforcementState={desktopUpdateEnforcementState}
             policyLabel={desktopUpdatePolicyLabel}
             checkingForUpdates={desktopUpdateChecking}
+            upgrading={desktopUpdateUpgrading}
             readyToRestart={desktopUpdateReadyToRestart}
             statusMessage={desktopUpdateStatusMessage}
             onCheckForUpdates={onCheckForDesktopUpdates}
+            onUpgradeNow={onUpgradeDesktopApp}
             onRestartToApply={onRestartDesktopApp}
           />
         );
@@ -81,9 +87,11 @@ export function SettingsPanel({
     desktopUpdateMandatory,
     desktopUpdateEnforcementState,
     desktopUpdatePolicyLabel,
+    desktopUpdateUpgrading,
     desktopUpdateReadyToRestart,
     desktopUpdateStatusMessage,
     onCheckForDesktopUpdates,
+    onUpgradeDesktopApp,
     onRestartDesktopApp,
   ]);
 

@@ -8111,7 +8111,6 @@ export function OpenClawChatSurface({
       prompt: payload.prompt,
       conversationId,
       sessionKey: runtimeSessionKey,
-      agentId: payload.selectedAgentSlug,
     });
     syncChatConversationActiveAgent({
       conversationId: turn.conversationId,

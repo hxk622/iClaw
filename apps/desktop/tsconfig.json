@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2023",
     "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
     "skipLibCheck": true,
     "moduleResolution": "Bundler",
@@ -16,8 +16,13 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@openclaw-ui/*": ["../../../openclaw/ui/src/*"]
+      "@openclaw-ui/*": ["../../../openclaw/ui/src/*"],
+      "@lydell/node-pty": ["src/types/vendor-stubs/node-pty.d.ts"],
+      "@slack/bolt": ["src/types/vendor-stubs/slack-bolt.d.ts"],
+      "pdfjs-dist/legacy/build/pdf.mjs": ["src/types/vendor-stubs/pdfjs-dist.d.ts"],
+      "qrcode-terminal/vendor/QRCode/index.js": ["src/types/vendor-stubs/qrcode-terminal-index.d.ts"],
+      "qrcode-terminal/vendor/QRCode/QRErrorCorrectLevel.js": ["src/types/vendor-stubs/qrcode-terminal-error-level.d.ts"]
     }
   },
-  "include": ["src", "../../../openclaw/ui/src/**/*.ts", "../../../openclaw/src/**/*.ts"]
+  "include": ["src"]
 }

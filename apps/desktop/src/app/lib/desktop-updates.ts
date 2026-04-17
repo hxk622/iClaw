@@ -14,6 +14,7 @@ export type DesktopUpdateGateState =
   | 'required_waiting_current_run'
   | 'required_blocked'
   | 'ready_to_restart';
+export type DesktopUpdateSceneOverlayView = 'settings' | 'account' | 'recharge';
 
 type DesktopReleaseTargetManifest = {
   entry?: {
@@ -129,6 +130,27 @@ export async function writeDesktopUpdateSceneSnapshot(input: {
 
 export async function clearDesktopUpdateSceneSnapshot(): Promise<void> {
   await writeDesktopConfigSection(DESKTOP_UPDATE_SCENE_SECTION, null);
+}
+
+export function resolveDesktopUpdateScenePrimaryView(
+  value: string | null | undefined,
+  availablePrimaryViews: string[],
+): string | null {
+  const normalized = trimString(value);
+  if (!normalized) {
+    return null;
+  }
+  return availablePrimaryViews.includes(normalized) ? normalized : null;
+}
+
+export function resolveDesktopUpdateSceneOverlayView(
+  value: string | null | undefined,
+): DesktopUpdateSceneOverlayView | null {
+  const normalized = trimString(value);
+  if (normalized === 'settings' || normalized === 'account' || normalized === 'recharge') {
+    return normalized;
+  }
+  return null;
 }
 
 export function normalizeDesktopUpdateEnforcementState(

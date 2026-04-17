@@ -62,9 +62,11 @@ interface SettingsGeneralProps {
   enforcementState: 'recommended' | 'required_after_run' | 'required_now';
   policyLabel: string;
   checkingForUpdates: boolean;
+  upgrading: boolean;
   readyToRestart: boolean;
   statusMessage: string | null;
   onCheckForUpdates: () => void;
+  onUpgradeNow: () => void;
   onRestartToApply: () => void;
 }
 
@@ -83,9 +85,11 @@ export function SettingsGeneral({
   enforcementState,
   policyLabel,
   checkingForUpdates,
+  upgrading,
   readyToRestart,
   statusMessage,
   onCheckForUpdates,
+  onUpgradeNow,
   onRestartToApply,
 }: SettingsGeneralProps) {
   const { settings, updateGeneral } = useSettings();
@@ -258,14 +262,24 @@ export function SettingsGeneral({
                 size="sm"
                 leadingIcon={<RefreshCw className={checkingForUpdates ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />}
                 onClick={onCheckForUpdates}
-                disabled={checkingForUpdates}
+                disabled={checkingForUpdates || upgrading}
               >
                 {checkingForUpdates ? '检查中...' : '检查更新'}
               </Button>
 
-              {needsUpdate || readyToRestart ? (
+              {readyToRestart ? (
                 <Button variant="primary" size="sm" onClick={onRestartToApply}>
                   重启应用
+                </Button>
+              ) : needsUpdate ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leadingIcon={upgrading ? <RefreshCw className="h-4 w-4 animate-spin" /> : undefined}
+                  onClick={onUpgradeNow}
+                  disabled={checkingForUpdates || upgrading}
+                >
+                  {upgrading ? '升级中...' : mandatory ? '立即升级' : '开始升级'}
                 </Button>
               ) : null}
             </div>

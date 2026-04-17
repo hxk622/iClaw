@@ -50,9 +50,11 @@ test('createCoalescedDomTask falls back to timeout while document is hidden', ()
         throw new Error('requestAnimationFrame should not be used while hidden');
       },
       cancelAnimationFrame: () => {},
-      setTimeout: (callback) => {
+      setTimeout: (callback, _delay) => {
         timeoutCallbacks.push(callback);
-        return timeoutCallbacks.length;
+        const handle = globalThis.setTimeout(() => {}, 0);
+        clearTimeout(handle);
+        return handle;
       },
       clearTimeout: () => {},
     },

@@ -410,12 +410,12 @@ export function RechargeCenter({
         light: '#FFFFFF',
       },
     })
-      .then((url) => {
+      .then((url: string) => {
         if (!cancelled) {
           setGeneratedLaunchQrUrl(url);
         }
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         if (!cancelled) {
           console.error('[desktop] failed to generate launch QR code', error);
           setGeneratedLaunchQrUrl(null);
