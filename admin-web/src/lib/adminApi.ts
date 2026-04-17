@@ -159,6 +159,10 @@ export function stringValue(value: unknown) {
   return String(value || '').trim();
 }
 
+function normalizeCreditsTerm(value: unknown) {
+  return stringValue(value).replace(/龙虾币/g, '积分');
+}
+
 export function numberValue(value: unknown) {
   const normalized = Number(value || 0);
   return Number.isFinite(normalized) ? normalized : 0;
@@ -199,6 +203,34 @@ function getDesktopReleaseConfig(source: Record<string, unknown>) {
           installer: asObject(target.installer),
           updater: asObject(target.updater),
           signature: asObject(target.signature),
+          release: {
+            version: stringValue(asObject(target.release).version),
+            notes: stringValue(asObject(target.release).notes),
+            publishedAt: stringValue(asObject(target.release).publishedAt || asObject(target.release).published_at),
+            policy: {
+              mandatory: Boolean(asObject(asObject(target.release).policy).mandatory),
+              forceUpdateBelowVersion: stringValue(
+                asObject(asObject(target.release).policy).forceUpdateBelowVersion ||
+                  asObject(asObject(target.release).policy).force_update_below_version,
+              ),
+              allowCurrentRunToFinish:
+                asObject(asObject(target.release).policy).allowCurrentRunToFinish === undefined &&
+                asObject(asObject(target.release).policy).allow_current_run_to_finish === undefined
+                  ? true
+                  : Boolean(
+                      asObject(asObject(target.release).policy).allowCurrentRunToFinish ??
+                        asObject(asObject(target.release).policy).allow_current_run_to_finish,
+                    ),
+              reasonCode: stringValue(
+                asObject(asObject(target.release).policy).reasonCode ||
+                  asObject(asObject(target.release).policy).reason_code,
+              ),
+              reasonMessage: stringValue(
+                asObject(asObject(target.release).policy).reasonMessage ||
+                  asObject(asObject(target.release).policy).reason_message,
+              ),
+            },
+          },
         };
       }),
     };
@@ -576,14 +608,14 @@ export async function loadOverviewData(options: {
       const featureListSnake = Array.isArray(metadata.feature_list) ? metadata.feature_list.map((entry) => String(entry || '')) : null;
       const featureListCamel = Array.isArray(metadata.featureList) ? metadata.featureList.map((entry) => String(entry || '')) : null;
       return {
-        description: stringValue(metadata.description),
-        badgeLabel: stringValue(metadata.badge_label || metadata.badgeLabel),
-        highlight: stringValue(metadata.highlight),
-        featureList: featureListSnake || featureListCamel || [],
+        description: normalizeCreditsTerm(metadata.description),
+        badgeLabel: normalizeCreditsTerm(metadata.badge_label || metadata.badgeLabel),
+        highlight: normalizeCreditsTerm(metadata.highlight),
+        featureList: (featureListSnake || featureListCamel || []).map((entry) => normalizeCreditsTerm(entry)),
       };
     })(),
     packageId: stringValue(item.packageId || item.package_id),
-    packageName: stringValue(item.packageName || item.package_name || item.packageId || item.package_id),
+    packageName: normalizeCreditsTerm(item.packageName || item.package_name || item.packageId || item.package_id),
     credits: numberValue(item.credits),
     bonusCredits: numberValue(item.bonusCredits || item.bonus_credits),
     amountCnyFen: numberValue(item.amountCnyFen || item.amount_cny_fen),

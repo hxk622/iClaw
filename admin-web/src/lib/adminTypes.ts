@@ -440,6 +440,18 @@ export type OverviewData = {
             installer: Record<string, unknown>;
             updater: Record<string, unknown>;
             signature: Record<string, unknown>;
+            release: {
+              version: string;
+              notes: string;
+              publishedAt: string;
+              policy: {
+                mandatory: boolean;
+                forceUpdateBelowVersion: string;
+                allowCurrentRunToFinish: boolean;
+                reasonCode: string;
+                reasonMessage: string;
+              };
+            };
           }>;
         };
         published: {
@@ -459,6 +471,18 @@ export type OverviewData = {
             installer: Record<string, unknown>;
             updater: Record<string, unknown>;
             signature: Record<string, unknown>;
+            release: {
+              version: string;
+              notes: string;
+              publishedAt: string;
+              policy: {
+                mandatory: boolean;
+                forceUpdateBelowVersion: string;
+                allowCurrentRunToFinish: boolean;
+                reasonCode: string;
+                reasonMessage: string;
+              };
+            };
           }>;
         };
       };
@@ -480,6 +504,18 @@ export type OverviewData = {
             installer: Record<string, unknown>;
             updater: Record<string, unknown>;
             signature: Record<string, unknown>;
+            release: {
+              version: string;
+              notes: string;
+              publishedAt: string;
+              policy: {
+                mandatory: boolean;
+                forceUpdateBelowVersion: string;
+                allowCurrentRunToFinish: boolean;
+                reasonCode: string;
+                reasonMessage: string;
+              };
+            };
           }>;
         };
         published: {
@@ -499,6 +535,18 @@ export type OverviewData = {
             installer: Record<string, unknown>;
             updater: Record<string, unknown>;
             signature: Record<string, unknown>;
+            release: {
+              version: string;
+              notes: string;
+              publishedAt: string;
+              policy: {
+                mandatory: boolean;
+                forceUpdateBelowVersion: string;
+                allowCurrentRunToFinish: boolean;
+                reasonCode: string;
+                reasonMessage: string;
+              };
+            };
           }>;
         };
       };

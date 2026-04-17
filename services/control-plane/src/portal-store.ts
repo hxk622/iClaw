@@ -749,16 +749,28 @@ function mapMenuRow(row: PortalMenuRow): PortalMenuRecord {
 }
 
 function mapRechargePackageRow(row: PortalRechargePackageRow): PortalRechargePackageRecord {
+  const metadata = asJsonObject(row.metadata_json);
+  const normalizeText = (value: unknown) => String(value || '').replace(/龙虾币/g, '积分');
   return {
     packageId: row.package_id,
-    packageName: row.package_name,
+    packageName: normalizeText(row.package_name),
     credits: parseDbNumber(row.credits),
     bonusCredits: parseDbNumber(row.bonus_credits),
     amountCnyFen: Number(row.amount_cny_fen || 0),
     sortOrder: row.sort_order,
     recommended: row.recommended === true,
     default: row.is_default === true,
-    metadata: asJsonObject(row.metadata_json),
+    metadata: {
+      ...metadata,
+      description: normalizeText(metadata.description),
+      badge_label: normalizeText(metadata.badge_label),
+      eyebrow_label: normalizeText(metadata.eyebrow_label),
+      highlight: normalizeText(metadata.highlight),
+      promo_text: normalizeText(metadata.promo_text),
+      feature_list: Array.isArray(metadata.feature_list)
+        ? metadata.feature_list.map((entry) => normalizeText(entry))
+        : metadata.feature_list,
+    },
     active: row.active,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),

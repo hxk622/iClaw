@@ -83,7 +83,7 @@ export function K2CWelcomePage({
       <div className={`flex h-full items-center justify-center ${compact ? 'px-3 py-3 lg:px-4' : 'px-6 py-6 lg:px-8'}`}>
         <section
           className={`flex h-full w-full flex-col items-center justify-center overflow-hidden text-center ${
-            compact ? 'max-w-[360px]' : 'max-w-[720px]'
+            compact ? 'max-w-[280px]' : 'max-w-[720px]'
           }`}
           style={buildWelcomeVars(profile)}
         >
@@ -105,7 +105,7 @@ export function K2CWelcomePage({
           <h1
             className={`font-semibold tracking-[-0.06em] text-[var(--text-primary)] dark:text-[rgba(248,245,238,0.96)] ${
               compact
-                ? 'mt-5 max-w-[280px] whitespace-normal break-words text-[clamp(18px,2.2vw,28px)] leading-[1.25]'
+                ? 'mt-5 max-w-[240px] whitespace-normal break-words text-[clamp(16px,2vw,24px)] leading-[1.2]'
                 : 'mt-8 whitespace-nowrap text-[clamp(34px,4vw,46px)]'
             }`}
           >
@@ -115,7 +115,7 @@ export function K2CWelcomePage({
           <p
             className={`text-[var(--text-secondary)] dark:text-[rgba(233,224,210,0.72)] ${
               compact
-                ? 'mt-3 max-w-[300px] text-[12px] leading-5 md:text-[13px]'
+                ? 'mt-3 max-w-[240px] text-[11px] leading-5 md:text-[12px]'
                 : 'mt-5 max-w-[560px] text-[15px] leading-8 md:text-[18px]'
             }`}
           >

@@ -231,6 +231,37 @@ function normalizeTarget(value: unknown): PortalDesktopReleaseTarget | null {
   };
 }
 
+function hasTargetScopedRelease(release: PortalDesktopReleaseTargetRelease): boolean {
+  return (
+    Boolean(release.version) ||
+    Boolean(release.notes) ||
+    Boolean(release.publishedAt) ||
+    Boolean(release.policy.mandatory) ||
+    Boolean(release.policy.forceUpdateBelowVersion) ||
+    Boolean(release.policy.reasonCode) ||
+    Boolean(release.policy.reasonMessage) ||
+    release.policy.allowCurrentRunToFinish !== true
+  );
+}
+
+function hydrateTargetRelease(
+  target: PortalDesktopReleaseTarget,
+  snapshot: Pick<PortalDesktopReleaseSnapshot, 'version' | 'notes' | 'policy' | 'publishedAt'>,
+): PortalDesktopReleaseTarget {
+  if (hasTargetScopedRelease(target.release)) {
+    return target;
+  }
+  return {
+    ...target,
+    release: {
+      version: snapshot.version,
+      notes: snapshot.notes,
+      policy: snapshot.policy,
+      publishedAt: snapshot.publishedAt,
+    },
+  };
+}
+
 function emptySnapshot(): PortalDesktopReleaseSnapshot {
   return {
     version: null,
@@ -243,12 +274,18 @@ function emptySnapshot(): PortalDesktopReleaseSnapshot {
 
 function normalizeSnapshot(value: unknown): PortalDesktopReleaseSnapshot {
   const snapshot = asObject(value);
-  return {
+  const normalizedSnapshot = {
     version: trimString(snapshot.version) || null,
     notes: trimString(snapshot.notes) || null,
-    targets: asArray(snapshot.targets).map(normalizeTarget).filter(Boolean) as PortalDesktopReleaseTarget[],
     policy: normalizePolicy(snapshot.policy),
     publishedAt: trimString(snapshot.publishedAt || snapshot.published_at) || null,
+  } satisfies Pick<PortalDesktopReleaseSnapshot, 'version' | 'notes' | 'policy' | 'publishedAt'>;
+  return {
+    ...normalizedSnapshot,
+    targets: asArray(snapshot.targets)
+      .map(normalizeTarget)
+      .filter(Boolean)
+      .map((target) => hydrateTargetRelease(target as PortalDesktopReleaseTarget, normalizedSnapshot)) as PortalDesktopReleaseTarget[],
   };
 }
 
@@ -422,16 +459,7 @@ function buildManifestEntry(baseUrl: string, appName: string, channel: DesktopRe
 }
 
 function resolveTargetRelease(target: PortalDesktopReleaseTarget, snapshot: PortalDesktopReleaseSnapshot): PortalDesktopReleaseTargetRelease {
-  const hasTargetScopedRelease =
-    Boolean(target.release.version) ||
-    Boolean(target.release.notes) ||
-    Boolean(target.release.publishedAt) ||
-    Boolean(target.release.policy.mandatory) ||
-    Boolean(target.release.policy.forceUpdateBelowVersion) ||
-    Boolean(target.release.policy.reasonCode) ||
-    Boolean(target.release.policy.reasonMessage) ||
-    target.release.policy.allowCurrentRunToFinish !== true;
-  if (hasTargetScopedRelease) {
+  if (hasTargetScopedRelease(target.release)) {
     return target.release;
   }
   return {

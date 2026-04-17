@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildPortalDesktopReleaseManifestPayload,
   compareDesktopReleaseVersions,
+  readPortalDesktopReleaseConfig,
   resolvePortalDesktopReleaseDownloadFile,
   resolvePortalDesktopReleaseHint,
   resolvePortalDesktopUpdaterPayload,
@@ -284,6 +285,180 @@ test('buildPortalDesktopReleaseManifestPayload includes updater metadata only wh
 
   assert.ok(withUpdater.entry?.updater);
   assert.equal(withoutUpdater.entry?.updater ?? null, null);
+});
+
+test('readPortalDesktopReleaseConfig hydrates snapshot-level release fields onto targets that do not define release', () => {
+  const config = writePortalDesktopReleaseConfig({}, {
+    channels: {
+      dev: {
+        draft: {
+          version: null,
+          notes: null,
+          targets: [],
+          policy: {
+            mandatory: false,
+            forceUpdateBelowVersion: null,
+            allowCurrentRunToFinish: true,
+            reasonCode: null,
+            reasonMessage: null,
+          },
+          publishedAt: null,
+        },
+        published: {
+          version: null,
+          notes: null,
+          targets: [],
+          policy: {
+            mandatory: false,
+            forceUpdateBelowVersion: null,
+            allowCurrentRunToFinish: true,
+            reasonCode: null,
+            reasonMessage: null,
+          },
+          publishedAt: null,
+        },
+      },
+      prod: {
+        draft: {
+          version: '1.2.3',
+          notes: 'Unified desktop release',
+          targets: [
+            {
+              platform: 'windows',
+              arch: 'x64',
+              installer: {
+                storageProvider: 's3',
+                objectKey: 'desktop/windows/x64/iClaw.exe',
+                contentType: 'application/vnd.microsoft.portable-executable',
+                fileName: 'iClaw.exe',
+                sha256: 'windows-installer-sha',
+                sizeBytes: 2048,
+                uploadedAt: '2026-04-04T00:00:00.000Z',
+              },
+              updater: {
+                storageProvider: 's3',
+                objectKey: 'desktop/windows/x64/iClaw.nsis.zip',
+                contentType: 'application/zip',
+                fileName: 'iClaw.nsis.zip',
+                sha256: 'windows-updater-sha',
+                sizeBytes: 1024,
+                uploadedAt: '2026-04-04T00:00:00.000Z',
+              },
+              signature: {
+                storageProvider: 's3',
+                objectKey: 'desktop/windows/x64/iClaw.nsis.zip.sig',
+                contentType: 'text/plain',
+                fileName: 'iClaw.nsis.zip.sig',
+                sha256: 'windows-sig-sha',
+                sizeBytes: 128,
+                uploadedAt: '2026-04-04T00:00:00.000Z',
+                signature: 'signed-windows-updater-payload',
+              },
+            } as unknown as PortalDesktopReleaseTarget,
+          ],
+          policy: {
+            mandatory: true,
+            forceUpdateBelowVersion: '1.2.0',
+            allowCurrentRunToFinish: false,
+            reasonCode: 'desktop_update',
+            reasonMessage: 'Please update the desktop app.',
+          },
+          publishedAt: '2026-04-04T00:00:00.000Z',
+        },
+        published: {
+          version: null,
+          notes: null,
+          targets: [],
+          policy: {
+            mandatory: false,
+            forceUpdateBelowVersion: null,
+            allowCurrentRunToFinish: true,
+            reasonCode: null,
+            reasonMessage: null,
+          },
+          publishedAt: null,
+        },
+      },
+    },
+  });
+
+  const parsed = readPortalDesktopReleaseConfig(config);
+  const target = parsed.channels.prod.draft.targets[0];
+
+  assert.ok(target);
+  assert.equal(target.release.version, '1.2.3');
+  assert.equal(target.release.notes, 'Unified desktop release');
+  assert.equal(target.release.publishedAt, '2026-04-04T00:00:00.000Z');
+  assert.equal(target.release.policy.mandatory, true);
+  assert.equal(target.release.policy.forceUpdateBelowVersion, '1.2.0');
+  assert.equal(target.release.policy.allowCurrentRunToFinish, false);
+});
+
+test('buildPortalDesktopReleaseManifestPayload prefers target-scoped release metadata over snapshot defaults', () => {
+  const config = buildPublishedConfig({
+    version: '1.0.2+202604041200',
+    notes: 'Snapshot release notes',
+    extraTargets: [
+      {
+        platform: 'windows',
+        arch: 'x64',
+        installer: {
+          storageProvider: 's3',
+          objectKey: 'desktop/windows/x64/iClaw.exe',
+          contentType: 'application/vnd.microsoft.portable-executable',
+          fileName: 'iClaw.exe',
+          sha256: 'windows-installer-sha',
+          sizeBytes: 2048,
+          uploadedAt: '2026-04-04T00:00:00.000Z',
+        },
+        updater: {
+          storageProvider: 's3',
+          objectKey: 'desktop/windows/x64/iClaw.nsis.zip',
+          contentType: 'application/zip',
+          fileName: 'iClaw.nsis.zip',
+          sha256: 'windows-updater-sha',
+          sizeBytes: 1024,
+          uploadedAt: '2026-04-04T00:00:00.000Z',
+        },
+        signature: {
+          storageProvider: 's3',
+          objectKey: 'desktop/windows/x64/iClaw.nsis.zip.sig',
+          contentType: 'text/plain',
+          fileName: 'iClaw.nsis.zip.sig',
+          sha256: 'windows-sig-sha',
+          sizeBytes: 128,
+          uploadedAt: '2026-04-04T00:00:00.000Z',
+          signature: 'signed-windows-updater-payload',
+        },
+        release: {
+          version: '1.0.3+202604050101',
+          notes: 'Windows target release notes',
+          publishedAt: '2026-04-05T00:00:00.000Z',
+          policy: {
+            mandatory: true,
+            forceUpdateBelowVersion: null,
+            allowCurrentRunToFinish: false,
+            reasonCode: 'desktop_update',
+            reasonMessage: 'Please update the desktop app.',
+          },
+        },
+      },
+    ],
+  });
+
+  const payload = buildPortalDesktopReleaseManifestPayload({
+    baseUrl: 'https://updates.example.com',
+    appName: 'iclaw',
+    channel: 'prod',
+    snapshot: (config as { desktop_release_admin: { channels: { prod: { published: PortalDesktopReleaseConfig['channels']['prod']['published'] } } } }).desktop_release_admin.channels.prod.published,
+    platform: 'windows',
+    arch: 'x64',
+  }) as {entry?: {version?: string; published_at?: string; updater?: {notes?: string | null; pub_date?: string | null} | null}};
+
+  assert.equal(payload.entry?.version, '1.0.3+202604050101');
+  assert.equal(payload.entry?.published_at, '2026-04-05T00:00:00.000Z');
+  assert.equal(payload.entry?.updater?.notes, 'Windows target release notes');
+  assert.equal(payload.entry?.updater?.pub_date, '2026-04-05T00:00:00.000Z');
 });
 
 test('buildPortalDesktopReleaseManifestPayload does not fall back to a different platform when target/arch is specified', () => {

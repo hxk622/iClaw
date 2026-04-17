@@ -25,8 +25,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{mpsc, Mutex};
 use std::thread;
-use std::time::Duration;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
@@ -173,6 +172,12 @@ struct RuntimeMcpSyncState {
     brand_id: String,
     published_version: u64,
     mcp_keys: Vec<String>,
+    synced_at: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct RuntimeOpenClawConfigSyncState {
+    signature: String,
     synced_at: String,
 }
 
@@ -2060,6 +2065,19 @@ fn runtime_mcp_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn runtime_openclaw_config_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
+    ensure_runtime_scope_migrated(app)?;
+    let path = runtime_scope_root_dir_raw(app).join("runtime-openclaw-config-sync-state.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "failed to create runtime openclaw config sync state dir: {e}"
+            )
+        })?;
+    }
+    Ok(path)
+}
+
 fn replace_iclaw_servers_dir_placeholders(value: &mut serde_json::Value, servers_dir: &str) {
     match value {
         serde_json::Value::String(raw) => {
@@ -2145,8 +2163,12 @@ fn prepare_runtime_mcp_config(app: &AppHandle, cache_dir: &str) -> Result<PathBu
     let resolved = serde_json::to_string_pretty(&parsed)
         .map_err(|e| format!("failed to serialize resolved mcp config: {e}"))?;
     let resolved_path = Path::new(cache_dir).join("resolved-mcp.json");
-    fs::write(&resolved_path, format!("{resolved}\n"))
-        .map_err(|e| format!("failed to write resolved mcp config: {e}"))?;
+    let next_content = format!("{resolved}\n");
+    let existing_content = fs::read_to_string(&resolved_path).ok();
+    if existing_content.as_deref() != Some(next_content.as_str()) {
+        fs::write(&resolved_path, next_content)
+            .map_err(|e| format!("failed to write resolved mcp config: {e}"))?;
+    }
     Ok(resolved_path)
 }
 
@@ -2412,6 +2434,39 @@ fn save_runtime_mcp_sync_state(app: &AppHandle, state: &RuntimeMcpSyncState) -> 
     let path = runtime_mcp_sync_state_path(app)?;
     let value = serde_json::to_value(state)
         .map_err(|e| format!("failed to serialize runtime mcp sync state: {e}"))?;
+    write_locked_json_file(&path, &value)
+}
+
+fn load_runtime_openclaw_config_sync_state(
+    app: &AppHandle,
+) -> Result<Option<RuntimeOpenClawConfigSyncState>, String> {
+    let path = runtime_openclaw_config_sync_state_path(app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "failed to read runtime openclaw config sync state {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    let parsed =
+        serde_json::from_str::<RuntimeOpenClawConfigSyncState>(&raw).map_err(|e| {
+            format!(
+                "failed to parse runtime openclaw config sync state {}: {e}",
+                path.to_string_lossy()
+            )
+        })?;
+    Ok(Some(parsed))
+}
+
+fn save_runtime_openclaw_config_sync_state(
+    app: &AppHandle,
+    state: &RuntimeOpenClawConfigSyncState,
+) -> Result<(), String> {
+    let path = runtime_openclaw_config_sync_state_path(app)?;
+    let value = serde_json::to_value(state)
+        .map_err(|e| format!("failed to serialize runtime openclaw config sync state: {e}"))?;
     write_locked_json_file(&path, &value)
 }
 
@@ -2917,6 +2972,15 @@ fn current_unix_timestamp_string() -> String {
         Ok(duration) => duration.as_secs().to_string(),
         Err(_) => String::from("0"),
     }
+}
+
+fn file_sha256_if_exists(path: &Path) -> Result<Option<String>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let bytes = fs::read(path)
+        .map_err(|e| format!("failed to read file for sha256 {}: {e}", path.to_string_lossy()))?;
+    Ok(Some(sha256_hex(&bytes)))
 }
 
 fn sync_current_brand_runtime_skills(app: &AppHandle, auth_base_url: &str) -> Result<bool, String> {
@@ -5962,6 +6026,54 @@ fn ensure_current_brand_runtime_mcps(app: &AppHandle, context: &str) -> Result<b
     }
 }
 
+fn ensure_current_brand_runtime_dependencies(
+    app: &AppHandle,
+    context: &str,
+) -> Result<(bool, bool), String> {
+    let (sender, receiver) = mpsc::channel();
+    let context_mcps = context.to_string();
+    let app_mcps = app.clone();
+    let sender_mcps = sender.clone();
+    thread::spawn(move || {
+        let result = ensure_current_brand_runtime_mcps(&app_mcps, &context_mcps);
+        let _ = sender_mcps.send(("mcps", result));
+    });
+
+    let context_skills = context.to_string();
+    let app_skills = app.clone();
+    let sender_skills = sender.clone();
+    thread::spawn(move || {
+        let result = ensure_current_brand_runtime_skills(&app_skills, &context_skills);
+        let _ = sender_skills.send(("skills", result));
+    });
+
+    let mut mcp_changed = None;
+    let mut skills_changed = None;
+    let mut first_error: Option<String> = None;
+
+    for _ in 0..2 {
+        let (kind, result) = receiver
+            .recv()
+            .map_err(|_| format!("failed to receive runtime dependency status before {context}"))?;
+        match (kind, result) {
+            ("mcps", Ok(changed)) => mcp_changed = Some(changed),
+            ("skills", Ok(changed)) => skills_changed = Some(changed),
+            (_, Err(error)) => {
+                if first_error.is_none() {
+                    first_error = Some(error);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(error) = first_error {
+        return Err(error);
+    }
+
+    Ok((mcp_changed.unwrap_or(false), skills_changed.unwrap_or(false)))
+}
+
 fn load_oem_runtime_snapshot_internal(
     app: &AppHandle,
 ) -> Result<Option<OemRuntimeSnapshot>, String> {
@@ -5987,8 +6099,54 @@ fn load_oem_runtime_snapshot_internal(
 
 fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Result<PathBuf, String> {
     let config_path = openclaw_config_path(app)?;
+    let runtime_config_path = runtime_config_path(app)?;
+    let portal_runtime_config_path = resource_portal_runtime_config_path(app);
+    let snapshot_path = oem_runtime_snapshot_path(app)?;
+    let brand_stamp_path = openclaw_brand_stamp_path(app)?;
+    let workspace_dir = openclaw_workspace_dir(app)?;
+
+    let signature = {
+        let mut hasher = Sha256::new();
+        hasher.update(gateway_token.as_bytes());
+        hasher.update(DESKTOP_GATEWAY_ALLOWED_ORIGINS.as_bytes());
+        hasher.update(DESKTOP_BRAND_ID.as_bytes());
+        hasher.update(DESKTOP_BUILD_ID.as_bytes());
+        hasher.update(DESKTOP_SOURCE_PROFILE_HASH.as_bytes());
+        hasher.update(DESKTOP_BUNDLE_IDENTIFIER.as_bytes());
+        hasher.update(DESKTOP_ARTIFACT_BASE_NAME.as_bytes());
+        hasher.update(workspace_dir.to_string_lossy().as_bytes());
+        if let Some(value) = file_sha256_if_exists(&runtime_config_path)? {
+            hasher.update(value.as_bytes());
+        }
+        if let Some(value) = file_sha256_if_exists(&portal_runtime_config_path)? {
+            hasher.update(value.as_bytes());
+        }
+        if let Some(value) = file_sha256_if_exists(&snapshot_path)? {
+            hasher.update(value.as_bytes());
+        }
+        if let Some(value) = file_sha256_if_exists(&brand_stamp_path)? {
+            hasher.update(value.as_bytes());
+        }
+        format!("{:x}", hasher.finalize())
+    };
+
+    if config_path.exists() {
+        if let Some(state) = load_runtime_openclaw_config_sync_state(app)? {
+            if state.signature == signature {
+                return Ok(config_path);
+            }
+        }
+    }
+
     generate_openclaw_runtime_config(app, gateway_token, &config_path)?;
     if config_path.exists() {
+        save_runtime_openclaw_config_sync_state(
+            app,
+            &RuntimeOpenClawConfigSyncState {
+                signature: signature.clone(),
+                synced_at: current_unix_timestamp_string(),
+            },
+        )?;
         return Ok(config_path);
     }
 
@@ -5999,6 +6157,13 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
     let fallback_path = fallback_dir.join("openclaw.json");
     generate_openclaw_runtime_config(app, gateway_token, &fallback_path)?;
     if fallback_path.exists() {
+        save_runtime_openclaw_config_sync_state(
+            app,
+            &RuntimeOpenClawConfigSyncState {
+                signature,
+                synced_at: current_unix_timestamp_string(),
+            },
+        )?;
         return Ok(fallback_path);
     }
 
@@ -6142,6 +6307,7 @@ fn start_sidecar(
     state: State<'_, SidecarState>,
     args: Vec<String>,
 ) -> Result<bool, String> {
+    let startup_begin = Instant::now();
     append_desktop_bootstrap_log(
         &app,
         &format!("start_sidecar: begin args={}", args.join(" ")),
@@ -6171,6 +6337,7 @@ fn start_sidecar(
     }
 
     let runtime = resolve_runtime_command(&app)?;
+    let phase_snapshot_sync_begin = Instant::now();
     if let Err(error) = sync_current_brand_runtime_snapshot(&app) {
         eprintln!("failed to sync OEM runtime snapshot before sidecar start: {error}");
         append_desktop_bootstrap_log(
@@ -6178,7 +6345,15 @@ fn start_sidecar(
             &format!("start_sidecar: snapshot sync warning {error}"),
         );
     }
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "start_sidecar: phase snapshot_sync={}ms",
+            phase_snapshot_sync_begin.elapsed().as_millis()
+        ),
+    );
     let mut occupied_ports = detect_local_service_port_conflicts();
+    let phase_port_check_begin = Instant::now();
     if !occupied_ports.is_empty() {
         reclaim_any_local_service_ports(&app);
         occupied_ports = detect_local_service_port_conflicts();
@@ -6193,14 +6368,36 @@ fn start_sidecar(
             ));
         }
     }
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "start_sidecar: phase port_check={}ms",
+            phase_port_check_begin.elapsed().as_millis()
+        ),
+    );
     let expected_sidecar_state = build_expected_sidecar_state(&app, &runtime.source, &args, None)?;
+    let phase_dependency_sync_begin = Instant::now();
     let gateway_token = load_or_create_gateway_token(&app)?;
     append_desktop_bootstrap_log(&app, "start_sidecar: gateway token ready");
     ensure_openclaw_workspace_seed(&app)?;
     append_desktop_bootstrap_log(&app, "start_sidecar: workspace seed ready");
-    ensure_current_brand_runtime_mcps(&app, "sidecar start")?;
-    ensure_current_brand_runtime_skills(&app, "sidecar start")?;
-    append_desktop_bootstrap_log(&app, "start_sidecar: runtime skills ready");
+    let (mcp_changed, skills_changed) =
+        ensure_current_brand_runtime_dependencies(&app, "sidecar start")?;
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "start_sidecar: runtime dependencies ready mcp_changed={} skills_changed={}",
+            mcp_changed, skills_changed
+        ),
+    );
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "start_sidecar: phase dependency_sync={}ms",
+            phase_dependency_sync_begin.elapsed().as_millis()
+        ),
+    );
+    let phase_config_begin = Instant::now();
     let openclaw_state_dir = openclaw_state_dir(&app)?;
     let openclaw_config_path = ensure_openclaw_runtime_config(&app, &gateway_token)?;
     append_desktop_bootstrap_log(
@@ -6220,6 +6417,13 @@ fn start_sidecar(
             "start_sidecar: runtime dirs ready skills_dir={} mcp_config={}",
             skills_dir.to_string_lossy(),
             mcp_config.to_string_lossy()
+        ),
+    );
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "start_sidecar: phase config_prepare={}ms",
+            phase_config_begin.elapsed().as_millis()
         ),
     );
     let extra_ca_certs = resource_extra_ca_certs_path(&app);
@@ -6335,6 +6539,13 @@ fn start_sidecar(
     )?;
     save_persisted_sidecar_state(&app, &persisted_state)?;
     append_desktop_bootstrap_log(&app, "start_sidecar: child running");
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "start_sidecar: phase total_pre_spawn={}ms",
+            startup_begin.elapsed().as_millis()
+        ),
+    );
     Ok(true)
 }
 

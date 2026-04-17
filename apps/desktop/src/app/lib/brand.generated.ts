@@ -71,7 +71,7 @@ export const BRAND = {
       "bundleIdentifier": "ai.caiclaw.desktop",
       "artifactBaseName": "LiCaiClaw",
       "buildId": "202604171540",
-      "sourceProfileHash": "6d3b1579336385d87f2af1c90ceeab43079ac5ba8695f52e6917e6320d682e60"
+      "sourceProfileHash": "9356feb3dcb4eaafb0a8bc99e7332d066d9fba1aedfdd3eeee69851a7705f713"
     }
   }
 } as const;

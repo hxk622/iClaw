@@ -16,6 +16,34 @@ function entryLabel(value: DesktopFaultReportSummaryRecord['entry']): string {
   return value === 'installer' ? '安装程序' : '异常弹窗';
 }
 
+function formatFourPartVersion(value: string): string {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  const plusIndex = normalized.indexOf('+');
+  if (plusIndex >= 0) {
+    const base = normalized.slice(0, plusIndex).trim();
+    const suffix = normalized.slice(plusIndex + 1).trim();
+    if (base && suffix) {
+      return `${base}.${suffix}`;
+    }
+    return base || suffix;
+  }
+
+  return normalized;
+}
+
+function sourceLabel(input: Pick<DesktopFaultReportSummaryRecord, 'entry' | 'appVersion'>): string {
+  const base = entryLabel(input.entry);
+  const version = formatFourPartVersion(input.appVersion);
+  if (!version) {
+    return base;
+  }
+  return `${base} · ${version}`;
+}
+
 function accountStateLabel(value: DesktopFaultReportSummaryRecord['accountState']): string {
   return value === 'authenticated' ? '已登录' : '匿名';
 }
@@ -236,7 +264,7 @@ export function DesktopFaultReportsPage() {
                         <div className="fig-audit-row__title">{formatDateTime(item.createdAt)}</div>
                         <div className="fig-audit-row__detail">{item.reportId}</div>
                       </div>
-                      <div style={GRID_CELL_STYLE}>{entryLabel(item.entry)}</div>
+                      <div style={GRID_CELL_STYLE}>{sourceLabel(item)}</div>
                       <div style={GRID_CELL_STYLE}>{item.userId || '匿名'}</div>
                       <div style={GRID_CELL_STYLE}>{usernameLabel(item)}</div>
                       <div style={GRID_CELL_STYLE}>{deviceSummary(item)}</div>

@@ -828,12 +828,13 @@ function mapCreditAccountRow(row: CreditAccountRow, createdAt?: Date): CreditAcc
 
 function mapPaymentOrderRow(row: PaymentOrderRow): PaymentOrderRecord {
   const metadata = row.metadata || {};
+  const normalizeText = (value: unknown) => String(value || '').replace(/龙虾币/g, '积分');
   return {
     id: row.id,
     userId: row.user_id,
     provider: row.provider,
     packageId: row.package_id,
-    packageName: row.package_name,
+    packageName: normalizeText(row.package_name),
     credits: parseDbNumber(row.credits),
     bonusCredits: parseDbNumber(row.bonus_credits),
     amountCnyFen: parseDbNumber(row.amount_cny_fen),

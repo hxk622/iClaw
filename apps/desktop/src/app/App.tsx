@@ -2496,7 +2496,7 @@ function AuthedView({
         !authenticated &&
         !accessToken &&
         welcomePageConfig?.enabled !== false,
-      sidebarCollapsed: sidebarCollapsed || resolvedPrimaryView === 'knowledge-library',
+      sidebarCollapsed,
     }),
     [
       accessToken,
