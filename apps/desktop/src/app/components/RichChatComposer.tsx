@@ -1441,7 +1441,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, [closeStockMenu, focus, insertTextAtCaret, insertTokenAtCaret, refreshState, removeStockTokens, removeStockTriggerBeforeCaret]);
 
     const openMentionMenu = useCallback((source: ComposerMenuSource) => {
-      if (!connected) {
+      if (sessionTransitioning) {
         return;
       }
       pendingMentionTriggerRef.current = source === 'typing';
@@ -1459,10 +1459,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           syncMentionMenuPosition();
         });
       }
-    }, [closeMarketMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected, syncMentionMenuPosition]);
+    }, [closeMarketMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, sessionTransitioning, syncMentionMenuPosition]);
 
     const openStockMenu = useCallback((source: ComposerMenuSource, kind: ComposerInstrumentMenuKind = 'stock') => {
-      if (!connected) {
+      if (sessionTransitioning) {
         return;
       }
       pendingStockTriggerRef.current = source === 'typing';
@@ -1482,10 +1482,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           syncStockMenuPosition();
         });
       }
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeWatchlistMenu, connected, findTriggerMatchBeforeCaret, syncStockMenuPosition]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeWatchlistMenu, findTriggerMatchBeforeCaret, sessionTransitioning, syncStockMenuPosition]);
 
     const openSkillMenu = useCallback(() => {
-      if (!connected) {
+      if (sessionTransitioning) {
         return;
       }
       setModelMenuOpen(false);
@@ -1496,10 +1496,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeWatchlistMenu();
       closeOutputMenu();
       setSkillMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeStockMenu, closeWatchlistMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeStockMenu, closeWatchlistMenu, sessionTransitioning]);
 
     const openModeMenu = useCallback(() => {
-      if (!connected) {
+      if (sessionTransitioning) {
         return;
       }
       setModelMenuOpen(false);
@@ -1510,10 +1510,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeWatchlistMenu();
       closeOutputMenu();
       setModeMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, sessionTransitioning]);
 
     const openMarketMenu = useCallback(() => {
-      if (!connected) {
+      if (sessionTransitioning) {
         return;
       }
       setModelMenuOpen(false);
@@ -1524,10 +1524,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeWatchlistMenu();
       closeOutputMenu();
       setMarketMenuOpen(true);
-    }, [closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected]);
+    }, [closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, sessionTransitioning]);
 
     const openWatchlistMenu = useCallback(() => {
-      if (!connected) {
+      if (sessionTransitioning) {
         return;
       }
       setModelMenuOpen(false);
@@ -1538,10 +1538,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeStockMenu();
       closeOutputMenu();
       setWatchlistMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, sessionTransitioning]);
 
     const openOutputMenu = useCallback(() => {
-      if (!connected) {
+      if (sessionTransitioning) {
         return;
       }
       setModelMenuOpen(false);
@@ -1552,7 +1552,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeWatchlistMenu();
       closeStockMenu();
       setOutputMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, sessionTransitioning]);
 
     const selectSkill = useCallback((slug: string | null) => {
       setSelectedSkillSlug(slug);
@@ -2118,7 +2118,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     ]);
 
     useEffect(() => {
-      if (!connected || sessionTransitioning) {
+      if (sessionTransitioning) {
         setModelMenuOpen(false);
         closeMentionMenu();
         closeStockMenu();
@@ -2128,7 +2128,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         closeWatchlistMenu();
         closeOutputMenu();
       }
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected, sessionTransitioning]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, sessionTransitioning]);
 
     useEffect(() => {
       if (
@@ -2158,6 +2158,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const composerBusy = busy || isSubmitting;
     const canComposeWhileDisconnected = queueWhileConnecting;
     const composerInteractive = connected || canComposeWhileDisconnected;
+    const selectorToolbarDisabled = sessionTransitioning;
     const gatewayConnecting = !connected && gatewayReady;
     const showAbortAction = composerBusy && !hasContent;
     const submitLabel = showAbortAction ? '停止' : busy && hasContent ? '加入队列' : '发送';
@@ -2559,7 +2560,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   className="iclaw-composer__selector-trigger"
                   data-tone="expert"
                   data-active={selectedAgent ? 'true' : 'false'}
-                  disabled={!connected}
+                  disabled={selectorToolbarDisabled}
                   aria-haspopup="dialog"
                   aria-expanded={mentionMenuOpen}
                   onMouseDown={(event) => event.preventDefault()}
@@ -2606,7 +2607,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   className="iclaw-composer__selector-trigger"
                   data-tone="skill"
                   data-active={selectedSkill ? 'true' : 'false'}
-                  disabled={!connected}
+                  disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={skillMenuOpen}
                   onMouseDown={(event) => event.preventDefault()}
@@ -2743,7 +2744,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   className="iclaw-composer__selector-trigger"
                   data-tone="mode"
                   data-active={selectedModeOption ? 'true' : 'false'}
-                  disabled={!connected}
+                  disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={modeMenuOpen}
                   onMouseDown={(event) => event.preventDefault()}
@@ -2864,7 +2865,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   className="iclaw-composer__selector-trigger"
                   data-tone="market"
                   data-active={selectedMarketScopeOption ? 'true' : 'false'}
-                  disabled={!connected}
+                  disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={marketMenuOpen}
                   onMouseDown={(event) => event.preventDefault()}
@@ -2985,7 +2986,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   className="iclaw-composer__selector-trigger"
                   data-tone="stock"
                   data-active={selectedContextKind === 'stock' ? 'true' : 'false'}
-                  disabled={!connected}
+                  disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={stockMenuOpen && stockMenuKind === 'stock'}
                   onMouseDown={(event) => event.preventDefault()}
@@ -3024,7 +3025,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   className="iclaw-composer__selector-trigger"
                   data-tone="stock"
                   data-active={selectedContextKind === 'fund' ? 'true' : 'false'}
-                  disabled={!connected}
+                  disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={stockMenuOpen && stockMenuKind === 'fund'}
                   onMouseDown={(event) => event.preventDefault()}
@@ -3063,7 +3064,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   className="iclaw-composer__selector-trigger"
                   data-tone="watchlist"
                   data-active={selectedWatchlistOption ? 'true' : 'false'}
-                  disabled={!connected}
+                  disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={watchlistMenuOpen}
                   onMouseDown={(event) => event.preventDefault()}
@@ -3184,7 +3185,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   className="iclaw-composer__selector-trigger"
                   data-tone="output"
                   data-active={selectedOutputOption ? 'true' : 'false'}
-                  disabled={!connected}
+                  disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={outputMenuOpen}
                   onMouseDown={(event) => event.preventDefault()}
