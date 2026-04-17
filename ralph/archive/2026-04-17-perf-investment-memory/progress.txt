@@ -1,0 +1,5 @@
+Ralph Progress
+==============
+
+Project: iClaw Investment Experts and Memory Performance Refactor
+Branch: ralph/perf-investment-memory

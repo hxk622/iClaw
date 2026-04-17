@@ -1,5 +1,5 @@
 Ralph Progress
 ==============
 
-Project: iClaw Investment Experts and Memory Performance Refactor
-Branch: ralph/perf-investment-memory
+Project: iClaw Unified Desktop Updater Rollout
+Branch: ralph/unified-desktop-updater

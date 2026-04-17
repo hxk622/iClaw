@@ -1,0 +1,116 @@
+{
+  "project": "iClaw Investment Experts and Memory Performance Refactor",
+  "branchName": "ralph/perf-investment-memory",
+  "description": "Refactor 智能投资专家 and 记忆管理 so that list/content views load from lightweight snapshots while heavy detail and runtime diagnostics move off the first-paint path.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add a lightweight investment experts catalog endpoint",
+      "description": "As a desktop client, I want a lightweight 投资专家列表接口 so that the page can load card data without downloading the full agent catalog payload.",
+      "acceptanceCriteria": [
+        "Add a dedicated control-plane endpoint for investment experts list data instead of reusing the full /agents/catalog payload",
+        "The list response includes only card fields needed for the investment experts page",
+        "The list response excludes large metadata fields such as long system prompts and full previews",
+        "Installed state is not duplicated as heavyweight per-item metadata in the catalog response",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Keep the DTO intentionally narrow and projection-oriented."
+    },
+    {
+      "id": "US-002",
+      "title": "Switch the desktop investment experts page to snapshot-first loading",
+      "description": "As a user, I want 智能投资专家 to open immediately from cached list data so that revisiting the page does not trigger a cold full refresh every time.",
+      "acceptanceCriteria": [
+        "InvestmentExpertsView no longer forces a full refresh on initial mount",
+        "Desktop investment experts loading uses cached snapshot data first when available",
+        "A background refresh updates the page without blocking first paint",
+        "Manual refresh still triggers a network refresh when requested by the user",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Preserve existing page behavior while removing mount-time forceRefresh."
+    },
+    {
+      "id": "US-003",
+      "title": "Load investment expert detail data on demand",
+      "description": "As a user, I want detailed expert metadata to load only when I open a card so that the list page stays light while detail remains rich.",
+      "acceptanceCriteria": [
+        "Add a dedicated investment expert detail fetch path keyed by slug",
+        "Investment expert detail dialog loads full detail data only after the user opens a specific expert",
+        "The list page does not require full detail payloads to render card shelves",
+        "Closing and reopening the list page does not re-download full detail payloads for every expert",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "This story should keep the current visual richness of the dialog without burdening the list payload."
+    },
+    {
+      "id": "US-004",
+      "title": "Split memory entries loading from memory runtime diagnostics",
+      "description": "As a user, I want 记忆管理 to render remembered content before any runtime health checks so that the page opens like a content workspace rather than a diagnostic console.",
+      "acceptanceCriteria": [
+        "Add a fast memory snapshot path that returns entries and directories without spawning the runtime memory status CLI",
+        "MemoryView first paint depends on the fast entries snapshot instead of synchronous runtime diagnostics",
+        "Opening the memory page no longer blocks on memory status availability",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Keep the existing entry parsing behavior for now; this story is about cutting diagnostics out of the first-paint path."
+    },
+    {
+      "id": "US-005",
+      "title": "Persist cached memory runtime status with TTL",
+      "description": "As a desktop shell, I want a cached memory runtime status snapshot so that repeated page opens do not rerun the same expensive diagnostics within a short time window.",
+      "acceptanceCriteria": [
+        "Introduce a persisted memory runtime status snapshot with saved timestamp",
+        "Memory runtime status reads reuse the cached snapshot for 30 to 60 seconds when still fresh",
+        "Expired or missing snapshots trigger a refresh path that updates the stored snapshot",
+        "Cache read and write behavior is scoped per desktop app brand/runtime workspace",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Prefer a simple local snapshot file or lightweight persisted store over repeated ad hoc runtime probes."
+    },
+    {
+      "id": "US-006",
+      "title": "Load memory runtime status asynchronously after content render",
+      "description": "As a user, I want memory diagnostics to appear after the list is already visible so that status chips never block access to my stored memories.",
+      "acceptanceCriteria": [
+        "MemoryView renders entries before runtime status resolves",
+        "Runtime status is loaded in a secondary asynchronous path after the initial memory content render",
+        "Runtime status failure shows a non-blocking warning state instead of replacing or delaying the memory list",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "This story is UI orchestration only; the cached status source should already exist from earlier stories."
+    },
+    {
+      "id": "US-007",
+      "title": "Add explicit refresh controls for memory diagnostics",
+      "description": "As a user, I want a manual way to re-check memory diagnostics so that heavyweight runtime inspection happens only when I ask for fresh status.",
+      "acceptanceCriteria": [
+        "Memory diagnostics UI exposes a user-triggered refresh action for runtime status",
+        "Manual refresh bypasses the short TTL cache and requests a fresh runtime status probe",
+        "The refresh action indicates loading state without blocking memory list interactions",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Do not reroute this action through the main memory entries load path."
+    }
+  ]
+}

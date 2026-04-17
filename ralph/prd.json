@@ -1,116 +1,113 @@
 {
-  "project": "iClaw Investment Experts and Memory Performance Refactor",
-  "branchName": "ralph/perf-investment-memory",
-  "description": "Refactor 智能投资专家 and 记忆管理 so that list/content views load from lightweight snapshots while heavy detail and runtime diagnostics move off the first-paint path.",
+  "project": "iClaw Unified Desktop Updater Rollout",
+  "branchName": "ralph/unified-desktop-updater",
+  "description": "Unify macOS and Windows desktop updates under one control-plane policy model with a native-updater-first execution path and installer fallback.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add a lightweight investment experts catalog endpoint",
-      "description": "As a desktop client, I want a lightweight 投资专家列表接口 so that the page can load card data without downloading the full agent catalog payload.",
+      "title": "Standardize desktop release metadata for updater-first targets",
+      "description": "As a release pipeline, I want macOS and Windows targets to publish the same installer, updater, signature, and policy metadata shape so that runtime update logic can stay platform-agnostic.",
       "acceptanceCriteria": [
-        "Add a dedicated control-plane endpoint for investment experts list data instead of reusing the full /agents/catalog payload",
-        "The list response includes only card fields needed for the investment experts page",
-        "The list response excludes large metadata fields such as long system prompts and full previews",
-        "Installed state is not duplicated as heavyweight per-item metadata in the catalog response",
+        "Formal desktop release metadata stores installer, updater, signature, and release policy for both darwin and windows targets",
+        "Target manifest generation keeps installer artifact_url while embedding updater url and signature when signed updater artifacts exist",
+        "Release metadata remains keyed by platform and arch without introducing platform-specific schema branches",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 1,
       "passes": false,
-      "notes": "Keep the DTO intentionally narrow and projection-oriented."
+      "notes": ""
     },
     {
       "id": "US-002",
-      "title": "Switch the desktop investment experts page to snapshot-first loading",
-      "description": "As a user, I want 智能投资专家 to open immediately from cached list data so that revisiting the page does not trigger a cold full refresh every time.",
+      "title": "Tighten publish and doctor validation for signed updater artifacts",
+      "description": "As a release engineer, I want publish validation to catch incomplete updater bundles before release so that updater-first rollout does not ship broken manifests.",
       "acceptanceCriteria": [
-        "InvestmentExpertsView no longer forces a full refresh on initial mount",
-        "Desktop investment experts loading uses cached snapshot data first when available",
-        "A background refresh updates the page without blocking first paint",
-        "Manual refresh still triggers a network refresh when requested by the user",
+        "Desktop publish validation fails when updater and signature are not both present for a target expected to ship signed native updater artifacts",
+        "Release doctor output explicitly reports missing updater or signature files per platform and arch",
+        "Windows and macOS validation rules are driven from one shared updater expectation instead of divergent ad hoc checks",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 2,
       "passes": false,
-      "notes": "Preserve existing page behavior while removing mount-time forceRefresh."
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Load investment expert detail data on demand",
-      "description": "As a user, I want detailed expert metadata to load only when I open a card so that the list page stays light while detail remains rich.",
+      "title": "Preserve unified policy payloads on update hint and updater routes",
+      "description": "As a desktop client, I want update-hint and updater responses to carry the same enforcement semantics on both platforms so that the shell can decide blocking behavior without platform-specific policy branches.",
       "acceptanceCriteria": [
-        "Add a dedicated investment expert detail fetch path keyed by slug",
-        "Investment expert detail dialog loads full detail data only after the user opens a specific expert",
-        "The list page does not require full detail payloads to render card shelves",
-        "Closing and reopening the list page does not re-download full detail payloads for every expert",
+        "Update hint payload includes latestVersion, mandatory, enforcementState, blockNewRuns, reasonCode, reasonMessage, manifestUrl, and artifactUrl",
+        "Native updater route includes mandatory, enforcement_state, block_new_runs, reason_code, reason_message, and external_download_url alongside version, url, and signature",
+        "Managed release resolution uses the same policy source for macOS and Windows requests",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 3,
       "passes": false,
-      "notes": "This story should keep the current visual richness of the dialog without burdening the list payload."
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Split memory entries loading from memory runtime diagnostics",
-      "description": "As a user, I want 记忆管理 to render remembered content before any runtime health checks so that the page opens like a content workspace rather than a diagnostic console.",
+      "title": "Switch desktop upgrade execution to updater-first with installer fallback",
+      "description": "As a desktop user, I want both macOS and Windows to try the signed native updater first and fall back to the installer only when native update is unavailable or fails.",
       "acceptanceCriteria": [
-        "Add a fast memory snapshot path that returns entries and directories without spawning the runtime memory status CLI",
-        "MemoryView first paint depends on the fast entries snapshot instead of synchronous runtime diagnostics",
-        "Opening the memory page no longer blocks on memory status availability",
+        "executeDesktopUpdateUpgrade attempts checkDesktopUpdate before any installer launch on both macOS and Windows Tauri runtimes",
+        "A supported and available signed native update triggers downloadAndInstallDesktopUpdate",
+        "When native updater is unsupported, returns no update payload, or install start fails, the flow resolves installer artifactUrl and falls back to downloadAndLaunchDesktopInstaller",
+        "Non-Tauri or browser contexts continue to open the external installer or manifest URL",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 4,
       "passes": false,
-      "notes": "Keep the existing entry parsing behavior for now; this story is about cutting diagnostics out of the first-paint path."
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Persist cached memory runtime status with TTL",
-      "description": "As a desktop shell, I want a cached memory runtime status snapshot so that repeated page opens do not rerun the same expensive diagnostics within a short time window.",
+      "title": "Persist upgrade scene snapshots for both native and installer paths",
+      "description": "As a desktop user, I want the app to restore my pre-upgrade page after either native updater or installer-driven upgrades so that forced updates do not drop my working context.",
       "acceptanceCriteria": [
-        "Introduce a persisted memory runtime status snapshot with saved timestamp",
-        "Memory runtime status reads reuse the cached snapshot for 30 to 60 seconds when still fresh",
-        "Expired or missing snapshots trigger a refresh path that updates the stored snapshot",
-        "Cache read and write behavior is scoped per desktop app brand/runtime workspace",
+        "The desktop shell writes a scene snapshot before starting either native updater installation or installer fallback",
+        "Scene snapshot records targetVersion, primaryView, and overlayView for forced-update restore",
+        "On restart, matching targetVersion restores the saved scene and clears the snapshot",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 5,
       "passes": false,
-      "notes": "Prefer a simple local snapshot file or lightweight persisted store over repeated ad hoc runtime probes."
+      "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Load memory runtime status asynchronously after content render",
-      "description": "As a user, I want memory diagnostics to appear after the list is already visible so that status chips never block access to my stored memories.",
+      "title": "Unify desktop update progress and blocking UI across platforms",
+      "description": "As a desktop user, I want one consistent upgrade experience regardless of platform so that recommended updates, deferred forced updates, and restart-ready states behave the same on macOS and Windows.",
       "acceptanceCriteria": [
-        "MemoryView renders entries before runtime status resolves",
-        "Runtime status is loaded in a secondary asynchronous path after the initial memory content render",
-        "Runtime status failure shows a non-blocking warning state instead of replacing or delaying the memory list",
+        "Desktop update progress messaging covers native download, installer fallback, installer started, and ready-to-restart states without platform-specific copy branches",
+        "DesktopUpdateGuard continues to honor recommended, required_after_run, and required_now enforcement states after the updater-first rollout",
+        "Settings or in-app update surfaces reflect the active action state during native updater and installer fallback flows",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
       "passes": false,
-      "notes": "This story is UI orchestration only; the cached status source should already exist from earlier stories."
+      "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Add explicit refresh controls for memory diagnostics",
-      "description": "As a user, I want a manual way to re-check memory diagnostics so that heavyweight runtime inspection happens only when I ask for fresh status.",
+      "title": "Cover updater-first rollout with desktop update regression tests",
+      "description": "As an engineer, I want automated tests for the unified updater-first flow so that future changes do not silently break fallback, enforcement, or restart behavior on one platform.",
       "acceptanceCriteria": [
-        "Memory diagnostics UI exposes a user-triggered refresh action for runtime status",
-        "Manual refresh bypasses the short TTL cache and requests a fresh runtime status probe",
-        "The refresh action indicates loading state without blocking memory list interactions",
+        "Desktop upgrade tests cover macOS native updater success and Windows native updater success",
+        "Desktop upgrade tests cover fallback to installer when native updater is unsupported or install start fails",
+        "Control-plane tests cover updater payload and hint payload policy fields for managed desktop releases",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 7,
       "passes": false,
-      "notes": "Do not reroute this action through the main memory entries load path."
+      "notes": ""
     }
   ]
 }
