@@ -564,6 +564,7 @@ export function MCPStoreView({
               description: payload.description,
               transport: payload.transport,
               config: payload.config,
+              metadata: payload.metadata,
               secretValues: payload.secretValues,
             });
             await revalidateBrandRuntimeConfig().catch(() => undefined);
