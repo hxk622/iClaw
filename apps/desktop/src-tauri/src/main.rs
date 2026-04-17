@@ -28,6 +28,8 @@ use std::thread;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{
+    menu::{MenuBuilder, MenuItemBuilder},
+    tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State, WindowEvent,
 };
 use tauri_plugin_updater::UpdaterExt;
@@ -43,6 +45,10 @@ struct SidecarState {
 struct DesktopUpdateState {
     pending: Mutex<Option<tauri_plugin_updater::Update>>,
     stop_sidecar_on_exit: Mutex<bool>,
+}
+
+struct DesktopLifecycleState {
+    allow_exit: Mutex<bool>,
 }
 
 const AUTH_SERVICE: &str = env!("ICLAW_AUTH_SERVICE");
@@ -8243,10 +8249,79 @@ fn apply_initial_window_layout(app: &AppHandle) {
     persist_desktop_webview_window_state(&window);
 }
 
+fn reveal_main_window(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_focus();
+}
+
+fn hide_main_window(window: &tauri::Window) {
+    persist_desktop_window_state(window);
+    let _ = window.hide();
+}
+
+fn build_system_tray(app: &AppHandle) -> Result<(), String> {
+    let show_item = MenuItemBuilder::with_id("tray-show", "打开主窗口")
+        .build(app)
+        .map_err(|e| format!("failed to build tray show item: {e}"))?;
+    let exit_item = MenuItemBuilder::with_id("tray-exit", "退出")
+        .build(app)
+        .map_err(|e| format!("failed to build tray exit item: {e}"))?;
+    let menu = MenuBuilder::new(app)
+        .items(&[&show_item, &exit_item])
+        .build()
+        .map_err(|e| format!("failed to build tray menu: {e}"))?;
+
+    let mut tray_builder = TrayIconBuilder::with_id("main-tray")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app: &AppHandle, event| match event.id().as_ref() {
+            "tray-show" => reveal_main_window(app),
+            "tray-exit" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    persist_desktop_webview_window_state(&window);
+                }
+                if let Ok(mut allow_exit) = app.state::<DesktopLifecycleState>().allow_exit.lock() {
+                    *allow_exit = true;
+                }
+                if let Ok(mut should_stop) = app.state::<DesktopUpdateState>().stop_sidecar_on_exit.lock() {
+                    *should_stop = true;
+                }
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray: &TrayIcon, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                reveal_main_window(&tray.app_handle());
+            }
+        });
+
+    if let Some(icon) = app.default_window_icon() {
+        tray_builder = tray_builder.icon(icon.clone());
+    }
+
+    tray_builder
+        .build(app)
+        .map_err(|e| format!("failed to build tray icon: {e}"))?;
+    Ok(())
+}
+
 fn main() {
     let builder = tauri::Builder::default()
         .manage(SidecarState {
             child: Mutex::new(None),
+        })
+        .manage(DesktopLifecycleState {
+            allow_exit: Mutex::new(false),
         })
         .manage(DesktopUpdateState {
             pending: Mutex::new(None),
@@ -8260,17 +8335,21 @@ fn main() {
     let app = builder
         .setup(|app| {
             apply_initial_window_layout(app.handle());
+            build_system_tray(app.handle())?;
             Ok(())
         })
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { api, .. } => {
-                persist_desktop_window_state(window);
-                let is_focused = window.is_focused().unwrap_or(false);
-                if is_focused {
+                let allow_exit = window
+                    .app_handle()
+                    .state::<DesktopLifecycleState>()
+                    .allow_exit
+                    .lock()
+                    .map(|guard| *guard)
+                    .unwrap_or(false);
+                if !allow_exit {
                     api.prevent_close();
-                    let _ = window.minimize();
-                } else {
-                    window.app_handle().exit(0);
+                    hide_main_window(window);
                 }
             }
             WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
@@ -8333,6 +8412,9 @@ fn main() {
         .expect("error while building tauri application");
     app.run(|app_handle, event| {
         if let RunEvent::ExitRequested { .. } = event {
+            if let Ok(mut allow_exit) = app_handle.state::<DesktopLifecycleState>().allow_exit.lock() {
+                *allow_exit = true;
+            }
             if let Some(window) = app_handle.get_webview_window("main") {
                 persist_desktop_webview_window_state(&window);
             }
