@@ -751,6 +751,19 @@ function getRunStatusMeta(status?: CronRunStatus): {
   return { label: '待执行', tone: 'muted', summaryLabel: '待执行' };
 }
 
+function getRunToneSurfaceClassName(tone: 'muted' | 'brand' | 'danger' | 'success'): string {
+  if (tone === 'success') {
+    return 'border-[rgba(34,197,94,0.18)] bg-[rgba(240,253,244,0.9)] text-[rgb(21,128,61)] dark:border-[rgba(34,197,94,0.22)] dark:bg-[rgba(20,83,45,0.18)] dark:text-[#bbf7d0]';
+  }
+  if (tone === 'danger') {
+    return 'border-[rgba(239,68,68,0.18)] bg-[rgba(254,242,242,0.92)] text-[rgb(185,28,28)] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(127,29,29,0.18)] dark:text-[#fecaca]';
+  }
+  if (tone === 'brand') {
+    return 'border-[var(--surface-active-border)] bg-[var(--surface-active-bg)] text-[var(--surface-active-text)]';
+  }
+  return 'border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]';
+}
+
 function resolveRunSummary(job: CronJob, run: CronRunEntry | null): string {
   if (run?.summary?.trim()) {
     return run.summary.trim();
@@ -2331,13 +2344,7 @@ function CronRunHistorySheet({
               <div
                 className={cn(
                   'rounded-[18px] border px-4 py-3 text-[13px] leading-6',
-                  latestStatus.tone === 'success' &&
-                    'border-[rgba(34,197,94,0.18)] bg-[rgba(240,253,244,0.9)] text-[rgb(21,128,61)] dark:border-[rgba(34,197,94,0.22)] dark:bg-[rgba(20,83,45,0.18)] dark:text-[#bbf7d0]',
-                  latestStatus.tone === 'danger' &&
-                    'border-[rgba(239,68,68,0.18)] bg-[rgba(254,242,242,0.92)] text-[rgb(185,28,28)] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(127,29,29,0.18)] dark:text-[#fecaca]',
-                  latestStatus.tone !== 'success' &&
-                    latestStatus.tone !== 'danger' &&
-                    'border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
+                  getRunToneSurfaceClassName(latestStatus.tone),
                 )}
               >
                 {resolveRunSummary(job, latestRun)}
@@ -2350,7 +2357,7 @@ function CronRunHistorySheet({
             </div>
           )}
           {history?.error ? (
-            <div className="mt-3 text-[12px] text-[rgb(185,28,28)] dark:text-[#fecaca]">
+            <div className="mt-3 rounded-[14px] border border-[rgba(239,68,68,0.18)] bg-[rgba(254,242,242,0.92)] px-3 py-2 text-[12px] text-[rgb(185,28,28)] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(127,29,29,0.18)] dark:text-[#fecaca]">
               结果历史读取失败：{history.error}
             </div>
           ) : null}
@@ -2374,22 +2381,49 @@ function CronRunHistorySheet({
               {history.entries.map((entry, index) => {
                 const status = getRunStatusMeta(entry.status);
                 return (
-                  <div key={`${entry.ts ?? entry.runAtMs ?? index}-${entry.status ?? 'unknown'}`} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3">
+                  <div
+                    key={`${entry.ts ?? entry.runAtMs ?? index}-${entry.status ?? 'unknown'}`}
+                    className={cn('rounded-[18px] border px-4 py-3', getRunToneSurfaceClassName(status.tone))}
+                  >
                     <div className="flex flex-wrap items-center gap-2">
                       <Chip tone={status.tone} className="rounded-[8px] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em]">
                         {status.label}
                       </Chip>
-                      <span className="text-[12px] text-[var(--text-muted)]">
+                      <span
+                        className={cn(
+                          'text-[12px]',
+                          status.tone === 'danger' ? 'text-[rgb(127,29,29)] dark:text-[#fecaca]' : 'text-[var(--text-muted)]',
+                        )}
+                      >
                         {formatTimestampDetailed(entry.runAtMs ?? entry.ts)}
                       </span>
                       {entry.durationMs ? (
-                        <span className="text-[12px] text-[var(--text-muted)]">{formatDuration(entry.durationMs)}</span>
+                        <span
+                          className={cn(
+                            'text-[12px]',
+                            status.tone === 'danger' ? 'text-[rgb(127,29,29)] dark:text-[#fecaca]' : 'text-[var(--text-muted)]',
+                          )}
+                        >
+                          {formatDuration(entry.durationMs)}
+                        </span>
                       ) : null}
                       {entry.model ? (
-                        <span className="text-[12px] text-[var(--text-muted)]">模型 {entry.model}</span>
+                        <span
+                          className={cn(
+                            'text-[12px]',
+                            status.tone === 'danger' ? 'text-[rgb(127,29,29)] dark:text-[#fecaca]' : 'text-[var(--text-muted)]',
+                          )}
+                        >
+                          模型 {entry.model}
+                        </span>
                       ) : null}
                     </div>
-                    <div className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+                    <div
+                      className={cn(
+                        'mt-2 text-[13px] leading-6',
+                        status.tone === 'danger' ? 'text-[rgb(127,29,29)] dark:text-[#fecaca]' : 'text-[var(--text-secondary)]',
+                      )}
+                    >
                       {entry.summary?.trim() || entry.error?.trim() || '本次运行没有返回可展示摘要。'}
                     </div>
                   </div>
