@@ -1801,6 +1801,7 @@ export function OpenClawCronSurface({
                           const latestRun = getLatestRunEntry(runHistory);
                           const runStatus = getRunStatusMeta(latestRun?.status ?? job.state?.lastStatus);
                           const runSummary = resolveRunSummary(job, latestRun);
+                          const hasRunFailure = runStatus.tone === 'danger' || Boolean(runHistory?.error);
                           const nextRunAt = resolveJobNextRunAtMs(job);
                           const runMetaText = latestRun
                             ? `${formatTimestampDetailed(latestRun.runAtMs ?? latestRun.ts)}${latestRun.durationMs ? ` · ${formatDuration(latestRun.durationMs)}` : ''}`
@@ -1873,13 +1874,29 @@ export function OpenClawCronSurface({
                                     ) : null}
                                   </div>
 
-                                  <div className="mt-3 rounded-[18px] border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-hover)_58%,transparent)] px-3.5 py-3 dark:border-[rgba(255,255,255,0.08)]">
+                                  <div
+                                    className={cn(
+                                      'mt-3 rounded-[18px] border px-3.5 py-3',
+                                      hasRunFailure
+                                        ? 'border-[rgba(239,68,68,0.18)] bg-[rgba(254,242,242,0.92)] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(127,29,29,0.18)]'
+                                        : 'border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-hover)_58%,transparent)] dark:border-[rgba(255,255,255,0.08)]',
+                                    )}
+                                  >
                                     <div className="flex items-center justify-between gap-3">
                                       <div className="flex min-w-0 items-center gap-2">
                                         <Chip tone={runStatus.tone} className="rounded-[6px] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em]">
                                           {runStatus.label}
                                         </Chip>
-                                        <span className="truncate text-[11px] text-[var(--text-muted)]">{runMetaText}</span>
+                                        <span
+                                          className={cn(
+                                            'truncate text-[11px]',
+                                            hasRunFailure
+                                              ? 'text-[rgb(185,28,28)] dark:text-[#fecaca]'
+                                              : 'text-[var(--text-muted)]',
+                                          )}
+                                        >
+                                          {runMetaText}
+                                        </span>
                                       </div>
                                       <Button
                                         variant="ghost"
@@ -1890,7 +1907,16 @@ export function OpenClawCronSurface({
                                         查看结果
                                       </Button>
                                     </div>
-                                    <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">{runSummary}</p>
+                                    <p
+                                      className={cn(
+                                        'mt-2 line-clamp-2 text-[12px] leading-5',
+                                        hasRunFailure
+                                          ? 'text-[rgb(127,29,29)] dark:text-[#fecaca]'
+                                          : 'text-[var(--text-secondary)]',
+                                      )}
+                                    >
+                                      {runSummary}
+                                    </p>
                                     {runHistory?.loading && !latestRun ? (
                                       <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
                                         <LoaderCircle className="h-3.5 w-3.5 animate-spin" />

@@ -46,8 +46,7 @@ export function CompactSegmentedControl<T extends string>({
               itemClassName,
               active
                 ? cn(
-                    'border border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[var(--pressable-card-rest-shadow)]',
-                    'dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.08)] dark:text-[var(--text-primary)]',
+                    'border border-[var(--surface-active-border)] bg-[var(--surface-active-bg)] text-[var(--surface-active-text)] shadow-[var(--surface-active-shadow)]',
                     activeItemClassName,
                   )
                 : cn(
