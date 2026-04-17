@@ -62,6 +62,7 @@ docs/copilot/
 
 # GSD 规划临时目录
 .planning/
+tmp/
 
 # Python 虚拟环境
 .venv/
