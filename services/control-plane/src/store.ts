@@ -18,6 +18,7 @@ import type {
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
+  InvestmentExpertCatalogSummaryRecord,
   CreateDesktopActionApprovalGrantInput,
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
@@ -114,6 +115,38 @@ function resolveCreditLedgerSortTimestamp(item: CreditLedgerRecord): number {
     return item.assistantTimestamp;
   }
   return Date.parse(item.createdAt) || 0;
+}
+
+function readMetadataString(metadata: Record<string, unknown>, key: string): string | null {
+  const value = metadata[key];
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function readMetadataBoolean(metadata: Record<string, unknown>, key: string): boolean | null {
+  const value = metadata[key];
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  }
+  return null;
+}
+
+function readMetadataNumber(metadata: Record<string, unknown>, key: string): number | null {
+  const value = metadata[key];
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && /^\d+(\.\d+)?$/.test(value.trim())) {
+    return Number(value.trim());
+  }
+  return null;
 }
 
 export interface ControlPlaneStore {
@@ -380,6 +413,7 @@ export interface ControlPlaneStore {
   }): Promise<{items: MarketFundRecord[]; total: number}>;
   getMarketFund(fundId: string): Promise<MarketFundRecord | null>;
   listAgentCatalog(): Promise<AgentCatalogEntryRecord[]>;
+  listInvestmentExpertCatalogSummaries(): Promise<InvestmentExpertCatalogSummaryRecord[]>;
   listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]>;
   countAgentCatalogAdmin(): Promise<number>;
   getAgentCatalogEntry(slug: string): Promise<AgentCatalogEntryRecord | null>;
@@ -2136,6 +2170,31 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
           left.sortOrder - right.sortOrder ||
           left.name.localeCompare(right.name, 'zh-CN'),
       );
+  }
+
+  async listInvestmentExpertCatalogSummaries(): Promise<InvestmentExpertCatalogSummaryRecord[]> {
+    return Array.from(this.agentCatalog.values())
+      .filter((item) => item.active)
+      .filter((item) => {
+        const surface = readMetadataString(item.metadata, 'surface');
+        return surface === 'investment-experts' || surface === 'both';
+      })
+      .sort(
+        (left, right) =>
+          (readMetadataBoolean(right.metadata, 'is_recommended') ? 1 : 0) -
+            (readMetadataBoolean(left.metadata, 'is_recommended') ? 1 : 0) ||
+          (readMetadataBoolean(right.metadata, 'is_hot') ? 1 : 0) - (readMetadataBoolean(left.metadata, 'is_hot') ? 1 : 0) ||
+          (readMetadataNumber(right.metadata, 'usage_count') || 0) - (readMetadataNumber(left.metadata, 'usage_count') || 0) ||
+          left.name.localeCompare(right.name, 'zh-CN'),
+      )
+      .map((item) => ({
+        slug: item.slug,
+        name: item.name,
+        description: item.description,
+        category: item.category,
+        tags: item.tags,
+        metadata: item.metadata,
+      }));
   }
 
   async listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]> {

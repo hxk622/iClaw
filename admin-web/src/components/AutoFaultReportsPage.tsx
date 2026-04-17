@@ -9,6 +9,9 @@ import { formatDateTime } from '../lib/adminFormat';
 import { downloadDesktopDiagnosticUploadFile, loadDesktopDiagnosticUploads } from '../lib/adminApi';
 import type { UserActionDiagnosticUploadRecord } from '../lib/adminTypes';
 
+const LIST_GRID_TEMPLATE = 'minmax(140px,1.15fr) minmax(150px,1.1fr) minmax(120px,0.92fr) minmax(88px,0.7fr) minmax(0,1.15fr)';
+const GRID_CELL_STYLE = { minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' } as const;
+
 function sourceTypeLabel(value: string) {
   if (value === 'auto_error_capture') return '自动采集';
   if (value === 'approval_flow') return '审批链路';
@@ -29,6 +32,10 @@ function usernameLabel(input: { username?: string; userDisplayName?: string; use
     return username;
   }
   return userId || '匿名';
+}
+
+function deviceSummary(input: { appName?: string }): string {
+  return String(input.appName || '').trim() || '未记录';
 }
 
 export function AutoFaultReportsPage() {
@@ -150,8 +157,8 @@ export function AutoFaultReportsPage() {
 
       <div className="fig-page__body">
         {error ? <div className="empty-state empty-state--panel">{error}</div> : null}
-        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(0, 1.1fr) minmax(320px, 0.9fr)' }}>
-          <section className="fig-card fig-audit-table-card">
+        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(0, 1.22fr) minmax(320px, 0.78fr)' }}>
+          <section className="fig-card fig-audit-table-card" style={{ minWidth: 0 }}>
             <div className="fig-card__head">
               <div>
                 <h3>自动采集列表</h3>
@@ -159,13 +166,12 @@ export function AutoFaultReportsPage() {
               </div>
             </div>
             <div className="fig-audit-table">
-              <div className="fig-audit-table__header">
-                <div>时间 / 上传 ID</div>
-                <div>userId</div>
-                <div>userName</div>
-                <div>设备</div>
-                <div>App</div>
-                <div>文件 / 来源</div>
+              <div className="fig-audit-table__header" style={{ gridTemplateColumns: LIST_GRID_TEMPLATE }}>
+                <div style={GRID_CELL_STYLE}>时间 / 上传 ID</div>
+                <div style={GRID_CELL_STYLE}>userId / userName</div>
+                <div style={GRID_CELL_STYLE}>设备</div>
+                <div style={GRID_CELL_STYLE}>来源</div>
+                <div style={GRID_CELL_STYLE}>文件 / 来源</div>
               </div>
               <div className="fig-audit-table__body">
                 {filteredItems.length ? (
@@ -175,16 +181,19 @@ export function AutoFaultReportsPage() {
                       type="button"
                       className={`fig-audit-row${selected?.id === item.id ? ' is-active' : ''}`}
                       onClick={() => setSelectedId(item.id)}
+                      style={{ gridTemplateColumns: LIST_GRID_TEMPLATE, width: '100%', overflow: 'hidden' }}
                     >
-                      <div>
+                      <div style={GRID_CELL_STYLE}>
                         <div className="fig-audit-row__title">{formatDateTime(item.createdAt)}</div>
                         <div className="fig-audit-row__detail">{item.id}</div>
                       </div>
-                      <div>{item.userId || '匿名'}</div>
-                      <div>{usernameLabel(item)}</div>
-                      <div>{item.deviceId}</div>
-                      <div>{item.appName || '未记录'}</div>
-                      <div>{`${item.fileName} · ${sourceTypeLabel(item.sourceType)}`}</div>
+                      <div style={GRID_CELL_STYLE}>
+                        <div>{item.userId || '匿名'}</div>
+                        <div className="fig-audit-row__detail">{usernameLabel(item)}</div>
+                      </div>
+                      <div style={GRID_CELL_STYLE}>{deviceSummary(item)}</div>
+                      <div style={GRID_CELL_STYLE}>{sourceTypeLabel(item.sourceType)}</div>
+                      <div style={GRID_CELL_STYLE}>{`${item.fileName} · ${sourceTypeLabel(item.sourceType)}`}</div>
                     </button>
                   ))
                 ) : (
@@ -214,8 +223,8 @@ export function AutoFaultReportsPage() {
                 <div className="fig-meta-cards">
                   <div className="fig-meta-card"><span>userId</span><strong>{selected.userId || '空'}</strong></div>
                   <div className="fig-meta-card"><span>userName</span><strong>{usernameLabel(selected)}</strong></div>
+                  <div className="fig-meta-card"><span>设备</span><strong>{deviceSummary(selected)}</strong></div>
                   <div className="fig-meta-card"><span>设备 ID</span><strong>{selected.deviceId}</strong></div>
-                  <div className="fig-meta-card"><span>App</span><strong>{selected.appName || '未记录'}</strong></div>
                   <div className="fig-meta-card"><span>文件名</span><strong>{selected.fileName}</strong></div>
                   <div className="fig-meta-card"><span>文件大小</span><strong>{`${Math.max(1, Math.round(selected.fileSizeBytes / 1024))} KB`}</strong></div>
                   <div className="fig-meta-card"><span>敏感级别</span><strong>{selected.sensitivityLevel}</strong></div>

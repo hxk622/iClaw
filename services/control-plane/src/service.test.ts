@@ -274,6 +274,28 @@ test('non-admin users cannot access admin skill catalog APIs', async () => {
   });
 });
 
+test('investment experts catalog list stays lightweight while detail remains rich', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneService(store);
+
+  const catalog = await service.listInvestmentExpertCatalog();
+  assert.ok(catalog.items.length > 0);
+
+  const summary = catalog.items.find((item) => item.slug === 'a-share-value-hunter');
+  assert.ok(summary);
+  assert.equal(summary.detail_loaded, false);
+  assert.equal(summary.metadata.surface, 'investment-experts');
+  assert.equal(summary.metadata.system_prompt, undefined);
+  assert.equal(summary.metadata.conversation_preview, undefined);
+  assert.equal(summary.metadata.task_examples, undefined);
+
+  const detail = await service.getInvestmentExpertCatalogEntry('a-share-value-hunter');
+  assert.equal(detail.detail_loaded, true);
+  assert.ok(typeof detail.metadata.system_prompt === 'string');
+  assert.ok(Array.isArray(detail.metadata.conversation_preview));
+  assert.ok(Array.isArray(detail.metadata.task_examples));
+});
+
 test('desktop action security flow persists policies, grants, audit events, and diagnostic uploads', async () => {
   await withBootstrapRoles({adminEmails: ['security-admin@example.com']}, async () => {
     const store = new InMemoryControlPlaneStore();

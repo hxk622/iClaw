@@ -9,6 +9,7 @@ import type {
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
+  InvestmentExpertCatalogSummaryRecord,
   CreatePaymentOrderInput,
   CreateUserInput,
   CreditAccountRecord,
@@ -752,6 +753,12 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     );
   }
 
+  async listInvestmentExpertCatalogSummaries(): Promise<InvestmentExpertCatalogSummaryRecord[]> {
+    return this.getOrLoadValue(this.investmentExpertCatalogKey(), AGENT_CATALOG_CACHE_TTL_SECONDS, () =>
+      this.base.listInvestmentExpertCatalogSummaries(),
+    );
+  }
+
   async listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]> {
     return this.getOrLoadValue(this.adminAgentCatalogKey(), AGENT_CATALOG_CACHE_TTL_SECONDS, () =>
       this.base.listAgentCatalogAdmin(),
@@ -774,6 +781,7 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     const record = await this.base.upsertAgentCatalogEntry(input);
     await this.cache.delete(
       this.agentCatalogKey(),
+      this.investmentExpertCatalogKey(),
       this.adminAgentCatalogKey(),
       this.adminAgentCatalogCountKey(),
       this.agentCatalogEntryKey(input.slug),
@@ -786,6 +794,7 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     if (removed) {
       await this.cache.delete(
         this.agentCatalogKey(),
+        this.investmentExpertCatalogKey(),
         this.adminAgentCatalogKey(),
         this.adminAgentCatalogCountKey(),
         this.agentCatalogEntryKey(slug),
@@ -1328,6 +1337,10 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   private agentCatalogKey(): string {
     return 'agents:catalog';
+  }
+
+  private investmentExpertCatalogKey(): string {
+    return 'agents:catalog:investment-experts';
   }
 
   private adminAgentCatalogKey(): string {

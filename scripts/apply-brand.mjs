@@ -396,6 +396,7 @@ async function main() {
   const appleTouchIcon = resolveBrandPath(brandDir, brand.assets.appleTouchIcon || brand.assets.faviconPng);
   const installerHero = resolveBrandPath(brandDir, brand.assets.installerHero);
   const tauriIconsDir = resolveBrandPath(brandDir, brand.assets.tauriIconsDir);
+  const tauriIconPng = tauriIconsDir ? path.join(tauriIconsDir, 'icon.png') : null;
   const dmgBackground = brand.assets.dmgBackground
     ? resolveBrandPath(brandDir, brand.assets.dmgBackground)
     : installerHero;

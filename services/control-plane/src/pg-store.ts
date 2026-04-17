@@ -28,6 +28,7 @@ import type {
   AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
   AgentCatalogRecord,
+  InvestmentExpertCatalogSummaryRecord,
   CreatePaymentOrderInput,
   CreateUserInput,
   CreditAccountRecord,
@@ -323,6 +324,15 @@ type AgentCatalogRow = {
   active: boolean;
   created_at: Date;
   updated_at: Date;
+};
+
+type InvestmentExpertCatalogSummaryRow = {
+  slug: string;
+  name: string;
+  description: string;
+  category: 'finance' | 'content' | 'productivity' | 'commerce' | 'general';
+  tags: unknown;
+  metadata_json: Record<string, unknown> | null;
 };
 
 type MarketStockRow = {
@@ -993,6 +1003,17 @@ function mapAgentCatalogRow(row: AgentCatalogRow): AgentCatalogRecord {
     active: row.active,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapInvestmentExpertCatalogSummaryRow(row: InvestmentExpertCatalogSummaryRow): InvestmentExpertCatalogSummaryRecord {
+  return {
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    category: row.category,
+    tags: parseStringArray(row.tags),
+    metadata: parseJsonObject(row.metadata_json),
   };
 }
 
@@ -5344,6 +5365,46 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       `,
     );
     return result.rows.map(mapAgentCatalogRow);
+  }
+
+  async listInvestmentExpertCatalogSummaries(): Promise<InvestmentExpertCatalogSummaryRecord[]> {
+    const result = await this.pool.query<InvestmentExpertCatalogSummaryRow>(
+      `
+        select
+          slug,
+          name,
+          description,
+          category,
+          tags,
+          jsonb_strip_nulls(
+            jsonb_build_object(
+              'surface', metadata_json -> 'surface',
+              'subtitle', metadata_json -> 'subtitle',
+              'avatar_url', metadata_json -> 'avatar_url',
+              'avatar_emoji', metadata_json -> 'avatar_emoji',
+              'investment_category', metadata_json -> 'investment_category',
+              'financial_domain', metadata_json -> 'financial_domain',
+              'asset_domain', metadata_json -> 'asset_domain',
+              'market_domain', metadata_json -> 'market_domain',
+              'source_person', metadata_json -> 'source_person',
+              'usage_count', metadata_json -> 'usage_count',
+              'is_online', metadata_json -> 'is_online',
+              'is_recommended', metadata_json -> 'is_recommended',
+              'is_hot', metadata_json -> 'is_hot',
+              'primary_skill_slug', metadata_json -> 'primary_skill_slug'
+            )
+          ) as metadata_json
+        from agent_catalog_entries
+        where active = true
+          and coalesce(metadata_json ->> 'surface', '') in ('investment-experts', 'both')
+        order by
+          coalesce((metadata_json ->> 'is_recommended')::boolean, false) desc,
+          coalesce((metadata_json ->> 'is_hot')::boolean, false) desc,
+          coalesce((metadata_json ->> 'usage_count')::numeric, 0) desc,
+          name asc
+      `,
+    );
+    return result.rows.map(mapInvestmentExpertCatalogSummaryRow);
   }
 
   async listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]> {

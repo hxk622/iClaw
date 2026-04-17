@@ -9,6 +9,9 @@ import { formatDateTime } from '../lib/adminFormat';
 import { downloadDesktopFaultReportFile, getDesktopFaultReportDetail, loadDesktopFaultReports } from '../lib/adminApi';
 import type { DesktopFaultReportDetailRecord, DesktopFaultReportSummaryRecord } from '../lib/adminTypes';
 
+const LIST_GRID_TEMPLATE = 'minmax(140px,1.15fr) minmax(78px,0.6fr) minmax(130px,0.95fr) minmax(120px,0.9fr) minmax(120px,0.9fr) minmax(0,1.2fr)';
+const GRID_CELL_STYLE = { minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' } as const;
+
 function entryLabel(value: DesktopFaultReportSummaryRecord['entry']): string {
   return value === 'installer' ? '安装程序' : '异常弹窗';
 }
@@ -30,6 +33,13 @@ function usernameLabel(input: { username?: string; userDisplayName?: string; acc
     return username;
   }
   return input.accountState === 'authenticated' ? '未记录' : '匿名';
+}
+
+function deviceSummary(input: { platform?: string; platformVersion?: string; arch?: string }): string {
+  const platform = String(input.platform || '').trim();
+  const platformVersion = String(input.platformVersion || '').trim();
+  const arch = String(input.arch || '').trim();
+  return [platform, platformVersion, arch].filter(Boolean).join(' / ') || '未记录';
 }
 
 export function DesktopFaultReportsPage() {
@@ -195,8 +205,8 @@ export function DesktopFaultReportsPage() {
 
       <div className="fig-page__body">
         {error ? <div className="empty-state empty-state--panel">{error}</div> : null}
-        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(0, 1.1fr) minmax(320px, 0.9fr)' }}>
-          <section className="fig-card fig-audit-table-card">
+        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(0, 1.22fr) minmax(320px, 0.78fr)' }}>
+          <section className="fig-card fig-audit-table-card" style={{ minWidth: 0 }}>
             <div className="fig-card__head">
               <div>
                 <h3>上报列表</h3>
@@ -204,14 +214,13 @@ export function DesktopFaultReportsPage() {
               </div>
             </div>
             <div className="fig-audit-table">
-              <div className="fig-audit-table__header">
-                <div>时间 / 编号</div>
-                <div>来源</div>
-                <div>userId</div>
-                <div>userName</div>
-                <div>设备</div>
-                <div>平台</div>
-                <div>摘要</div>
+              <div className="fig-audit-table__header" style={{ gridTemplateColumns: LIST_GRID_TEMPLATE }}>
+                <div style={GRID_CELL_STYLE}>时间 / 编号</div>
+                <div style={GRID_CELL_STYLE}>来源</div>
+                <div style={GRID_CELL_STYLE}>userId</div>
+                <div style={GRID_CELL_STYLE}>userName</div>
+                <div style={GRID_CELL_STYLE}>设备</div>
+                <div style={GRID_CELL_STYLE}>摘要</div>
               </div>
               <div className="fig-audit-table__body">
                 {filteredItems.length ? (
@@ -221,17 +230,17 @@ export function DesktopFaultReportsPage() {
                       type="button"
                       className={`fig-audit-row${selectedId === item.id ? ' is-active' : ''}`}
                       onClick={() => setSelectedId(item.id)}
+                      style={{ gridTemplateColumns: LIST_GRID_TEMPLATE, width: '100%', overflow: 'hidden' }}
                     >
-                      <div>
+                      <div style={GRID_CELL_STYLE}>
                         <div className="fig-audit-row__title">{formatDateTime(item.createdAt)}</div>
                         <div className="fig-audit-row__detail">{item.reportId}</div>
                       </div>
-                      <div>{entryLabel(item.entry)}</div>
-                      <div>{item.userId || '匿名'}</div>
-                      <div>{usernameLabel(item)}</div>
-                      <div>{item.deviceId}</div>
-                      <div>{item.platform || '未记录'}</div>
-                      <div>{item.errorMessage || item.errorTitle}</div>
+                      <div style={GRID_CELL_STYLE}>{entryLabel(item.entry)}</div>
+                      <div style={GRID_CELL_STYLE}>{item.userId || '匿名'}</div>
+                      <div style={GRID_CELL_STYLE}>{usernameLabel(item)}</div>
+                      <div style={GRID_CELL_STYLE}>{deviceSummary(item)}</div>
+                      <div style={GRID_CELL_STYLE}>{item.errorMessage || item.errorTitle}</div>
                     </button>
                   ))
                 ) : (
@@ -262,9 +271,9 @@ export function DesktopFaultReportsPage() {
                   <div className="fig-meta-card"><span>来源</span><strong>{entryLabel(detail.entry)}</strong></div>
                   <div className="fig-meta-card"><span>身份</span><strong>{accountStateLabel(detail.accountState)}</strong></div>
                   <div className="fig-meta-card"><span>userName</span><strong>{usernameLabel(detail)}</strong></div>
+                  <div className="fig-meta-card"><span>设备</span><strong>{deviceSummary(detail)}</strong></div>
                   <div className="fig-meta-card"><span>设备 ID</span><strong>{detail.deviceId || '未记录'}</strong></div>
                   <div className="fig-meta-card"><span>应用版本</span><strong>{detail.appVersion || '未记录'}</strong></div>
-                  <div className="fig-meta-card"><span>平台</span><strong>{detail.platformVersion || detail.platform || '未记录'}</strong></div>
                   <div className="fig-meta-card"><span>包大小</span><strong>{`${Math.max(1, Math.round(detail.fileSizeBytes / 1024))} KB`}</strong></div>
                 </div>
 
