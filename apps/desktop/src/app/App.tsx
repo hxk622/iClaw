@@ -249,6 +249,24 @@ interface AuthUser {
   role?: 'user' | 'admin' | 'super_admin' | null;
 }
 
+type ResolvedShellSnapshot = {
+  shellReady: boolean;
+  chromeActiveView: PrimaryView | null;
+  enabledMenuKeys: string[];
+  menuUiConfig: Record<string, ReturnType<typeof resolveRequiredMenuUiConfig>[string]>;
+  headerConfig: ReturnType<typeof resolveHeaderConfig>;
+  inputComposerConfig: ReturnType<typeof resolveInputComposerConfig>;
+  welcomePageConfig: ReturnType<typeof resolveWelcomePageConfig>;
+  availablePrimaryViews: PrimaryView[];
+  fallbackPrimaryView: PrimaryView;
+  resolvedPrimaryView: PrimaryView;
+  chatMenuLabel: string;
+  keepChatSurfaceMounted: boolean;
+  showWelcomeBackground: boolean;
+  showChatWelcomeBeforeAuthBootstrap: boolean;
+  sidebarCollapsed: boolean;
+};
+
 function isUnauthorizedAuthError(error: unknown): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'UNAUTHORIZED');
 }
@@ -2452,19 +2470,50 @@ function AuthedView({
     authenticated ||
     Boolean(accessToken) ||
     (!authModalOpen && authBootstrapReady && chatRuntimeAuthRef.current);
-  const chatMenuLabel = menuUiConfig.chat.displayName;
-  const keepChatSurfaceMounted =
-    !showStartupGate && authBootstrapReady;
-  const showWelcomeBackground =
-    !authenticated &&
-    authBootstrapReady &&
-    welcomePageConfig?.enabled !== false;
-  const showChatWelcomeBeforeAuthBootstrap =
-    resolvedPrimaryView === 'chat' &&
-    !showStartupGate &&
-    !authenticated &&
-    !accessToken &&
-    welcomePageConfig?.enabled !== false;
+  const resolvedShellSnapshot = useMemo<ResolvedShellSnapshot>(
+    () => ({
+      shellReady: brandRuntimeReady,
+      chromeActiveView: brandRuntimeReady ? resolvedPrimaryView : null,
+      enabledMenuKeys,
+      menuUiConfig,
+      headerConfig,
+      inputComposerConfig,
+      welcomePageConfig,
+      availablePrimaryViews,
+      fallbackPrimaryView,
+      resolvedPrimaryView,
+      chatMenuLabel: menuUiConfig.chat.displayName,
+      keepChatSurfaceMounted: !showStartupGate && authBootstrapReady,
+      showWelcomeBackground: !authenticated && authBootstrapReady && welcomePageConfig?.enabled !== false,
+      showChatWelcomeBeforeAuthBootstrap:
+        resolvedPrimaryView === 'chat' &&
+        !showStartupGate &&
+        !authenticated &&
+        !accessToken &&
+        welcomePageConfig?.enabled !== false,
+      sidebarCollapsed: sidebarCollapsed || resolvedPrimaryView === 'knowledge-library',
+    }),
+    [
+      accessToken,
+      authBootstrapReady,
+      authenticated,
+      availablePrimaryViews,
+      brandRuntimeReady,
+      enabledMenuKeys,
+      fallbackPrimaryView,
+      headerConfig,
+      inputComposerConfig,
+      menuUiConfig,
+      resolvedPrimaryView,
+      showStartupGate,
+      sidebarCollapsed,
+      welcomePageConfig,
+    ],
+  );
+  const chatMenuLabel = resolvedShellSnapshot.chatMenuLabel;
+  const keepChatSurfaceMounted = resolvedShellSnapshot.keepChatSurfaceMounted;
+  const showWelcomeBackground = resolvedShellSnapshot.showWelcomeBackground;
+  const showChatWelcomeBeforeAuthBootstrap = resolvedShellSnapshot.showChatWelcomeBeforeAuthBootstrap;
   const targetChatSurfaceKey = buildChatSurfaceCacheKey(activeChatRoute);
   const mountedMenuSurfaceKeys = getMountedSurfaceKeys('menu');
   const mountedOverlaySurfaceKeys = getMountedSurfaceKeys('overlay') as OverlayView[];
@@ -2527,14 +2576,14 @@ function AuthedView({
 
   useEffect(() => {
     const lastView = lastResolvedPrimaryViewRef.current;
-    lastResolvedPrimaryViewRef.current = resolvedPrimaryView;
-    if (resolvedPrimaryView !== 'chat' || lastView === 'chat') {
+    lastResolvedPrimaryViewRef.current = resolvedShellSnapshot.resolvedPrimaryView;
+    if (resolvedShellSnapshot.resolvedPrimaryView !== 'chat' || lastView === 'chat') {
       return;
     }
     void revalidateBrandRuntimeConfig().catch((error) => {
       console.warn('[desktop] failed to revalidate OEM runtime config on chat entry', error);
     });
-  }, [resolvedPrimaryView, revalidateBrandRuntimeConfig]);
+  }, [resolvedShellSnapshot.resolvedPrimaryView, revalidateBrandRuntimeConfig]);
 
   useEffect(() => {
     const activeChatSurfaceKey = buildChatSurfaceCacheKey(activeChatRoute);
@@ -2588,12 +2637,12 @@ function AuthedView({
   }, [activeChatRoute]);
 
   useEffect(() => {
-    if (isRenderableMenuPrimaryView(resolvedPrimaryView)) {
-      ensureSurfaceVisible('menu', resolvedPrimaryView);
+    if (isRenderableMenuPrimaryView(resolvedShellSnapshot.resolvedPrimaryView)) {
+      ensureSurfaceVisible('menu', resolvedShellSnapshot.resolvedPrimaryView);
       return;
     }
     hideSurfacePool('menu');
-  }, [ensureSurfaceVisible, hideSurfacePool, resolvedPrimaryView]);
+  }, [ensureSurfaceVisible, hideSurfacePool, resolvedShellSnapshot.resolvedPrimaryView]);
 
   useEffect(() => {
     if (overlayView) {
@@ -2608,7 +2657,17 @@ function AuthedView({
       return;
     }
     window.__ICLAW_APP_DIAGNOSTICS__ = {
-      primaryView: resolvedPrimaryView,
+      primaryView: resolvedShellSnapshot.resolvedPrimaryView,
+      shellSnapshot: {
+        shellReady: resolvedShellSnapshot.shellReady,
+        chromeActiveView: resolvedShellSnapshot.chromeActiveView,
+        fallbackPrimaryView: resolvedShellSnapshot.fallbackPrimaryView,
+        availablePrimaryViews: resolvedShellSnapshot.availablePrimaryViews,
+        enabledMenuKeys: resolvedShellSnapshot.enabledMenuKeys,
+        sidebarCollapsed: resolvedShellSnapshot.sidebarCollapsed,
+        showWelcomeBackground: resolvedShellSnapshot.showWelcomeBackground,
+        showChatWelcomeBeforeAuthBootstrap: resolvedShellSnapshot.showChatWelcomeBeforeAuthBootstrap,
+      },
       keepChatSurfaceMounted,
       activeChatRoute,
       targetChatSurfaceKey,
@@ -2653,7 +2712,7 @@ function AuthedView({
     keepChatSurfaceMounted,
     mountedMenuSurfaceKeys,
     mountedOverlaySurfaceKeys,
-    resolvedPrimaryView,
+    resolvedShellSnapshot,
     surfaceCache.state.activeKeys,
     surfaceCache.state.records,
     targetChatSurfaceKey,
@@ -3296,9 +3355,9 @@ function AuthedView({
 
   const renderMenuSurface = (viewKey: PrimaryView) => {
     const viewLabel =
-      menuUiConfig[viewKey]?.displayName ||
-      menuUiConfig[fallbackPrimaryView]?.displayName ||
-      menuUiConfig.chat.displayName;
+      resolvedShellSnapshot.menuUiConfig[viewKey]?.displayName ||
+      resolvedShellSnapshot.menuUiConfig[resolvedShellSnapshot.fallbackPrimaryView]?.displayName ||
+      resolvedShellSnapshot.menuUiConfig.chat.displayName;
     const currentSkillStoreViewConfig:
       | {
           preset: SkillStoreViewPreset;
@@ -3361,8 +3420,8 @@ function AuthedView({
             currentUser={currentUser}
             authenticated={authenticated}
             onRequestAuth={onRequestAuth}
-            inputComposerConfig={inputComposerConfig}
-            welcomePageConfig={welcomePageConfig}
+            inputComposerConfig={resolvedShellSnapshot.inputComposerConfig}
+            welcomePageConfig={resolvedShellSnapshot.welcomePageConfig}
           />
         </DeferredSurface>
       );
@@ -3491,8 +3550,8 @@ function AuthedView({
           />
         );
       }
-      if (showWelcomeBackground && welcomePageConfig) {
-        return <WelcomeBackgroundView welcomePageConfig={welcomePageConfig} onRequestAuth={onRequestAuth} />;
+      if (showWelcomeBackground && resolvedShellSnapshot.welcomePageConfig) {
+        return <WelcomeBackgroundView welcomePageConfig={resolvedShellSnapshot.welcomePageConfig} onRequestAuth={onRequestAuth} />;
       }
       if (authenticated) {
         return (
@@ -3611,7 +3670,7 @@ function AuthedView({
     return null;
   };
 
-  const shellSidebarCollapsed = sidebarCollapsed || resolvedPrimaryView === 'knowledge-library';
+  const shellSidebarCollapsed = resolvedShellSnapshot.sidebarCollapsed;
 
   return (
     <div className="relative h-screen overflow-hidden bg-[var(--bg-page)]">
@@ -3620,7 +3679,7 @@ function AuthedView({
         gatewayToken={gatewayAuth.token}
         gatewayPassword={gatewayAuth.password}
         sessionKey={CRON_SYSTEM_SESSION_KEY}
-        enabled={authenticated && resolvedPrimaryView !== 'cron'}
+        enabled={authenticated && resolvedShellSnapshot.resolvedPrimaryView !== 'cron'}
       />
       <div
         className="absolute inset-y-0 left-0 z-[3] transition-[width] duration-[180ms]"
@@ -3628,11 +3687,11 @@ function AuthedView({
       >
         <Sidebar
           user={currentUser}
-          activeView={resolvedPrimaryView}
+          activeView={resolvedShellSnapshot.chromeActiveView ?? undefined}
           collapsed={shellSidebarCollapsed}
           onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
-          enabledMenuKeys={enabledMenuKeys}
-          menuUiConfig={menuUiConfig}
+          enabledMenuKeys={resolvedShellSnapshot.enabledMenuKeys}
+          menuUiConfig={resolvedShellSnapshot.menuUiConfig}
           selectedConversationId={activeChatRoute.conversationId}
           authenticated={authenticated}
           onOpenChat={handleOpenChatView}
@@ -3672,9 +3731,11 @@ function AuthedView({
         className="absolute inset-y-0 right-0 z-[1] isolate flex min-w-0 flex-col overflow-hidden transition-[left] duration-[180ms] [contain:layout_paint_style]"
         style={{ left: shellSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH }}
       >
-        {resolvedPrimaryView === 'data-connections' || resolvedPrimaryView === 'knowledge-library' || headerConfig.enabled === false ? null : (
+        {resolvedShellSnapshot.resolvedPrimaryView === 'data-connections' ||
+        resolvedShellSnapshot.resolvedPrimaryView === 'knowledge-library' ||
+        resolvedShellSnapshot.headerConfig.enabled === false ? null : (
           <IClawHeader
-            config={headerConfig}
+            config={resolvedShellSnapshot.headerConfig}
             balance={creditBalance?.total_available_balance ?? creditBalance?.available_balance ?? creditBalance?.balance ?? null}
             loading={creditBalanceLoading}
             authenticated={authenticated}
@@ -3688,9 +3749,9 @@ function AuthedView({
         <div className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden [contain:layout_paint_style]">
           {keepChatSurfaceMounted ? (
             <div
-              className={buildSurfaceLayerClassName(resolvedPrimaryView === 'chat')}
+              className={buildSurfaceLayerClassName(resolvedShellSnapshot.resolvedPrimaryView === 'chat')}
               data-chat-surface-key={targetChatSurfaceKey}
-              data-chat-surface-active={resolvedPrimaryView === 'chat' ? 'true' : 'false'}
+              data-chat-surface-active={resolvedShellSnapshot.resolvedPrimaryView === 'chat' ? 'true' : 'false'}
             >
               <OpenClawChatSurface
                 key={`chat-surface:${activeChatSurfaceEntry.version}`}
@@ -3714,15 +3775,15 @@ function AuthedView({
                 creditToken={accessToken}
                 onCreditBalanceRefresh={refreshCreditBalance}
                 user={currentUser}
-                inputComposerConfig={inputComposerConfig}
-                welcomePageConfig={welcomePageConfig}
+                inputComposerConfig={resolvedShellSnapshot.inputComposerConfig}
+                welcomePageConfig={resolvedShellSnapshot.welcomePageConfig}
                 onGeneralChatSessionOverloaded={handleRotateGeneralChatSession}
                 onOpenRechargeCenter={() => setOverlayView('recharge')}
                 onRequireAuth={onRequestAuth}
                 runtimeStateKey={targetChatSurfaceKey}
                 onRuntimeStateChange={updateChatSurfaceRuntimeFlags}
                 ensureRuntimeReadyForRecovery={ensureRuntimeReadyForRecovery}
-                surfaceVisible={resolvedPrimaryView === 'chat'}
+                surfaceVisible={resolvedShellSnapshot.resolvedPrimaryView === 'chat'}
                 sendBlockedReason={desktopUpdateSendBlockedReason}
               />
             </div>
@@ -3731,7 +3792,7 @@ function AuthedView({
             <div
               key={`menu-surface:${viewKey}`}
               className={buildSurfaceLayerClassName(
-                resolvedPrimaryView !== 'chat' && isSurfaceVisible('menu', viewKey),
+                resolvedShellSnapshot.resolvedPrimaryView !== 'chat' && isSurfaceVisible('menu', viewKey),
               )}
             >
               {renderMenuSurface(viewKey)}
@@ -3739,10 +3800,10 @@ function AuthedView({
           ))}
           {showChatWelcomeBeforeAuthBootstrap ? (
             <div className={buildSurfaceLayerClassName(true)}>
-              <WelcomeBackgroundView welcomePageConfig={welcomePageConfig} onRequestAuth={onRequestAuth} />
+              <WelcomeBackgroundView welcomePageConfig={resolvedShellSnapshot.welcomePageConfig} onRequestAuth={onRequestAuth} />
             </div>
           ) : null}
-          {resolvedPrimaryView === 'chat' && !showStartupGate && !authBootstrapReady && !showChatWelcomeBeforeAuthBootstrap ? (
+          {resolvedShellSnapshot.resolvedPrimaryView === 'chat' && !showStartupGate && !authBootstrapReady && !showChatWelcomeBeforeAuthBootstrap ? (
             <div className={buildSurfaceLayerClassName(true)}>
               <AuthBootstrapPlaceholderView
                 eyebrow="Chat Shell"
@@ -3751,7 +3812,7 @@ function AuthedView({
               />
             </div>
           ) : null}
-          {resolvedPrimaryView === 'chat' && showStartupGate ? (
+          {resolvedShellSnapshot.resolvedPrimaryView === 'chat' && showStartupGate ? (
             <div className={buildSurfaceLayerClassName(true)}>
               <ChatBootstrapPlaceholderView />
             </div>
