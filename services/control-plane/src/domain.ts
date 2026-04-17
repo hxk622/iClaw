@@ -1208,7 +1208,7 @@ export type SkillSource = 'cloud' | 'private';
 export type UserSkillLibrarySource = 'cloud' | 'private';
 export type McpCatalogSource = 'cloud';
 export type UserMcpLibrarySource = 'cloud' | 'custom';
-export type ExtensionInstallTarget = 'skill' | 'mcp';
+export type ExtensionInstallTarget = 'skill' | 'mcp' | 'im-bot';
 export type ExtensionSetupStatus = 'not_required' | 'configured' | 'missing';
 export type UserPrivateSkillSourceKind = 'github' | 'local';
 export type AgentCategory = 'finance' | 'content' | 'productivity' | 'commerce' | 'general';
@@ -1412,6 +1412,11 @@ export type AgentCatalogRecord = {
 };
 
 export type AgentCatalogEntryRecord = AgentCatalogRecord;
+
+export type InvestmentExpertCatalogSummaryRecord = Pick<
+  AgentCatalogRecord,
+  'slug' | 'name' | 'description' | 'category' | 'tags' | 'metadata'
+>;
 
 export type AgentCatalogEntryView = {
   slug: string;

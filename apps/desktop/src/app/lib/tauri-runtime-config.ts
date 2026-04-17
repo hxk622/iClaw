@@ -7,6 +7,7 @@ export interface RuntimeConfig {
   openai_model?: string | null;
   anthropic_api_key?: string | null;
   clawhub_url?: string | null;
+  [key: string]: unknown;
 }
 
 export interface RuntimeDiagnosis {

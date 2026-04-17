@@ -69,6 +69,51 @@ export interface ImBotConnectionPreflightResult {
   checks: ImBotConnectionPreflightCheck[];
 }
 
+export interface ImBotCloudRecordData {
+  bot_id: string;
+  platform_id: ImBotPlatformId;
+  name: string;
+  company: string;
+  assistant_id: string | null;
+  assistant: string;
+  enabled: boolean;
+  trigger_mode: 'mention' | 'all' | 'keyword';
+  reply_format: 'text' | 'card' | 'markdown';
+  binding_scope: 'organization' | 'group' | 'private';
+  offline_reply: string;
+  welcome_template: string;
+  unavailable_template: string;
+  configured_secret_keys: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ImBotCloudSecretConfigData {
+  bot_id: string;
+  configured_secret_keys: string[];
+  secret_values: Record<string, string>;
+  updated_at: string;
+}
+
+export interface UpsertImBotCloudRecordInput {
+  token: string;
+  botId: string;
+  platformId: ImBotPlatformId;
+  name: string;
+  company?: string;
+  assistantId?: string | null;
+  assistant: string;
+  enabled: boolean;
+  triggerMode: 'mention' | 'all' | 'keyword';
+  replyFormat: 'text' | 'card' | 'markdown';
+  bindingScope: 'organization' | 'group' | 'private';
+  offlineReply: string;
+  welcomeTemplate: string;
+  unavailableTemplate: string;
+  configuredSecretKeys?: string[];
+  secretValues?: Record<string, string>;
+}
+
 export interface StreamCallbacks {
   onStart?: (payload: unknown) => void;
   onDelta?: (text: string, payload: unknown) => void;
@@ -1959,6 +2004,66 @@ export class IClawClient {
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as { data: ImBotConnectionPreflightResult };
+    return json.data;
+  }
+
+  async listImBotCloudRecords(token: string): Promise<ImBotCloudRecordData[]> {
+    const res = await this.fetchAuth('/portal/im-bots', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token.trim()}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as { data: ImBotCloudRecordData[] };
+    return Array.isArray(json.data) ? json.data : [];
+  }
+
+  async getImBotCloudSecretConfig(token: string, botId: string): Promise<ImBotCloudSecretConfigData | null> {
+    const params = new URLSearchParams({
+      bot_id: botId,
+    });
+    const res = await this.fetchAuth(`/portal/im-bots/secret-config?${params.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token.trim()}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as { data: ImBotCloudSecretConfigData | null };
+    return json.data || null;
+  }
+
+  async upsertImBotCloudRecord(input: UpsertImBotCloudRecordInput): Promise<ImBotCloudRecordData> {
+    const res = await this.fetchAuth('/portal/im-bots', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${input.token.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        bot_id: input.botId,
+        platform_id: input.platformId,
+        name: input.name,
+        company: input.company || '',
+        assistant_id: input.assistantId || null,
+        assistant: input.assistant,
+        enabled: input.enabled,
+        trigger_mode: input.triggerMode,
+        reply_format: input.replyFormat,
+        binding_scope: input.bindingScope,
+        offline_reply: input.offlineReply,
+        welcome_template: input.welcomeTemplate,
+        unavailable_template: input.unavailableTemplate,
+        configured_secret_keys: input.configuredSecretKeys || [],
+        secret_values: input.secretValues || {},
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as { data: ImBotCloudRecordData };
     return json.data;
   }
 

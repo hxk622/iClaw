@@ -2283,6 +2283,27 @@ const server = createJsonServer([
       ),
   },
   {
+    method: 'GET',
+    path: '/portal/im-bots',
+    handler: ({headers}: HandlerContext) =>
+      service.listImBotCloudRecords(requireBearerToken(headers)),
+  },
+  {
+    method: 'GET',
+    path: '/portal/im-bots/secret-config',
+    handler: ({headers, url}: HandlerContext) =>
+      service.getImBotCloudSecretConfig(
+        requireBearerToken(headers),
+        (url.searchParams.get('bot_id') || '').trim(),
+      ),
+  },
+  {
+    method: 'PUT',
+    path: '/portal/im-bots',
+    handler: ({headers, body}: HandlerContext) =>
+      service.upsertImBotCloudRecord(requireBearerToken(headers), (body || {}) as Record<string, unknown>),
+  },
+  {
     method: 'POST',
     path: '/portal/im-bots/preflight',
     handler: ({headers, body}: HandlerContext) =>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
-import type { IClawClient, ImBotConnectionPreflightResult } from '@iclaw/sdk';
+import type { IClawClient, ImBotCloudRecordData, ImBotConnectionPreflightResult } from '@iclaw/sdk';
 import {
   Activity,
   AlertCircle,
@@ -31,9 +31,22 @@ import { PlatformCardShell } from '@/app/components/ui/PlatformCardShell';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { SelectionCard } from '@/app/components/ui/SelectionCard';
 import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
+import {
+  buildRuntimeConfigWithManagedImBots,
+  restoreManagedImBotsFromRuntimeConfig,
+  type ManagedImBotRuntimeRecord,
+} from '@/app/lib/im-bots-runtime';
 import { cn } from '@/app/lib/cn';
 import { readAuth } from '@/app/lib/auth-storage';
+import {
+  bootstrapDesktopConfigStore,
+  readDesktopConfigSection,
+  writeDesktopConfigSection,
+} from '@/app/lib/persistence/config-store';
+import { startSidecarWithTimeout } from '@/app/lib/sidecar-start-timeout';
 import { pushAppNotification } from '@/app/lib/task-notifications';
+import { loadRuntimeConfig, saveRuntimeConfig } from '@/app/lib/tauri-runtime-config';
+import { isTauriRuntime, startSidecar, stopSidecar } from '@/app/lib/tauri-sidecar';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import dingtalkLogo from '@/app/assets/im-bots/dingtalk.png';
 import feishuLogo from '@/app/assets/im-bots/feishu.png';
@@ -82,8 +95,8 @@ interface ManagedBot {
   lastActive: string;
   lastTestAt: string | null;
   healthSummary: string;
-  triggerMode: string;
-  replyFormat: string;
+  triggerMode: IMBotDraft['triggerMode'];
+  replyFormat: IMBotDraft['replyFormat'];
   bindingScope: BindingScope;
   offlineReply: string;
   welcomeTemplate: string;
@@ -101,6 +114,12 @@ type PlatformCardMeta = IMPlatformMeta & {
 };
 
 const DEFAULT_PLATFORM_ID: IMPlatformId = 'dingtalk';
+const IM_BOTS_CONFIG_SECTION = 'im-bots';
+const IM_BOT_SIDECAR_ARGS = ((import.meta.env.VITE_SIDE_CAR_ARGS as string) || '--port 2126')
+  .split(' ')
+  .map((value) => value.trim())
+  .filter(Boolean);
+const IM_BOT_SIDECAR_RESTART_TIMEOUT_MS = 45_000;
 
 const DETAIL_INPUT_CLASS =
   'min-h-[46px] w-full rounded-[15px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]';
@@ -270,6 +289,8 @@ const platformMetaList: PlatformCardMeta[] = [
       },
       { key: 'agent_id', label: 'Agent ID', placeholder: '请输入应用 ID' },
       { key: 'secret', label: 'Secret', placeholder: '请输入应用 Secret' },
+      { key: 'token', label: '回调 Token', placeholder: '请输入回调 Token' },
+      { key: 'encoding_aes_key', label: 'EncodingAESKey', placeholder: '请输入 43 位消息加密密钥' },
       { key: 'callback_url', label: '回调地址', placeholder: '', readOnly: true },
     ],
     introSteps: [
@@ -301,6 +322,8 @@ const platformMetaList: PlatformCardMeta[] = [
       { key: 'corp_id', label: '企业 Corp ID', placeholder: '请输入企业 Corp ID' },
       { key: 'secret', label: 'Secret', placeholder: '请输入客服应用 Secret' },
       { key: 'open_kf_id', label: 'Open KF ID', placeholder: '请输入客服账号 ID' },
+      { key: 'token', label: '回调 Token', placeholder: '请输入回调 Token' },
+      { key: 'encoding_aes_key', label: 'EncodingAESKey', placeholder: '请输入 43 位消息加密密钥' },
       { key: 'callback_url', label: '回调地址', placeholder: '', readOnly: true },
     ],
     introSteps: [
@@ -360,6 +383,8 @@ const platformMetaList: PlatformCardMeta[] = [
     credentialFields: [
       { key: 'app_id', label: 'App ID', placeholder: '请输入公众号 App ID' },
       { key: 'app_secret', label: 'App Secret', placeholder: '请输入公众号 App Secret' },
+      { key: 'token', label: '回调 Token', placeholder: '请输入服务器配置 Token' },
+      { key: 'encoding_aes_key', label: 'EncodingAESKey', placeholder: '请输入 43 位消息加密密钥' },
       { key: 'callback_url', label: '回调地址', placeholder: '', readOnly: true },
     ],
     introSteps: [
@@ -404,6 +429,255 @@ const platformMetaList: PlatformCardMeta[] = [
 
 const initialBots: ManagedBot[] = [];
 
+function toManagedImBotRuntimeRecord(bot: ManagedBot): ManagedImBotRuntimeRecord | null {
+  return {
+    platformId: bot.platformId,
+    enabled: bot.enabled,
+    name: bot.name,
+    bindingScope: bot.bindingScope,
+    triggerMode: bot.triggerMode,
+    replyFormat: bot.replyFormat,
+    credentials: bot.credentials,
+  };
+}
+
+function createManagedBotFromRuntimeRecord(record: ManagedImBotRuntimeRecord): ManagedBot {
+  const platformLabel =
+    platformMetaList.find((item) => item.id === record.platformId)?.label || 'IM';
+  const preflightResult: ImBotConnectionPreflightResult = {
+    ok: true,
+    supported: true,
+    message: '已从本地 runtime 恢复机器人配置，建议重新做一次真实连接验证。',
+    checks: [
+      {
+        id: 'runtime_restore',
+        label: '读取本地 runtime 配置',
+        status: 'warning',
+        detail: '当前状态来自本地已保存配置，不代表最新平台联通性已重新验证。',
+      },
+    ],
+  };
+  const healthState = resolveBotHealthState(record.enabled, null, preflightResult);
+
+  return {
+    id: `${record.platformId}-bot`,
+    platformId: record.platformId,
+    name: record.name || `${platformLabel}办公助手`,
+    company: '待完善',
+    assistantId: null,
+    assistant: '未绑定默认助手',
+    healthState,
+    enabled: record.enabled,
+    lastActive: '已恢复',
+    lastTestAt: null,
+    healthSummary: resolveBotHealthSummary(healthState, preflightResult, null),
+    triggerMode: record.triggerMode,
+    replyFormat: record.replyFormat,
+    bindingScope: record.bindingScope,
+    offlineReply: '我现在暂时离线，稍后会继续处理你的消息。',
+    welcomeTemplate: '你好，我是{{assistant}}，可以直接把问题发给我。',
+    unavailableTemplate: '我暂时无法完成这次请求，已记录到日志，请稍后重试。',
+    credentials: record.credentials,
+    lastPreflightResult: preflightResult,
+    auditLogs: [createAuditEntry('info', '已恢复本地配置', '本地 runtime 中已存在该渠道机器人配置。')],
+  };
+}
+
+async function waitForImBotRuntimeHealth(client: IClawClient, timeoutMs = IM_BOT_SIDECAR_RESTART_TIMEOUT_MS): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      await client.health();
+      return true;
+    } catch {
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 500);
+      });
+    }
+  }
+  return false;
+}
+
+function isAuditEntryRecord(value: unknown): value is AuditEntry {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function isManagedBotRecord(value: unknown): value is ManagedBot {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.id === 'string' &&
+    typeof record.platformId === 'string' &&
+    typeof record.name === 'string' &&
+    typeof record.assistant === 'string' &&
+    typeof record.healthState === 'string' &&
+    typeof record.enabled === 'boolean' &&
+    typeof record.healthSummary === 'string' &&
+    typeof record.triggerMode === 'string' &&
+    typeof record.replyFormat === 'string' &&
+    typeof record.bindingScope === 'string' &&
+    record.credentials &&
+    typeof record.credentials === 'object' &&
+    Array.isArray(record.auditLogs) &&
+    record.auditLogs.every((entry) => isAuditEntryRecord(entry))
+  );
+}
+
+function normalizePersistedBots(value: unknown): ManagedBot[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is ManagedBot => isManagedBotRecord(item));
+}
+
+async function loadPersistedManagedBots(): Promise<ManagedBot[]> {
+  await bootstrapDesktopConfigStore();
+  return normalizePersistedBots(readDesktopConfigSection(IM_BOTS_CONFIG_SECTION));
+}
+
+async function persistManagedBots(nextBots: ManagedBot[]): Promise<void> {
+  await bootstrapDesktopConfigStore();
+  await writeDesktopConfigSection(IM_BOTS_CONFIG_SECTION, nextBots);
+}
+
+function listConfiguredSecretKeys(credentials: Record<string, string>): string[] {
+  return Object.entries(credentials)
+    .filter(([, value]) => String(value || '').trim().length > 0)
+    .map(([key]) => key)
+    .sort();
+}
+
+function toImBotCloudRecordInput(bot: ManagedBot, token: string) {
+  return {
+    token,
+    botId: bot.id,
+    platformId: bot.platformId,
+    name: bot.name,
+    company: bot.company,
+    assistantId: bot.assistantId,
+    assistant: bot.assistant,
+    enabled: bot.enabled,
+    triggerMode: bot.triggerMode,
+    replyFormat: bot.replyFormat,
+    bindingScope: bot.bindingScope,
+    offlineReply: bot.offlineReply,
+    welcomeTemplate: bot.welcomeTemplate,
+    unavailableTemplate: bot.unavailableTemplate,
+    configuredSecretKeys: listConfiguredSecretKeys(bot.credentials),
+    secretValues: bot.credentials,
+  } as const;
+}
+
+function createManagedBotFromCloudRecord(
+  record: ImBotCloudRecordData,
+  localBot: ManagedBot | null,
+): ManagedBot {
+  const healthState = resolveBotHealthState(record.enabled, record.assistant_id, localBot?.lastPreflightResult ?? null);
+  return {
+    id: record.bot_id,
+    platformId: record.platform_id,
+    name: record.name || localBot?.name || `${platformMetaList.find((item) => item.id === record.platform_id)?.label || 'IM'}办公助手`,
+    company: record.company || localBot?.company || '待完善',
+    assistantId: record.assistant_id,
+    assistant: record.assistant || localBot?.assistant || '未绑定默认助手',
+    healthState,
+    enabled: record.enabled,
+    lastActive: localBot?.lastActive || '已同步',
+    lastTestAt: localBot?.lastTestAt ?? null,
+    healthSummary: localBot?.lastPreflightResult
+      ? resolveBotHealthSummary(healthState, localBot.lastPreflightResult, record.assistant_id)
+      : record.configured_secret_keys.length > 0
+        ? '云端记录已同步，本机可继续完成真实连接验证。'
+        : '云端记录已同步，但本机尚未配置该平台凭据。',
+    triggerMode: record.trigger_mode,
+    replyFormat: record.reply_format,
+    bindingScope: record.binding_scope,
+    offlineReply: record.offline_reply,
+    welcomeTemplate: record.welcome_template,
+    unavailableTemplate: record.unavailable_template,
+    credentials: localBot?.credentials || {},
+    lastPreflightResult: localBot?.lastPreflightResult ?? null,
+    auditLogs:
+      localBot?.auditLogs.length
+        ? localBot.auditLogs
+        : [createAuditEntry('info', '已同步云端记录', '机器人主记录已从控制平面恢复。')],
+  };
+}
+
+function mergeManagedBots(localBots: ManagedBot[], cloudRecords: ImBotCloudRecordData[]): ManagedBot[] {
+  const localById = new Map(localBots.map((bot) => [bot.id, bot]));
+  const merged: ManagedBot[] = cloudRecords.map((record) =>
+    createManagedBotFromCloudRecord(record, localById.get(record.bot_id) ?? null),
+  );
+  const seen = new Set(merged.map((bot) => bot.id));
+  for (const localBot of localBots) {
+    if (!seen.has(localBot.id)) {
+      merged.push(localBot);
+    }
+  }
+  return merged;
+}
+
+async function syncManagedBotsToCloud(client: IClawClient, token: string | null, bots: ManagedBot[]): Promise<void> {
+  if (!token) {
+    return;
+  }
+  await Promise.all(
+    bots.map((bot) => client.upsertImBotCloudRecord(toImBotCloudRecordInput(bot, token))),
+  );
+}
+
+async function hydrateCloudBotSecrets(client: IClawClient, token: string, bots: ManagedBot[]): Promise<ManagedBot[]> {
+  const secrets = await Promise.all(
+    bots.map(async (bot) => ({
+      botId: bot.id,
+      payload: await client.getImBotCloudSecretConfig(token, bot.id),
+    })),
+  );
+  const secretMap = new Map(secrets.map((item) => [item.botId, item.payload]));
+  return bots.map((bot) => {
+    const payload = secretMap.get(bot.id);
+    if (!payload?.secret_values || Object.keys(payload.secret_values).length === 0) {
+      return bot;
+    }
+    return {
+      ...bot,
+      credentials: {
+        ...payload.secret_values,
+      },
+    };
+  });
+}
+
+async function syncManagedBotsToRuntimeConfig(bots: ManagedBot[]): Promise<boolean> {
+  const currentConfig = await loadRuntimeConfig();
+  const runtimeBots = bots
+    .map((bot) => toManagedImBotRuntimeRecord(bot))
+    .filter((bot): bot is ManagedImBotRuntimeRecord => Boolean(bot));
+  const nextConfig = buildRuntimeConfigWithManagedImBots(currentConfig, runtimeBots);
+  if (JSON.stringify(currentConfig || {}) === JSON.stringify(nextConfig)) {
+    return false;
+  }
+  await saveRuntimeConfig(nextConfig);
+  return true;
+}
+
+async function restartImBotRuntime(client: IClawClient): Promise<boolean> {
+  if (!isTauriRuntime()) {
+    return false;
+  }
+  await stopSidecar();
+  await startSidecarWithTimeout(
+    startSidecar,
+    IM_BOT_SIDECAR_ARGS,
+    IM_BOT_SIDECAR_RESTART_TIMEOUT_MS,
+    `本地服务启动超时：启动命令在 ${Math.max(1, Math.round(IM_BOT_SIDECAR_RESTART_TIMEOUT_MS / 1000))}s 内未返回。`,
+  );
+  return waitForImBotRuntimeHealth(client);
+}
+
 export function IMBotsView({
   title,
   client,
@@ -426,6 +700,55 @@ export function IMBotsView({
     () => bots.find((item) => item.id === selectedBotId) ?? null,
     [bots, selectedBotId],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        let nextBots = await loadPersistedManagedBots();
+
+        if (nextBots.length === 0 && isTauriRuntime()) {
+          const runtimeConfig = await loadRuntimeConfig();
+          nextBots = restoreManagedImBotsFromRuntimeConfig(runtimeConfig).map((record) =>
+            createManagedBotFromRuntimeRecord(record),
+          );
+          if (nextBots.length > 0) {
+            await persistManagedBots(nextBots);
+          }
+        }
+
+        const token = await resolveAccessToken();
+        if (token) {
+          const cloudRecords = await client.listImBotCloudRecords(token);
+          if (cloudRecords.length > 0) {
+            nextBots = mergeManagedBots(nextBots, cloudRecords);
+            nextBots = await hydrateCloudBotSecrets(client, token, nextBots);
+            await persistManagedBots(nextBots);
+          } else if (nextBots.length > 0) {
+            await syncManagedBotsToCloud(client, token, nextBots);
+          }
+        }
+
+        if (isTauriRuntime() && nextBots.length > 0) {
+          const changed = await syncManagedBotsToRuntimeConfig(nextBots);
+          if (changed) {
+            await restartImBotRuntime(client);
+          }
+        }
+
+        if (!cancelled && nextBots.length > 0) {
+          setBots((current) => (current.length > 0 ? current : nextBots));
+        }
+      } catch (error) {
+        console.warn('[desktop] failed to restore IM bot runtime config', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const configuredPlatforms = useMemo(
     () => new Set(bots.map((item) => item.platformId)),
@@ -551,152 +874,193 @@ export function IMBotsView({
     });
   };
 
+  const applyRuntimeConfigChanges = async (nextBots: ManagedBot[]) => {
+    try {
+      await persistManagedBots(nextBots);
+      await syncManagedBotsToCloud(client, await resolveAccessToken(), nextBots);
+      const changed = await syncManagedBotsToRuntimeConfig(nextBots);
+      if (!changed || !isTauriRuntime()) {
+        return;
+      }
+      const healthy = await restartImBotRuntime(client);
+      pushAppNotification({
+        tone: healthy ? 'success' : 'warning',
+        source: 'system',
+        title: healthy ? '机器人配置已生效' : '机器人配置已保存',
+        text: healthy
+          ? '本地服务已刷新，IM 渠道配置已写入 runtime。'
+          : '本地服务尚未恢复健康，IM 渠道配置已写入，下次重启后仍会生效。',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '写入机器人 runtime 配置失败';
+      pushAppNotification({
+        tone: 'error',
+        source: 'system',
+        title: '机器人配置未完全生效',
+        text: message,
+      });
+    }
+  };
+
+  const applyManagedBotMetadataChanges = async (nextBots: ManagedBot[]) => {
+    try {
+      await persistManagedBots(nextBots);
+      await syncManagedBotsToCloud(client, await resolveAccessToken(), nextBots);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '同步机器人云端记录失败';
+      pushAppNotification({
+        tone: 'error',
+        source: 'system',
+        title: '机器人记录未完全保存',
+        text: message,
+      });
+    }
+  };
+
   const handleCompleteSetup = (draft: IMBotDraft) => {
     const meta = platformMetaList.find((item) => item.id === draft.platformId);
     if (!meta) return;
 
     const nextId = `${draft.platformId}-bot`;
+    const existing = bots.find((item) => item.id === nextId);
+    const nextBots = existing
+      ? bots.map((item) => {
+          if (item.id !== nextId) return item;
+          const nextHealthState = resolveBotHealthState(true, existing.assistantId, draft.preflightResult);
+          return {
+            ...item,
+            enabled: true,
+            healthState: nextHealthState,
+            lastActive: '刚刚',
+            lastTestAt: '刚刚',
+            healthSummary: resolveBotHealthSummary(nextHealthState, draft.preflightResult, existing.assistantId),
+            triggerMode: draft.triggerMode,
+            replyFormat: draft.replyFormat,
+            credentials: draft.credentials,
+            lastPreflightResult: draft.preflightResult,
+            auditLogs: [
+              createAuditEntry(
+                draft.preflightResult?.ok ? 'success' : 'warning',
+                '平台接入已更新',
+                draft.preflightResult?.message || `${meta.label} 的连接配置已重新保存。`,
+              ),
+              ...item.auditLogs,
+            ],
+          };
+        })
+      : [
+          ...bots,
+          (() => {
+            const nextHealthState = resolveBotHealthState(true, null, draft.preflightResult);
+            return {
+              id: nextId,
+              platformId: draft.platformId,
+              name: `${meta.label}办公助手`,
+              company: '待完善',
+              assistantId: null,
+              assistant: '未绑定默认助手',
+              healthState: nextHealthState,
+              enabled: true,
+              lastActive: '刚刚',
+              lastTestAt: '刚刚',
+              healthSummary: resolveBotHealthSummary(nextHealthState, draft.preflightResult, null),
+              triggerMode: draft.triggerMode,
+              replyFormat: draft.replyFormat,
+              bindingScope: 'organization' as const,
+              offlineReply: '我现在暂时离线，稍后会继续处理你的消息。',
+              welcomeTemplate: '你好，我是{{assistant}}，可以直接把问题发给我。',
+              unavailableTemplate: '我暂时无法完成这次请求，已记录到日志，请稍后重试。',
+              credentials: draft.credentials,
+              lastPreflightResult: draft.preflightResult,
+              auditLogs: [
+                createAuditEntry('warning', '待完成默认助手绑定', '接入成功后，建议先绑定默认助手，再进行一次真实重测。'),
+                createAuditEntry(
+                  draft.preflightResult?.ok ? 'success' : 'warning',
+                  '平台接入完成',
+                  draft.preflightResult?.message || `${meta.label} 连接配置已建立。`,
+                ),
+              ],
+            };
+          })(),
+        ];
 
-    setBots((prev) => {
-      const existing = prev.find((item) => item.id === nextId);
-      if (existing) {
-        const nextHealthState = resolveBotHealthState(true, existing.assistantId, draft.preflightResult);
-        return prev.map((item) =>
-          item.id === nextId
-            ? {
-                ...item,
-                enabled: true,
-                healthState: nextHealthState,
-                lastActive: '刚刚',
-                lastTestAt: '刚刚',
-                healthSummary: resolveBotHealthSummary(nextHealthState, draft.preflightResult, existing.assistantId),
-                triggerMode: formatTriggerMode(draft.triggerMode),
-                replyFormat: formatReplyFormat(draft.replyFormat),
-                credentials: draft.credentials,
-                lastPreflightResult: draft.preflightResult,
-                auditLogs: [
-                  createAuditEntry(
-                    draft.preflightResult?.ok ? 'success' : 'warning',
-                    '平台接入已更新',
-                    draft.preflightResult?.message || `${meta.label} 的连接配置已重新保存。`,
-                  ),
-                  ...item.auditLogs,
-                ],
-              }
-            : item,
-        );
-      }
-
-      const nextHealthState = resolveBotHealthState(true, null, draft.preflightResult);
-      return [
-        ...prev,
-        {
-          id: nextId,
-          platformId: draft.platformId,
-          name: `${meta.label}办公助手`,
-          company: '待完善',
-          assistantId: null,
-          assistant: '未绑定默认助手',
-          healthState: nextHealthState,
-          enabled: true,
-          lastActive: '刚刚',
-          lastTestAt: '刚刚',
-          healthSummary: resolveBotHealthSummary(nextHealthState, draft.preflightResult, null),
-          triggerMode: formatTriggerMode(draft.triggerMode),
-          replyFormat: formatReplyFormat(draft.replyFormat),
-          bindingScope: 'organization',
-          offlineReply: '我现在暂时离线，稍后会继续处理你的消息。',
-          welcomeTemplate: '你好，我是{{assistant}}，可以直接把问题发给我。',
-          unavailableTemplate: '我暂时无法完成这次请求，已记录到日志，请稍后重试。',
-          credentials: draft.credentials,
-          lastPreflightResult: draft.preflightResult,
-          auditLogs: [
-            createAuditEntry('warning', '待完成默认助手绑定', '接入成功后，建议先绑定默认助手，再进行一次真实重测。'),
-            createAuditEntry(
-              draft.preflightResult?.ok ? 'success' : 'warning',
-              '平台接入完成',
-              draft.preflightResult?.message || `${meta.label} 连接配置已建立。`,
-            ),
-          ],
-        },
-      ];
-    });
-
+    setBots(nextBots);
     setSelectedBotId(nextId);
+    void applyRuntimeConfigChanges(nextBots);
   };
 
   const handleUpdateBot = (
     botId: string,
     updates: Pick<ManagedBot, 'name' | 'company' | 'assistantId' | 'assistant' | 'bindingScope' | 'offlineReply'>,
   ) => {
-    setBots((prev) =>
-      prev.map((bot) => {
-        if (bot.id !== botId) return bot;
-        const nextHealthState = resolveBotHealthState(bot.enabled, updates.assistantId, bot.lastPreflightResult);
-        return {
-          ...bot,
-          ...updates,
-          healthState: nextHealthState,
-          healthSummary: resolveBotHealthSummary(nextHealthState, bot.lastPreflightResult, updates.assistantId),
-          lastActive: '刚刚',
-          auditLogs: [
-            createAuditEntry(
-              'info',
-              '机器人配置已更新',
-              updates.assistantId
-                ? `已绑定默认助手“${updates.assistant}”，并更新了基础信息。`
-                : '已更新机器人信息，但默认助手仍未绑定。',
-            ),
-            ...bot.auditLogs,
-          ],
-        };
-      }),
-    );
+    const nextBots = bots.map((bot) => {
+      if (bot.id !== botId) return bot;
+      const nextHealthState = resolveBotHealthState(bot.enabled, updates.assistantId, bot.lastPreflightResult);
+      return {
+        ...bot,
+        ...updates,
+        healthState: nextHealthState,
+        healthSummary: resolveBotHealthSummary(nextHealthState, bot.lastPreflightResult, updates.assistantId),
+        lastActive: '刚刚',
+        auditLogs: [
+          createAuditEntry(
+            'info',
+            '机器人配置已更新',
+            updates.assistantId
+              ? `已绑定默认助手“${updates.assistant}”，并更新了基础信息。`
+              : '已更新机器人信息，但默认助手仍未绑定。',
+          ),
+          ...bot.auditLogs,
+        ],
+      };
+    });
+    setBots(nextBots);
+    void applyRuntimeConfigChanges(nextBots);
   };
 
   const handleUpdateBotTemplates = (
     botId: string,
     updates: Pick<ManagedBot, 'welcomeTemplate' | 'unavailableTemplate'>,
   ) => {
-    setBots((prev) =>
-      prev.map((bot) =>
-        bot.id === botId
-          ? {
-              ...bot,
-              ...updates,
-              auditLogs: [
-                createAuditEntry('info', '消息模板已更新', '欢迎语和异常提示模板已保存，后续可作为机器人默认回复语义。'),
-                ...bot.auditLogs,
-              ],
-            }
-          : bot,
-      ),
+    const nextBots = bots.map((bot) =>
+      bot.id === botId
+        ? {
+            ...bot,
+            ...updates,
+            auditLogs: [
+              createAuditEntry('info', '消息模板已更新', '欢迎语和异常提示模板已保存，后续可作为机器人默认回复语义。'),
+              ...bot.auditLogs,
+            ],
+          }
+        : bot,
     );
+    setBots(nextBots);
+    void applyManagedBotMetadataChanges(nextBots);
   };
 
   const handleToggleBot = (botId: string) => {
-    setBots((prev) =>
-      prev.map((bot) => {
-        if (bot.id !== botId) return bot;
-        const nextEnabled = !bot.enabled;
-        const nextHealthState = resolveBotHealthState(nextEnabled, bot.assistantId, bot.lastPreflightResult);
-        return {
-          ...bot,
-          enabled: nextEnabled,
-          healthState: nextHealthState,
-          healthSummary: resolveBotHealthSummary(nextHealthState, bot.lastPreflightResult, bot.assistantId),
-          lastActive: '刚刚',
-          auditLogs: [
-            createAuditEntry(
-              nextEnabled ? 'success' : 'info',
-              nextEnabled ? '机器人已启用' : '机器人已停用',
-              nextEnabled ? '该机器人已重新开始接收新消息。' : '该机器人已暂停，后续不会再向 IM 回复消息。',
-            ),
-            ...bot.auditLogs,
-          ],
-        };
-      }),
-    );
+    const nextBots = bots.map((bot) => {
+      if (bot.id !== botId) return bot;
+      const nextEnabled = !bot.enabled;
+      const nextHealthState = resolveBotHealthState(nextEnabled, bot.assistantId, bot.lastPreflightResult);
+      return {
+        ...bot,
+        enabled: nextEnabled,
+        healthState: nextHealthState,
+        healthSummary: resolveBotHealthSummary(nextHealthState, bot.lastPreflightResult, bot.assistantId),
+        lastActive: '刚刚',
+        auditLogs: [
+          createAuditEntry(
+            nextEnabled ? 'success' : 'info',
+            nextEnabled ? '机器人已启用' : '机器人已停用',
+            nextEnabled ? '该机器人已重新开始接收新消息。' : '该机器人已暂停，后续不会再向 IM 回复消息。',
+          ),
+          ...bot.auditLogs,
+        ],
+      };
+    });
+    setBots(nextBots);
+    void applyRuntimeConfigChanges(nextBots);
   };
 
   const handleRunConnectionTest = async (botId: string) => {
@@ -1048,8 +1412,8 @@ function ManagedBotCard({
 
       <div className="mt-2.5 flex items-center gap-5 border-t border-[var(--border-default)] pt-2.5 text-[12px] text-[var(--text-secondary)]">
         <InlineMetaItem label="最近活跃" value={bot.lastActive} />
-        <InlineMetaItem label="触发方式" value={bot.triggerMode} />
-        <InlineMetaItem label="回复格式" value={bot.replyFormat} />
+        <InlineMetaItem label="触发方式" value={formatTriggerMode(bot.triggerMode)} />
+        <InlineMetaItem label="回复格式" value={formatReplyFormat(bot.replyFormat)} />
         <InlineMetaItem label="最近测试" value={bot.lastTestAt ?? '还未执行'} />
       </div>
     </PressableCard>
@@ -1707,6 +2071,9 @@ function resolveBotHealthState(
 ): IMBotHealthState {
   if (!enabled) {
     return 'paused';
+  }
+  if (!preflightResult) {
+    return 'needs_setup';
   }
   if (!preflightResult?.ok) {
     if (preflightResult?.checks.some((check) => check.id === 'callback_url' && check.status === 'failure')) {

@@ -86,6 +86,7 @@ import type {
   ExtensionInstallTarget,
   ExtensionSetupStatus,
   ImportUserPrivateSkillInput,
+  InvestmentExpertCatalogSummaryRecord,
   InstallAgentInput,
   InstallMcpInput,
   InstallSkillInput,
@@ -253,6 +254,32 @@ type ImBotConnectionPreflightResult = {
   checks: ImBotConnectionPreflightCheck[];
 };
 
+type ImBotCloudRecordView = {
+  bot_id: string;
+  platform_id: ImBotPlatformId;
+  name: string;
+  company: string;
+  assistant_id: string | null;
+  assistant: string;
+  enabled: boolean;
+  trigger_mode: 'mention' | 'all' | 'keyword';
+  reply_format: 'text' | 'card' | 'markdown';
+  binding_scope: 'organization' | 'group' | 'private';
+  offline_reply: string;
+  welcome_template: string;
+  unavailable_template: string;
+  configured_secret_keys: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+type ImBotCloudSecretConfigView = {
+  bot_id: string;
+  configured_secret_keys: string[];
+  secret_values: Record<string, string>;
+  updated_at: string;
+};
+
 type JsonFetchResult = {
   ok: boolean;
   status: number;
@@ -346,6 +373,66 @@ function normalizeStringRecord(value: unknown, field: string): Record<string, st
     throw new HttpError(400, 'BAD_REQUEST', `${field} is required`);
   }
   return normalized;
+}
+
+function normalizeOptionalTextField(value: unknown): string | null {
+  const normalized = String(value || '').trim();
+  return normalized || null;
+}
+
+function normalizeImBotTriggerMode(value: unknown): 'mention' | 'all' | 'keyword' {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'mention' || normalized === 'all' || normalized === 'keyword') {
+    return normalized;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'trigger_mode must be mention, all, or keyword');
+}
+
+function normalizeImBotReplyFormat(value: unknown): 'text' | 'card' | 'markdown' {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'text' || normalized === 'card' || normalized === 'markdown') {
+    return normalized;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'reply_format must be text, card, or markdown');
+}
+
+function normalizeImBotBindingScope(value: unknown): 'organization' | 'group' | 'private' {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'organization' || normalized === 'group' || normalized === 'private') {
+    return normalized;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'binding_scope must be organization, group, or private');
+}
+
+function toImBotCloudRecordView(record: UserExtensionInstallConfigRecord): ImBotCloudRecordView {
+  const configValues = asObject(record.config);
+  return {
+    bot_id: String(record.extensionKey || '').trim(),
+    platform_id: normalizeImBotPlatformId(configValues.platform_id),
+    name: String(configValues.name || '').trim(),
+    company: String(configValues.company || '').trim(),
+    assistant_id: normalizeOptionalTextField(configValues.assistant_id),
+    assistant: String(configValues.assistant || '').trim(),
+    enabled: Boolean(configValues.enabled),
+    trigger_mode: normalizeImBotTriggerMode(configValues.trigger_mode),
+    reply_format: normalizeImBotReplyFormat(configValues.reply_format),
+    binding_scope: normalizeImBotBindingScope(configValues.binding_scope),
+    offline_reply: String(configValues.offline_reply || '').trim(),
+    welcome_template: String(configValues.welcome_template || '').trim(),
+    unavailable_template: String(configValues.unavailable_template || '').trim(),
+    configured_secret_keys: Array.isArray(record.configuredSecretKeys) ? record.configuredSecretKeys : [],
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+  };
+}
+
+function toImBotCloudSecretConfigView(record: UserExtensionInstallConfigRecord): ImBotCloudSecretConfigView {
+  return {
+    bot_id: String(record.extensionKey || '').trim(),
+    configured_secret_keys: Array.isArray(record.configuredSecretKeys) ? record.configuredSecretKeys : [],
+    secret_values: decryptInstallSecretPayload(record.secretPayloadEncrypted),
+    updated_at: record.updatedAt,
+  };
 }
 
 async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = 15_000): Promise<JsonFetchResult> {
@@ -1667,10 +1754,10 @@ function normalizeJsonObject(value: unknown, field: string, fallback: Record<str
 }
 
 function normalizeExtensionInstallTarget(value: unknown): ExtensionInstallTarget {
-  if (value === 'skill' || value === 'mcp') {
+  if (value === 'skill' || value === 'mcp' || value === 'im-bot') {
     return value;
   }
-  throw new HttpError(400, 'BAD_REQUEST', 'extension_type must be skill or mcp');
+  throw new HttpError(400, 'BAD_REQUEST', 'extension_type must be skill, mcp, or im-bot');
 }
 
 function readCompactCatalogMetric(metadata: Record<string, unknown>, candidatePaths: string[][]): number | null {
@@ -2391,7 +2478,10 @@ function pickInvestmentExpertMetadata(
   return picked;
 }
 
-function compareInvestmentExpertCatalogRecords(left: AgentCatalogEntryRecord, right: AgentCatalogEntryRecord): number {
+function compareInvestmentExpertCatalogRecords(
+  left: Pick<InvestmentExpertCatalogSummaryRecord, 'name' | 'metadata'>,
+  right: Pick<InvestmentExpertCatalogSummaryRecord, 'name' | 'metadata'>,
+): number {
   const leftRecommended = readMetadataBoolean(left.metadata, 'is_recommended') ?? false;
   const rightRecommended = readMetadataBoolean(right.metadata, 'is_recommended') ?? false;
   if (leftRecommended !== rightRecommended) {
@@ -2414,7 +2504,7 @@ function compareInvestmentExpertCatalogRecords(left: AgentCatalogEntryRecord, ri
 }
 
 function toInvestmentExpertCatalogItemView(
-  record: AgentCatalogEntryRecord,
+  record: Pick<InvestmentExpertCatalogSummaryRecord, 'slug' | 'name' | 'description' | 'category' | 'tags' | 'metadata'>,
   installed: boolean,
   options?: {
     detail?: boolean;
@@ -4733,14 +4823,13 @@ export class ControlPlaneService {
 
   async listInvestmentExpertCatalog(accessToken?: string | null): Promise<{items: InvestmentExpertCatalogItemView[]}> {
     const [catalog, installedSlugs] = await Promise.all([
-      this.store.listAgentCatalog(),
+      this.store.listInvestmentExpertCatalogSummaries(),
       accessToken
         ? this.getUserForAccessToken(accessToken).then((user) => this.store.listUserAgentLibrary(user.id))
         : Promise.resolve([]),
     ]);
     const installedSet = new Set(installedSlugs.map((item) => item.slug));
     const items = catalog
-      .filter((item) => isInvestmentExpertMetadata(item.metadata))
       .sort(compareInvestmentExpertCatalogRecords)
       .map((item) => toInvestmentExpertCatalogItemView(item, installedSet.has(item.slug)));
     return {items};
@@ -5952,6 +6041,76 @@ export class ControlPlaneService {
         : 200;
     const summaries = await this.store.listRunBillingSummariesBySession(user.id, sessionKey, limit);
     return summaries.map(toRunBillingSummaryView);
+  }
+
+  async listImBotCloudRecords(accessToken: string): Promise<ImBotCloudRecordView[]> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const records = await this.store.listUserExtensionInstallConfigs(user.id, 'im-bot');
+    return records.map(toImBotCloudRecordView).sort((a, b) => a.bot_id.localeCompare(b.bot_id));
+  }
+
+  async getImBotCloudSecretConfig(
+    accessToken: string,
+    botIdInput: string,
+  ): Promise<ImBotCloudSecretConfigView | null> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const botId = String(botIdInput || '').trim();
+    if (!botId) {
+      throw new HttpError(400, 'BAD_REQUEST', 'bot_id is required');
+    }
+    const record = await this.store.getUserExtensionInstallConfig(user.id, 'im-bot', botId);
+    if (!record) {
+      return null;
+    }
+    return toImBotCloudSecretConfigView(record);
+  }
+
+  async upsertImBotCloudRecord(accessToken: string, input: Record<string, unknown>): Promise<ImBotCloudRecordView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const botId = String(input.bot_id || '').trim();
+    if (!botId) {
+      throw new HttpError(400, 'BAD_REQUEST', 'bot_id is required');
+    }
+
+    const platformId = normalizeImBotPlatformId(input.platform_id);
+    const existing = await this.store.getUserExtensionInstallConfig(user.id, 'im-bot', botId);
+    const existingSecretValues = decryptInstallSecretPayload(existing?.secretPayloadEncrypted);
+    const providedSecretValues = normalizeStringRecord(input.secret_values, 'secret_values');
+    const mergedSecretValues: Record<string, string> = {...existingSecretValues};
+    for (const [key, value] of Object.entries(providedSecretValues)) {
+      if (!value.trim()) {
+        delete mergedSecretValues[key];
+      } else {
+        mergedSecretValues[key] = value.trim();
+      }
+    }
+    const configuredSecretKeys = Object.keys(mergedSecretValues)
+      .filter((key) => mergedSecretValues[key]?.trim())
+      .sort();
+    const record = await this.store.upsertUserExtensionInstallConfig(user.id, {
+      extension_type: 'im-bot',
+      extension_key: botId,
+      schema_version: 1,
+      status: 'configured',
+      setup_values: {
+        platform_id: platformId,
+        name: String(input.name || '').trim(),
+        company: String(input.company || '').trim(),
+        assistant_id: normalizeOptionalTextField(input.assistant_id),
+        assistant: String(input.assistant || '').trim(),
+        enabled: Boolean(input.enabled),
+        trigger_mode: normalizeImBotTriggerMode(input.trigger_mode),
+        reply_format: normalizeImBotReplyFormat(input.reply_format),
+        binding_scope: normalizeImBotBindingScope(input.binding_scope),
+        offline_reply: String(input.offline_reply || '').trim(),
+        welcome_template: String(input.welcome_template || '').trim(),
+        unavailable_template: String(input.unavailable_template || '').trim(),
+      },
+      secret_values: mergedSecretValues,
+      configured_secret_keys: configuredSecretKeys,
+      secret_payload_encrypted: encryptInstallSecretPayload(mergedSecretValues),
+    });
+    return toImBotCloudRecordView(record);
   }
 
   async preflightImBotConnection(

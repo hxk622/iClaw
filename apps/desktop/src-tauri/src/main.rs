@@ -70,13 +70,15 @@ const MEMORY_RUNTIME_STATUS_CACHE_TTL_MS: u64 = 60_000;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 struct RuntimeConfig {
     openai_api_key: Option<String>,
     openai_base_url: Option<String>,
     openai_model: Option<String>,
     anthropic_api_key: Option<String>,
     clawhub_url: Option<String>,
+    #[serde(flatten)]
+    extra: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -6124,6 +6126,7 @@ fn load_runtime_config_internal(app: &AppHandle) -> Result<RuntimeConfig, String
         openai_model: None,
         anthropic_api_key: None,
         clawhub_url: None,
+        extra: serde_json::Map::new(),
     })
 }
 
