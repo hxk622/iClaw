@@ -325,7 +325,7 @@ const footer = await waitFor(
           return null;
         }
         const rootText = (document.getElementById('root')?.textContent || '').replace(/\\s+/g, ' ').trim();
-        if (rootText.includes('当前消息已被拦截') || rootText.includes('龙虾币余额不足') || rootText.includes('超过单次额度限制')) {
+        if (rootText.includes('当前消息已被拦截') || rootText.includes('积分余额不足') || rootText.includes('超过单次额度限制')) {
           return {
             kind: 'credit-blocked',
             state: 'blocked',

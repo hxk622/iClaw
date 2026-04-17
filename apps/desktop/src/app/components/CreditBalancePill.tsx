@@ -28,7 +28,7 @@ export function CreditBalancePill({ balance, loading = false, onClick }: CreditB
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-          龙虾币
+          积分
         </span>
         <span className="mt-0.5 block truncate text-[15px] font-semibold text-[var(--text-primary)]">
           {loading ? '加载中...' : formatBalance(balance ?? 0)}

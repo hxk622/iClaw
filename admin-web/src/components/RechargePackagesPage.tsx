@@ -149,11 +149,11 @@ export function RechargePackagesPage({
               <input className="field-input" type="number" min="1" value={draft.amountCnyFen} onChange={(event) => setDraft((current) => ({ ...current, amountCnyFen: Number(event.target.value || 0) }))} />
             </label>
             <label className="field">
-              <span>基础龙虾币</span>
+              <span>基础积分</span>
               <input className="field-input" type="number" min="0" value={draft.credits} onChange={(event) => setDraft((current) => ({ ...current, credits: Number(event.target.value || 0) }))} />
             </label>
             <label className="field">
-              <span>赠送龙虾币</span>
+              <span>赠送积分</span>
               <input className="field-input" type="number" min="0" value={draft.bonusCredits} onChange={(event) => setDraft((current) => ({ ...current, bonusCredits: Number(event.target.value || 0) }))} />
             </label>
             <label className="field">

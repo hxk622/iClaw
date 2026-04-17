@@ -517,7 +517,7 @@ export function AccountPanel({
             </section>
 
             <aside className="space-y-6">
-              <DrawerSection title="龙虾币余额" icon={<Wallet className="h-5 w-5" />}>
+              <DrawerSection title="积分余额" icon={<Wallet className="h-5 w-5" />}>
                 {loadingMeta ? (
                   <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -529,7 +529,7 @@ export function AccountPanel({
                   <InfoTile
                     label="可用余额"
                     value={credits?.total_available_balance ?? credits?.available_balance ?? credits?.balance ?? 0}
-                    description={credits?.currency_display || '龙虾币'}
+                    description={credits?.currency_display || '积分'}
                   />
                 )}
                 <div className="mt-3 grid grid-cols-2 gap-3">
@@ -591,7 +591,7 @@ export function AccountPanel({
               <DrawerSection title="最近流水" icon={<CreditCard className="h-5 w-5" />}>
                 <div className="space-y-3">
                   {displayLedger.length === 0 ? (
-                    <InfoTile label="流水" value="还没有龙虾币流水。" />
+                    <InfoTile label="流水" value="还没有积分流水。" />
                   ) : (
                     displayLedger.map((item) => (
                       <div key={item.id} className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
@@ -602,7 +602,7 @@ export function AccountPanel({
                           </span>
                         </div>
                         <div className="mt-1 flex items-center justify-between text-xs text-[var(--text-secondary)]">
-                          <span>{item.detailLabel || (item.balanceAfter != null ? `余额 ${item.balanceAfter} 龙虾币` : ' ')}</span>
+                          <span>{item.detailLabel || (item.balanceAfter != null ? `余额 ${item.balanceAfter} 积分` : ' ')}</span>
                           <span>{formatDate(item.createdAt)}</span>
                         </div>
                       </div>

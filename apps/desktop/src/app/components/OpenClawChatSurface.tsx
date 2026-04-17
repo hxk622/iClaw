@@ -3310,14 +3310,14 @@ function buildAssistantFooterTooltip(input: {
     if ((input.credits ?? 0) <= 0) {
       return usageDetail;
     }
-    return `${usageDetail} · 实际消耗 ${input.credits} 龙虾币`;
+    return `${usageDetail} · 实际消耗 ${input.credits} 积分`;
   }
 
   if (input.state === 'pending') {
     return `${usageDetail} · 后端正在结算本次消耗`;
   }
 
-  return `${usageDetail} · 实际消耗 0 龙虾币`;
+  return `${usageDetail} · 实际消耗 0 积分`;
 }
 
 function buildAssistantFooterMetaFromSummary(summary: RunBillingSummaryData): AssistantFooterMeta {
@@ -5085,7 +5085,7 @@ export function OpenClawChatSurface({
       attachments: ComposerDraftAttachment[],
     ): Promise<CreditQuoteData> => {
       if (!creditClient || !creditToken) {
-        throw new Error('当前账号龙虾币鉴权尚未就绪，暂时不能发送消息。');
+        throw new Error('当前账号积分鉴权尚未就绪，暂时不能发送消息。');
       }
 
       const trimmedPrompt = prompt.trim();
@@ -8135,7 +8135,7 @@ export function OpenClawChatSurface({
 
     try {
       if (!creditClient || !creditToken) {
-        throw new Error('当前账号龙虾币鉴权尚未就绪，暂时不能发送消息。');
+        throw new Error('当前账号积分鉴权尚未就绪，暂时不能发送消息。');
       }
 
       clearUsageSettlementTimers();
@@ -9277,7 +9277,7 @@ export function OpenClawChatSurface({
                 title={
                   creditBlockNotice?.code === 'CREDIT_LIMIT_EXCEEDED'
                     ? '本次消息超过单次额度限制，当前已被拦截'
-                    : '龙虾币余额不足，当前消息已被拦截'
+                    : '积分余额不足，当前消息已被拦截'
                 }
                 description={
                   creditBlockNotice?.message || '新积分将在次日发放。请先前往充值中心充值后再继续发送。'
@@ -9299,7 +9299,7 @@ export function OpenClawChatSurface({
                 variant="ghost"
                 size="sm"
                 className="absolute top-3 right-3 rounded-full p-2"
-                aria-label="关闭龙虾币余额提醒"
+                aria-label="关闭积分余额提醒"
                 onClick={() => setRechargeNoticeDismissed(true)}
               >
                 <X className="h-4 w-4" />

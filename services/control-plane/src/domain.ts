@@ -130,7 +130,7 @@ export type CreditBalanceView = {
   daily_free_expires_at: string;
   balance: number;
   currency: 'lobster_credit';
-  currency_display: '龙虾币';
+  currency_display: '积分';
   available_balance: number;
   status: 'active';
 };
@@ -204,7 +204,7 @@ export type CreditQuoteInput = {
 
 export type CreditQuoteView = {
   currency: 'lobster_credit';
-  currency_display: '龙虾币';
+  currency_display: '积分';
   estimated_credits_low: number;
   estimated_credits_high: number;
   max_charge_credits: number;

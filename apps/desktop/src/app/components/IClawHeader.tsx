@@ -98,12 +98,12 @@ function resolveFallbackHeadlines(config?: ResolvedHeaderConfig | null): HeaderH
 
 function formatBalance(value: number | null, authenticated: boolean, loading: boolean): string {
   if (loading) {
-    return '龙虾币加载中';
+    return '积分加载中';
   }
   if (!authenticated || value == null) {
-    return '龙虾币';
+    return '积分';
   }
-  return `${new Intl.NumberFormat('zh-CN').format(value)}龙虾币`;
+  return `${new Intl.NumberFormat('zh-CN').format(value)}积分`;
 }
 
 function normalizeNumber(input: unknown): number {
@@ -493,8 +493,8 @@ export const IClawHeader = memo(function IClawHeader({
           {resolvedConfig?.showCredits !== false ? (
             <button
               type="button"
-              title="龙虾币"
-              aria-label="龙虾币"
+              title="积分"
+              aria-label="积分"
               className="group inline-flex h-8.5 cursor-pointer items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_88%,white_12%)] px-3 shadow-[var(--shadow-sm)] transition-colors duration-200 hover:bg-[color-mix(in_srgb,var(--bg-hover)_94%,white_6%)]"
               onClick={onCreditsClick}
             >

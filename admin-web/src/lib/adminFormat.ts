@@ -32,7 +32,7 @@ export function formatDateTime(value: string) {
 
 export function formatCredits(value: number) {
   const amount = Number(value || 0);
-  return `${Number.isFinite(amount) ? amount.toLocaleString('zh-CN') : '0'} 龙虾币`;
+  return `${Number.isFinite(amount) ? amount.toLocaleString('zh-CN') : '0'} 积分`;
 }
 
 export function formatFen(value: number) {

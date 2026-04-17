@@ -4016,7 +4016,7 @@ export default function App() {
                       </div>
                       <div className="fig-guide__grid">
                         {[
-                          '先看左侧列表里的状态、金额、龙虾币、OEM app 和付款渠道，快速定位异常单。',
+                          '先看左侧列表里的状态、金额、积分、OEM app 和付款渠道，快速定位异常单。',
                           '订单详情、人工补单、退款与 webhook 明细都已在 React 版查看和处理。',
                           '后续新增支付能力可以继续沿用当前结构扩展。',
                         ].map((item, index) => (
@@ -4034,7 +4034,7 @@ export default function App() {
                           <div>用户</div>
                           <div>OEM App</div>
                           <div>渠道</div>
-                          <div>金额 / 龙虾币</div>
+                          <div>金额 / 积分</div>
                         </div>
                         <div className="fig-audit-table__body">
                           {filteredPaymentOrders.length ? (

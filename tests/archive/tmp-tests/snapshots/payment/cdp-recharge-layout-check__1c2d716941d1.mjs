@@ -137,7 +137,7 @@ try {
         cdp,
         sessionId,
         `(() => ({
-          ready: document.body.innerText.includes('充值中心') || document.body.innerText.includes('龙虾币'),
+          ready: document.body.innerText.includes('充值中心') || document.body.innerText.includes('积分'),
           accessToken: Boolean(localStorage.getItem('iclaw:auth.access_token')),
           text: (document.body.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 300),
         }))()`,
@@ -160,7 +160,7 @@ try {
   }
   console.error('[recharge-check] auth ok');
 
-  const openRecharge = await clickByText(cdp, sessionId, ['182龙虾币', '龙虾币', 'Kevin Han']);
+  const openRecharge = await clickByText(cdp, sessionId, ['182积分', '积分', 'Kevin Han']);
   if (!openRecharge?.clicked) {
     throw new Error(`Recharge entry not found. Available labels: ${(openRecharge?.labels || []).join(' | ')}`);
   }
@@ -193,7 +193,7 @@ try {
         `(() => {
           const text = document.body.innerText || '';
           return {
-            packageDialog: text.includes('充值龙虾币') && text.includes('立即充值'),
+            packageDialog: text.includes('充值积分') && text.includes('立即充值'),
             paymentView: text.includes('扫码支付') && text.includes('请选择方式完成支付'),
           };
         })()`,
@@ -214,7 +214,7 @@ try {
       sessionId,
       `(() => ({
         body: (document.body.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 1200),
-        hasPackageTitle: document.body.innerText.includes('充值龙虾币'),
+        hasPackageTitle: document.body.innerText.includes('充值积分'),
         hasPaymentBack: document.body.innerText.includes('返回充值包'),
         hasScanPay: document.body.innerText.includes('扫码支付'),
         overlayKeys: window.__ICLAW_APP_DIAGNOSTICS__?.mountedOverlaySurfaceKeys || null,

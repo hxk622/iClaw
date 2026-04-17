@@ -556,7 +556,7 @@ export function RechargeCenter({
             console.error('[desktop] failed to refresh balance after recharge', error);
           }
           if (cancelled) return;
-          setPaymentMessage('支付成功，龙虾币已到账。');
+          setPaymentMessage('支付成功，积分已到账。');
         } else if (nextOrder.status === 'expired') {
           setPaymentMessage('支付订单已过期，请重新创建充值订单。');
         } else if (nextOrder.status === 'failed') {
@@ -753,7 +753,7 @@ function PackageSelectionView({
                 ultraWideLayout ? 'text-[28px]' : wideLayout ? 'text-[29px]' : 'text-[30px]',
               )}
             >
-              充值龙虾币
+              充值积分
             </h1>
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#f1d38a] bg-[linear-gradient(180deg,#fff7df_0%,#fde7a7_100%)] text-[#8a5a00] shadow-[0_6px_16px_rgba(180,134,0,0.14)] dark:border-[#5b471b] dark:bg-[linear-gradient(180deg,#3a2f16_0%,#2b220f_100%)] dark:text-[#f2cf75] dark:shadow-none">
               <Coins className="h-4 w-4" />
@@ -914,7 +914,7 @@ function PackageSelectionView({
                   <div className={cn('flex items-center justify-between pt-1', wideLayout ? 'text-[13px]' : 'text-[14px]')}>
                     <span className="font-medium text-gray-900 dark:text-gray-100">合计到账</span>
                     <span className={cn('font-semibold text-gray-900 dark:text-gray-100', wideLayout ? 'text-[14px]' : 'text-[15px]')}>
-                      {formatCreditsLabel(item.totalCredits)} 龙虾币
+                      {formatCreditsLabel(item.totalCredits)} 积分
                     </span>
                   </div>
                   {item.featureList.length ? (
@@ -1166,7 +1166,7 @@ function PaymentView({
               {getPaymentMethodLabel(paymentMethod, currentPaymentMethodConfig?.label)}
             </div>
             <p className="mt-3 max-w-[440px] text-[13px] leading-6 text-gray-500 dark:text-gray-400">
-              请使用 {getPaymentMethodLabel(paymentMethod, currentPaymentMethodConfig?.label)} 扫描下方二维码完成充值。付款完成后，龙虾币会自动同步到账。
+              请使用 {getPaymentMethodLabel(paymentMethod, currentPaymentMethodConfig?.label)} 扫描下方二维码完成充值。付款完成后，积分会自动同步到账。
             </p>
           </div>
 
@@ -1225,7 +1225,7 @@ function PaymentView({
                       </div>
                       <div className="text-center">
                         <div className="mb-1 text-[20px] font-semibold text-gray-900 dark:text-gray-50">支付成功</div>
-                        <div className="text-[14px] text-gray-500 dark:text-gray-400">龙虾币已到账</div>
+                        <div className="text-[14px] text-gray-500 dark:text-gray-400">积分已到账</div>
                       </div>
                     </div>
                   </div>
@@ -1281,7 +1281,7 @@ function PaymentView({
               </div>
               <div className="h-px bg-gray-200 dark:bg-gray-800" />
               <div className="flex items-center justify-between text-[13px]">
-                <span className="text-gray-500 dark:text-gray-400">到账龙虾币</span>
+                <span className="text-gray-500 dark:text-gray-400">到账积分</span>
                 <span className="font-semibold text-gray-900 dark:text-gray-100">{formatCreditsLabel(currentPackage.totalCredits)}</span>
               </div>
               {shortOrderId ? (

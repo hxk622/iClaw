@@ -715,7 +715,7 @@ test('payment orders without checkout urls stay empty instead of falling back to
     arch: 'arm64',
     user_agent: 'desktop-test',
     payment_url: null,
-    packageName: '3000 龙虾币',
+    packageName: '3000 积分',
     credits: 3000,
     bonusCredits: 0,
     amountCnyFen: 2990,

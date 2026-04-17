@@ -3051,7 +3051,7 @@ export class ControlPlaneService {
       daily_free_expires_at: account.dailyFreeExpiresAt,
       balance: account.totalAvailableBalance,
       currency: 'lobster_credit',
-      currency_display: '龙虾币',
+      currency_display: '积分',
       available_balance: account.totalAvailableBalance,
       status: 'active',
     };
@@ -3078,7 +3078,7 @@ export class ControlPlaneService {
     if (!message && attachments.length === 0) {
       return {
         currency: 'lobster_credit',
-        currency_display: '龙虾币',
+        currency_display: '积分',
         estimated_credits_low: 0,
         estimated_credits_high: 0,
         max_charge_credits: 0,
@@ -3120,7 +3120,7 @@ export class ControlPlaneService {
 
     return {
       currency: 'lobster_credit',
-      currency_display: '龙虾币',
+      currency_display: '积分',
       estimated_credits_low: lowCost,
       estimated_credits_high: highCost,
       max_charge_credits: maxChargeCredits,
@@ -5857,7 +5857,7 @@ export class ControlPlaneService {
       throw new HttpError(
         402,
         'INSUFFICIENT_CREDITS',
-        `当前龙虾币余额已为 ${currentBalance}，账号已暂停发送。新积分将在次日发放。请先前往充值中心充值后再继续。`,
+        `当前积分余额已为 ${currentBalance}，账号已暂停发送。新积分将在次日发放。请先前往充值中心充值后再继续。`,
       );
     }
 
@@ -5990,7 +5990,7 @@ export class ControlPlaneService {
       daily_free_expires_at: result.balanceAfter.dailyFreeExpiresAt,
       balance: result.balanceAfter.totalAvailableBalance,
       currency: 'lobster_credit',
-      currency_display: '龙虾币',
+      currency_display: '积分',
       available_balance: result.balanceAfter.totalAvailableBalance,
       status: 'active',
     };

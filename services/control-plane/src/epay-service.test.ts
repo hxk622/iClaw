@@ -16,7 +16,7 @@ describe('EpayService', () => {
     const result = service.createCheckout({
       orderId: 'order_123',
       provider: 'wechat_qr',
-      packageName: '3000 龙虾币',
+      packageName: '3000 积分',
       amountCnyFen: 4000,
       publicBaseUrl: 'http://127.0.0.1:2130',
       returnUrl: 'iclaw://payments/result',

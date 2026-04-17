@@ -199,7 +199,7 @@ export async function openRechargeCenter(cdp) {
   try {
     await click(cdp, '[data-testid="open-recharge-center"]');
   } catch {
-    await clickByText(cdp, ['龙虾币', '182龙虾币', 'Kevin Han']);
+    await clickByText(cdp, ['积分', '182积分', 'Kevin Han']);
   }
   await waitFor(
     'avatar or credits menu open',
@@ -214,7 +214,7 @@ export async function openRechargeCenter(cdp) {
     'recharge center surface',
     async () => {
       const body = await readBodyText(cdp, 2000);
-      return body.includes('充值龙虾币') || body.includes('扫码支付') ? body : null;
+      return body.includes('充值积分') || body.includes('扫码支付') ? body : null;
     },
     20_000,
   );

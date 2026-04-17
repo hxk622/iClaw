@@ -2226,13 +2226,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const outputControl = topBarControlMap.get('output-format')?.item || null;
     const creditEstimateText = creditEstimate
       ? creditEstimate.loading
-        ? '正在估算龙虾币...'
+        ? '正在估算积分...'
         : creditEstimate.error
-          ? '龙虾币估算暂不可用'
+          ? '积分估算暂不可用'
           : typeof creditEstimate.low === 'number' && typeof creditEstimate.high === 'number'
             ? creditEstimate.low === creditEstimate.high
-              ? `约 ${creditEstimate.low} 龙虾币`
-              : `约 ${creditEstimate.low}-${creditEstimate.high} 龙虾币`
+              ? `约 ${creditEstimate.low} 积分`
+              : `约 ${creditEstimate.low}-${creditEstimate.high} 积分`
             : null
       : null;
     const creditEstimateState = creditEstimate?.error ? 'error' : creditEstimate?.loading ? 'loading' : 'ready';
