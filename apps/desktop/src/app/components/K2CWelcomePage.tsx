@@ -12,7 +12,7 @@ type WelcomeProfile = {
 const DEFAULT_PROFILE: WelcomeProfile = {
   expertName: '我是一只会赚钱的小龙虾',
   slogan: '干活是我核心能力，理财是我唯一使命，安全是我的责任底线',
-  avatarUrl: BRAND.assets.faviconPngSrc || '/brand/favicon.png',
+  avatarUrl: BRAND.assets.brandMarkSrc || BRAND.assets.faviconPngSrc || '/brand/favicon.png',
   primaryColor: '#C4975F',
 };
 
@@ -41,7 +41,7 @@ function LogoAvatar({
   alt: string;
 }) {
   const [failed, setFailed] = useState(false);
-  const fallbackSrc = BRAND.assets.faviconPngSrc || '/brand/favicon.png';
+  const fallbackSrc = BRAND.assets.brandMarkSrc || BRAND.assets.faviconPngSrc || '/brand/favicon.png';
   const resolvedSrc = !failed && src.trim() ? src : fallbackSrc;
 
   return (

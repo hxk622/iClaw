@@ -176,7 +176,7 @@ const SidebarBrandHeader = memo(function SidebarBrandHeader({
           collapsed ? 'h-7 w-7 rounded-[10px]' : 'h-10 w-10',
         )}
       >
-        <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-full w-full object-cover" />
+        <img src={BRAND.assets.brandMarkSrc || BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-full w-full object-cover" />
       </div>
       {!collapsed ? (
         <div className="min-w-0 flex-1">

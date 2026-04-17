@@ -204,7 +204,11 @@ export function AuthPanel({
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-[var(--chip-brand-border)] bg-[linear-gradient(180deg,#ffffff,#f5efe3)] shadow-[var(--pressable-card-rest-shadow)]">
-              <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-full w-full object-cover" />
+              <img
+                src={BRAND.assets.brandMarkSrc || BRAND.assets.faviconPngSrc}
+                alt={BRAND.assets.logoAlt}
+                className="h-full w-full object-cover"
+              />
             </div>
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">{BRAND.displayName}</div>

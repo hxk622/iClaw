@@ -14,6 +14,7 @@ export const BRAND = {
   "assets": {
     "faviconIcoSrc": "/brand/favicon.ico",
     "faviconPngSrc": "/brand/favicon.png",
+    "brandMarkSrc": "/brand/brand-mark.png",
     "appleTouchIconSrc": "/brand/apple-touch-icon.png",
     "installerHeroSrc": "/brand/installer-hero.webp",
     "assistantAvatarSrc": "/brand/assistant-avatar.png",

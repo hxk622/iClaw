@@ -254,6 +254,7 @@ function buildBrandTs(brand, appVersion, assetPaths, brandStamp) {
       assets: {
         faviconIcoSrc: '/brand/favicon.ico',
         faviconPngSrc: '/brand/favicon.png',
+        brandMarkSrc: '/brand/brand-mark.png',
         appleTouchIconSrc: '/brand/apple-touch-icon.png',
         installerHeroSrc: assetPaths.installerHeroSrc,
         assistantAvatarSrc: assetPaths.assistantAvatarSrc,
@@ -449,6 +450,8 @@ async function main() {
   const assistantAvatarFileName = await copyBrowserAsset(assistantAvatar, outputBrandDir, 'assistant-avatar');
   await copyFile(faviconIco, path.join(outputPublicDir, 'favicon.ico'));
   await copyFile(faviconPng, path.join(outputPublicDir, 'favicon.png'));
+  await copyFirstExistingFile([tauriIconPng, faviconPng], path.join(outputBrandDir, 'brand-mark.png'));
+  await copyFirstExistingFile([tauriIconPng, faviconPng], path.join(outputPublicDir, 'brand-mark.png'));
   await copyFile(appleTouchIcon, path.join(outputPublicDir, 'apple-touch-icon.png'));
   await copyFile(installerHero, legacyInstallerAssetPath);
   await ensureTauriIcons({
