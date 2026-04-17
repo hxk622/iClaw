@@ -38,7 +38,7 @@ export function SegmentedTabs<T extends string>({
               SPRING_PRESSABLE,
               INTERACTIVE_FOCUS_RING,
               active
-                ? 'border-[var(--chip-brand-active-border)] bg-[linear-gradient(180deg,var(--chip-brand-bg-hover),var(--chip-brand-bg))] text-[var(--chip-brand-text)] shadow-[0_0_0_1px_var(--chip-brand-active-border),0_12px_28px_rgba(168,140,93,0.16)] dark:shadow-[0_0_0_1px_var(--chip-brand-active-border),0_14px_30px_rgba(0,0,0,0.26)]'
+                ? 'border-[var(--surface-active-border)] bg-[var(--surface-active-bg)] text-[var(--surface-active-text)] shadow-[var(--surface-active-shadow)]'
                 : 'border-[color-mix(in_srgb,var(--border-default)_88%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_96%,transparent)] text-[var(--text-secondary)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] dark:bg-[color-mix(in_srgb,var(--bg-card)_88%,transparent)]',
             )}
           >
@@ -48,7 +48,7 @@ export function SegmentedTabs<T extends string>({
                 className={cn(
                   'rounded-full px-2 py-0.5 text-[11px]',
                   active
-                    ? 'bg-[rgba(255,255,255,0.22)] text-[var(--chip-brand-text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:bg-[rgba(255,255,255,0.10)]'
+                    ? 'bg-[rgba(255,255,255,0.22)] text-[var(--surface-active-text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:bg-[rgba(255,255,255,0.10)]'
                     : 'bg-[color-mix(in_srgb,var(--bg-elevated)_96%,transparent)] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] dark:bg-[rgba(255,255,255,0.06)]',
                 )}
               >

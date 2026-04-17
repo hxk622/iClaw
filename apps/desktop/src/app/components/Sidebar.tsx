@@ -279,10 +279,10 @@ function SidebarMenuGroup({
             aria-label={item.label}
             className={`group flex w-full cursor-pointer items-center rounded-xl transition-all duration-[var(--motion-panel)] active:scale-[0.992] ${
               item.active
-                ? 'bg-[var(--bg-hover)] shadow-[var(--shadow-sm)]'
+                ? 'border border-[var(--surface-active-border)] bg-[var(--surface-active-bg)] text-[var(--surface-active-text)] shadow-[var(--surface-active-shadow)]'
                 : collapsed
-                  ? 'hover:bg-[var(--bg-hover)]'
-                  : 'hover:translate-x-[4px] hover:scale-[1.015] hover:bg-[var(--bg-hover)]'
+                  ? 'border border-transparent hover:bg-[var(--bg-hover)]'
+                  : 'border border-transparent hover:translate-x-[4px] hover:scale-[1.015] hover:bg-[var(--bg-hover)]'
             } ${collapsed ? 'justify-center px-0 py-0 h-11' : 'gap-3 px-3 py-1.5 text-left'}`}
             style={{
               transitionTimingFunction: 'var(--motion-spring)',
@@ -294,7 +294,7 @@ function SidebarMenuGroup({
                 <span
                   className={`flex h-6 w-6 items-center justify-center transition-all duration-[var(--motion-panel)] ${
                     item.active
-                      ? 'border-[rgba(168,140,93,0.22)] bg-[rgba(168,140,93,0.12)] shadow-[0_6px_14px_rgba(168,140,93,0.10)]'
+                      ? 'border-[var(--surface-active-border)] bg-[color-mix(in_srgb,var(--chip-brand-bg-hover)_90%,white_10%)] shadow-[0_8px_18px_rgba(168,140,93,0.16)]'
                       : 'group-hover:border-[rgba(168,140,93,0.18)] group-hover:bg-[rgba(168,140,93,0.08)]'
                   } ${item.iconWrapClass}`}
                   style={{ transitionTimingFunction: 'var(--motion-spring)' }}
@@ -340,7 +340,13 @@ function SidebarMenuGroup({
               ) : null}
             </span>
             {!collapsed ? (
-              <span className={`flex-1 text-[14px] font-medium text-[var(--text-primary)] transition-transform duration-[var(--motion-panel)] ${item.active ? 'translate-x-[1px] font-semibold' : 'group-hover:translate-x-[1px]'}`}>
+              <span
+                className={`flex-1 text-[14px] font-medium transition-transform duration-[var(--motion-panel)] ${
+                  item.active
+                    ? 'translate-x-[1px] font-semibold text-[var(--surface-active-text)]'
+                    : 'text-[var(--text-primary)] group-hover:translate-x-[1px]'
+                }`}
+              >
                 {item.label}
               </span>
             ) : null}

@@ -31,7 +31,7 @@ export function SettingsSegmentedControl<T extends string>({
               SPRING_PRESSABLE,
               INTERACTIVE_FOCUS_RING,
               active
-                ? 'border-[var(--chip-brand-border-strong)] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)] shadow-[var(--button-secondary-shadow)]'
+                ? 'border-[var(--surface-active-border)] bg-[var(--surface-active-bg)] text-[var(--surface-active-text)] shadow-[var(--surface-active-shadow)]'
                 : 'border-[var(--border-default)] bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]',
             )}
           >
