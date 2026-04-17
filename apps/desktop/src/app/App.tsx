@@ -2579,26 +2579,21 @@ function AuthedView({
 
   useEffect(() => {
     const lastView = lastResolvedPrimaryViewRef.current;
-<<<<<<< Updated upstream
     lastResolvedPrimaryViewRef.current = resolvedShellSnapshot.resolvedPrimaryView;
-    if (resolvedShellSnapshot.resolvedPrimaryView !== 'chat' || lastView === 'chat') {
-=======
-    lastResolvedPrimaryViewRef.current = resolvedPrimaryView;
-    if (resolvedPrimaryView === 'knowledge-library' && lastView !== 'knowledge-library' && !sidebarCollapsed) {
+    if (
+      resolvedShellSnapshot.resolvedPrimaryView === 'knowledge-library' &&
+      lastView !== 'knowledge-library' &&
+      !sidebarCollapsed
+    ) {
       setSidebarCollapsed(true);
     }
-    if (resolvedPrimaryView !== 'chat' || lastView === 'chat') {
->>>>>>> Stashed changes
+    if (resolvedShellSnapshot.resolvedPrimaryView !== 'chat' || lastView === 'chat') {
       return;
     }
     void revalidateBrandRuntimeConfig().catch((error) => {
       console.warn('[desktop] failed to revalidate OEM runtime config on chat entry', error);
     });
-<<<<<<< Updated upstream
-  }, [resolvedShellSnapshot.resolvedPrimaryView, revalidateBrandRuntimeConfig]);
-=======
-  }, [resolvedPrimaryView, revalidateBrandRuntimeConfig, sidebarCollapsed]);
->>>>>>> Stashed changes
+  }, [resolvedShellSnapshot.resolvedPrimaryView, revalidateBrandRuntimeConfig, sidebarCollapsed]);
 
   useEffect(() => {
     const activeChatSurfaceKey = buildChatSurfaceCacheKey(activeChatRoute);
@@ -3688,11 +3683,7 @@ function AuthedView({
     return null;
   };
 
-<<<<<<< Updated upstream
   const shellSidebarCollapsed = resolvedShellSnapshot.sidebarCollapsed;
-=======
-  const shellSidebarCollapsed = sidebarCollapsed;
->>>>>>> Stashed changes
 
   return (
     <div className="relative h-screen overflow-hidden bg-[var(--bg-page)]">
