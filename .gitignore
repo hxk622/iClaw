@@ -17,6 +17,8 @@ coverage/
 
 # Logs
 *.log
+*.tmp
+*.temp
 
 # OS
 .DS_Store
@@ -63,6 +65,7 @@ docs/copilot/
 # GSD 规划临时目录
 .planning/
 tmp/
+temp/
 
 # Python 虚拟环境
 .venv/
