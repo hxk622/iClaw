@@ -2183,6 +2183,7 @@ export default function App() {
           primaryView={primaryView}
           setPrimaryView={setPrimaryView}
           brandShellConfig={brandShellConfig}
+          brandRuntimeReady={brandRuntimeReady}
           showStartupGate={shouldShowStartupGate}
           revalidateBrandRuntimeConfig={syncBrandRuntimeSnapshot}
           overlayView={overlayView}
@@ -2295,6 +2296,7 @@ interface AuthedViewProps {
   primaryView: PrimaryView;
   setPrimaryView: Dispatch<SetStateAction<PrimaryView>>;
   brandShellConfig: Record<string, unknown> | null;
+  brandRuntimeReady: boolean;
   showStartupGate: boolean;
   revalidateBrandRuntimeConfig: () => Promise<void>;
   overlayView: OverlayView | null;
@@ -2341,6 +2343,7 @@ function AuthedView({
   primaryView,
   setPrimaryView,
   brandShellConfig,
+  brandRuntimeReady,
   showStartupGate,
   revalidateBrandRuntimeConfig,
   overlayView,
