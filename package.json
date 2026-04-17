@@ -1,8 +1,8 @@
 {
   "name": "iclaw-monorepo",
   "private": true,
-  "version": "1.0.8+202604161818",
-  "releaseVersion": "1.0.8.202604161818",
+  "version": "1.0.8+202604161726",
+  "releaseVersion": "1.0.8.202604161726",
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "dev": "pnpm dev:all",

@@ -683,7 +683,7 @@ type ChatSurfaceRuntimeState = {
 const PRIMARY_VIEW_ORDER: PrimaryView[] = [
   'chat',
   'cron',
-  'thought-library',
+  'knowledge-library',
   'investment-experts',
   'stock-market',
   'fund-market',
@@ -3117,7 +3117,7 @@ function AuthedView({
         setPrimaryView('chat');
         return;
       }
-      const seed = `thought-library-${Date.now()}`;
+      const seed = `knowledge-library-${Date.now()}`;
       openChatRoute(
         buildConversationBackedChatRoute({
           sessionKey: createScopedChatSessionKey(seed),
@@ -3345,7 +3345,7 @@ function AuthedView({
       );
     }
 
-    if (viewKey === 'thought-library') {
+    if (viewKey === 'knowledge-library') {
       return (
         <DeferredSurface title={viewLabel}>
           <ThoughtLibraryView
@@ -3611,7 +3611,7 @@ function AuthedView({
     return null;
   };
 
-  const shellSidebarCollapsed = sidebarCollapsed || resolvedPrimaryView === 'thought-library';
+  const shellSidebarCollapsed = sidebarCollapsed || resolvedPrimaryView === 'knowledge-library';
 
   return (
     <div className="relative h-screen overflow-hidden bg-[var(--bg-page)]">
@@ -3672,7 +3672,7 @@ function AuthedView({
         className="absolute inset-y-0 right-0 z-[1] isolate flex min-w-0 flex-col overflow-hidden transition-[left] duration-[180ms] [contain:layout_paint_style]"
         style={{ left: shellSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH }}
       >
-        {resolvedPrimaryView === 'data-connections' || resolvedPrimaryView === 'thought-library' || headerConfig.enabled === false ? null : (
+        {resolvedPrimaryView === 'data-connections' || resolvedPrimaryView === 'knowledge-library' || headerConfig.enabled === false ? null : (
           <IClawHeader
             config={headerConfig}
             balance={creditBalance?.total_available_balance ?? creditBalance?.available_balance ?? creditBalance?.balance ?? null}

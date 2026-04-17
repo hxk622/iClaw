@@ -13,7 +13,6 @@ import {
   type ThoughtLibraryTab,
 } from './model';
 import { readThoughtLibraryState, writeThoughtLibraryState } from './persistence';
-import { ThoughtLibraryChatShell } from './ThoughtLibraryChatShell';
 import { buildThoughtLibraryContextPrompt } from './chat-context';
 import { ThoughtLibraryEmbeddedChatSurface } from './ThoughtLibraryEmbeddedChatSurface';
 import type { IClawClient } from '@iclaw/sdk';
@@ -115,17 +114,17 @@ export function ThoughtLibraryView({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-page)]">
-      <div className="border-b border-[var(--border-primary)] bg-[var(--bg-panel)]/92 px-5 py-4 backdrop-blur">
+    <div className="flex min-h-0 flex-1 flex-col bg-[#F5F5F0] text-[#1E293B] dark:bg-[#0F0F0F] dark:text-[#E8E8E3]">
+      <div className="border-b border-[rgba(0,0,0,0.08)] bg-[#FFFFFF]/92 px-5 py-4 backdrop-blur dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]/92">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <h1 className="text-[24px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{title}</h1>
+              <h1 className="text-[24px] font-semibold tracking-[-0.04em] text-[#1E293B] dark:text-[#E8E8E3]">{title}</h1>
               <Chip tone="accent" className="px-2.5 py-1 text-[11px]">
-                Knowledge Flywheel
+                知识飞轮
               </Chip>
             </div>
-            <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">
+            <p className="mt-1 text-[13px] leading-6 text-[#64748B] dark:text-[#94A3B8]">
               素材进入，AI 编译图谱，对话生成成果，成果再反哺图谱。
             </p>
           </div>
@@ -137,7 +136,7 @@ export function ThoughtLibraryView({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="搜索素材、图谱、成果..."
-                className="h-10 w-full rounded-[12px] border border-[var(--border-primary)] bg-[var(--bg-elevated)] pl-10 pr-4 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[rgba(180,154,112,0.14)]"
+                className="h-10 w-full rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] pl-10 pr-4 text-[13px] text-[#1E293B] outline-none transition placeholder:text-[#64748B] focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#E8E8E3] dark:placeholder:text-[#94A3B8]"
               />
             </label>
             <Button variant="secondary" size="sm" leadingIcon={<RefreshCw className="h-4 w-4" />}>
@@ -151,8 +150,8 @@ export function ThoughtLibraryView({
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <aside className="flex w-[300px] shrink-0 flex-col border-r border-[var(--border-primary)] bg-[var(--bg-panel)]/70">
-          <div className="flex items-center gap-1 border-b border-[var(--border-primary)] px-3 py-2">
+        <aside className="flex w-[300px] shrink-0 flex-col border-r border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#161616]">
+          <div className="flex items-center gap-1 border-b border-[rgba(0,0,0,0.08)] px-3 py-2 dark:border-[rgba(255,255,255,0.08)]">
             {THOUGHT_LIBRARY_TAB_CONFIG.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.id;
@@ -164,8 +163,8 @@ export function ThoughtLibraryView({
                   className={cn(
                     'inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] px-3 py-2 text-[13px] font-medium transition',
                     active
-                      ? 'bg-[rgba(180,154,112,0.16)] text-[var(--text-primary)]'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]',
+                      ? 'bg-[rgba(212,165,116,0.16)] text-[#1E293B] dark:text-[#E8E8E3]'
+                      : 'text-[#64748B] hover:bg-[#F1F1EC] hover:text-[#1E293B] dark:text-[#94A3B8] dark:hover:bg-[#252525] dark:hover:text-[#E8E8E3]',
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -191,17 +190,17 @@ export function ThoughtLibraryView({
                   className={cn(
                     'w-full rounded-[14px] border px-3 py-3 text-left transition',
                     active
-                      ? 'border-[rgba(180,154,112,0.38)] bg-[rgba(180,154,112,0.10)]'
-                      : 'border-[var(--border-primary)] bg-[var(--bg-elevated)] hover:border-[rgba(180,154,112,0.20)]',
+                      ? 'border-[rgba(212,165,116,0.34)] bg-[rgba(212,165,116,0.10)]'
+                      : 'border-[rgba(0,0,0,0.08)] bg-white hover:border-[rgba(212,165,116,0.22)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]',
                   )}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--bg-page)] text-[var(--brand-primary)]">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#F1F1EC] text-[#D4A574] dark:bg-[#252525]">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.title}</div>
-                      <div className="mt-1 text-[12px] text-[var(--text-muted)]">{item.subtitle}</div>
+                      <div className="text-[13px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">{item.title}</div>
+                      <div className="mt-1 text-[12px] text-[#64748B] dark:text-[#94A3B8]">{item.subtitle}</div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {item.tags.slice(0, 3).map((tag) => (
                           <Chip key={tag} tone="outline" className="px-2 py-0.5 text-[10px]">
@@ -209,7 +208,7 @@ export function ThoughtLibraryView({
                           </Chip>
                         ))}
                       </div>
-                      <div className="mt-2 text-[11px] text-[var(--text-muted)]">{item.meta}</div>
+                      <div className="mt-2 text-[11px] text-[#64748B] dark:text-[#94A3B8]">{item.meta}</div>
                     </div>
                   </div>
                 </button>
@@ -218,19 +217,19 @@ export function ThoughtLibraryView({
           </div>
         </aside>
 
-        <section className="min-w-0 flex-1 overflow-y-auto bg-[var(--bg-page)]">
+        <section className="min-w-0 flex-1 overflow-y-auto bg-[#F5F5F0] dark:bg-[#0F0F0F]">
           <div className="mx-auto flex h-full max-w-[960px] flex-col px-6 py-6">
             <div className="mb-4">
-              <div className="text-[20px] font-semibold text-[var(--text-primary)]">{getThoughtLibraryPanelTitle(activeTab)}</div>
-              <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">{getThoughtLibraryPanelDescription(activeTab)}</p>
+              <div className="text-[20px] font-semibold text-[#1E293B] dark:text-[#E8E8E3]">{getThoughtLibraryPanelTitle(activeTab)}</div>
+              <p className="mt-1 text-[13px] leading-6 text-[#64748B] dark:text-[#94A3B8]">{getThoughtLibraryPanelDescription(activeTab)}</p>
             </div>
 
             {selectedItem ? (
               <div className="space-y-4">
-                <div className="rounded-[18px] border border-[var(--border-primary)] bg-[var(--bg-panel)] px-5 py-5">
+                <div className="rounded-[18px] border border-[rgba(0,0,0,0.08)] bg-white px-5 py-5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">{selectedItem.title}</h2>
+                      <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#1E293B] dark:text-[#E8E8E3]">{selectedItem.title}</h2>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {selectedItem.tags.map((tag) => (
                           <Chip key={tag} tone="accent" className="px-2.5 py-1 text-[11px]">
@@ -243,12 +242,12 @@ export function ThoughtLibraryView({
                       查看来源
                     </Button>
                   </div>
-                  <p className="mt-4 text-[14px] leading-7 text-[var(--text-secondary)]">{selectedItem.summary}</p>
+                  <p className="mt-4 text-[14px] leading-7 text-[#64748B] dark:text-[#94A3B8]">{selectedItem.summary}</p>
                 </div>
 
                 <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-                  <div className="rounded-[18px] border border-[var(--border-primary)] bg-[var(--bg-panel)] px-5 py-5">
-                    <div className="mb-3 text-[14px] font-medium text-[var(--text-primary)]">
+                  <div className="rounded-[18px] border border-[rgba(0,0,0,0.08)] bg-white px-5 py-5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
+                    <div className="mb-3 text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">
                       {activeTab === 'graph' ? (graphViewMode === 'graph' ? '关系图谱视图' : '图谱页面视图') : '结构化内容视图'}
                     </div>
                     {activeTab === 'graph' ? (
@@ -264,8 +263,8 @@ export function ThoughtLibraryView({
                             className={cn(
                               'rounded-full px-3 py-1.5 text-[12px] transition',
                               graphViewMode === mode
-                                ? 'bg-[rgba(180,154,112,0.16)] text-[var(--text-primary)]'
-                                : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
+                                ? 'bg-[rgba(212,165,116,0.16)] text-[#1E293B] dark:text-[#E8E8E3]'
+                                : 'bg-[#F1F1EC] text-[#64748B] dark:bg-[#252525] dark:text-[#94A3B8]',
                             )}
                           >
                             {label}
@@ -294,24 +293,24 @@ export function ThoughtLibraryView({
                         </svg>
                       </div>
                     ) : (
-                      <div className="rounded-[16px] border border-[var(--border-primary)] bg-[var(--bg-elevated)] px-4 py-4 text-[13px] leading-7 text-[var(--text-secondary)]">
+                      <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
                         AI 会在这里展示当前对象的正文、摘要、来源结构、关键摘录，以及可被引用的压缩知识块。对于图谱对象，页面视图会优先展示关系说明和来源证据。
                       </div>
                     )}
                   </div>
 
-                  <div className="rounded-[18px] border border-[var(--border-primary)] bg-[var(--bg-panel)] px-5 py-5">
-                    <div className="mb-3 text-[14px] font-medium text-[var(--text-primary)]">状态与关系</div>
+                  <div className="rounded-[18px] border border-[rgba(0,0,0,0.08)] bg-white px-5 py-5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
+                    <div className="mb-3 text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">状态与关系</div>
                     <div className="space-y-3">
-                      <div className="rounded-[14px] border border-[var(--border-primary)] bg-[var(--bg-elevated)] px-4 py-3">
-                        <div className="text-[12px] text-[var(--text-muted)]">当前层级</div>
-                        <div className="mt-1 text-[14px] text-[var(--text-primary)]">
+                      <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                        <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">当前层级</div>
+                        <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
                           {activeTab === 'materials' ? '素材输入层' : activeTab === 'graph' ? '图谱编译层' : '成果产出层'}
                         </div>
                       </div>
-                      <div className="rounded-[14px] border border-[var(--border-primary)] bg-[var(--bg-elevated)] px-4 py-3">
-                        <div className="text-[12px] text-[var(--text-muted)]">推荐动作</div>
-                        <div className="mt-1 text-[14px] text-[var(--text-primary)]">
+                      <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                        <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">推荐动作</div>
+                        <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
                           {activeTab === 'materials'
                             ? '加入图谱 / 继续提炼'
                             : activeTab === 'graph'

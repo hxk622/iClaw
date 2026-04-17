@@ -1,3 +1,10 @@
+function normalizePrimaryViewAlias(value: string | null): string | null {
+  if (value === 'thought-library') {
+    return 'knowledge-library';
+  }
+  return value;
+}
+
 export function resolveRequestedPrimaryViewFromUrl(input?: string | URL | Location | null): string | null {
   if (!input) {
     return null;
@@ -13,7 +20,7 @@ export function resolveRequestedPrimaryViewFromUrl(input?: string | URL | Locati
   }
 
   const pathname = url.pathname.trim().toLowerCase();
-  const queryView = (url.searchParams.get('view') || '').trim().toLowerCase();
+  const queryView = normalizePrimaryViewAlias((url.searchParams.get('view') || '').trim().toLowerCase());
   if (queryView) {
     return queryView;
   }
@@ -36,7 +43,7 @@ export function resolveInitialPrimaryView(input: {
 
   const normalizedPersistedPrimaryView =
     typeof input.persistedPrimaryView === 'string' && input.persistedPrimaryView.trim()
-      ? input.persistedPrimaryView.trim()
+      ? normalizePrimaryViewAlias(input.persistedPrimaryView.trim())
       : null;
   if (normalizedPersistedPrimaryView && input.availablePrimaryViews.includes(normalizedPersistedPrimaryView)) {
     return normalizedPersistedPrimaryView;

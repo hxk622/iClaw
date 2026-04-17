@@ -24,7 +24,7 @@ export function ThoughtLibraryChatShell({
     {
       id: 'seed-default',
       role: 'assistant',
-      content: '这里会围绕当前选中的素材、图谱或成果进行对话。你可以把第三栏理解为思维库的知识引擎。',
+      content: '这里会围绕当前选中的素材、图谱或成果进行对话。你可以把第三栏理解为知识库的知识引擎。',
     },
   ]);
 
@@ -79,7 +79,7 @@ export function ThoughtLibraryChatShell({
           <div className="mb-4 flex items-start gap-2 rounded-[14px] border border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.08)] px-3 py-2">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[rgb(245,158,11)]" />
             <div className="text-[12px] leading-6 text-[var(--text-secondary)]">
-              外部搜索结果不会自动进入思维库，需你确认后才会进入素材层或图谱层。
+              外部搜索结果不会自动进入知识库，需你确认后才会进入素材层或图谱层。
             </div>
           </div>
         ) : null}

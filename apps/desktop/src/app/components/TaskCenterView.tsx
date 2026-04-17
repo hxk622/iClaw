@@ -426,27 +426,18 @@ function ConversationCard({
         </div>
 
         {conversation.routeTarget === 'chat' ? (
-          <div
-            className={cn(
-              'overflow-hidden transition-[max-height,opacity,margin] duration-[180ms]',
-              isSelected
-                ? 'mt-3 max-h-16 opacity-100'
-                : 'mt-0 max-h-0 opacity-0 group-hover:mt-3 group-hover:max-h-16 group-hover:opacity-100 group-focus-within:mt-3 group-focus-within:max-h-16 group-focus-within:opacity-100',
-            )}
-          >
-            <div className="border-t border-[var(--border-default)] pt-3">
-              <Button
-                variant="secondary"
-                size="sm"
-                leadingIcon={<MessageSquare className="h-3.5 w-3.5" />}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onOpenTarget?.();
-                }}
-              >
-                继续对话
-              </Button>
-            </div>
+          <div className="mt-3 border-t border-[var(--border-default)] pt-3">
+            <Button
+              variant={isSelected ? 'primary' : 'secondary'}
+              size="sm"
+              leadingIcon={<MessageSquare className="h-3.5 w-3.5" />}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenTarget?.();
+              }}
+            >
+              进入对话
+            </Button>
           </div>
         ) : null}
       </div>
@@ -547,7 +538,7 @@ function ConversationDetailPanel({
           leadingIcon={<MessageSquare className="h-4 w-4" />}
           onClick={onOpenTarget}
         >
-          返回{chatMenuLabel}
+          进入{chatMenuLabel}
         </Button>
       ) : (
         <div className="rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-3 text-[13px] leading-6 text-[var(--text-secondary)]">

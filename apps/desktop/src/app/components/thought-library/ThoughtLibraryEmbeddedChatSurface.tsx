@@ -46,7 +46,7 @@ export function ThoughtLibraryEmbeddedChatSurface({
   inputComposerConfig?: ResolvedInputComposerConfig | null;
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
 }) {
-  const sessionSeed = selectedItem ? `thought-library-${activeTab}-${selectedItem.id}` : 'thought-library-empty';
+  const sessionSeed = `knowledge-library-${activeTab}`;
   const initialPrompt = selectedItem
     ? buildThoughtLibraryContextPrompt({
         tab: activeTab,
@@ -55,9 +55,9 @@ export function ThoughtLibraryEmbeddedChatSurface({
     : null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="knowledge-library-embedded-chat flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <OpenClawChatSurface
-        key={`thought-library-chat:${sessionSeed}`}
+        key={`knowledge-library-chat:${sessionSeed}`}
         gatewayUrl={gatewayUrl}
         gatewayToken={gatewayToken}
         gatewayPassword={gatewayPassword}
@@ -66,7 +66,7 @@ export function ThoughtLibraryEmbeddedChatSurface({
         conversationId={null}
         sessionKey={createScopedChatSessionKey(sessionSeed)}
         initialPrompt={initialPrompt}
-        initialPromptKey={selectedItem ? sessionSeed : null}
+        initialPromptKey={selectedItem ? `${sessionSeed}:${selectedItem.id}` : null}
         focusedTurnId={null}
         focusedTurnKey={null}
         initialAgentSlug={null}
@@ -79,8 +79,9 @@ export function ThoughtLibraryEmbeddedChatSurface({
         user={currentUser}
         inputComposerConfig={inputComposerConfig}
         welcomePageConfig={welcomePageConfig}
+        compactWelcomePage
         onRequireAuth={onRequestAuth}
-        runtimeStateKey={`thought-library:${sessionSeed}`}
+        runtimeStateKey={`knowledge-library:${sessionSeed}`}
         surfaceVisible
         sendBlockedReason={null}
       />

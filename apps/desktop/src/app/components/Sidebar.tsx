@@ -595,7 +595,7 @@ function SidebarComponent({
   const iconRegistry: Record<string, Pick<SidebarItem, 'icon' | 'imageSrc' | 'imageAlt' | 'iconClass' | 'iconWrapClass'>> = {
     chat: { icon: MessageSquare, iconClass: 'text-[rgb(73,102,146)]' },
     cron: { icon: CheckSquare, iconClass: 'text-[var(--state-warn)]' },
-    'thought-library': { icon: Brain, iconClass: 'text-[rgb(115,99,169)]' },
+    'knowledge-library': { icon: Brain, iconClass: 'text-[rgb(115,99,169)]' },
     'investment-experts': {
       imageSrc: '/menu-icons/buffett.png',
       imageAlt: 'Warren Buffett',

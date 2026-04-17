@@ -296,6 +296,7 @@ type OpenClawChatSurfaceProps = {
   } | null;
   inputComposerConfig?: ResolvedInputComposerConfig | null;
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
+  compactWelcomePage?: boolean;
   onGeneralChatSessionOverloaded?: (snapshot: ChatSessionPressureSnapshot) => void;
   onOpenRechargeCenter?: () => void;
   onRequireAuth?: (mode?: 'login' | 'register', nextView?: 'account' | 'recharge' | null) => void;
@@ -4502,6 +4503,7 @@ export function OpenClawChatSurface({
   user,
   inputComposerConfig = null,
   welcomePageConfig = null,
+  compactWelcomePage = false,
   onGeneralChatSessionOverloaded,
   onOpenRechargeCenter,
   onRequireAuth,
@@ -9338,6 +9340,7 @@ export function OpenClawChatSurface({
                     onStartChat={handleWelcomeStartChat}
                     onFillPrompt={handleWelcomeFillPrompt}
                     config={welcomePageConfig}
+                    density={compactWelcomePage ? 'compact' : 'default'}
                   />
                 ) : null}
 

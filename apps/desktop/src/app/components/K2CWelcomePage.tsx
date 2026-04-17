@@ -62,37 +62,61 @@ type K2CWelcomePageProps = {
   onStartChat: () => void;
   onFillPrompt: (prompt: string) => void;
   config?: ResolvedWelcomePageConfig | null;
+  density?: 'default' | 'compact';
 };
 
 export function K2CWelcomePage({
   onStartChat: _onStartChat,
   onFillPrompt: _onFillPrompt,
   config,
+  density = 'default',
 }: K2CWelcomePageProps) {
   const profile = useMemo(() => resolveWelcomeProfile(config), [config]);
+  const compact = density === 'compact';
 
   return (
     <div
+      data-density={density}
       className="pointer-events-none absolute inset-x-0 top-0 z-10 overflow-hidden"
       style={{ bottom: 'calc(var(--iclaw-composer-height) + 18px)' }}
     >
-      <div className="flex h-full items-center justify-center px-6 py-6 lg:px-8">
+      <div className={`flex h-full items-center justify-center ${compact ? 'px-3 py-3 lg:px-4' : 'px-6 py-6 lg:px-8'}`}>
         <section
-          className="flex h-full w-full max-w-[720px] flex-col items-center justify-center overflow-hidden text-center"
+          className={`flex h-full w-full flex-col items-center justify-center overflow-hidden text-center ${
+            compact ? 'max-w-[560px]' : 'max-w-[720px]'
+          }`}
           style={buildWelcomeVars(profile)}
         >
           <div className="relative">
-            <div className="absolute inset-[-18px] rounded-full bg-[radial-gradient(circle,rgba(196,151,95,0.18),transparent_68%)] dark:bg-[radial-gradient(circle,rgba(196,151,95,0.24),transparent_66%)]" />
-            <div className="relative h-[116px] w-[116px] overflow-hidden rounded-full border border-[var(--iclaw-welcome-primary-border)] bg-[var(--chat-surface-panel)] shadow-[0_18px_44px_rgba(0,0,0,0.16)] md:h-[136px] md:w-[136px]">
+            <div
+              className={`absolute rounded-full bg-[radial-gradient(circle,rgba(196,151,95,0.18),transparent_68%)] dark:bg-[radial-gradient(circle,rgba(196,151,95,0.24),transparent_66%)] ${
+                compact ? 'inset-[-12px]' : 'inset-[-18px]'
+              }`}
+            />
+            <div
+              className={`relative overflow-hidden rounded-full border border-[var(--iclaw-welcome-primary-border)] bg-[var(--chat-surface-panel)] shadow-[0_18px_44px_rgba(0,0,0,0.16)] ${
+                compact ? 'h-[84px] w-[84px] md:h-[96px] md:w-[96px]' : 'h-[116px] w-[116px] md:h-[136px] md:w-[136px]'
+              }`}
+            >
               <LogoAvatar src={profile.avatarUrl} alt={profile.expertName} />
             </div>
           </div>
 
-          <h1 className="mt-8 whitespace-nowrap text-[clamp(34px,4vw,46px)] font-semibold tracking-[-0.06em] text-[var(--text-primary)] dark:text-[rgba(248,245,238,0.96)]">
+          <h1
+            className={`whitespace-nowrap font-semibold tracking-[-0.06em] text-[var(--text-primary)] dark:text-[rgba(248,245,238,0.96)] ${
+              compact ? 'mt-5 text-[clamp(24px,2.8vw,34px)]' : 'mt-8 text-[clamp(34px,4vw,46px)]'
+            }`}
+          >
             {profile.expertName}
           </h1>
 
-          <p className="mt-5 max-w-[560px] text-[15px] leading-8 text-[var(--text-secondary)] dark:text-[rgba(233,224,210,0.72)] md:text-[18px]">
+          <p
+            className={`text-[var(--text-secondary)] dark:text-[rgba(233,224,210,0.72)] ${
+              compact
+                ? 'mt-3 max-w-[420px] text-[13px] leading-6 md:text-[15px]'
+                : 'mt-5 max-w-[560px] text-[15px] leading-8 md:text-[18px]'
+            }`}
+          >
             {profile.slogan}
           </p>
         </section>

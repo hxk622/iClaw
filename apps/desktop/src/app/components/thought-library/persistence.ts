@@ -2,7 +2,8 @@ import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store
 import { buildStorageKey } from '@/app/lib/storage';
 import type { ThoughtLibraryTab } from './model';
 
-const THOUGHT_LIBRARY_STATE_KEY = buildStorageKey('thought-library.state.v1');
+const KNOWLEDGE_LIBRARY_STATE_KEY = buildStorageKey('knowledge-library.state.v1');
+const LEGACY_THOUGHT_LIBRARY_STATE_KEY = buildStorageKey('thought-library.state.v1');
 
 type ThoughtLibraryPersistedState = {
   activeTab?: unknown;
@@ -29,7 +30,9 @@ export function readThoughtLibraryState(): {
   activeTab: ThoughtLibraryTab;
   selectedByTab: ThoughtLibrarySelectionState;
 } {
-  const snapshot = readCacheJson<ThoughtLibraryPersistedState>(THOUGHT_LIBRARY_STATE_KEY);
+  const snapshot =
+    readCacheJson<ThoughtLibraryPersistedState>(KNOWLEDGE_LIBRARY_STATE_KEY) ||
+    readCacheJson<ThoughtLibraryPersistedState>(LEGACY_THOUGHT_LIBRARY_STATE_KEY);
   return {
     activeTab: normalizeTab(snapshot?.activeTab),
     selectedByTab: normalizeSelectedByTab(snapshot?.selectedByTab),
@@ -40,5 +43,5 @@ export function writeThoughtLibraryState(input: {
   activeTab: ThoughtLibraryTab;
   selectedByTab: ThoughtLibrarySelectionState;
 }): void {
-  writeCacheJson(THOUGHT_LIBRARY_STATE_KEY, input);
+  writeCacheJson(KNOWLEDGE_LIBRARY_STATE_KEY, input);
 }

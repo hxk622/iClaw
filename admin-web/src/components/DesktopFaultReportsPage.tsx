@@ -6,7 +6,7 @@ import {
   AdminSelectorRow,
 } from './AdminFilterLayout';
 import { formatDateTime } from '../lib/adminFormat';
-import { getDesktopFaultReportDetail, loadDesktopFaultReports } from '../lib/adminApi';
+import { downloadDesktopFaultReportFile, getDesktopFaultReportDetail, loadDesktopFaultReports } from '../lib/adminApi';
 import type { DesktopFaultReportDetailRecord, DesktopFaultReportSummaryRecord } from '../lib/adminTypes';
 
 function entryLabel(value: DesktopFaultReportSummaryRecord['entry']): string {
@@ -28,6 +28,7 @@ export function DesktopFaultReportsPage() {
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState<DesktopFaultReportDetailRecord | null>(null);
   const [error, setError] = useState('');
+  const [downloadBusy, setDownloadBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +82,22 @@ export function DesktopFaultReportsPage() {
       cancelled = true;
     };
   }, [selectedId]);
+
+  const handleDownload = async () => {
+    if (!detail) return;
+    setDownloadBusy(true);
+    setError('');
+    try {
+      await downloadDesktopFaultReportFile({
+        id: detail.id,
+        fileName: detail.fileName,
+      });
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : '诊断包下载失败');
+    } finally {
+      setDownloadBusy(false);
+    }
+  };
 
   const filteredItems = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -215,9 +232,9 @@ export function DesktopFaultReportsPage() {
               </div>
               {detail?.downloadUrl ? (
                 <div className="fig-release-card__actions">
-                  <a className="solid-button" href={detail.downloadUrl} target="_blank" rel="noreferrer">
-                    下载诊断包
-                  </a>
+                  <button className="solid-button" type="button" disabled={downloadBusy} onClick={() => void handleDownload()}>
+                    {downloadBusy ? '下载中…' : '下载诊断包'}
+                  </button>
                 </div>
               ) : null}
             </div>

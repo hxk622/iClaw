@@ -21,6 +21,14 @@ function normalizeOptionalText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function normalizePrimaryView(value: unknown): string | null {
+  const normalized = normalizeOptionalText(value);
+  if (normalized === 'thought-library') {
+    return 'knowledge-library';
+  }
+  return normalized;
+}
+
 export function readPersistedWorkspaceScene(): PersistedWorkspaceScene {
   const snapshot = readCacheJson<PersistedWorkspaceSceneSnapshot>(
     buildChatScopedStorageKey(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY),
@@ -31,12 +39,12 @@ export function readPersistedWorkspaceScene(): PersistedWorkspaceScene {
   );
   if (!snapshot || typeof snapshot !== 'object') {
     return {
-      primaryView: normalizeOptionalText(primaryViewSnapshot?.primaryView),
+      primaryView: normalizePrimaryView(primaryViewSnapshot?.primaryView),
       selectedConversationId: normalizeOptionalText(selectedConversationSnapshot?.selectedConversationId),
     };
   }
   return {
-    primaryView: normalizeOptionalText(primaryViewSnapshot?.primaryView) ?? normalizeOptionalText(snapshot.primaryView),
+    primaryView: normalizePrimaryView(primaryViewSnapshot?.primaryView) ?? normalizePrimaryView(snapshot.primaryView),
     selectedConversationId:
       normalizeOptionalText(selectedConversationSnapshot?.selectedConversationId) ??
       normalizeOptionalText(snapshot.selectedConversationId) ??
@@ -50,7 +58,7 @@ export function writePersistedWorkspaceScene(input: {
 }): void {
   const current = readPersistedWorkspaceScene();
   const next = {
-    primaryView: input.primaryView === undefined ? current.primaryView : normalizeOptionalText(input.primaryView),
+    primaryView: input.primaryView === undefined ? current.primaryView : normalizePrimaryView(input.primaryView),
     selectedConversationId:
       input.selectedConversationId === undefined
         ? current.selectedConversationId

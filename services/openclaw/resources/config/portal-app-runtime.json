@@ -2496,158 +2496,6 @@
         "source_layer": "platform_default"
       }
     ],
-    "model_provider": {
-      "provider_mode": "inherit_platform",
-      "resolved_scope": "platform",
-      "version": 1774977410667,
-      "profile": {
-        "id": "b6d1b82c-1c92-4c95-a9bb-fcd5c8b6c101",
-        "scope_type": "platform",
-        "scope_key": "platform",
-        "provider_key": "bailian",
-        "provider_label": "bailian",
-        "api_protocol": "openai-completions",
-        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "auth_mode": "bearer",
-        "api_key": "sk-c644d84390984cd5bcb3f31dd5822906",
-        "logo_preset_key": null,
-        "metadata": {
-          "default_model_ref": "bailian/qwen3.5-plus"
-        },
-        "enabled": true,
-        "sort_order": 100,
-        "created_at": "2026-03-27T15:12:24.644Z",
-        "updated_at": "2026-03-31T17:16:50.667Z"
-      },
-      "models": [
-        {
-          "id": "c4392348-e488-4eed-9c13-ab668a8231c0",
-          "model_ref": "bailian/qwen3.5-plus",
-          "model_id": "qwen3.5-plus",
-          "label": "qwen3.5-plus",
-          "logo_preset_key": "tongyi",
-          "reasoning": false,
-          "input_modalities": [
-            "text"
-          ],
-          "context_window": null,
-          "max_tokens": null,
-          "enabled": true,
-          "sort_order": 100,
-          "metadata": {},
-          "created_at": "2026-03-31T17:16:50.667Z",
-          "updated_at": "2026-03-31T17:16:50.667Z"
-        },
-        {
-          "id": "e47ca35e-80f2-4984-9ee6-bcbb361b08c7",
-          "model_ref": "bailian/qwen3.5-flash",
-          "model_id": "qwen3.5-flash",
-          "label": "qwen3.5-flash",
-          "logo_preset_key": "tongyi",
-          "reasoning": false,
-          "input_modalities": [
-            "text"
-          ],
-          "context_window": null,
-          "max_tokens": null,
-          "enabled": true,
-          "sort_order": 101,
-          "metadata": {},
-          "created_at": "2026-03-31T17:16:50.667Z",
-          "updated_at": "2026-03-31T17:16:50.667Z"
-        },
-        {
-          "id": "b6828a65-eb52-483b-9dd5-07e41032dd46",
-          "model_ref": "bailian/qwen3-max",
-          "model_id": "qwen3-max",
-          "label": "qwen3-max",
-          "logo_preset_key": "tongyi",
-          "reasoning": false,
-          "input_modalities": [
-            "text"
-          ],
-          "context_window": null,
-          "max_tokens": null,
-          "enabled": true,
-          "sort_order": 102,
-          "metadata": {},
-          "created_at": "2026-03-31T17:16:50.667Z",
-          "updated_at": "2026-03-31T17:16:50.667Z"
-        },
-        {
-          "id": "5ac2eed6-250c-447b-8fca-6d0bc6e92699",
-          "model_ref": "bailian/deepseek-v3.2",
-          "model_id": "deepseek-v3.2",
-          "label": "deepseek-v3.2",
-          "logo_preset_key": "deepseek",
-          "reasoning": false,
-          "input_modalities": [
-            "text"
-          ],
-          "context_window": null,
-          "max_tokens": null,
-          "enabled": true,
-          "sort_order": 103,
-          "metadata": {},
-          "created_at": "2026-03-31T17:16:50.667Z",
-          "updated_at": "2026-03-31T17:16:50.667Z"
-        },
-        {
-          "id": "ebdd356b-3b25-4b2c-a37d-62b40003134e",
-          "model_ref": "bailian/kimi-k2.5",
-          "model_id": "kimi-k2.5",
-          "label": "kimi-k2.5",
-          "logo_preset_key": "moonshotai-new",
-          "reasoning": false,
-          "input_modalities": [
-            "text"
-          ],
-          "context_window": null,
-          "max_tokens": null,
-          "enabled": true,
-          "sort_order": 104,
-          "metadata": {},
-          "created_at": "2026-03-31T17:16:50.667Z",
-          "updated_at": "2026-03-31T17:16:50.667Z"
-        },
-        {
-          "id": "feb6ee66-adbf-4b9f-a303-5956d287c629",
-          "model_ref": "bailian/glm-5",
-          "model_id": "glm-5",
-          "label": "glm-5",
-          "logo_preset_key": "zhipu",
-          "reasoning": false,
-          "input_modalities": [
-            "text"
-          ],
-          "context_window": null,
-          "max_tokens": null,
-          "enabled": true,
-          "sort_order": 105,
-          "metadata": {},
-          "created_at": "2026-03-31T17:16:50.667Z",
-          "updated_at": "2026-03-31T17:16:50.667Z"
-        },
-        {
-          "id": "d2f8d438-243d-4444-b8ce-e1c08ff218db",
-          "model_ref": "bailian/MiniMax-M2.5",
-          "model_id": "MiniMax-M2.5",
-          "label": "MiniMax-M2.5",
-          "logo_preset_key": "minimax-color",
-          "reasoning": false,
-          "input_modalities": [
-            "text"
-          ],
-          "context_window": null,
-          "max_tokens": null,
-          "enabled": true,
-          "sort_order": 106,
-          "metadata": {},
-          "created_at": "2026-03-31T17:16:50.667Z",
-          "updated_at": "2026-03-31T17:16:50.667Z"
-        }
-      ]
-    },
     "memory_embedding": {
       "resolved_scope": "platform",
       "version": 1775211268998,
@@ -2789,8 +2637,8 @@
     }
   },
   "syncMeta": {
-    "appName": "licaiclaw",
-    "syncedAt": "2026-04-15T14:48:03.182Z",
+    "appName": "caiclaw",
+    "syncedAt": "2026-04-16T10:12:00.974Z",
     "copiedSkillDirs": [
       "A股数据工具包",
       "docx",
@@ -2938,7 +2786,7 @@
       "sec-edgar"
     ],
     "mcpConfigSha256": "0b7ea8e277280a53aeba579707247105e2f185568140aef9210a347df226496f",
-    "resolvedConfigSha256": "b5a71b0832dc75f9f6243d089fd13fb62418dbcef8e7ff46681eac494101ba1b",
+    "resolvedConfigSha256": "7bb9e378652c10cdd2f6cdc893e37e5c42e2a79a4a7b4aabf333f7ae67bf325d",
     "skipRuntimeSkillSync": false,
     "bundledOnly": false,
     "incrementalSkillSync": true

@@ -159,7 +159,7 @@ const AUTH_AGREEMENT_LABELS: Record<string, string> = {
 const DEFAULT_ENABLED_MENU_KEYS = [
   'chat',
   'cron',
-  'thought-library',
+  'knowledge-library',
   'investment-experts',
   'stock-market',
   'fund-market',
@@ -177,7 +177,7 @@ const DEFAULT_ENABLED_MENU_KEYS = [
 const DEFAULT_MENU_UI_CONFIG: Record<string, RequiredResolvedMenuUiConfig> = {
   chat: { displayName: '智能对话', group: '工作台', iconKey: 'chat' },
   cron: { displayName: '定时任务', group: '工作台', iconKey: 'cron' },
-  'thought-library': { displayName: '思维库', group: '工作台', iconKey: 'thought-library' },
+  'knowledge-library': { displayName: '知识库', group: '工作台', iconKey: 'knowledge-library' },
   'investment-experts': { displayName: '智能投资专家', group: '商店', iconKey: 'investment-experts' },
   'stock-market': { displayName: '股票市场', group: '市场', iconKey: 'stock-market' },
   'fund-market': { displayName: '基金市场', group: '市场', iconKey: 'fund-market' },
@@ -627,7 +627,7 @@ export function resolveRequiredEnabledMenuKeys(config: Record<string, unknown> |
   if (!resolved || resolved.length === 0) {
     return [...DEFAULT_ENABLED_MENU_KEYS];
   }
-  return normalizeMenuKeys([...resolved, 'thought-library']);
+  return normalizeMenuKeys([...resolved, 'knowledge-library']);
 }
 
 export function resolveMenuDisplayNames(config: Record<string, unknown> | null | undefined): Record<string, string> | null {

@@ -1,5 +1,5 @@
 export const BRAND = {
-  "brandId": "licaiclaw",
+  "brandId": "caiclaw",
   "productName": "理财客",
   "displayName": "理财客",
   "websiteTitle": "理财客",
@@ -9,8 +9,8 @@ export const BRAND = {
   "devSidebarTitle": "理财客-dev",
   "sidebarSubtitle": "",
   "legalName": "理财客",
-  "bundleIdentifier": "ai.licaiclaw.desktop",
-  "authService": "ai.licaiclaw.desktop",
+  "bundleIdentifier": "ai.caiclaw.desktop",
+  "authService": "ai.caiclaw.desktop",
   "assets": {
     "faviconIcoSrc": "/brand/favicon.ico",
     "faviconPngSrc": "/brand/favicon.png",
@@ -32,7 +32,7 @@ export const BRAND = {
     }
   },
   "storage": {
-    "namespace": "licaiclaw"
+    "namespace": "caiclaw"
   },
   "endpoints": {
     "authBaseUrl": "https://caiclaw.aiyuanxi.com"
@@ -63,14 +63,14 @@ export const BRAND = {
     "artifactBaseName": "LiCaiClaw"
   },
   "build": {
-    "version": "1.0.7+202604152241",
+    "version": "1.0.8+202604161726",
     "stamp": {
-      "brandId": "licaiclaw",
+      "brandId": "caiclaw",
       "productName": "理财客",
-      "bundleIdentifier": "ai.licaiclaw.desktop",
+      "bundleIdentifier": "ai.caiclaw.desktop",
       "artifactBaseName": "LiCaiClaw",
-      "buildId": "202604152241",
-      "sourceProfileHash": "af812b57f57b8b455287b246e55bfa5748bc62e78cccc4a6c7ae6b982b6fa0e3"
+      "buildId": "202604161726",
+      "sourceProfileHash": "58b7111429d93bfddb24fea4bf28dfd1bb2db9bd1d51ce885fb5faac287f31d5"
     }
   }
 } as const;

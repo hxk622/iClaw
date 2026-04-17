@@ -1176,6 +1176,98 @@ export async function getDesktopFaultReportDetail(id: string): Promise<DesktopFa
   };
 }
 
+export async function downloadDesktopFaultReportFile(input: {
+  id: string;
+  fileName?: string;
+}): Promise<void> {
+  let tokens = loadTokens();
+  if (!tokens?.access_token) {
+    throw new Error('缺少登录令牌，请重新登录后再试。');
+  }
+
+  const request = async (accessToken: string) =>
+    fetch(`${API_BASE_URL}/admin/desktop/fault-reports/${encodeURIComponent(input.id)}/download`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+  let response = await request(tokens.access_token);
+  if (response.status === 401 && tokens?.refresh_token) {
+    tokens = await refreshToken(tokens).catch(() => null);
+    if (!tokens?.access_token) {
+      throw new Error('登录状态已失效，请重新登录后再试。');
+    }
+    response = await request(tokens.access_token);
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error?.message || `下载失败：${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const fallbackName = (input.fileName || '').trim() || `desktop-fault-report-${input.id}.zip`;
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = fallbackName;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  }
+}
+
+export async function downloadDesktopDiagnosticUploadFile(input: {
+  id: string;
+  fileName?: string;
+}): Promise<void> {
+  let tokens = loadTokens();
+  if (!tokens?.access_token) {
+    throw new Error('缺少登录令牌，请重新登录后再试。');
+  }
+
+  const request = async (accessToken: string) =>
+    fetch(`${API_BASE_URL}/admin/security/action-diagnostic-uploads/${encodeURIComponent(input.id)}/download`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+  let response = await request(tokens.access_token);
+  if (response.status === 401 && tokens?.refresh_token) {
+    tokens = await refreshToken(tokens).catch(() => null);
+    if (!tokens?.access_token) {
+      throw new Error('登录状态已失效，请重新登录后再试。');
+    }
+    response = await request(tokens.access_token);
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error?.message || `下载失败：${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const fallbackName = (input.fileName || '').trim() || `desktop-diagnostic-upload-${input.id}.zip`;
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = fallbackName;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  }
+}
+
 export async function loadClientMetricEvents(input: {
   eventName?: string;
   appVersion?: string;

@@ -6,7 +6,7 @@ import {
   AdminSelectorRow,
 } from './AdminFilterLayout';
 import { formatDateTime } from '../lib/adminFormat';
-import { loadDesktopDiagnosticUploads } from '../lib/adminApi';
+import { downloadDesktopDiagnosticUploadFile, loadDesktopDiagnosticUploads } from '../lib/adminApi';
 import type { UserActionDiagnosticUploadRecord } from '../lib/adminTypes';
 
 function sourceTypeLabel(value: string) {
@@ -23,6 +23,7 @@ export function AutoFaultReportsPage() {
   const [items, setItems] = useState<UserActionDiagnosticUploadRecord[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [error, setError] = useState('');
+  const [downloadBusy, setDownloadBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,6 +49,24 @@ export function AutoFaultReportsPage() {
       cancelled = true;
     };
   }, []);
+
+  const handleDownload = async () => {
+    if (!selected) {
+      return;
+    }
+    setDownloadBusy(true);
+    setError('');
+    try {
+      await downloadDesktopDiagnosticUploadFile({
+        id: selected.id,
+        fileName: selected.fileName,
+      });
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : '诊断包下载失败');
+    } finally {
+      setDownloadBusy(false);
+    }
+  };
 
   const filteredItems = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -165,14 +184,9 @@ export function AutoFaultReportsPage() {
               </div>
               {selected ? (
                 <div className="fig-release-card__actions">
-                  <a
-                    className="solid-button"
-                    href={`/admin/security/action-diagnostic-uploads/${encodeURIComponent(selected.id)}/download`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    下载诊断包
-                  </a>
+                  <button className="solid-button" type="button" disabled={downloadBusy} onClick={() => void handleDownload()}>
+                    {downloadBusy ? '下载中…' : '下载诊断包'}
+                  </button>
                 </div>
               ) : null}
             </div>
