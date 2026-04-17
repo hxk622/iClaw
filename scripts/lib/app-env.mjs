@@ -6,6 +6,8 @@ function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+export const DEFAULT_APP_NAME = 'caiclaw';
+
 export function normalizeEnvName(raw) {
   const normalized = trimString(raw).toLowerCase();
   if (!normalized) return '';
@@ -165,6 +167,6 @@ export function resolveConfiguredAppName(rootDir) {
     readPreferredEnvValue(rootDir, 'ICLAW_PORTAL_APP_NAME') ||
     readPreferredEnvValue(rootDir, 'ICLAW_BRAND') ||
     readPreferredEnvValue(rootDir, 'ICLAW_APP_NAME') ||
-    ''
+    DEFAULT_APP_NAME
   );
 }
