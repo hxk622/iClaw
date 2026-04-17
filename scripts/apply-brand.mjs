@@ -42,7 +42,7 @@ const brandGeneratedPaths = [
 ];
 
 function defaultMarketingTemplateKey(brandId) {
-  return ['caiclaw', 'licaiclaw'].includes(brandId) ? 'wealth-premium' : 'classic-download';
+  return brandId === 'caiclaw' ? 'wealth-premium' : 'classic-download';
 }
 
 function resolveBrandPath(brandDir, rawPath) {

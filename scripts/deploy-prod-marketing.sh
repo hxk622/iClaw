@@ -86,7 +86,7 @@ resolve_brand_domain() {
   local brand="$1"
   case "$brand" in
     iclaw) printf '%s' "$ICLAW_ICLAW_DOMAIN" ;;
-    caiclaw|licaiclaw) printf '%s' "$ICLAW_CAICLAW_DOMAIN" ;;
+    caiclaw) printf '%s' "$ICLAW_CAICLAW_DOMAIN" ;;
     *)
       echo "Unsupported brand: $brand" >&2
       exit 1

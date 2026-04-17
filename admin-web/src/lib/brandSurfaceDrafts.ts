@@ -188,7 +188,7 @@ function buildDefaultAuthExperiencePreset(brandId: string, displayName: string, 
   const legalEntity = String(legalName || displayName || brandId || '本产品').trim() || '本产品';
   const socialNotice = '微信和 Gmail 登录暂未开放，请先使用账号密码登录。';
 
-  if (normalizedBrandId === 'caiclaw' || normalizedBrandId === 'licaiclaw') {
+  if (normalizedBrandId === 'caiclaw') {
     return {
       title: '登录后继续使用理财研究与额度体系',
       subtitle: `${productLabel} 面向财富管理、基金投顾与长期配置场景，协议文案会更强调信息披露、风险揭示与用户自主决策。`,
@@ -382,7 +382,7 @@ const DEFAULT_HOME_WEB_SURFACE_CONFIG = {
 function buildDefaultHomeWebSurfaceConfig(context: { brandId?: string; displayName?: string } = {}) {
   const brandId = String(context.brandId || '').trim();
   const displayName = String(context.displayName || '').trim() || 'iClaw';
-  const isWealth = brandId === 'caiclaw' || brandId === 'licaiclaw';
+  const isWealth = brandId === 'caiclaw';
   const legalPages = buildDefaultMarketingLegalPageContent(brandId || 'iclaw', displayName, displayName);
   return {
     ...clone(DEFAULT_HOME_WEB_SURFACE_CONFIG),
@@ -449,7 +449,7 @@ function deriveWebsiteFromMarketingState(input: {
   const context = input.context || {};
   const displayName = String(context.displayName || '').trim() || 'iClaw';
   const brandId = String(context.brandId || '').trim();
-  const isWealth = brandId === 'caiclaw' || brandId === 'licaiclaw';
+  const isWealth = brandId === 'caiclaw';
   const siteShell = asObject(input.siteShell);
   const pages = Array.isArray(input.pages) ? input.pages : [];
   const header = asObject(siteShell.header);

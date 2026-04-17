@@ -38,7 +38,7 @@ export function escapeHtml(value) {
 }
 
 export function defaultTemplateKeyForBrand(brandId) {
-  return brandId === 'caiclaw' || brandId === 'licaiclaw' ? 'wealth-premium' : 'classic-download';
+  return brandId === 'caiclaw' ? 'wealth-premium' : 'classic-download';
 }
 
 export function normalizeTemplateKey(value, brandId) {

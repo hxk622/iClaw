@@ -299,13 +299,6 @@ function normalizeAppName(value: string): string {
   return normalized;
 }
 
-function resolveAppLookupCandidates(appName: string): string[] {
-  if (appName === 'caiclaw') {
-    return ['caiclaw', 'licaiclaw'];
-  }
-  return [appName];
-}
-
 function inferArtifactFormat(entry: {
   artifactFormat?: string | null;
   artifactUrl?: string | null;
@@ -482,13 +475,7 @@ async function main() {
       portalStore.listSkills(),
       portalStore.listMcps(),
     ]);
-    let detail: Awaited<ReturnType<typeof portalStore.getAppDetail>> = null;
-    for (const candidate of resolveAppLookupCandidates(appName)) {
-      detail = await portalStore.getAppDetail(candidate);
-      if (detail) {
-        break;
-      }
-    }
+    const detail = await portalStore.getAppDetail(appName);
     if (!detail) {
       throw new Error(`portal app not found: ${appName}`);
     }

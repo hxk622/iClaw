@@ -17,7 +17,7 @@ function buildDefaultMarketingLegalPageContent(appName: string, displayName: str
   const normalizedAppName = String(appName || '').trim().toLowerCase();
   const productLabel = String(displayName || appName || '本产品').trim() || '本产品';
   const legalEntity = productLabel;
-  if (normalizedAppName === 'caiclaw' || normalizedAppName === 'licaiclaw') {
+  if (normalizedAppName === 'caiclaw') {
     return {
       privacyTitle: '隐私政策',
       privacyContent: `${legalEntity} 重视用户隐私与数据安全。为提供 ${productLabel} 服务，我们会在最小必要范围内处理账号信息、设备信息、操作日志、充值记录，以及用户主动提交的研究问题、标的代码、基金列表、组合偏好和自定义策略信息。\n\n1. 账号信息主要用于身份识别、登录鉴权、额度结算、风险控制和客服支持。\n2. 用户输入的研究问题、筛选条件、观察清单与相关上下文，可能用于生成答案、恢复会话、展示历史记录以及改进交互体验。\n3. 若某项能力需要调用第三方模型、支付、消息通知或数据服务，相关必要字段会在任务执行范围内传输给对应服务提供方。\n4. 我们不会因平台商业宣传目的擅自公开用户的账户资产、持仓、观察列表或个性化研究偏好。\n5. 我们会采取访问控制、日志审计、环境隔离与密钥管理等措施保护数据安全，但仍提醒用户避免在平台内提交超出使用目的的敏感个人信息。\n6. 用户可申请查询、导出、更正或删除与账户相关的数据；如法律法规或监管要求另有规定，我们将在符合法定义务范围内处理。`,
@@ -95,7 +95,7 @@ function normalizeMarketingTemplateKey(value: unknown, appName: string): string 
   if (raw) {
     return raw;
   }
-  return appName === 'caiclaw' || appName === 'licaiclaw' ? 'wealth-premium' : 'classic-download';
+  return appName === 'caiclaw' ? 'wealth-premium' : 'classic-download';
 }
 
 function buildDefaultMarketingSiteConfig(input: {
@@ -103,7 +103,7 @@ function buildDefaultMarketingSiteConfig(input: {
   displayName: string;
   website: PortalJsonObject;
 }): PortalJsonObject {
-  const isWealth = input.appName === 'caiclaw' || input.appName === 'licaiclaw';
+  const isWealth = input.appName === 'caiclaw';
   const legalPages = buildDefaultMarketingLegalPageContent(input.appName, input.displayName);
   return {
     templateKey: normalizeMarketingTemplateKey('', input.appName),

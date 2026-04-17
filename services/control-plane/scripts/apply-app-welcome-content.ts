@@ -117,7 +117,7 @@ async function main() {
     }
 
     const preset =
-      appName === 'caiclaw' || appName === 'licaiclaw'
+      appName === 'caiclaw'
         ? createLicaiclawWelcomePreset(publicBaseUrl)
         : (() => {
             throw new Error(`unsupported welcome preset app: ${appName}`);

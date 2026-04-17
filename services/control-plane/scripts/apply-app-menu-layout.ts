@@ -8,7 +8,7 @@ type MenuLayoutItem = {
   groupLabel: string;
 };
 
-const LICAICLAW_MENU_LAYOUT: MenuLayoutItem[] = [
+const CAICLAW_MENU_LAYOUT: MenuLayoutItem[] = [
   { menuKey: 'chat', displayName: '智能投资对话', groupLabel: '工作台' },
   { menuKey: 'investment-experts', displayName: '智能投资专家', groupLabel: '工作台' },
   { menuKey: 'finance-skills', displayName: '财经技能', groupLabel: '工作台' },
@@ -35,8 +35,8 @@ function asString(value: unknown): string {
 
 function resolveMenuLayout(layoutName: string): MenuLayoutItem[] {
   const normalized = layoutName.trim().toLowerCase();
-  if (!normalized || normalized === 'licaiclaw-default' || normalized === 'licaiclaw-left-nav') {
-    return LICAICLAW_MENU_LAYOUT;
+  if (!normalized || normalized === 'caiclaw-default' || normalized === 'caiclaw-left-nav') {
+    return CAICLAW_MENU_LAYOUT;
   }
   throw new Error(`unsupported layout preset: ${layoutName}`);
 }
@@ -66,7 +66,7 @@ function assertMenuLayout(detailMenus: Array<{ menuKey: string; sortOrder: numbe
 
 async function main() {
   const appName = asString(readArg('--app') || process.env.APP_NAME);
-  const layoutName = asString(readArg('--layout') || 'licaiclaw-left-nav');
+  const layoutName = asString(readArg('--layout') || 'caiclaw-left-nav');
 
   if (!appName) {
     throw new Error('app name is required (--app or APP_NAME)');
