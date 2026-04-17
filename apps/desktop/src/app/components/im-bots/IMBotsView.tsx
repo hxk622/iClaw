@@ -1121,7 +1121,7 @@ function ActivityPanel({
                   SPRING_PRESSABLE,
                   INTERACTIVE_FOCUS_RING,
                   active
-                    ? 'border border-[var(--button-primary-border)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[var(--button-secondary-shadow)]'
+                    ? 'border border-[var(--surface-active-border)] bg-[var(--surface-active-bg)] text-[var(--surface-active-text)] shadow-[var(--surface-active-shadow)]'
                     : 'border border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-card)] hover:text-[var(--text-primary)]',
                 )}
               >

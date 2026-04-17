@@ -38,11 +38,11 @@ export function SettingsSidebar({ activeSection, onSelect }: SettingsSidebarProp
                 SPRING_PRESSABLE,
                 INTERACTIVE_FOCUS_RING,
                 active
-                  ? 'border-[color:color-mix(in_srgb,var(--brand-primary)_40%,var(--border-default))] bg-[var(--bg-card)] text-[var(--brand-primary)] shadow-[0_2px_10px_rgba(0,0,0,0.06)]'
+                  ? 'border-[var(--surface-active-border)] bg-[var(--surface-active-bg)] text-[var(--surface-active-text)] shadow-[var(--surface-active-shadow)]'
                   : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-card)]/65 hover:text-[var(--text-primary)]',
               )}
             >
-              <div className={cn('text-[14px] font-medium', active ? 'text-[var(--brand-primary)]' : 'text-[var(--text-primary)]')}>
+              <div className={cn('text-[14px] font-medium', active ? 'text-[var(--surface-active-text)]' : 'text-[var(--text-primary)]')}>
                 {item.label}
               </div>
               {item.sublabel ? (
