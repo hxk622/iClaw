@@ -6415,6 +6415,12 @@ fn detect_port_conflicts() -> Result<PortConflictStatus, String> {
 }
 
 #[tauri::command]
+fn append_desktop_bootstrap_log_command(app: AppHandle, message: String) -> Result<bool, String> {
+    append_desktop_bootstrap_log(&app, &message);
+    Ok(true)
+}
+
+#[tauri::command]
 fn load_runtime_config(app: AppHandle) -> Result<RuntimeConfig, String> {
     load_runtime_config_internal(&app)
 }
@@ -8366,6 +8372,7 @@ fn main() {
             clear_auth_tokens,
             load_gateway_auth,
             detect_port_conflicts,
+            append_desktop_bootstrap_log_command,
             load_runtime_config,
             save_runtime_config,
             save_oem_runtime_snapshot,

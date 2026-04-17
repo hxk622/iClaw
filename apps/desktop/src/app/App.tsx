@@ -1535,7 +1535,6 @@ export default function App() {
     () => ({
       isTauriRuntime: IS_TAURI_RUNTIME,
       brandDisplayName: BRAND.displayName,
-      brandRuntimeReady,
       apiBaseUrl: API_BASE_URL,
       sidecarArgs: SIDE_CAR_ARGS,
       sidecarBootHealthcheckAttempts: SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS,
@@ -1553,7 +1552,7 @@ export default function App() {
       refreshGatewayAuth,
       syncBrandRuntimeSnapshot,
     }),
-    [brandRuntimeReady, healthCheck, refreshGatewayAuth, resolvePortConflictMessage, syncBrandRuntimeSnapshot],
+    [healthCheck, refreshGatewayAuth, resolvePortConflictMessage, syncBrandRuntimeSnapshot],
   );
 
   const {

@@ -151,6 +151,11 @@ export async function loadStartupDiagnostics(): Promise<StartupDiagnosticsSnapsh
   return invoke<StartupDiagnosticsSnapshot>('load_startup_diagnostics');
 }
 
+export async function appendDesktopBootstrapLog(message: string): Promise<boolean> {
+  if (!isTauriRuntime()) return false;
+  return invoke<boolean>('append_desktop_bootstrap_log_command', { message });
+}
+
 export async function prepareDesktopFaultReportArchive(
   input: DesktopFaultReportPrepareInput,
 ): Promise<PreparedDesktopFaultReportArchive | null> {

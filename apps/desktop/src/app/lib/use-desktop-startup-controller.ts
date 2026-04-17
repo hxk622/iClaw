@@ -6,7 +6,7 @@ import {
   type InstallerViewModel,
 } from './startup-gate';
 import { startSidecarWithTimeout } from './sidecar-start-timeout.ts';
-import { normalizeTauriError } from './tauri-runtime-config';
+import { appendDesktopBootstrapLog, normalizeTauriError } from './tauri-runtime-config';
 import type {
   RuntimeDiagnosis,
   RuntimeInstallProgress,
@@ -22,7 +22,6 @@ type WaitForClientHealthOptions = {
 type DesktopStartupControllerParams = {
   isTauriRuntime: boolean;
   brandDisplayName: string;
-  brandRuntimeReady: boolean;
   apiBaseUrl: string;
   sidecarArgs: string[];
   sidecarBootHealthcheckAttempts: number;
@@ -62,6 +61,25 @@ type DesktopStartupControllerResult = {
 export function useDesktopStartupController(
   params: DesktopStartupControllerParams,
 ): DesktopStartupControllerResult {
+  const {
+    isTauriRuntime,
+    brandDisplayName,
+    sidecarArgs,
+    sidecarBootHealthcheckAttempts,
+    sidecarBootHealthcheckIntervalMs,
+    sidecarBootHealthcheckTimeoutMs,
+    normalizeText,
+    diagnoseRuntime,
+    installRuntime,
+    loadStartupDiagnostics,
+    listenRuntimeInstallProgress,
+    ensureOpenClawCliAvailable,
+    startSidecar,
+    healthCheck,
+    resolvePortConflictMessage,
+    refreshGatewayAuth,
+    syncBrandRuntimeSnapshot,
+  } = params;
   const [healthChecking, setHealthChecking] = useState(true);
   const [healthy, setHealthy] = useState(false);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -75,31 +93,54 @@ export function useDesktopStartupController(
   const [startupDiagnostics, setStartupDiagnostics] = useState<StartupDiagnosticsSnapshot | null>(null);
   const lastRuntimeProgressRef = useRef(0);
 
-  const buildSidecarHealthTimeoutMessage = useCallback(() => {
-    const seconds = Math.max(1, Math.round(params.sidecarBootHealthcheckTimeoutMs / 1000));
-    return `本地服务启动超时：健康检查在 ${seconds}s 内未通过，请使用故障上报上传日志。`;
-  }, [params.sidecarBootHealthcheckTimeoutMs]);
-  const buildSidecarStartTimeoutMessage = useCallback(() => {
-    const seconds = Math.max(1, Math.round(params.sidecarBootHealthcheckTimeoutMs / 1000));
-    return `本地服务启动超时：启动命令在 ${seconds}s 内未返回，请使用故障上报上传日志。`;
-  }, [params.sidecarBootHealthcheckTimeoutMs]);
+  const logStartupEvent = useCallback((message: string, details?: Record<string, unknown>) => {
+    const line = details
+      ? `[startup-controller] ${message} ${JSON.stringify(details)}`
+      : `[startup-controller] ${message}`;
+    console.info(line);
+    void appendDesktopBootstrapLog(line).catch((error) => {
+      console.warn('[desktop] failed to append startup bootstrap log', error);
+    });
+  }, []);
 
-    const waitForClientHealth = useCallback(
+  const buildSidecarHealthTimeoutMessage = useCallback(() => {
+    const seconds = Math.max(1, Math.round(sidecarBootHealthcheckTimeoutMs / 1000));
+    return `本地服务启动超时：健康检查在 ${seconds}s 内未通过，请使用故障上报上传日志。`;
+  }, [sidecarBootHealthcheckTimeoutMs]);
+  const buildSidecarStartTimeoutMessage = useCallback(() => {
+    const seconds = Math.max(1, Math.round(sidecarBootHealthcheckTimeoutMs / 1000));
+    return `本地服务启动超时：启动命令在 ${seconds}s 内未返回，请使用故障上报上传日志。`;
+  }, [sidecarBootHealthcheckTimeoutMs]);
+
+  const waitForClientHealth = useCallback(
     async (options: WaitForClientHealthOptions = {}): Promise<boolean> => {
       const {
-        attempts = params.sidecarBootHealthcheckAttempts,
-        intervalMs = params.sidecarBootHealthcheckIntervalMs,
+        attempts = sidecarBootHealthcheckAttempts,
+        intervalMs = sidecarBootHealthcheckIntervalMs,
         suppressError = false,
       } = options;
-      const deadlineAt = Date.now() + Math.max(params.sidecarBootHealthcheckTimeoutMs, intervalMs);
+      const deadlineAt = Date.now() + Math.max(sidecarBootHealthcheckTimeoutMs, intervalMs);
       for (let attempt = 0; attempt < attempts && Date.now() < deadlineAt; attempt += 1) {
         try {
-          await params.healthCheck();
+          await healthCheck();
           setHealthy(true);
           setHealthError(null);
+          setInitialHealthResolved(true);
+          logStartupEvent('health_check_success', {
+            attempt: attempt + 1,
+            attempts,
+            suppressError,
+          });
           return true;
         } catch (error) {
-          const portConflictMessage = await params.resolvePortConflictMessage();
+          const portConflictMessage = await resolvePortConflictMessage();
+          logStartupEvent('health_check_failed', {
+            attempt: attempt + 1,
+            attempts,
+            suppressError,
+            portConflictMessage,
+            error: error instanceof Error ? error.message : String(error),
+          });
           if (!suppressError) {
             setHealthy(false);
             setHealthError(portConflictMessage || (error instanceof Error ? error.message : 'health check failed'));
@@ -118,7 +159,14 @@ export function useDesktopStartupController(
       }
       return false;
     },
-    [buildSidecarHealthTimeoutMessage, params],
+    [
+      healthCheck,
+      logStartupEvent,
+      resolvePortConflictMessage,
+      sidecarBootHealthcheckAttempts,
+      sidecarBootHealthcheckIntervalMs,
+      sidecarBootHealthcheckTimeoutMs,
+    ],
   );
 
   const applyRuntimeDiagnosis = useCallback((diagnosis: RuntimeDiagnosis | null): boolean => {
@@ -132,7 +180,7 @@ export function useDesktopStartupController(
   }, []);
 
   const checkRuntime = useCallback(async () => {
-    if (!params.isTauriRuntime) {
+    if (!isTauriRuntime) {
       setRuntimeReady(true);
       setRuntimeChecking(false);
       return;
@@ -148,12 +196,12 @@ export function useDesktopStartupController(
       });
     }
     try {
-      const diagnosis = await params.diagnoseRuntime();
+      const diagnosis = await diagnoseRuntime();
       applyRuntimeDiagnosis(diagnosis);
     } finally {
       setRuntimeChecking(false);
     }
-  }, [applyRuntimeDiagnosis, params, runtimeInstalling]);
+  }, [applyRuntimeDiagnosis, diagnoseRuntime, isTauriRuntime, runtimeInstalling]);
 
   const handleInstallRuntime = useCallback(async () => {
     setRuntimeInstalling(true);
@@ -165,14 +213,14 @@ export function useDesktopStartupController(
       detail: '为首次启动创建本地运行目录并校验安装来源。',
     });
     try {
-      await params.installRuntime();
+      await installRuntime();
       await checkRuntime();
     } catch (error) {
       setRuntimeInstallError(normalizeTauriError(error, 'runtime install failed').message);
     } finally {
       setRuntimeInstalling(false);
     }
-  }, [checkRuntime, params]);
+  }, [checkRuntime, installRuntime]);
 
   const retrySetup = useCallback(async () => {
     setStartupDiagnostics(null);
@@ -185,17 +233,17 @@ export function useDesktopStartupController(
     setInitialHealthResolved(false);
     setHealthChecking(true);
     try {
-      await params.refreshGatewayAuth();
-      await params.syncBrandRuntimeSnapshot();
+      await refreshGatewayAuth();
+      await syncBrandRuntimeSnapshot();
       await startSidecarWithTimeout(
-        params.startSidecar,
-        params.sidecarArgs,
-        params.sidecarBootHealthcheckTimeoutMs,
+        startSidecar,
+        sidecarArgs,
+        sidecarBootHealthcheckTimeoutMs,
         buildSidecarStartTimeoutMessage(),
       );
       const healthyNow = await waitForClientHealth({
-        attempts: params.sidecarBootHealthcheckAttempts,
-        intervalMs: params.sidecarBootHealthcheckIntervalMs,
+        attempts: sidecarBootHealthcheckAttempts,
+        intervalMs: sidecarBootHealthcheckIntervalMs,
         suppressError: true,
       });
       if (!healthyNow) {
@@ -204,7 +252,7 @@ export function useDesktopStartupController(
       setHealthy(true);
       setHealthError(null);
     } catch (error) {
-      const portConflictMessage = await params.resolvePortConflictMessage();
+      const portConflictMessage = await resolvePortConflictMessage();
       setHealthy(false);
       setHealthError(portConflictMessage || (error instanceof Error ? error.message : 'failed to start openclaw runtime'));
     } finally {
@@ -215,13 +263,20 @@ export function useDesktopStartupController(
     buildSidecarHealthTimeoutMessage,
     buildSidecarStartTimeoutMessage,
     handleInstallRuntime,
-    params,
+    refreshGatewayAuth,
+    resolvePortConflictMessage,
     runtimeReady,
+    sidecarArgs,
+    sidecarBootHealthcheckAttempts,
+    sidecarBootHealthcheckIntervalMs,
+    sidecarBootHealthcheckTimeoutMs,
+    startSidecar,
+    syncBrandRuntimeSnapshot,
     waitForClientHealth,
   ]);
 
   useEffect(() => {
-    if (!params.isTauriRuntime) {
+    if (!isTauriRuntime) {
       return;
     }
     if (!runtimeInstallError && !healthError) {
@@ -230,8 +285,7 @@ export function useDesktopStartupController(
     }
 
     let cancelled = false;
-    void params
-      .loadStartupDiagnostics()
+    void loadStartupDiagnostics()
       .then((snapshot) => {
         if (!cancelled) {
           setStartupDiagnostics(snapshot);
@@ -244,15 +298,15 @@ export function useDesktopStartupController(
     return () => {
       cancelled = true;
     };
-  }, [healthError, params, runtimeInstallError]);
+  }, [healthError, isTauriRuntime, loadStartupDiagnostics, runtimeInstallError]);
 
   useEffect(() => {
-    if (!params.isTauriRuntime) {
+    if (!isTauriRuntime) {
       return;
     }
 
     let detach = () => {};
-    void params.listenRuntimeInstallProgress((payload) => {
+    void listenRuntimeInstallProgress((payload) => {
       lastRuntimeProgressRef.current = Math.max(lastRuntimeProgressRef.current, payload.progress || 0);
       setRuntimeInstallProgress(payload);
     }).then((unlisten) => {
@@ -262,10 +316,10 @@ export function useDesktopStartupController(
     return () => {
       detach();
     };
-  }, [params]);
+  }, [isTauriRuntime, listenRuntimeInstallProgress]);
 
   useEffect(() => {
-    if (!params.isTauriRuntime) {
+    if (!isTauriRuntime) {
       setRuntimeReady(true);
       setRuntimeChecking(false);
       return;
@@ -277,7 +331,7 @@ export function useDesktopStartupController(
       setRuntimeChecking(true);
       setRuntimeInstallError(null);
       try {
-        const diagnosis = await params.diagnoseRuntime();
+        const diagnosis = await diagnoseRuntime();
         const ready = applyRuntimeDiagnosis(diagnosis);
         if (ready || !diagnosis?.runtime_installable || diagnosis.runtime_found) {
           return;
@@ -290,11 +344,11 @@ export function useDesktopStartupController(
           label: '正在准备安装组件',
           detail: '首次启动需要部署本地运行环境，请稍候。',
         });
-        await params.installRuntime();
+        await installRuntime();
         if (cancelled) {
           return;
         }
-        const nextDiagnosis = await params.diagnoseRuntime();
+        const nextDiagnosis = await diagnoseRuntime();
         if (cancelled) {
           return;
         }
@@ -316,10 +370,15 @@ export function useDesktopStartupController(
     return () => {
       cancelled = true;
     };
-  }, [applyRuntimeDiagnosis, params]);
+  }, [applyRuntimeDiagnosis, diagnoseRuntime, installRuntime, isTauriRuntime]);
 
   useEffect(() => {
-    if (params.isTauriRuntime && (!runtimeReady || runtimeChecking || runtimeInstalling)) {
+    if (isTauriRuntime && (!runtimeReady || runtimeChecking || runtimeInstalling)) {
+      logStartupEvent('health_state_reset_for_runtime_transition', {
+        runtimeReady,
+        runtimeChecking,
+        runtimeInstalling,
+      });
       setHealthChecking(false);
       setHealthy(false);
       setInitialHealthResolved(false);
@@ -353,10 +412,10 @@ export function useDesktopStartupController(
 
     const waitForSidecarHealth = async (): Promise<boolean> => {
       const deadlineAt = Date.now() + Math.max(
-        params.sidecarBootHealthcheckTimeoutMs,
-        params.sidecarBootHealthcheckIntervalMs,
+        sidecarBootHealthcheckTimeoutMs,
+        sidecarBootHealthcheckIntervalMs,
       );
-      for (let attempt = 0; attempt < params.sidecarBootHealthcheckAttempts; attempt += 1) {
+      for (let attempt = 0; attempt < sidecarBootHealthcheckAttempts; attempt += 1) {
         if (Date.now() >= deadlineAt) {
           break;
         }
@@ -373,36 +432,46 @@ export function useDesktopStartupController(
           break;
         }
         await new Promise((resolve) => {
-          window.setTimeout(resolve, Math.min(params.sidecarBootHealthcheckIntervalMs, remainingMs));
+          window.setTimeout(resolve, Math.min(sidecarBootHealthcheckIntervalMs, remainingMs));
         });
       }
       return false;
     };
 
     const boot = async () => {
-      if (params.isTauriRuntime) {
+      logStartupEvent('boot_effect_start', {
+        runtimeReady,
+        runtimeChecking,
+        runtimeInstalling,
+      });
+      if (isTauriRuntime) {
         try {
-          await params.ensureOpenClawCliAvailable();
+          await ensureOpenClawCliAvailable();
         } catch (error) {
           console.warn('[desktop] failed to ensure openclaw cli launcher', error);
         }
       }
       const healthyNow = await check({
         blocking: true,
-        suppressError: params.isTauriRuntime,
+        suppressError: isTauriRuntime,
       });
-      if (!cancelled && !healthyNow && params.isTauriRuntime) {
+      logStartupEvent('boot_initial_health_result', { healthyNow });
+      if (!cancelled && !healthyNow && isTauriRuntime) {
         setHealthChecking(true);
         setHealthError(null);
+        logStartupEvent('boot_start_sidecar', {
+          sidecarArgs,
+          sidecarBootHealthcheckTimeoutMs,
+        });
         try {
           await startSidecarWithTimeout(
-            params.startSidecar,
-            params.sidecarArgs,
-            params.sidecarBootHealthcheckTimeoutMs,
+            startSidecar,
+            sidecarArgs,
+            sidecarBootHealthcheckTimeoutMs,
             buildSidecarStartTimeoutMessage(),
           );
         } catch (error) {
-          const portConflictMessage = await params.resolvePortConflictMessage();
+          const portConflictMessage = await resolvePortConflictMessage();
           if (!cancelled) {
             setHealthy(false);
             setHealthError(portConflictMessage || (error instanceof Error ? error.message : 'failed to start openclaw runtime'));
@@ -414,14 +483,19 @@ export function useDesktopStartupController(
         if (!cancelled) {
           setHealthChecking(false);
         }
+        logStartupEvent('boot_sidecar_health_result', {
+          sidecarHealthy,
+          cancelled,
+        });
         if (!cancelled && !sidecarHealthy) {
-          const portConflictMessage = await params.resolvePortConflictMessage();
+          const portConflictMessage = await resolvePortConflictMessage();
           setHealthy(false);
           setHealthError(portConflictMessage || buildSidecarHealthTimeoutMessage());
         }
       }
       if (!cancelled) {
         setInitialHealthResolved(true);
+        logStartupEvent('boot_effect_resolved', { healthy: healthyNow });
       }
     };
 
@@ -433,22 +507,31 @@ export function useDesktopStartupController(
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      logStartupEvent('boot_effect_cleanup');
     };
   }, [
     buildSidecarHealthTimeoutMessage,
     buildSidecarStartTimeoutMessage,
-    params,
+    ensureOpenClawCliAvailable,
+    isTauriRuntime,
+    logStartupEvent,
+    resolvePortConflictMessage,
     runtimeChecking,
     runtimeInstalling,
     runtimeReady,
+    sidecarArgs,
+    sidecarBootHealthcheckAttempts,
+    sidecarBootHealthcheckIntervalMs,
+    sidecarBootHealthcheckTimeoutMs,
+    startSidecar,
     waitForClientHealth,
   ]);
 
   const installerView = useMemo(
     () =>
       buildInstallerViewModel({
-        brandDisplayName: params.brandDisplayName,
-        isTauriRuntime: params.isTauriRuntime,
+        brandDisplayName,
+        isTauriRuntime,
         runtimeReady,
         runtimeChecking,
         runtimeInstalling,
@@ -461,14 +544,16 @@ export function useDesktopStartupController(
         initialHealthResolved,
         healthChecking,
         lastRuntimeProgress: lastRuntimeProgressRef.current,
-        normalizeText: params.normalizeText,
+        normalizeText,
       }),
     [
+      brandDisplayName,
       healthChecking,
       healthError,
       healthy,
       initialHealthResolved,
-      params,
+      isTauriRuntime,
+      normalizeText,
       runtimeChecking,
       runtimeDiagnosis,
       runtimeInstallError,
@@ -482,7 +567,7 @@ export function useDesktopStartupController(
   const shouldShowStartupGate = useMemo(
     () =>
       resolveShouldShowStartupGate({
-        isTauriRuntime: params.isTauriRuntime,
+        isTauriRuntime,
         runtimeChecking,
         runtimeInstalling,
         runtimeReady,
@@ -496,7 +581,7 @@ export function useDesktopStartupController(
       healthError,
       healthy,
       initialHealthResolved,
-      params.isTauriRuntime,
+      isTauriRuntime,
       runtimeChecking,
       runtimeInstalling,
       runtimeReady,
