@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff, LoaderCircle, Plus, X } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
-import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
 
 const INPUT_CLASS =
-  'min-h-[42px] w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[rgba(201,169,97,0.16)]';
+  'min-h-[42px] w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[rgba(201,169,97,0.16)] focus:placeholder:text-transparent';
 
 type CustomMcpTransport = 'stdio' | 'http' | 'sse';
 type CustomMcpMode = 'json' | 'manual';
@@ -336,7 +335,30 @@ export function CustomMcpModal({
         </div>
 
         <div className="max-h-[70vh] space-y-5 overflow-y-auto px-6 py-5">
-          <SegmentedTabs items={CUSTOM_MCP_MODE_TABS} activeId={mode} onChange={setMode} />
+          <div className="grid grid-cols-2 gap-2 rounded-[18px] border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-card)_82%,transparent)] p-2">
+            {CUSTOM_MCP_MODE_TABS.map((tab) => {
+              const active = tab.id === mode;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setMode(tab.id)}
+                  className={
+                    active
+                      ? 'rounded-[14px] border border-[var(--brand-primary)] bg-[color-mix(in_srgb,var(--brand-primary)_18%,var(--bg-card))] px-4 py-3 text-left shadow-[0_10px_24px_rgba(201,169,97,0.18)]'
+                      : 'rounded-[14px] border border-transparent bg-transparent px-4 py-3 text-left transition hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
+                  }
+                >
+                  <div className={active ? 'text-[14px] font-semibold text-[var(--text-primary)]' : 'text-[14px] font-medium text-[var(--text-secondary)]'}>
+                    {tab.label}
+                  </div>
+                  <div className={active ? 'mt-1 text-[12px] text-[var(--text-primary)]/80' : 'mt-1 text-[12px] text-[var(--text-muted)]'}>
+                    {tab.id === 'json' ? '粘贴现成配置，默认推荐' : '逐项填写，兼容原流程'}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
           {mode === 'json' ? (
             <>
