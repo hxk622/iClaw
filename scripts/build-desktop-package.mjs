@@ -36,6 +36,96 @@ const openclawResourcesSourceDir = path.join(rootDir, 'services', 'openclaw', 'r
 const runtimeArtifactCacheDir = path.join(rootDir, '.artifacts', 'openclaw-runtime');
 const runtimeInstallReceiptName = '.iclaw-runtime-install.json';
 const nsisAutoRunDefinition = '!define MUI_FINISHPAGE_RUN\n!define MUI_FINISHPAGE_RUN_FUNCTION RunMainBinary\n';
+const nsisRuntimeGuardMarker = '; ICLAW_NSIS_RUNTIME_GUARD';
+const nsisSetContextSnippet = '  !insertmacro SetContext\n';
+const nsisInstallerOnInitSignature = 'Function .onInit\n';
+const nsisUninstallPagesSnippet = '!insertmacro MUI_UNPAGE_INSTFILES\n';
+const nsisRuntimeGuardHelpers = `${nsisRuntimeGuardMarker}
+Var RuntimeGuardMode
+Var RuntimeGuardTitle
+Var RuntimeGuardPrompt
+Var RuntimeGuardAbort
+Var RuntimeGuardKillFailed
+
+Function RuntimeGuardConfigureForInstall
+  StrCpy $RuntimeGuardMode "install"
+  StrCpy $RuntimeGuardTitle "升级前需要先退出 \${PRODUCTNAME}"
+  StrCpy $RuntimeGuardPrompt "\${PRODUCTNAME} 或本地运行时仍在后台运行。$\r$\n$\r$\n继续前需要先关闭托盘中的 \${PRODUCTNAME} 并停止 2126 本地服务。$\r$\n$\r$\n点击“确定”将自动尝试关闭；点击“取消”将中止安装。"
+  StrCpy $RuntimeGuardAbort "安装已取消：请先退出托盘中的 \${PRODUCTNAME} 后再重试。"
+  StrCpy $RuntimeGuardKillFailed "无法自动关闭 \${PRODUCTNAME} 或 2126 本地服务，请先手动退出托盘中的 \${PRODUCTNAME}，确认 2126 已停止后再重试安装。"
+FunctionEnd
+
+Function RuntimeGuardConfigureForUninstall
+  StrCpy $RuntimeGuardMode "uninstall"
+  StrCpy $RuntimeGuardTitle "卸载前需要先退出 \${PRODUCTNAME}"
+  StrCpy $RuntimeGuardPrompt "\${PRODUCTNAME} 或本地运行时仍在后台运行。$\r$\n$\r$\n继续前需要先关闭托盘中的 \${PRODUCTNAME} 并停止 2126 本地服务。$\r$\n$\r$\n点击“确定”将自动尝试关闭；点击“取消”将中止卸载。"
+  StrCpy $RuntimeGuardAbort "卸载已取消：请先退出托盘中的 \${PRODUCTNAME} 后再重试。"
+  StrCpy $RuntimeGuardKillFailed "无法自动关闭 \${PRODUCTNAME} 或 2126 本地服务，请先手动退出托盘中的 \${PRODUCTNAME}，确认 2126 已停止后再重试卸载。"
+FunctionEnd
+
+Function RuntimeGuardCheckDesktopProcess
+  !if "\${INSTALLMODE}" == "currentUser"
+    nsis_tauri_utils::FindProcessCurrentUser "\${MAINBINARYNAME}.exe"
+  !else
+    nsis_tauri_utils::FindProcess "\${MAINBINARYNAME}.exe"
+  !endif
+  Pop $0
+  Push $0
+FunctionEnd
+
+Function RuntimeGuardCheckRuntimePort
+  nsExec::ExecToStack '"$SYSDIR\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "if ((Get-NetTCPConnection -LocalPort 2126 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)) { exit 0 } exit 1"'
+  Pop $0
+  Pop $1
+  Push $0
+FunctionEnd
+
+Function RuntimeGuardKillDesktopProcess
+  !if "\${INSTALLMODE}" == "currentUser"
+    nsis_tauri_utils::KillProcessCurrentUser "\${MAINBINARYNAME}.exe"
+  !else
+    nsis_tauri_utils::KillProcess "\${MAINBINARYNAME}.exe"
+  !endif
+  Pop $0
+  Sleep 800
+FunctionEnd
+
+Function RuntimeGuardKillRuntimePort
+  nsExec::ExecToStack '"$SYSDIR\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$targets = Get-NetTCPConnection -LocalPort 2126 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; if (-not $targets) { exit 0 }; $failed = $false; foreach ($pid in $targets) { try { Stop-Process -Id $pid -Force -ErrorAction Stop } catch { $failed = $true } }; Start-Sleep -Milliseconds 800; if ($failed) { exit 2 }; $remaining = Get-NetTCPConnection -LocalPort 2126 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1; if ($remaining) { exit 3 }; exit 0"'
+  Pop $0
+  Pop $1
+  Push $0
+FunctionEnd
+
+Function EnsureAppNotRunning
+  Call RuntimeGuardCheckDesktopProcess
+  Pop $0
+  Call RuntimeGuardCheckRuntimePort
+  Pop $1
+
+  \${If} $0 = 0
+  \${OrIf} $1 = 0
+    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "$RuntimeGuardPrompt" IDOK guard_try_kill IDCANCEL guard_abort
+    guard_try_kill:
+      Call RuntimeGuardKillDesktopProcess
+      Call RuntimeGuardKillRuntimePort
+      Pop $2
+      Call RuntimeGuardCheckDesktopProcess
+      Pop $3
+      Call RuntimeGuardCheckRuntimePort
+      Pop $4
+      \${If} $2 = 0
+      \${AndIf} $3 <> 0
+      \${AndIf} $4 <> 0
+        Return
+      \${EndIf}
+      MessageBox MB_OK|MB_ICONSTOP "$RuntimeGuardKillFailed"
+      Abort "$RuntimeGuardKillFailed"
+    guard_abort:
+      Abort "$RuntimeGuardAbort"
+  \${EndIf}
+FunctionEnd
+`;
 
 function parseArgs(argv) {
   const forwardedArgs = [];
@@ -499,7 +589,37 @@ async function patchWindowsNsisScript(installerScriptPath) {
   if (!source.includes(nsisAutoRunDefinition)) {
     return false;
   }
-  const patched = source.replace(nsisAutoRunDefinition, '');
+  let patched = source.replace(nsisAutoRunDefinition, '');
+  let changed = patched !== source;
+
+  if (!patched.includes(nsisRuntimeGuardMarker)) {
+    if (!patched.includes(nsisUninstallPagesSnippet)) {
+      throw new Error(`desktop packaging aborted: unable to locate NSIS uninstall page block in ${installerScriptPath}`);
+    }
+    patched = patched.replace(nsisUninstallPagesSnippet, `${nsisUninstallPagesSnippet}\n${nsisRuntimeGuardHelpers}\n`);
+    changed = true;
+  }
+
+  if (patched.includes(nsisInstallerOnInitSignature) && !patched.includes('  Call RuntimeGuardConfigureForInstall\n  Call EnsureAppNotRunning\n')) {
+    patched = patched.replace(
+      nsisSetContextSnippet,
+      `${nsisSetContextSnippet}  Call RuntimeGuardConfigureForInstall\n  Call EnsureAppNotRunning\n`,
+    );
+    changed = true;
+  }
+
+  if (!patched.includes('Function un.onInit\n')) {
+    const uninstallInitBlock = `Function un.onInit\n  !insertmacro SetContext\n  Call RuntimeGuardConfigureForUninstall\n  Call EnsureAppNotRunning\nFunctionEnd\n\nSection EarlyChecks\n`;
+    if (!patched.includes('Section EarlyChecks\n')) {
+      throw new Error(`desktop packaging aborted: unable to locate NSIS EarlyChecks section in ${installerScriptPath}`);
+    }
+    patched = patched.replace('Section EarlyChecks\n', uninstallInitBlock);
+    changed = true;
+  }
+
+  if (!changed) {
+    return false;
+  }
   await fs.writeFile(installerScriptPath, Buffer.from(patched, 'latin1'));
   return true;
 }
