@@ -37,6 +37,7 @@ function StatusPill({
 export function InvestmentExpertDetailDialog({
   expert,
   open,
+  loading = false,
   installBusy = false,
   removeBusy = false,
   onOpenChange,
@@ -46,6 +47,7 @@ export function InvestmentExpertDetailDialog({
 }: {
   expert: InvestmentExpert | null;
   open: boolean;
+  loading?: boolean;
   installBusy?: boolean;
   removeBusy?: boolean;
   onOpenChange: (open: boolean) => void;
@@ -151,7 +153,9 @@ export function InvestmentExpertDetailDialog({
 
           <section>
             <h3 className="mb-3 text-[16px] font-semibold text-[var(--lobster-text-primary)]">核心技能</h3>
-            {expert.skills.length > 0 ? (
+            {loading ? (
+              <EmptySectionState text="正在加载专家详情…" />
+            ) : expert.skills.length > 0 ? (
               <div className="grid gap-3 md:grid-cols-2">
                 {expert.skills.map((skill) => (
                   <div
@@ -174,7 +178,9 @@ export function InvestmentExpertDetailDialog({
 
           <section>
             <h3 className="mb-3 text-[16px] font-semibold text-[var(--lobster-text-primary)]">可执行任务示例</h3>
-            {expert.taskExamples.length > 0 ? (
+            {loading ? (
+              <EmptySectionState text="正在加载专家详情…" />
+            ) : expert.taskExamples.length > 0 ? (
               <div className="space-y-2">
                 {expert.taskExamples.map((task) => (
                   <div
@@ -193,7 +199,9 @@ export function InvestmentExpertDetailDialog({
 
           <section>
             <h3 className="mb-3 text-[16px] font-semibold text-[var(--lobster-text-primary)]">对话预览</h3>
-            {expert.conversationPreview.length > 0 ? (
+            {loading ? (
+              <EmptySectionState text="正在加载专家详情…" />
+            ) : expert.conversationPreview.length > 0 ? (
               <div className="rounded-[16px] border border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] p-4">
                 <div className="space-y-3">
                   {expert.conversationPreview.map((message, index) => (

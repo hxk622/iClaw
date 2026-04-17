@@ -5,9 +5,9 @@ import { resolveRuntimeKernelModelRef, type RuntimeModelCatalogResponse } from '
 
 function createRuntimeCatalog(): RuntimeModelCatalogResponse {
   return {
-    appName: 'licaiclaw',
+    appName: 'caiclaw',
     providerMode: 'provider_profile',
-    resolvedScope: 'licaiclaw',
+    resolvedScope: 'caiclaw',
     profile: {
       providerKey: 'bailian',
       providerLabel: 'Bailian',

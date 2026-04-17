@@ -349,9 +349,12 @@ const SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS = 60;
 const SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS = 500;
 const SIDECAR_BOOT_HEALTHCHECK_TIMEOUT_MS = 45_000;
 const DESKTOP_APP_VERSION = desktopPackageJson.version;
+const DESKTOP_RELEASE_VERSION =
+  String((desktopPackageJson as { releaseVersion?: string }).releaseVersion || '').trim() ||
+  DESKTOP_APP_VERSION.replace('+', '.');
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' =
   String(import.meta.env.VITE_BUILD_CHANNEL || '').trim().toLowerCase() === 'dev' ? 'dev' : 'prod';
-const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
+const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_RELEASE_VERSION;
 const DESKTOP_UPDATE_REVALIDATE_TTL_MS = 15 * 60 * 1000;
 const DESKTOP_RUNTIME_PLATFORM: 'windows' | 'macos' | 'linux' | 'web' =
   typeof navigator === 'undefined'
@@ -3262,19 +3265,22 @@ function AuthedView({
       return;
     }
 
-    openChatRoute(buildConversationBackedChatRoute({
-      sessionKey: conversation.activeSessionKey,
-      conversationId: conversation.id,
-      kind: conversation.kind,
-      initialPrompt: null,
-      initialPromptKey: null,
-      focusedTurnId: null,
-      focusedTurnKey: null,
-      initialAgentSlug: conversation.restoreContext.initialAgentSlug ?? conversation.activeAgentId ?? null,
-      initialSkillSlug: conversation.restoreContext.initialSkillSlug,
-      initialSkillOption: conversation.restoreContext.initialSkillOption,
-      initialStockContext: conversation.restoreContext.initialStockContext,
-    }));
+    openChatRoute(
+      buildConversationBackedChatRoute({
+        sessionKey: conversation.activeSessionKey,
+        conversationId: conversation.id,
+        kind: conversation.kind,
+        initialPrompt: null,
+        initialPromptKey: null,
+        focusedTurnId: null,
+        focusedTurnKey: null,
+        initialAgentSlug: conversation.restoreContext.initialAgentSlug ?? conversation.activeAgentId ?? null,
+        initialSkillSlug: conversation.restoreContext.initialSkillSlug,
+        initialSkillOption: conversation.restoreContext.initialSkillOption,
+        initialStockContext: conversation.restoreContext.initialStockContext,
+      }),
+      { forceRemount: true },
+    );
   }, [openChatRoute]);
 
   const handleDeleteConversation = useCallback((conversationId: string) => {

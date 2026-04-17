@@ -13,13 +13,13 @@ async function readRootPackageVersion() {
 }
 
 test('desktop brand context resolves shared stamp fields from one source of truth', async () => {
-  const context = await loadDesktopBrandContext({ rootDir, brandId: 'licaiclaw' });
+  const context = await loadDesktopBrandContext({ rootDir, brandId: 'caiclaw' });
   const rootVersion = await readRootPackageVersion();
   const expectedBuildId = rootVersion.split('+')[1] || 'dev';
 
-  assert.equal(context.brandId, 'licaiclaw');
+  assert.equal(context.brandId, 'caiclaw');
   assert.equal(context.productName, '理财客');
-  assert.equal(context.bundleIdentifier, 'ai.licaiclaw.desktop');
+  assert.equal(context.bundleIdentifier, 'ai.caiclaw.desktop');
   assert.equal(context.artifactBaseName, 'LiCaiClaw');
   assert.equal(context.appVersion, rootVersion);
   assert.equal(context.buildId, expectedBuildId);
@@ -29,21 +29,21 @@ test('desktop brand context resolves shared stamp fields from one source of trut
   assert.equal(context.stamp.artifactBaseName, context.artifactBaseName);
   assert.equal(context.stamp.buildId, context.buildId);
   assert.match(context.stamp.sourceProfileHash, /^[0-9a-f]{64}$/);
-  assert.ok(context.staging.root.startsWith(path.join(rootDir, '.build', 'desktop', 'licaiclaw', expectedBuildId)));
+  assert.ok(context.staging.root.startsWith(path.join(rootDir, '.build', 'desktop', 'caiclaw', expectedBuildId)));
   assert.equal(
     context.staging.brandGeneratedJsonPath,
     path.join(context.staging.root, 'desktop', 'src-tauri', 'brand.generated.json'),
   );
-  assert.equal(context.staging.currentPath, path.join(rootDir, '.build', 'desktop', 'licaiclaw', 'current.json'));
+  assert.equal(context.staging.currentPath, path.join(rootDir, '.build', 'desktop', 'caiclaw', 'current.json'));
 });
 
 test('desktop brand context keeps different OEM identities isolated', async () => {
   const iclaw = await loadDesktopBrandContext({ rootDir, brandId: 'iclaw' });
-  const licaiclaw = await loadDesktopBrandContext({ rootDir, brandId: 'licaiclaw' });
+  const caiclaw = await loadDesktopBrandContext({ rootDir, brandId: 'caiclaw' });
 
-  assert.notEqual(iclaw.brandId, licaiclaw.brandId);
-  assert.notEqual(iclaw.productName, licaiclaw.productName);
-  assert.notEqual(iclaw.bundleIdentifier, licaiclaw.bundleIdentifier);
-  assert.notEqual(iclaw.artifactBaseName, licaiclaw.artifactBaseName);
-  assert.notEqual(iclaw.sourceProfileHash, licaiclaw.sourceProfileHash);
+  assert.notEqual(iclaw.brandId, caiclaw.brandId);
+  assert.notEqual(iclaw.productName, caiclaw.productName);
+  assert.notEqual(iclaw.bundleIdentifier, caiclaw.bundleIdentifier);
+  assert.notEqual(iclaw.artifactBaseName, caiclaw.artifactBaseName);
+  assert.notEqual(iclaw.sourceProfileHash, caiclaw.sourceProfileHash);
 });

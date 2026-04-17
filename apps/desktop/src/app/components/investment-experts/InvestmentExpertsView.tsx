@@ -8,15 +8,18 @@ import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
 import { STORE_SHELF_GRID_CLASS } from '@/app/components/ui/store-shelf';
 import { cn } from '@/app/lib/cn';
 import {
-  hydrateInvestmentExperts,
+  loadInvestmentExpertDetail,
+  loadInvestmentExperts,
+  readCachedInvestmentExperts,
   resolveVisibleInvestmentExpertCategories,
   resolveVisibleInvestmentExpertStyles,
+  toInstallableInvestmentExpertAgent,
   type InvestmentExpert,
   type InvestmentExpertFilter,
   type InvestmentExpertStyleFilter,
   type InvestmentExpertTab,
 } from '@/app/lib/investment-experts';
-import { installLobsterAgent, loadLobsterAgents, uninstallLobsterAgent } from '@/app/lib/lobster-store';
+import { installLobsterAgent, uninstallLobsterAgent } from '@/app/lib/lobster-store';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import { InvestmentExpertCard } from './InvestmentExpertCard';
 import { InvestmentExpertDetailDialog } from './InvestmentExpertDetailDialog';
@@ -64,19 +67,32 @@ export function InvestmentExpertsView({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailSlug, setDetailSlug] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [installBusySlug, setInstallBusySlug] = useState<string | null>(null);
   const [removeBusySlug, setRemoveBusySlug] = useState<string | null>(null);
 
   const normalizedQuery = query.trim().toLowerCase();
 
-  const refresh = async () => {
-    const showRefreshing = experts.length > 0;
+  const refresh = async (options?: {
+    forceRefresh?: boolean;
+    background?: boolean;
+  }) => {
+    const showRefreshing = options?.background ?? experts.length > 0;
     setLoading(!showRefreshing);
     setRefreshing(showRefreshing);
     setError(null);
     try {
-      const agents = await loadLobsterAgents({client, accessToken, forceRefresh: true});
-      setExperts(hydrateInvestmentExperts(agents));
+      const nextExperts = await loadInvestmentExperts({
+        client,
+        accessToken,
+        forceRefresh: options?.forceRefresh,
+      });
+      setExperts((current) =>
+        nextExperts.map((expert) => {
+          const existing = current.find((item) => item.slug === expert.slug);
+          return existing?.detailLoaded ? {...expert, ...existing, installed: expert.installed} : expert;
+        }),
+      );
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : '加载智能投资专家失败');
     } finally {
@@ -86,13 +102,51 @@ export function InvestmentExpertsView({
   };
 
   useEffect(() => {
-    void refresh();
+    const cached = readCachedInvestmentExperts({accessToken});
+    if (cached) {
+      setExperts(cached);
+      setLoading(false);
+    }
+    void refresh({forceRefresh: !cached, background: Boolean(cached)});
   }, [accessToken, client]);
 
   const selectedExpert = useMemo(
     () => experts.find((expert) => expert.slug === detailSlug) ?? null,
     [detailSlug, experts],
   );
+
+  const ensureExpertDetail = async (slug: string): Promise<InvestmentExpert> => {
+    const existing = experts.find((expert) => expert.slug === slug);
+    if (existing?.detailLoaded) {
+      return existing;
+    }
+
+    setDetailLoading(true);
+    try {
+      const detail = await loadInvestmentExpertDetail({client, accessToken, slug});
+      setExperts((current) =>
+        current.map((expert) =>
+          expert.slug === slug ? {...detail, installed: expert.installed || detail.installed} : expert,
+        ),
+      );
+      return detail;
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!detailSlug) {
+      return;
+    }
+    const existing = experts.find((expert) => expert.slug === detailSlug);
+    if (existing?.detailLoaded) {
+      return;
+    }
+    void ensureExpertDetail(detailSlug).catch((detailError) => {
+      setError(detailError instanceof Error ? detailError.message : '加载专家详情失败');
+    });
+  }, [detailSlug, experts]);
 
   const shopExperts = useMemo(() => {
     return experts.filter((expert) => {
@@ -190,8 +244,9 @@ export function InvestmentExpertsView({
     setInstallBusySlug(target.slug);
     setError(null);
     try {
-      await installLobsterAgent({client, accessToken, agent: target});
-      await refresh();
+      const installTarget = target.detailLoaded ? target : await ensureExpertDetail(target.slug);
+      await installLobsterAgent({client, accessToken, agent: toInstallableInvestmentExpertAgent(installTarget)});
+      await refresh({forceRefresh: true});
     } catch (installError) {
       setError(installError instanceof Error ? installError.message : '安装失败');
     } finally {
@@ -209,7 +264,7 @@ export function InvestmentExpertsView({
     setError(null);
     try {
       await uninstallLobsterAgent({client, accessToken, slug: target.slug});
-      await refresh();
+      await refresh({forceRefresh: true});
       setDetailSlug((current) => (current === target.slug ? null : current));
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : '移除失败');
@@ -244,7 +299,7 @@ export function InvestmentExpertsView({
                 size="sm"
                 disabled={refreshing}
                 leadingIcon={refreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                onClick={() => void refresh()}
+                onClick={() => void refresh({forceRefresh: true})}
               >
                 {refreshing ? '刷新中…' : '刷新'}
               </Button>
@@ -258,7 +313,7 @@ export function InvestmentExpertsView({
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
-            <Button variant="ghost" size="sm" className="self-start" onClick={() => void refresh()}>
+            <Button variant="ghost" size="sm" className="self-start" onClick={() => void refresh({forceRefresh: true})}>
               重新加载
             </Button>
           </div>
@@ -414,6 +469,7 @@ export function InvestmentExpertsView({
       <InvestmentExpertDetailDialog
         expert={selectedExpert}
         open={Boolean(selectedExpert)}
+        loading={detailLoading && Boolean(selectedExpert) && !selectedExpert?.detailLoaded}
         installBusy={selectedExpert ? installBusySlug === selectedExpert.slug : false}
         removeBusy={selectedExpert ? removeBusySlug === selectedExpert.slug : false}
         onOpenChange={(nextOpen) => {

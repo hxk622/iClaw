@@ -942,6 +942,17 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/investment-experts/catalog',
+    handler: ({headers}: HandlerContext) => service.listInvestmentExpertCatalog(readBearerToken(headers)),
+  },
+  {
+    method: 'GET',
+    path: '/investment-experts/catalog/:slug',
+    handler: ({headers, params}: HandlerContext) =>
+      service.getInvestmentExpertCatalogEntry(params.slug || '', readBearerToken(headers)),
+  },
+  {
+    method: 'GET',
     path: '/agents/library',
     handler: ({headers}: HandlerContext) => service.listUserAgentLibrary(requireBearerToken(headers)),
   },

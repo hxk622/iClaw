@@ -2498,17 +2498,43 @@ body {
 .knowledge-library-embedded-chat .openclaw-chat-surface openclaw-app,
 .knowledge-library-embedded-chat .openclaw-chat-surface .shell,
 .knowledge-library-embedded-chat .openclaw-chat-surface .content,
+.knowledge-library-embedded-chat .openclaw-chat-surface .content.content--chat,
 .knowledge-library-embedded-chat .iclaw-chat-stage,
 .knowledge-library-embedded-chat .iclaw-chat-stage__main {
   min-width: 0;
   width: 100%;
   max-width: 100%;
+  overflow-x: hidden;
 }
 
 .knowledge-library-embedded-chat .openclaw-chat-surface .chat-main,
 .knowledge-library-embedded-chat .openclaw-chat-surface .chat-sidebar,
 .knowledge-library-embedded-chat .iclaw-artifact-preview-pane {
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 0%;
+  overflow-x: hidden;
+}
+
+.knowledge-library-embedded-chat .openclaw-chat-surface {
+  --chat-surface-panel-border: rgba(0, 0, 0, 0.08);
+  --chat-surface-panel-border-strong: rgba(0, 0, 0, 0.12);
+  --chat-surface-panel: #ffffff;
+  --chat-surface-panel-muted: #fafaf8;
+  --chat-surface-panel-subtle: #f1f1ec;
+  --chat-surface-header-bg: #ffffff;
+  --chat-surface-muted: #64748b;
+}
+
+:root.dark .knowledge-library-embedded-chat .openclaw-chat-surface {
+  --chat-surface-panel-border: rgba(255, 255, 255, 0.08);
+  --chat-surface-panel-border-strong: rgba(255, 255, 255, 0.12);
+  --chat-surface-panel: #1a1a1a;
+  --chat-surface-panel-muted: #161616;
+  --chat-surface-panel-subtle: #252525;
+  --chat-surface-header-bg: #1a1a1a;
+  --chat-surface-muted: #94a3b8;
 }
 
 .knowledge-library-embedded-chat .openclaw-chat-surface .chat-thread,
@@ -2516,13 +2542,29 @@ body {
 .knowledge-library-embedded-chat :root[data-chat-layout-preset='column'] .openclaw-chat-surface .chat-thread {
   width: 100%;
   max-width: 100%;
+  padding-inline: 12px;
+  overflow-x: hidden;
 }
 
+.knowledge-library-embedded-chat .openclaw-chat-surface .chat-group,
 .knowledge-library-embedded-chat .openclaw-chat-surface .chat-group-messages,
 .knowledge-library-embedded-chat .openclaw-chat-surface .chat-group.user .chat-group-messages,
 .knowledge-library-embedded-chat :root[data-chat-layout-preset='column'] .openclaw-chat-surface .chat-group-messages,
 .knowledge-library-embedded-chat :root[data-chat-layout-preset='column'] .openclaw-chat-surface .chat-group.user .chat-group-messages {
+  min-width: 0;
+  width: 100%;
   max-width: 100%;
+  overflow-x: hidden;
+}
+
+.knowledge-library-embedded-chat .openclaw-chat-surface .chat-bubble,
+.knowledge-library-embedded-chat .openclaw-chat-surface .chat-message,
+.knowledge-library-embedded-chat .openclaw-chat-surface .chat-text,
+.knowledge-library-embedded-chat .openclaw-chat-surface .chat-markdown {
+  min-width: 0;
+  max-width: 100% !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .knowledge-library-embedded-chat .openclaw-chat-surface .iclaw-composer,
@@ -2530,6 +2572,8 @@ body {
 .knowledge-library-embedded-chat .openclaw-chat-surface .update-banner {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer {
@@ -2540,6 +2584,12 @@ body {
 
 .knowledge-library-embedded-chat .iclaw-composer__panel {
   border-radius: 20px;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: none;
+}
+
+:root.dark .knowledge-library-embedded-chat .iclaw-composer__panel {
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__top {
@@ -2586,6 +2636,7 @@ body {
 .knowledge-library-embedded-chat .iclaw-composer__middle {
   gap: 10px;
   padding: 10px 0 8px;
+  min-width: 0;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__add {
@@ -2604,6 +2655,11 @@ body {
 .knowledge-library-embedded-chat .iclaw-composer__footer {
   min-height: 40px;
   padding: 4px 10px 8px;
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+:root.dark .knowledge-library-embedded-chat .iclaw-composer__footer {
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__footer-label,
@@ -2621,6 +2677,15 @@ body {
 
 .knowledge-library-embedded-chat .iclaw-composer__actions {
   flex: 0 0 auto;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__editor,
+.knowledge-library-embedded-chat .iclaw-composer__active-controls,
+.knowledge-library-embedded-chat .iclaw-composer__active-chip,
+.knowledge-library-embedded-chat .iclaw-composer__footer-main,
+.knowledge-library-embedded-chat .iclaw-composer__supports {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .iclaw-chat-stage {

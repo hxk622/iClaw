@@ -177,9 +177,9 @@ OEM app / skill / MCP / menu / asset 的真实来源已经切到 control-plane p
 pnpm preset:sync:oem
 pnpm dev:control-plane
 pnpm dev:api -- iclaw
-pnpm dev:api -- licaiclaw
+pnpm dev:api -- caiclaw
 node scripts/apply-brand.mjs iclaw
-ICLAW_PORTAL_APP_NAME=licaiclaw bash scripts/generate-icons.sh
+ICLAW_PORTAL_APP_NAME=caiclaw bash scripts/generate-icons.sh
 ```
 
 说明：

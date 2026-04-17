@@ -15,6 +15,22 @@ function sourceTypeLabel(value: string) {
   return value || '未记录';
 }
 
+function usernameLabel(input: { username?: string; userDisplayName?: string; userId?: string }): string {
+  const displayName = String(input.userDisplayName || '').trim();
+  const username = String(input.username || '').trim();
+  const userId = String(input.userId || '').trim();
+  if (displayName && username && displayName !== username) {
+    return `${displayName} (${username})`;
+  }
+  if (displayName) {
+    return displayName;
+  }
+  if (username) {
+    return username;
+  }
+  return userId || '匿名';
+}
+
 export function AutoFaultReportsPage() {
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
@@ -90,7 +106,7 @@ export function AutoFaultReportsPage() {
         <div className="fig-page__header-inner fig-page__header-inner--stack">
           <div>
             <h1>自动故障上报</h1>
-            <p className="fig-page__description">查看桌面端自动采集的错误日志上传记录，与手工故障上报分开管理。</p>
+            <p className="fig-page__description">查看桌面端自动采集的错误日志上传记录，字段结构与手工故障上报保持一致。</p>
           </div>
           <AdminFilterStack>
             <AdminSearchRow>
@@ -134,7 +150,7 @@ export function AutoFaultReportsPage() {
 
       <div className="fig-page__body">
         {error ? <div className="empty-state empty-state--panel">{error}</div> : null}
-        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(480px, 1fr) minmax(420px, 1fr)' }}>
+        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(0, 1.1fr) minmax(320px, 0.9fr)' }}>
           <section className="fig-card fig-audit-table-card">
             <div className="fig-card__head">
               <div>
@@ -146,6 +162,7 @@ export function AutoFaultReportsPage() {
               <div className="fig-audit-table__header">
                 <div>时间 / 上传 ID</div>
                 <div>userId</div>
+                <div>userName</div>
                 <div>设备</div>
                 <div>App</div>
                 <div>文件 / 来源</div>
@@ -163,7 +180,8 @@ export function AutoFaultReportsPage() {
                         <div className="fig-audit-row__title">{formatDateTime(item.createdAt)}</div>
                         <div className="fig-audit-row__detail">{item.id}</div>
                       </div>
-                      <div>{item.userId || '空'}</div>
+                      <div>{item.userId || '匿名'}</div>
+                      <div>{usernameLabel(item)}</div>
                       <div>{item.deviceId}</div>
                       <div>{item.appName || '未记录'}</div>
                       <div>{`${item.fileName} · ${sourceTypeLabel(item.sourceType)}`}</div>
@@ -195,6 +213,7 @@ export function AutoFaultReportsPage() {
               <div style={{ display: 'grid', gap: 18 }}>
                 <div className="fig-meta-cards">
                   <div className="fig-meta-card"><span>userId</span><strong>{selected.userId || '空'}</strong></div>
+                  <div className="fig-meta-card"><span>userName</span><strong>{usernameLabel(selected)}</strong></div>
                   <div className="fig-meta-card"><span>设备 ID</span><strong>{selected.deviceId}</strong></div>
                   <div className="fig-meta-card"><span>App</span><strong>{selected.appName || '未记录'}</strong></div>
                   <div className="fig-meta-card"><span>文件名</span><strong>{selected.fileName}</strong></div>

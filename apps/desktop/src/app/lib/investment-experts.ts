@@ -1,11 +1,9 @@
-import type { IClawClient } from '@iclaw/sdk';
+import type { AgentCatalogEntryData, IClawClient, InvestmentExpertCatalogItemData } from '@iclaw/sdk';
 
 import {
-  isInvestmentExpertAgent,
-  loadLobsterAgents,
   resolveLobsterAgentAvatar,
-  type LobsterAgent,
 } from './lobster-store';
+import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
 
 export type InvestmentExpertDomain =
   | 'stock'
@@ -51,6 +49,9 @@ export interface InvestmentExpert {
   id: string;
   slug: string;
   name: string;
+  category: AgentCatalogEntryData['category'];
+  metadata: Record<string, unknown>;
+  detailLoaded: boolean;
   subtitle: string;
   domain: InvestmentExpertDomain;
   domainLabel: string;
@@ -73,6 +74,12 @@ export interface InvestmentExpert {
   installed: boolean;
   primarySkillSlug: string | null;
 }
+
+type InvestmentExpertCatalogCacheSnapshot = {
+  version: 1;
+  savedAt: number;
+  items: InvestmentExpertCatalogItemData[];
+};
 
 export const INVESTMENT_EXPERT_CATEGORIES: Array<{
   id: InvestmentExpertFilter;
@@ -177,6 +184,19 @@ const DOMAIN_KEYWORDS: Array<{domain: InvestmentExpertDomain; patterns: RegExp[]
   {domain: 'portfolio', patterns: [/组合|portfolio|配置|allocation|风险管理|再平衡/i]},
 ];
 
+const INVESTMENT_EXPERTS_CACHE_TTL_MS = 10 * 60 * 1000;
+const INVESTMENT_EXPERTS_CACHE_KEY_PREFIX = 'iclaw.investment-experts.catalog.v1';
+const investmentExpertCatalogMemoryCache = new Map<string, InvestmentExpertCatalogItemData[]>();
+const investmentExpertDetailMemoryCache = new Map<string, InvestmentExpertCatalogItemData>();
+
+function resolveInvestmentExpertsCacheScope(accessToken: string | null): string {
+  return accessToken ? 'authed' : 'anon';
+}
+
+function resolveInvestmentExpertsCacheKey(accessToken: string | null): string {
+  return `${INVESTMENT_EXPERTS_CACHE_KEY_PREFIX}.${resolveInvestmentExpertsCacheScope(accessToken)}`;
+}
+
 function readMetadataString(value: unknown): string | null {
   if (typeof value !== 'string') {
     return null;
@@ -233,7 +253,10 @@ function normalizeStyle(value: string | null): InvestmentExpertStyle {
   return 'other';
 }
 
-function inferDomainFromMetadata(agent: LobsterAgent, metadata: Record<string, unknown>): InvestmentExpertDomain {
+function inferDomainFromMetadata(
+  item: Pick<InvestmentExpertCatalogItemData, 'name' | 'description' | 'tags'>,
+  metadata: Record<string, unknown>,
+): InvestmentExpertDomain {
   const explicitDomain = normalizeCategory(
     readMetadataString(metadata.financial_domain) ||
       readMetadataString(metadata.asset_domain) ||
@@ -245,11 +268,11 @@ function inferDomainFromMetadata(agent: LobsterAgent, metadata: Record<string, u
 
   const legacyCategory = normalizeCategory(readMetadataString(metadata.investment_category));
   const haystack = [
-    agent.name,
-    agent.description,
+    item.name,
+    item.description,
     readMetadataString(metadata.subtitle) || '',
     readMetadataString(metadata.source_person) || '',
-    ...agent.tags,
+    ...item.tags,
     ...readMetadataStringArray(metadata.task_examples),
   ]
     .join(' ')
@@ -304,31 +327,46 @@ function readConversationPreview(value: unknown): InvestmentExpertConversationMe
     .filter((item): item is InvestmentExpertConversationMessage => Boolean(item));
 }
 
-export function toInvestmentExpert(agent: LobsterAgent): InvestmentExpert | null {
-  if (!isInvestmentExpertAgent(agent)) {
-    return null;
-  }
+function toAvatarAgent(item: InvestmentExpertCatalogItemData): AgentCatalogEntryData {
+  return {
+    slug: item.slug,
+    name: item.name,
+    description: item.description,
+    category: item.category,
+    publisher: '',
+    featured: false,
+    official: false,
+    tags: item.tags,
+    capabilities: [],
+    use_cases: [],
+    metadata: item.metadata,
+  };
+}
 
-  const metadata = agent.metadata || {};
-  const domain = inferDomainFromMetadata(agent, metadata);
+export function toInvestmentExpert(item: InvestmentExpertCatalogItemData): InvestmentExpert {
+  const metadata = item.metadata || {};
+  const domain = inferDomainFromMetadata(item, metadata);
   const domainMeta = DOMAIN_LOOKUP[domain];
   const style = normalizeStyle(readMetadataString(metadata.investment_category));
   const styleMeta = STYLE_LOOKUP[style];
 
   return {
-    id: agent.slug,
-    slug: agent.slug,
-    name: agent.name,
-    subtitle: readMetadataString(metadata.subtitle) || agent.description,
+    id: item.slug,
+    slug: item.slug,
+    name: item.name,
+    category: item.category,
+    metadata,
+    detailLoaded: item.detail_loaded,
+    subtitle: readMetadataString(metadata.subtitle) || item.description,
     domain,
     domainLabel: domainMeta.label,
     domainColor: domainMeta.color,
     style,
     styleLabel: styleMeta.label,
     styleColor: styleMeta.color,
-    description: agent.description,
-    tags: [...agent.tags],
-    avatar: resolveLobsterAgentAvatar(agent),
+    description: item.description,
+    tags: [...item.tags],
+    avatar: resolveLobsterAgentAvatar(toAvatarAgent(item)),
     isOnline: readMetadataBoolean(metadata.is_online) ?? true,
     usageCount: readMetadataNumber(metadata.usage_count) ?? 0,
     taskCount: readMetadataNumber(metadata.task_count) ?? 0,
@@ -338,15 +376,14 @@ export function toInvestmentExpert(agent: LobsterAgent): InvestmentExpert | null
     skills: readSkillHighlights(metadata.skill_highlights),
     taskExamples: readMetadataStringArray(metadata.task_examples),
     conversationPreview: readConversationPreview(metadata.conversation_preview),
-    installed: agent.installed,
+    installed: item.installed,
     primarySkillSlug: readMetadataString(metadata.primary_skill_slug),
   };
 }
 
-export function hydrateInvestmentExperts(agents: LobsterAgent[]): InvestmentExpert[] {
-  return agents
-    .map((agent) => toInvestmentExpert(agent))
-    .filter((expert): expert is InvestmentExpert => Boolean(expert))
+export function hydrateInvestmentExperts(items: InvestmentExpertCatalogItemData[]): InvestmentExpert[] {
+  return items
+    .map((item) => toInvestmentExpert(item))
     .sort((left, right) => {
       if (left.isRecommended !== right.isRecommended) {
         return left.isRecommended ? -1 : 1;
@@ -372,10 +409,84 @@ export function resolveVisibleInvestmentExpertStyles(
   return INVESTMENT_EXPERT_STYLES.filter((style) => style.id === 'all' || present.has(style.id));
 }
 
+function readInvestmentExpertCatalogSnapshot(accessToken: string | null): InvestmentExpertCatalogItemData[] | null {
+  const snapshot = readCacheJson<Partial<InvestmentExpertCatalogCacheSnapshot>>(resolveInvestmentExpertsCacheKey(accessToken));
+  if (
+    !snapshot ||
+    snapshot.version !== 1 ||
+    !Array.isArray(snapshot.items) ||
+    typeof snapshot.savedAt !== 'number' ||
+    Date.now() - snapshot.savedAt > INVESTMENT_EXPERTS_CACHE_TTL_MS
+  ) {
+    return null;
+  }
+  investmentExpertCatalogMemoryCache.set(resolveInvestmentExpertsCacheScope(accessToken), snapshot.items as InvestmentExpertCatalogItemData[]);
+  return snapshot.items as InvestmentExpertCatalogItemData[];
+}
+
+function persistInvestmentExpertCatalogSnapshot(
+  accessToken: string | null,
+  items: InvestmentExpertCatalogItemData[],
+): void {
+  investmentExpertCatalogMemoryCache.set(resolveInvestmentExpertsCacheScope(accessToken), items);
+  writeCacheJson(resolveInvestmentExpertsCacheKey(accessToken), {
+    version: 1,
+    savedAt: Date.now(),
+    items,
+  } satisfies InvestmentExpertCatalogCacheSnapshot);
+}
+
+export function readCachedInvestmentExperts(input: {accessToken: string | null}): InvestmentExpert[] | null {
+  const scope = resolveInvestmentExpertsCacheScope(input.accessToken);
+  const cached = investmentExpertCatalogMemoryCache.get(scope) || readInvestmentExpertCatalogSnapshot(input.accessToken);
+  if (!cached) {
+    return null;
+  }
+  return hydrateInvestmentExperts(cached);
+}
+
 export async function loadInvestmentExperts(input: {
   client: IClawClient;
   accessToken: string | null;
+  forceRefresh?: boolean;
 }): Promise<InvestmentExpert[]> {
-  const agents = await loadLobsterAgents(input);
-  return hydrateInvestmentExperts(agents);
+  const scope = resolveInvestmentExpertsCacheScope(input.accessToken);
+  const cached = input.forceRefresh
+    ? null
+    : investmentExpertCatalogMemoryCache.get(scope) || readInvestmentExpertCatalogSnapshot(input.accessToken);
+  if (cached) {
+    return hydrateInvestmentExperts(cached);
+  }
+
+  const items = await input.client.listInvestmentExpertsCatalog(input.accessToken);
+  persistInvestmentExpertCatalogSnapshot(input.accessToken, items);
+  return hydrateInvestmentExperts(items);
+}
+
+export async function loadInvestmentExpertDetail(input: {
+  client: IClawClient;
+  accessToken: string | null;
+  slug: string;
+  forceRefresh?: boolean;
+}): Promise<InvestmentExpert> {
+  const cached = input.forceRefresh ? null : investmentExpertDetailMemoryCache.get(input.slug);
+  if (cached) {
+    return toInvestmentExpert(cached);
+  }
+
+  const item = await input.client.getInvestmentExpertCatalogItem(input.slug, input.accessToken);
+  investmentExpertDetailMemoryCache.set(input.slug, item);
+  return toInvestmentExpert(item);
+}
+
+export function toInstallableInvestmentExpertAgent(
+  expert: Pick<InvestmentExpert, 'slug' | 'name' | 'description' | 'category' | 'metadata'>,
+): Pick<AgentCatalogEntryData, 'slug' | 'name' | 'description' | 'category' | 'metadata'> {
+  return {
+    slug: expert.slug,
+    name: expert.name,
+    description: expert.description,
+    category: expert.category,
+    metadata: expert.metadata,
+  };
 }

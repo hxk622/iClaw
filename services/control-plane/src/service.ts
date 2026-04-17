@@ -119,6 +119,7 @@ import type {
   SkillCatalogEntryView,
   SkillSyncRunView,
   SkillSyncSourceView,
+  InvestmentExpertCatalogItemView,
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentGatewayConfigInput,
@@ -745,6 +746,8 @@ function toAdminDesktopFaultReportSummaryView(
     entry: record.entry,
     account_state: record.accountState,
     user_id: record.userId,
+    username: record.username,
+    user_display_name: record.userDisplayName,
     device_id: record.deviceId,
     install_session_id: record.installSessionId,
     app_name: record.appName,
@@ -2287,12 +2290,146 @@ function toAdminAgentCatalogEntryView(record: AgentCatalogEntryRecord): AdminAge
   };
 }
 
+function readMetadataString(metadata: Record<string, unknown>, key: string): string | null {
+  const value = metadata[key];
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function readMetadataNumber(metadata: Record<string, unknown>, key: string): number | null {
+  const value = metadata[key];
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && /^\d+(\.\d+)?$/.test(value.trim())) {
+    return Number(value.trim());
+  }
+  return null;
+}
+
+function readMetadataBoolean(metadata: Record<string, unknown>, key: string): boolean | null {
+  const value = metadata[key];
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (value === 'true') {
+    return true;
+  }
+  if (value === 'false') {
+    return false;
+  }
+  return null;
+}
+
 function readMetadataStringArray(metadata: Record<string, unknown>, key: string): string[] {
   const value = metadata[key];
   if (!Array.isArray(value)) {
     return [];
   }
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
+
+function resolveInvestmentExpertSurface(metadata: Record<string, unknown>): string {
+  return readMetadataString(metadata, 'surface') || '';
+}
+
+function isInvestmentExpertMetadata(metadata: Record<string, unknown>): boolean {
+  const surface = resolveInvestmentExpertSurface(metadata);
+  return surface === 'investment-experts' || surface === 'both';
+}
+
+function pickInvestmentExpertMetadata(
+  metadata: Record<string, unknown>,
+  options?: {
+    detail?: boolean;
+  },
+): Record<string, unknown> {
+  const picked: Record<string, unknown> = {};
+  const summaryKeys = [
+    'surface',
+    'subtitle',
+    'avatar_url',
+    'avatar_emoji',
+    'investment_category',
+    'financial_domain',
+    'asset_domain',
+    'market_domain',
+    'source_person',
+    'usage_count',
+    'is_online',
+    'is_recommended',
+    'is_hot',
+    'primary_skill_slug',
+  ] as const;
+  const detailKeys = [
+    'task_count',
+    'rating',
+    'skill_highlights',
+    'task_examples',
+    'conversation_preview',
+    'system_prompt',
+    'skill_slugs',
+    'source_url',
+    'source_repo',
+  ] as const;
+
+  for (const key of summaryKeys) {
+    if (metadata[key] !== undefined) {
+      picked[key] = metadata[key];
+    }
+  }
+  if (options?.detail) {
+    for (const key of detailKeys) {
+      if (metadata[key] !== undefined) {
+        picked[key] = metadata[key];
+      }
+    }
+  }
+  return picked;
+}
+
+function compareInvestmentExpertCatalogRecords(left: AgentCatalogEntryRecord, right: AgentCatalogEntryRecord): number {
+  const leftRecommended = readMetadataBoolean(left.metadata, 'is_recommended') ?? false;
+  const rightRecommended = readMetadataBoolean(right.metadata, 'is_recommended') ?? false;
+  if (leftRecommended !== rightRecommended) {
+    return leftRecommended ? -1 : 1;
+  }
+
+  const leftHot = readMetadataBoolean(left.metadata, 'is_hot') ?? false;
+  const rightHot = readMetadataBoolean(right.metadata, 'is_hot') ?? false;
+  if (leftHot !== rightHot) {
+    return leftHot ? -1 : 1;
+  }
+
+  const leftUsage = readMetadataNumber(left.metadata, 'usage_count') ?? 0;
+  const rightUsage = readMetadataNumber(right.metadata, 'usage_count') ?? 0;
+  if (leftUsage !== rightUsage) {
+    return rightUsage - leftUsage;
+  }
+
+  return left.name.localeCompare(right.name, 'zh-CN');
+}
+
+function toInvestmentExpertCatalogItemView(
+  record: AgentCatalogEntryRecord,
+  installed: boolean,
+  options?: {
+    detail?: boolean;
+  },
+): InvestmentExpertCatalogItemView {
+  return {
+    slug: record.slug,
+    name: record.name,
+    description: record.description,
+    category: record.category,
+    tags: record.tags,
+    metadata: pickInvestmentExpertMetadata(record.metadata, options),
+    installed,
+    detail_loaded: options?.detail === true,
+  };
 }
 
 function normalizeAgentCategory(value: unknown, fallback?: AgentCategory): AgentCategory {
@@ -4592,6 +4729,41 @@ export class ControlPlaneService {
     return {
       items: items.map((item) => toAgentCatalogEntryView(item)),
     };
+  }
+
+  async listInvestmentExpertCatalog(accessToken?: string | null): Promise<{items: InvestmentExpertCatalogItemView[]}> {
+    const [catalog, installedSlugs] = await Promise.all([
+      this.store.listAgentCatalog(),
+      accessToken
+        ? this.getUserForAccessToken(accessToken).then((user) => this.store.listUserAgentLibrary(user.id))
+        : Promise.resolve([]),
+    ]);
+    const installedSet = new Set(installedSlugs.map((item) => item.slug));
+    const items = catalog
+      .filter((item) => isInvestmentExpertMetadata(item.metadata))
+      .sort(compareInvestmentExpertCatalogRecords)
+      .map((item) => toInvestmentExpertCatalogItemView(item, installedSet.has(item.slug)));
+    return {items};
+  }
+
+  async getInvestmentExpertCatalogEntry(
+    slugInput: string,
+    accessToken?: string | null,
+  ): Promise<InvestmentExpertCatalogItemView> {
+    const slug = normalizeSkillSlug(slugInput);
+    const record = await this.store.getAgentCatalogEntry(slug);
+    if (!record || !record.active || !isInvestmentExpertMetadata(record.metadata)) {
+      throw new HttpError(404, 'NOT_FOUND', 'investment expert not found');
+    }
+
+    let installed = false;
+    if (accessToken) {
+      const user = await this.getUserForAccessToken(accessToken);
+      const installedItems = await this.store.listUserAgentLibrary(user.id);
+      installed = installedItems.some((item) => item.slug === slug);
+    }
+
+    return toInvestmentExpertCatalogItemView(record, installed, {detail: true});
   }
 
   async listAdminAgentCatalog(

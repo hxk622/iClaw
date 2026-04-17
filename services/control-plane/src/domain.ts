@@ -547,6 +547,8 @@ export type DesktopFaultReportRecord = {
   entry: DesktopFaultReportEntry;
   accountState: DesktopFaultReportAccountState;
   userId: string | null;
+  username: string | null;
+  userDisplayName: string | null;
   deviceId: string;
   installSessionId: string | null;
   appName: string;
@@ -744,6 +746,8 @@ export type AdminDesktopFaultReportSummaryView = {
   entry: DesktopFaultReportEntry;
   account_state: DesktopFaultReportAccountState;
   user_id: string | null;
+  username: string | null;
+  user_display_name: string | null;
   device_id: string;
   install_session_id: string | null;
   app_name: string;
@@ -1428,6 +1432,17 @@ export type AdminAgentCatalogEntryView = AgentCatalogEntryView & {
   active: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type InvestmentExpertCatalogItemView = {
+  slug: string;
+  name: string;
+  description: string;
+  category: AgentCategory;
+  tags: string[];
+  metadata: Record<string, unknown>;
+  installed: boolean;
+  detail_loaded: boolean;
 };
 
 export type UserAgentLibraryRecord = {

@@ -49,7 +49,7 @@ async function readJson(targetPath) {
 test('apply-brand materializes desktop title and version from the selected brand', async () => {
   await runNodeScript(['scripts/brand-generated-state.mjs', 'snapshot', snapshotKey]);
   try {
-    for (const brandId of ['iclaw', 'licaiclaw']) {
+    for (const brandId of ['iclaw', 'caiclaw']) {
       await runNodeScript(['scripts/apply-brand.mjs', brandId], { APP_NAME: brandId });
       const tauriConfig = await readJson(tauriConfigPath);
       const generatedConfig = await readJson(generatedConfigPath);
@@ -77,7 +77,7 @@ test('apply-brand materializes desktop title and version from the selected brand
       await fs.access(path.join(stagingDir, 'desktop', 'src-tauri', 'icons-generated', 'icon.ico'));
       await fs.access(path.join(stagingDir, 'desktop', 'src-tauri', 'installer-generated', 'nsis-installer.ico'));
       await fs.access(path.join(stagingDir, 'desktop', 'public', 'brand', 'favicon.ico'));
-      if (brandId === 'licaiclaw') {
+      if (brandId === 'caiclaw') {
         assert.notEqual(tauriConfig.productName, 'iClaw');
       }
     }
@@ -91,7 +91,7 @@ test('apply-brand clears stale generated icon artifacts before rebuilding', asyn
   try {
     await fs.mkdir(generatedIconsDir, { recursive: true });
     await fs.writeFile(path.join(generatedIconsDir, 'stale.txt'), 'stale\n', 'utf8');
-    await runNodeScript(['scripts/apply-brand.mjs', 'licaiclaw'], { APP_NAME: 'licaiclaw' });
+    await runNodeScript(['scripts/apply-brand.mjs', 'caiclaw'], { APP_NAME: 'caiclaw' });
     await assert.rejects(() => fs.access(path.join(generatedIconsDir, 'stale.txt')));
     await fs.access(path.join(generatedIconsDir, 'icon.ico'));
   } finally {
@@ -102,18 +102,18 @@ test('apply-brand clears stale generated icon artifacts before rebuilding', asyn
 test('apply-brand creates a fresh disposable staging directory per run and updates current marker', async () => {
   await runNodeScript(['scripts/brand-generated-state.mjs', 'snapshot', snapshotKey]);
   try {
-    await runNodeScript(['scripts/apply-brand.mjs', 'licaiclaw'], {
-      APP_NAME: 'licaiclaw',
+    await runNodeScript(['scripts/apply-brand.mjs', 'caiclaw'], {
+      APP_NAME: 'caiclaw',
       ICLAW_DESKTOP_STAGE_RUN_ID: 'run-a',
     });
-    const firstMarker = await readJson(path.join(stagingRoot, 'licaiclaw', 'current.json'));
+    const firstMarker = await readJson(path.join(stagingRoot, 'caiclaw', 'current.json'));
     await fs.access(path.join(firstMarker.stageRoot, 'desktop', 'src-tauri', 'brand.generated.json'));
 
-    await runNodeScript(['scripts/apply-brand.mjs', 'licaiclaw'], {
-      APP_NAME: 'licaiclaw',
+    await runNodeScript(['scripts/apply-brand.mjs', 'caiclaw'], {
+      APP_NAME: 'caiclaw',
       ICLAW_DESKTOP_STAGE_RUN_ID: 'run-b',
     });
-    const secondMarker = await readJson(path.join(stagingRoot, 'licaiclaw', 'current.json'));
+    const secondMarker = await readJson(path.join(stagingRoot, 'caiclaw', 'current.json'));
 
     assert.equal(firstMarker.runId, 'run-a');
     assert.equal(secondMarker.runId, 'run-b');

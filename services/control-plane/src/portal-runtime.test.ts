@@ -8,7 +8,7 @@ import {DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS} from './recharge-packages.ts';
 test('buildPortalPublicConfig preserves skill catalog visibility mode', () => {
   const detail: PortalAppDetail = {
     app: {
-      appName: 'licaiclaw',
+      appName: 'caiclaw',
       displayName: '理财客',
       description: null,
       status: 'active',
@@ -105,10 +105,10 @@ test('canonical default recharge package seeds keep a single default package', (
   assert.equal(defaultPackages[0]?.packageId, 'topup_7000');
 });
 
-test('buildPortalPublicConfig derives marketing-site defaults for licaiclaw home-web surface', () => {
+test('buildPortalPublicConfig derives marketing-site defaults for caiclaw home-web surface', () => {
   const detail: PortalAppDetail = {
     app: {
-      appName: 'licaiclaw',
+      appName: 'caiclaw',
       displayName: '理财客',
       description: null,
       status: 'active',

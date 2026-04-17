@@ -1,86 +1,116 @@
 {
-  "project": "iClaw Thought Library Shell Phase 2",
-  "branchName": "ralph/thought-library-shell",
-  "description": "Advance 思维库 from a shell prototype into a real working workspace by wiring the third column toward the existing chat system, formalizing state and fixtures, and polishing the Input / View / Chat experience against the current desktop shell.",
+  "project": "iClaw Investment Experts and Memory Performance Refactor",
+  "branchName": "ralph/perf-investment-memory",
+  "description": "Refactor 智能投资专家 and 记忆管理 so that list/content views load from lightweight snapshots while heavy detail and runtime diagnostics move off the first-paint path.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Embed a real chat-integrated third-column shell for 思维库",
-      "description": "As a user, I want the third column to reuse the real iClaw chat interaction model so that 思维库 is not a fake mock panel and can evolve into a true working context-aware conversation surface.",
+      "title": "Add a lightweight investment experts catalog endpoint",
+      "description": "As a desktop client, I want a lightweight 投资专家列表接口 so that the page can load card data without downloading the full agent catalog payload.",
       "acceptanceCriteria": [
-        "ThoughtLibraryView third column uses a dedicated chat-shell component rather than hardcoded sample bubbles",
-        "The chat shell exposes the selected item title as a persistent context chip near the composer",
-        "The chat shell message area is driven by component state instead of fixed seed JSX",
-        "The chat shell keeps the local-first Web 搜索 warning state visible when enabled",
+        "Add a dedicated control-plane endpoint for investment experts list data instead of reusing the full /agents/catalog payload",
+        "The list response includes only card fields needed for the investment experts page",
+        "The list response excludes large metadata fields such as long system prompts and full previews",
+        "Installed state is not duplicated as heavyweight per-item metadata in the catalog response",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 1,
       "passes": false,
-      "notes": "Do not attempt full OpenClaw engine coupling yet; make the chat shell architecture-ready and stateful."
+      "notes": "Keep the DTO intentionally narrow and projection-oriented."
     },
     {
       "id": "US-002",
-      "title": "Persist 思维库 tab and selected-item state inside the desktop workspace",
-      "description": "As a user, I want 思维库 to remember which tab and object I was working on so that reopening the workspace feels continuous instead of resetting every time.",
+      "title": "Switch the desktop investment experts page to snapshot-first loading",
+      "description": "As a user, I want 智能投资专家 to open immediately from cached list data so that revisiting the page does not trigger a cold full refresh every time.",
       "acceptanceCriteria": [
-        "ThoughtLibraryView stores active tab in a durable local desktop persistence key",
-        "ThoughtLibraryView stores selected item id per tab in a durable local desktop persistence key",
-        "Reloading the app restores the last active 思维库 tab and selection when valid",
-        "Invalid or missing stored ids safely fall back to the first available item in the active tab",
+        "InvestmentExpertsView no longer forces a full refresh on initial mount",
+        "Desktop investment experts loading uses cached snapshot data first when available",
+        "A background refresh updates the page without blocking first paint",
+        "Manual refresh still triggers a network refresh when requested by the user",
         "Typecheck passes",
-        "Tests pass"
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
       "passes": false,
-      "notes": "Keep storage scoped to the current desktop user context where possible."
+      "notes": "Preserve existing page behavior while removing mount-time forceRefresh."
     },
     {
       "id": "US-003",
-      "title": "Extract typed fixture data and view helpers for 素材 / 图谱 / 成果",
-      "description": "As a developer, I want the current shell data moved out of the page component into typed fixtures/helpers so that the feature is easier to evolve toward real data later.",
+      "title": "Load investment expert detail data on demand",
+      "description": "As a user, I want detailed expert metadata to load only when I open a card so that the list page stays light while detail remains rich.",
       "acceptanceCriteria": [
-        "ThoughtLibraryView no longer defines all fixture arrays inline inside the component body",
-        "Create a dedicated typed fixture module for 素材 / 图谱 / 成果 items",
-        "Create helper functions for resolving panel title, description, and tab collections outside the component render body",
+        "Add a dedicated investment expert detail fetch path keyed by slug",
+        "Investment expert detail dialog loads full detail data only after the user opens a specific expert",
+        "The list page does not require full detail payloads to render card shelves",
+        "Closing and reopening the list page does not re-download full detail payloads for every expert",
         "Typecheck passes",
-        "Tests pass"
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
       "passes": false,
-      "notes": "This is a refactor story meant to reduce future integration risk."
+      "notes": "This story should keep the current visual richness of the dialog without burdening the list payload."
     },
     {
       "id": "US-004",
-      "title": "Refine the 图谱 middle-column view into page-view and graph-view modes",
-      "description": "As a user, I want the 图谱 tab to clearly support both readable page view and relationship graph view so that the second column expresses the Graph-first model instead of a single placeholder card.",
+      "title": "Split memory entries loading from memory runtime diagnostics",
+      "description": "As a user, I want 记忆管理 to render remembered content before any runtime health checks so that the page opens like a content workspace rather than a diagnostic console.",
       "acceptanceCriteria": [
-        "图谱 tab provides two visible sub-modes: 页面视图 and 图谱视图",
-        "页面视图 shows structured explanatory content for the selected graph item",
-        "图谱视图 shows a relationship canvas-style layout with at least central node, related nodes, and visible edges",
-        "Switching sub-modes does not clear the selected graph item",
+        "Add a fast memory snapshot path that returns entries and directories without spawning the runtime memory status CLI",
+        "MemoryView first paint depends on the fast entries snapshot instead of synchronous runtime diagnostics",
+        "Opening the memory page no longer blocks on memory status availability",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 4,
       "passes": false,
-      "notes": "Keep it graph-first but still readable; no external graph library required in this iteration."
+      "notes": "Keep the existing entry parsing behavior for now; this story is about cutting diagnostics out of the first-paint path."
     },
     {
       "id": "US-005",
-      "title": "Polish 思维库 shell navigation behavior and browser-level verification",
-      "description": "As a user, I want 思维库 to feel stable when switching in and out of it so that compact navigation mode and custom page header feel intentional and production-ready.",
+      "title": "Persist cached memory runtime status with TTL",
+      "description": "As a desktop shell, I want a cached memory runtime status snapshot so that repeated page opens do not rerun the same expensive diagnostics within a short time window.",
       "acceptanceCriteria": [
-        "Entering 思维库 collapses the app sidebar without corrupting the saved sidebar preference for other views",
-        "Leaving 思维库 restores normal shell layout behavior for non-thought-library views",
-        "思维库 uses its own local page header while the global header stays hidden only for that view",
-        "Browser verification confirms 思维库 opens from the sidebar and renders the three-column layout without runtime errors",
+        "Introduce a persisted memory runtime status snapshot with saved timestamp",
+        "Memory runtime status reads reuse the cached snapshot for 30 to 60 seconds when still fresh",
+        "Expired or missing snapshots trigger a refresh path that updates the stored snapshot",
+        "Cache read and write behavior is scoped per desktop app brand/runtime workspace",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 5,
       "passes": false,
-      "notes": "This story is the final stabilization pass for the phase-2 shell."
+      "notes": "Prefer a simple local snapshot file or lightweight persisted store over repeated ad hoc runtime probes."
+    },
+    {
+      "id": "US-006",
+      "title": "Load memory runtime status asynchronously after content render",
+      "description": "As a user, I want memory diagnostics to appear after the list is already visible so that status chips never block access to my stored memories.",
+      "acceptanceCriteria": [
+        "MemoryView renders entries before runtime status resolves",
+        "Runtime status is loaded in a secondary asynchronous path after the initial memory content render",
+        "Runtime status failure shows a non-blocking warning state instead of replacing or delaying the memory list",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "This story is UI orchestration only; the cached status source should already exist from earlier stories."
+    },
+    {
+      "id": "US-007",
+      "title": "Add explicit refresh controls for memory diagnostics",
+      "description": "As a user, I want a manual way to re-check memory diagnostics so that heavyweight runtime inspection happens only when I ask for fresh status.",
+      "acceptanceCriteria": [
+        "Memory diagnostics UI exposes a user-triggered refresh action for runtime status",
+        "Manual refresh bypasses the short TTL cache and requests a fresh runtime status probe",
+        "The refresh action indicates loading state without blocking memory list interactions",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Do not reroute this action through the main memory entries load path."
     }
   ]
 }

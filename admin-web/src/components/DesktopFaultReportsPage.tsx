@@ -17,6 +17,21 @@ function accountStateLabel(value: DesktopFaultReportSummaryRecord['accountState'
   return value === 'authenticated' ? '已登录' : '匿名';
 }
 
+function usernameLabel(input: { username?: string; userDisplayName?: string; accountState?: string }): string {
+  const displayName = String(input.userDisplayName || '').trim();
+  const username = String(input.username || '').trim();
+  if (displayName && username && displayName !== username) {
+    return `${displayName} (${username})`;
+  }
+  if (displayName) {
+    return displayName;
+  }
+  if (username) {
+    return username;
+  }
+  return input.accountState === 'authenticated' ? '未记录' : '匿名';
+}
+
 export function DesktopFaultReportsPage() {
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -180,7 +195,7 @@ export function DesktopFaultReportsPage() {
 
       <div className="fig-page__body">
         {error ? <div className="empty-state empty-state--panel">{error}</div> : null}
-        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(420px, 1fr) minmax(420px, 1fr)' }}>
+        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(0, 1.1fr) minmax(320px, 0.9fr)' }}>
           <section className="fig-card fig-audit-table-card">
             <div className="fig-card__head">
               <div>
@@ -193,6 +208,7 @@ export function DesktopFaultReportsPage() {
                 <div>时间 / 编号</div>
                 <div>来源</div>
                 <div>userId</div>
+                <div>userName</div>
                 <div>设备</div>
                 <div>平台</div>
                 <div>摘要</div>
@@ -211,7 +227,8 @@ export function DesktopFaultReportsPage() {
                         <div className="fig-audit-row__detail">{item.reportId}</div>
                       </div>
                       <div>{entryLabel(item.entry)}</div>
-                      <div>{item.userId || '空'}</div>
+                      <div>{item.userId || '匿名'}</div>
+                      <div>{usernameLabel(item)}</div>
                       <div>{item.deviceId}</div>
                       <div>{item.platform || '未记录'}</div>
                       <div>{item.errorMessage || item.errorTitle}</div>
@@ -244,6 +261,7 @@ export function DesktopFaultReportsPage() {
                 <div className="fig-meta-cards">
                   <div className="fig-meta-card"><span>来源</span><strong>{entryLabel(detail.entry)}</strong></div>
                   <div className="fig-meta-card"><span>身份</span><strong>{accountStateLabel(detail.accountState)}</strong></div>
+                  <div className="fig-meta-card"><span>userName</span><strong>{usernameLabel(detail)}</strong></div>
                   <div className="fig-meta-card"><span>设备 ID</span><strong>{detail.deviceId || '未记录'}</strong></div>
                   <div className="fig-meta-card"><span>应用版本</span><strong>{detail.appVersion || '未记录'}</strong></div>
                   <div className="fig-meta-card"><span>平台</span><strong>{detail.platformVersion || detail.platform || '未记录'}</strong></div>
@@ -258,7 +276,7 @@ export function DesktopFaultReportsPage() {
                   <div className="fig-meta-cards">
                     <div className="fig-meta-card"><span>错误标题</span><strong>{detail.errorTitle || '未记录'}</strong></div>
                     <div className="fig-meta-card"><span>错误码</span><strong>{detail.errorCode || '无'}</strong></div>
-                    <div className="fig-meta-card"><span>用户</span><strong>{detail.userId || '匿名'}</strong></div>
+                    <div className="fig-meta-card"><span>userId</span><strong>{detail.userId || '匿名'}</strong></div>
                     <div className="fig-meta-card"><span>创建时间</span><strong>{formatDateTime(detail.createdAt)}</strong></div>
                   </div>
                   <textarea className="code-input" readOnly value={detail.errorMessage || '未记录错误信息'} />

@@ -12,7 +12,7 @@ type WelcomeProfile = {
 const DEFAULT_PROFILE: WelcomeProfile = {
   expertName: '我是一只会赚钱的小龙虾',
   slogan: '干活是我核心能力，理财是我唯一使命，安全是我的责任底线',
-  avatarUrl: BRAND.assets.brandMarkSrc || BRAND.assets.faviconPngSrc || '/brand/favicon.png',
+  avatarUrl: BRAND.assets.faviconPngSrc || '/brand/favicon.png',
   primaryColor: '#C4975F',
 };
 
@@ -41,7 +41,7 @@ function LogoAvatar({
   alt: string;
 }) {
   const [failed, setFailed] = useState(false);
-  const fallbackSrc = BRAND.assets.brandMarkSrc || BRAND.assets.faviconPngSrc || '/brand/favicon.png';
+  const fallbackSrc = BRAND.assets.faviconPngSrc || '/brand/favicon.png';
   const resolvedSrc = !failed && src.trim() ? src : fallbackSrc;
 
   return (
@@ -83,7 +83,7 @@ export function K2CWelcomePage({
       <div className={`flex h-full items-center justify-center ${compact ? 'px-3 py-3 lg:px-4' : 'px-6 py-6 lg:px-8'}`}>
         <section
           className={`flex h-full w-full flex-col items-center justify-center overflow-hidden text-center ${
-            compact ? 'max-w-[560px]' : 'max-w-[720px]'
+            compact ? 'max-w-[360px]' : 'max-w-[720px]'
           }`}
           style={buildWelcomeVars(profile)}
         >
@@ -103,8 +103,10 @@ export function K2CWelcomePage({
           </div>
 
           <h1
-            className={`whitespace-nowrap font-semibold tracking-[-0.06em] text-[var(--text-primary)] dark:text-[rgba(248,245,238,0.96)] ${
-              compact ? 'mt-5 text-[clamp(24px,2.8vw,34px)]' : 'mt-8 text-[clamp(34px,4vw,46px)]'
+            className={`font-semibold tracking-[-0.06em] text-[var(--text-primary)] dark:text-[rgba(248,245,238,0.96)] ${
+              compact
+                ? 'mt-5 max-w-[280px] whitespace-normal break-words text-[clamp(18px,2.2vw,28px)] leading-[1.25]'
+                : 'mt-8 whitespace-nowrap text-[clamp(34px,4vw,46px)]'
             }`}
           >
             {profile.expertName}
@@ -113,7 +115,7 @@ export function K2CWelcomePage({
           <p
             className={`text-[var(--text-secondary)] dark:text-[rgba(233,224,210,0.72)] ${
               compact
-                ? 'mt-3 max-w-[420px] text-[13px] leading-6 md:text-[15px]'
+                ? 'mt-3 max-w-[300px] text-[12px] leading-5 md:text-[13px]'
                 : 'mt-5 max-w-[560px] text-[15px] leading-8 md:text-[18px]'
             }`}
           >

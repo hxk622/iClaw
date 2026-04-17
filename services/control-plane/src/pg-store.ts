@@ -683,6 +683,8 @@ type DesktopFaultReportRow = {
   entry: 'installer' | 'exception-dialog';
   account_state: 'anonymous' | 'authenticated';
   user_id: string | null;
+  username: string | null;
+  user_display_name: string | null;
   device_id: string;
   install_session_id: string | null;
   app_name: string;
@@ -1107,6 +1109,8 @@ function mapDesktopFaultReportRow(row: DesktopFaultReportRow): DesktopFaultRepor
     entry: row.entry,
     accountState: row.account_state,
     userId: row.user_id,
+    username: row.username,
+    userDisplayName: row.user_display_name,
     deviceId: row.device_id,
     installSessionId: row.install_session_id,
     appName: row.app_name,
@@ -3771,15 +3775,18 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     const result = await this.pool.query<DesktopFaultReportRow>(
       `
         select
-          id, report_id, entry, account_state, user_id, device_id, install_session_id,
-          app_name, brand_id, app_version, release_channel, platform, platform_version, arch,
-          failure_stage, error_title, error_message, error_code,
-          runtime_found, runtime_installable, runtime_version, runtime_path, work_dir, log_dir,
-          runtime_download_url, install_progress_phase, install_progress_percent,
-          upload_bucket, upload_key, file_name, file_size_bytes, file_sha256, created_at
-        from desktop_fault_reports
+          d.id, d.report_id, d.entry, d.account_state, d.user_id,
+          u.username, u.display_name as user_display_name,
+          d.device_id, d.install_session_id,
+          d.app_name, d.brand_id, d.app_version, d.release_channel, d.platform, d.platform_version, d.arch,
+          d.failure_stage, d.error_title, d.error_message, d.error_code,
+          d.runtime_found, d.runtime_installable, d.runtime_version, d.runtime_path, d.work_dir, d.log_dir,
+          d.runtime_download_url, d.install_progress_phase, d.install_progress_percent,
+          d.upload_bucket, d.upload_key, d.file_name, d.file_size_bytes, d.file_sha256, d.created_at
+        from desktop_fault_reports d
+        left join users u on u.id = d.user_id
         ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
-        order by created_at desc
+        order by d.created_at desc
         limit $${values.length}
       `,
       values,
@@ -3791,14 +3798,17 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     const result = await this.pool.query<DesktopFaultReportRow>(
       `
         select
-          id, report_id, entry, account_state, user_id, device_id, install_session_id,
-          app_name, brand_id, app_version, release_channel, platform, platform_version, arch,
-          failure_stage, error_title, error_message, error_code,
-          runtime_found, runtime_installable, runtime_version, runtime_path, work_dir, log_dir,
-          runtime_download_url, install_progress_phase, install_progress_percent,
-          upload_bucket, upload_key, file_name, file_size_bytes, file_sha256, created_at
-        from desktop_fault_reports
-        where id = $1
+          d.id, d.report_id, d.entry, d.account_state, d.user_id,
+          u.username, u.display_name as user_display_name,
+          d.device_id, d.install_session_id,
+          d.app_name, d.brand_id, d.app_version, d.release_channel, d.platform, d.platform_version, d.arch,
+          d.failure_stage, d.error_title, d.error_message, d.error_code,
+          d.runtime_found, d.runtime_installable, d.runtime_version, d.runtime_path, d.work_dir, d.log_dir,
+          d.runtime_download_url, d.install_progress_phase, d.install_progress_percent,
+          d.upload_bucket, d.upload_key, d.file_name, d.file_size_bytes, d.file_sha256, d.created_at
+        from desktop_fault_reports d
+        left join users u on u.id = d.user_id
+        where d.id = $1
         limit 1
       `,
       [id],
@@ -3810,14 +3820,17 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     const result = await this.pool.query<DesktopFaultReportRow>(
       `
         select
-          id, report_id, entry, account_state, user_id, device_id, install_session_id,
-          app_name, brand_id, app_version, release_channel, platform, platform_version, arch,
-          failure_stage, error_title, error_message, error_code,
-          runtime_found, runtime_installable, runtime_version, runtime_path, work_dir, log_dir,
-          runtime_download_url, install_progress_phase, install_progress_percent,
-          upload_bucket, upload_key, file_name, file_size_bytes, file_sha256, created_at
-        from desktop_fault_reports
-        where report_id = $1
+          d.id, d.report_id, d.entry, d.account_state, d.user_id,
+          u.username, u.display_name as user_display_name,
+          d.device_id, d.install_session_id,
+          d.app_name, d.brand_id, d.app_version, d.release_channel, d.platform, d.platform_version, d.arch,
+          d.failure_stage, d.error_title, d.error_message, d.error_code,
+          d.runtime_found, d.runtime_installable, d.runtime_version, d.runtime_path, d.work_dir, d.log_dir,
+          d.runtime_download_url, d.install_progress_phase, d.install_progress_percent,
+          d.upload_bucket, d.upload_key, d.file_name, d.file_size_bytes, d.file_sha256, d.created_at
+        from desktop_fault_reports d
+        left join users u on u.id = d.user_id
+        where d.report_id = $1
         limit 1
       `,
       [reportId],

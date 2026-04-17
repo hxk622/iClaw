@@ -744,6 +744,17 @@ export interface AgentCatalogEntryData {
   metadata: Record<string, unknown>;
 }
 
+export interface InvestmentExpertCatalogItemData {
+  slug: string;
+  name: string;
+  description: string;
+  category: 'finance' | 'content' | 'productivity' | 'commerce' | 'general';
+  tags: string[];
+  metadata: Record<string, unknown>;
+  installed: boolean;
+  detail_loaded: boolean;
+}
+
 export interface UserAgentLibraryItemData {
   slug: string;
   installed_at: string;
@@ -2610,6 +2621,39 @@ export class IClawClient {
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: {items: AgentCatalogEntryData[]}};
     return json.data.items;
+  }
+
+  async listInvestmentExpertsCatalog(token?: string | null): Promise<InvestmentExpertCatalogItemData[]> {
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const res = await this.fetchAuth('/investment-experts/catalog', {
+      method: 'GET',
+      credentials: 'include',
+      headers,
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: InvestmentExpertCatalogItemData[]}};
+    return json.data.items;
+  }
+
+  async getInvestmentExpertCatalogItem(
+    slug: string,
+    token?: string | null,
+  ): Promise<InvestmentExpertCatalogItemData> {
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const res = await this.fetchAuth(`/investment-experts/catalog/${encodeURIComponent(slug)}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers,
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: InvestmentExpertCatalogItemData};
+    return json.data;
   }
 
   async getAgentLibrary(token: string): Promise<UserAgentLibraryItemData[]> {

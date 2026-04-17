@@ -1,6 +1,7 @@
 import { cn } from '@/app/lib/cn';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import type { PersistableSettingsSection } from '@/app/contexts/settings-context';
+import { BRAND } from '@/app/lib/brand';
 
 const navigationItems: Array<{
   key: PersistableSettingsSection;
@@ -22,7 +23,9 @@ export function SettingsSidebar({ activeSection, onSelect }: SettingsSidebarProp
   return (
     <aside className="flex w-[240px] flex-col border-r border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_38%,transparent)] p-6">
       <div className="mb-8">
-        <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">iClaw 设置</h2>
+        <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">
+          {BRAND.displayName} 设置
+        </h2>
       </div>
 
       <nav className="space-y-1">

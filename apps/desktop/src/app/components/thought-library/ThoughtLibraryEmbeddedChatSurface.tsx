@@ -4,7 +4,6 @@ import { OpenClawChatSurface } from '@/app/components/OpenClawChatSurface';
 import { createScopedChatSessionKey } from '@/app/lib/chat-session';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
 import type { ThoughtLibraryItem, ThoughtLibraryTab } from './model';
-import { buildThoughtLibraryContextPrompt } from './chat-context';
 
 export function ThoughtLibraryEmbeddedChatSurface({
   selectedItem,
@@ -47,12 +46,6 @@ export function ThoughtLibraryEmbeddedChatSurface({
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
 }) {
   const sessionSeed = `knowledge-library-${activeTab}`;
-  const initialPrompt = selectedItem
-    ? buildThoughtLibraryContextPrompt({
-        tab: activeTab,
-        item: selectedItem,
-      })
-    : null;
 
   return (
     <div className="knowledge-library-embedded-chat flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -65,8 +58,8 @@ export function ThoughtLibraryEmbeddedChatSurface({
         appName={appName}
         conversationId={null}
         sessionKey={createScopedChatSessionKey(sessionSeed)}
-        initialPrompt={initialPrompt}
-        initialPromptKey={selectedItem ? `${sessionSeed}:${selectedItem.id}` : null}
+        initialPrompt={null}
+        initialPromptKey={null}
         focusedTurnId={null}
         focusedTurnKey={null}
         initialAgentSlug={null}

@@ -326,14 +326,17 @@ export function ThoughtLibraryView({
           </div>
         </section>
 
-        <div className="flex w-[420px] shrink-0 flex-col border-l border-[var(--border-primary)] bg-[var(--bg-panel)]/72">
-          <div className="flex items-center justify-between border-b border-[var(--border-primary)] px-4 py-3">
-            <div className="text-[14px] font-medium text-[var(--text-primary)]">对话</div>
+        <div
+          className="flex shrink-0 flex-col border-l border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#161616]"
+          style={{ width: 'clamp(360px, 31vw, 420px)' }}
+        >
+          <div className="flex items-center justify-between border-b border-[rgba(0,0,0,0.08)] px-4 py-3 dark:border-[rgba(255,255,255,0.08)]">
+            <div className="text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">对话</div>
             {selectedItem ? (
               <button
                 type="button"
                 onClick={handleOpenContextChat}
-                className="inline-flex h-8 items-center justify-center rounded-[10px] border border-[var(--border-primary)] bg-[var(--bg-elevated)] px-3 text-[11px] text-[var(--text-primary)] transition hover:border-[rgba(180,154,112,0.28)]"
+                className="inline-flex h-8 items-center justify-center rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-3 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
               >
                 在主对话中打开
               </button>

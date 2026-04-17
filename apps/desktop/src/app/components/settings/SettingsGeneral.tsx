@@ -68,6 +68,14 @@ interface SettingsGeneralProps {
   onRestartToApply: () => void;
 }
 
+function formatReleaseVersionLabel(version: string | null): string | null {
+  const normalized = String(version || '').trim();
+  if (!normalized) {
+    return null;
+  }
+  return normalized.includes('+') ? normalized.replace('+', '.') : normalized;
+}
+
 export function SettingsGeneral({
   currentVersion,
   latestVersion,
@@ -81,7 +89,9 @@ export function SettingsGeneral({
   onRestartToApply,
 }: SettingsGeneralProps) {
   const { settings, updateGeneral } = useSettings();
-  const needsUpdate = Boolean(latestVersion && latestVersion !== currentVersion);
+  const displayCurrentVersion = formatReleaseVersionLabel(currentVersion) || currentVersion;
+  const displayLatestVersion = formatReleaseVersionLabel(latestVersion);
+  const needsUpdate = Boolean(displayLatestVersion && displayLatestVersion !== displayCurrentVersion);
   const workspaceRoot = settings.workspaceDir || '~/Documents/iClaw/workspace';
 
   return (
@@ -214,9 +224,9 @@ export function SettingsGeneral({
         <SettingsCard className="rounded-[16px] p-5">
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <VersionMeta label="当前版本" value={currentVersion} />
+              <VersionMeta label="当前版本" value={displayCurrentVersion} />
               <div>
-                <VersionMeta label="最新版本" value={latestVersion || '暂未发现更新'} />
+                <VersionMeta label="最新版本" value={displayLatestVersion || '暂未发现更新'} />
                 {needsUpdate ? (
                   <div className="mt-2">
                     <SettingsBadge tone="gold">可更新</SettingsBadge>

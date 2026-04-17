@@ -14,6 +14,7 @@ const memoryDbPath = path.join(os.homedir(), '.openclaw', 'memory', 'main.sqlite
 const resourcesDir = path.resolve(__dirname, '../../services/openclaw/resources');
 const CONTROL_UI_BOOTSTRAP_CONFIG_PATH = '/__openclaw/control-ui-config.json';
 const MEMORY_DEV_ENDPOINT = '/__iclaw/memory';
+const MEMORY_RUNTIME_STATUS_CACHE_TTL_MS = 60_000;
 
 const workspaceFiles = {
   identity_md: 'IDENTITY.md',
@@ -69,13 +70,22 @@ type DevMemoryRuntimeStatus = {
   configuredModel: string | null;
 };
 
-type DevMemorySnapshot = {
+type DevMemoryEntriesSnapshot = {
   entries: DevMemoryEntry[];
+  memoryDir: string;
+  archiveDir: string;
+};
+
+type DevMemoryRuntimeStatusSnapshot = {
   runtimeStatus: DevMemoryRuntimeStatus;
   runtimeError: string | null;
   memoryDir: string;
   archiveDir: string;
+  cachedAt: number | null;
+  stale: boolean;
 };
+
+let devMemoryRuntimeStatusCache: DevMemoryRuntimeStatusSnapshot | null = null;
 
 function sanitizeMemoryScalar(value: string): string {
   return value.replace(/\r?\n/g, ' ').trim();
@@ -292,7 +302,16 @@ async function archiveMemoryEntryPayload(id: unknown): Promise<boolean> {
   return true;
 }
 
-async function loadMemorySnapshotPayload(): Promise<DevMemorySnapshot> {
+async function loadMemoryEntriesSnapshotPayload(): Promise<DevMemoryEntriesSnapshot> {
+  const entries = await loadMemoryEntries();
+  return {
+    entries,
+    memoryDir: workspaceMemoryDir,
+    archiveDir: workspaceMemoryArchiveDir,
+  };
+}
+
+async function buildMemoryRuntimeStatus(): Promise<DevMemoryRuntimeStatus> {
   const entries = await loadMemoryEntries();
   let dbPath: string | null = null;
   try {
@@ -309,33 +328,50 @@ async function loadMemorySnapshotPayload(): Promise<DevMemorySnapshot> {
   ).map(([sourceType, count]) => ({ sourceType, count }));
 
   return {
-    entries,
-    runtimeStatus: {
-      backend: 'builtin',
-      files: entries.length,
-      chunks: 0,
-      dirty: entries.some((entry) => entry.indexHealth !== '健康'),
-      workspaceDir: workspaceDir,
-      memoryDir: workspaceMemoryDir,
-      dbPath,
-      provider: null,
-      model: null,
-      sourceCounts,
-      scanTotalFiles: entries.length,
-      scanIssues: [],
-      ftsAvailable: null,
-      ftsError: null,
-      vectorAvailable: null,
-      vectorError: null,
-      embeddingConfigured: false,
-      configuredScope: null,
-      configuredProvider: null,
-      configuredModel: null,
-    },
+    backend: 'builtin',
+    files: entries.length,
+    chunks: 0,
+    dirty: entries.some((entry) => entry.indexHealth !== '健康'),
+    workspaceDir: workspaceDir,
+    memoryDir: workspaceMemoryDir,
+    dbPath,
+    provider: null,
+    model: null,
+    sourceCounts,
+    scanTotalFiles: entries.length,
+    scanIssues: [],
+    ftsAvailable: null,
+    ftsError: null,
+    vectorAvailable: null,
+    vectorError: null,
+    embeddingConfigured: false,
+    configuredScope: null,
+    configuredProvider: null,
+    configuredModel: null,
+  };
+}
+
+async function loadMemoryRuntimeStatusSnapshotPayload(forceRefresh = false): Promise<DevMemoryRuntimeStatusSnapshot> {
+  const now = Date.now();
+  if (
+    !forceRefresh &&
+    devMemoryRuntimeStatusCache &&
+    devMemoryRuntimeStatusCache.cachedAt &&
+    now - devMemoryRuntimeStatusCache.cachedAt <= MEMORY_RUNTIME_STATUS_CACHE_TTL_MS
+  ) {
+    return devMemoryRuntimeStatusCache;
+  }
+
+  const payload = {
+    runtimeStatus: await buildMemoryRuntimeStatus(),
     runtimeError: null,
     memoryDir: workspaceMemoryDir,
     archiveDir: workspaceMemoryArchiveDir,
-  };
+    cachedAt: now,
+    stale: false,
+  } satisfies DevMemoryRuntimeStatusSnapshot;
+  devMemoryRuntimeStatusCache = payload;
+  return payload;
 }
 
 async function readWorkspaceFile(key: WorkspaceFileKey): Promise<string> {
@@ -397,7 +433,9 @@ function workspaceDevPlugin(assistantName: string) {
     name: 'iclaw-workspace-dev-plugin',
     configureServer(server: { middlewares: { use: (handler: (req: any, res: any, next: () => void) => void) => void } }) {
       server.middlewares.use(async (req, res, next) => {
-        if (req.url?.startsWith(CONTROL_UI_BOOTSTRAP_CONFIG_PATH)) {
+        const requestUrl = new URL(req.url || '/', 'http://localhost');
+
+        if (requestUrl.pathname.startsWith(CONTROL_UI_BOOTSTRAP_CONFIG_PATH)) {
           try {
             if (req.method !== 'GET' && req.method !== 'HEAD') {
               res.statusCode = 405;
@@ -429,22 +467,22 @@ function workspaceDevPlugin(assistantName: string) {
           }
         }
 
-        if (!req.url?.startsWith('/__iclaw/workspace-files')) {
-          if (!req.url?.startsWith(MEMORY_DEV_ENDPOINT)) {
+        if (!requestUrl.pathname.startsWith('/__iclaw/workspace-files')) {
+          if (!requestUrl.pathname.startsWith(MEMORY_DEV_ENDPOINT)) {
             next();
             return;
           }
         }
 
         try {
-          if (req.url?.startsWith('/__iclaw/workspace-files') && req.method === 'GET') {
+          if (requestUrl.pathname.startsWith('/__iclaw/workspace-files') && req.method === 'GET') {
             const payload = await loadWorkspacePayload();
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify(payload));
             return;
           }
 
-          if (req.url?.startsWith('/__iclaw/workspace-files') && req.method === 'POST') {
+          if (requestUrl.pathname.startsWith('/__iclaw/workspace-files') && req.method === 'POST') {
             const chunks: Buffer[] = [];
             for await (const chunk of req) {
               chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -458,14 +496,19 @@ function workspaceDevPlugin(assistantName: string) {
             return;
           }
 
-          if (req.url?.startsWith(MEMORY_DEV_ENDPOINT) && req.method === 'GET') {
-            const payload = await loadMemorySnapshotPayload();
+          if (requestUrl.pathname.startsWith(MEMORY_DEV_ENDPOINT) && req.method === 'GET') {
+            const view = requestUrl.searchParams.get('view') || 'entries';
+            const forceRefresh = requestUrl.searchParams.get('force') === '1';
+            const payload =
+              view === 'status'
+                ? await loadMemoryRuntimeStatusSnapshotPayload(forceRefresh)
+                : await loadMemoryEntriesSnapshotPayload();
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify(payload));
             return;
           }
 
-          if (req.url?.startsWith(MEMORY_DEV_ENDPOINT) && req.method === 'POST') {
+          if (requestUrl.pathname.startsWith(MEMORY_DEV_ENDPOINT) && req.method === 'POST') {
             const chunks: Buffer[] = [];
             for await (const chunk of req) {
               chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -501,7 +544,7 @@ function workspaceDevPlugin(assistantName: string) {
               return;
             }
 
-            const payload = await loadMemorySnapshotPayload();
+            const payload = await loadMemoryEntriesSnapshotPayload();
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify(payload));
             return;

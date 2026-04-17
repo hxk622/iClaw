@@ -47,12 +47,24 @@ export interface MemoryRuntimeStatus {
   configuredModel?: string | null;
 }
 
-export interface MemorySnapshot {
+export interface MemoryEntriesSnapshot {
   entries: MemoryEntryRecord[];
+  memoryDir: string;
+  archiveDir: string;
+}
+
+export interface MemorySnapshot extends MemoryEntriesSnapshot {
+  runtimeStatus?: MemoryRuntimeStatus | null;
+  runtimeError?: string | null;
+}
+
+export interface MemoryRuntimeStatusSnapshot {
   runtimeStatus?: MemoryRuntimeStatus | null;
   runtimeError?: string | null;
   memoryDir: string;
   archiveDir: string;
+  cachedAt?: number | null;
+  stale?: boolean;
 }
 
 function isTauriRuntime(): boolean {
@@ -82,7 +94,7 @@ export async function loadMemorySnapshot(): Promise<MemorySnapshot | null> {
   if (!isTauriRuntime()) {
     try {
       const response = await withTimeout(
-        fetch(MEMORY_DEV_ENDPOINT, {
+        fetch(`${MEMORY_DEV_ENDPOINT}?view=entries`, {
           method: 'GET',
           credentials: 'same-origin',
         }),
@@ -98,9 +110,35 @@ export async function loadMemorySnapshot(): Promise<MemorySnapshot | null> {
     }
   }
   return withTimeout(
-    invoke<MemorySnapshot>('load_memory_snapshot'),
+    invoke<MemorySnapshot>('load_memory_entries_snapshot'),
     MEMORY_SNAPSHOT_TIMEOUT_MS,
     'memory snapshot request timed out',
+  );
+}
+
+export async function loadMemoryRuntimeStatus(force = false): Promise<MemoryRuntimeStatusSnapshot | null> {
+  if (!isTauriRuntime()) {
+    try {
+      const response = await withTimeout(
+        fetch(`${MEMORY_DEV_ENDPOINT}?view=status${force ? '&force=1' : ''}`, {
+          method: 'GET',
+          credentials: 'same-origin',
+        }),
+        MEMORY_SNAPSHOT_TIMEOUT_MS,
+        'memory runtime status request timed out',
+      );
+      if (!response.ok) {
+        return null;
+      }
+      return (await response.json()) as MemoryRuntimeStatusSnapshot;
+    } catch {
+      return null;
+    }
+  }
+  return withTimeout(
+    invoke<MemoryRuntimeStatusSnapshot>('load_memory_runtime_status_snapshot', { force }),
+    MEMORY_SNAPSHOT_TIMEOUT_MS,
+    'memory runtime status request timed out',
   );
 }
 

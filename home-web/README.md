@@ -6,7 +6,7 @@ iClaw 下载站（首版）。
 
 ```bash
 ICLAW_PORTAL_APP_NAME=iclaw pnpm dev:home-web
-ICLAW_PORTAL_APP_NAME=licaiclaw pnpm dev:home-web
+ICLAW_PORTAL_APP_NAME=caiclaw pnpm dev:home-web
 # 或
 pnpm dev:home
 bash scripts/deploy-home.sh dev
@@ -17,7 +17,7 @@ bash scripts/deploy-home.sh dev
 ## 构建
 
 ```bash
-ICLAW_PORTAL_APP_NAME=licaiclaw pnpm build:home-web
+ICLAW_PORTAL_APP_NAME=caiclaw pnpm build:home-web
 # 或
 pnpm build:home
 ```
@@ -56,10 +56,10 @@ ICLAW_BASTION_PASSWORD='***' bash scripts/deploy-home-tecent.sh prod
 
 默认行为：
 
-- 品牌默认使用 `licaiclaw`
+- 品牌默认使用 `caiclaw`
 - 堡垒机默认使用 `w-hanxingkai@relay1.idc.hexun.com`
 - 目标机器默认使用 `hxyw_admin@172.17.0.5` 和 `hxyw_admin@172.17.0.9`
-- nginx 目录默认读取 `config/packaging/prod/licaiclaw.json` 中的 `distribution.home.nginxPath`
+- nginx 目录默认读取 `config/packaging/prod/caiclaw.json` 中的 `distribution.home.nginxPath`
 - 默认写入 `/etc/nginx/conf.d/caiclaw.hexun.com.conf`，并执行 `nginx -t` + reload
 - 默认通过 `artifact` 模式发布：
   - 本地构建 `home-web`

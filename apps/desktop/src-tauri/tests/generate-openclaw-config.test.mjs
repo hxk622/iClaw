@@ -26,12 +26,12 @@ function runGenerator(env) {
     env: {
       ...process.env,
       ...env,
-      ICLAW_DESKTOP_BRAND_ID: env.ICLAW_DESKTOP_BRAND_ID || 'licaiclaw',
+      ICLAW_DESKTOP_BRAND_ID: env.ICLAW_DESKTOP_BRAND_ID || 'caiclaw',
       ICLAW_DESKTOP_BUILD_ID: env.ICLAW_DESKTOP_BUILD_ID || '202604141320',
       ICLAW_DESKTOP_SOURCE_PROFILE_HASH:
         env.ICLAW_DESKTOP_SOURCE_PROFILE_HASH || 'test-profile-hash',
       ICLAW_DESKTOP_BUNDLE_IDENTIFIER:
-        env.ICLAW_DESKTOP_BUNDLE_IDENTIFIER || 'ai.licaiclaw.desktop',
+        env.ICLAW_DESKTOP_BUNDLE_IDENTIFIER || 'ai.caiclaw.desktop',
       ICLAW_DESKTOP_ARTIFACT_BASE_NAME:
         env.ICLAW_DESKTOP_ARTIFACT_BASE_NAME || 'LiCaiClaw',
       ICLAW_OPENCLAW_BRAND_STAMP_PATH: brandStampPath,
@@ -65,7 +65,7 @@ test('golden: dev runtime config generation stays stable', () => {
     ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'http://127.0.0.1:1520,http://localhost:1520',
   });
   assert.deepEqual(actual.output, readFixture('expected-dev.json'));
-  assert.equal(actual.brandStamp.brandId, 'licaiclaw');
+  assert.equal(actual.brandStamp.brandId, 'caiclaw');
 });
 
 test('golden: prod runtime config generation stays stable', () => {
@@ -78,7 +78,7 @@ test('golden: prod runtime config generation stays stable', () => {
     ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'tauri://localhost,http://tauri.localhost,https://tauri.localhost',
   });
   assert.deepEqual(actual.output, readFixture('expected-prod.json'));
-  assert.equal(actual.brandStamp.brandId, 'licaiclaw');
+  assert.equal(actual.brandStamp.brandId, 'caiclaw');
 });
 
 test('defaults desktop runtime browser launcher to headless', () => {
@@ -138,7 +138,7 @@ test('honors default_model_ref even when it is not the first enabled provider mo
       ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'tauri://localhost,http://tauri.localhost,https://tauri.localhost',
     });
     assert.equal(actual.output.agents.defaults.model.primary, 'deepseek/deepseek-v3.2');
-    assert.equal(actual.brandStamp.brandId, 'licaiclaw');
+    assert.equal(actual.brandStamp.brandId, 'caiclaw');
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

@@ -557,6 +557,8 @@ export type UserActionAuditRecord = {
 export type UserActionDiagnosticUploadRecord = {
   id: string;
   userId: string;
+  username: string;
+  userDisplayName: string;
   deviceId: string;
   appName: string;
   uploadBucket: string;
@@ -577,6 +579,8 @@ export type DesktopFaultReportSummaryRecord = {
   entry: 'installer' | 'exception-dialog';
   accountState: 'anonymous' | 'authenticated';
   userId: string;
+  username: string;
+  userDisplayName: string;
   deviceId: string;
   installSessionId: string;
   appName: string;

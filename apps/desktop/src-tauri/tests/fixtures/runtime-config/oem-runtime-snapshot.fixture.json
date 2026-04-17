@@ -1,5 +1,5 @@
 {
-  "brandId": "licaiclaw",
+  "brandId": "caiclaw",
   "publishedVersion": 10,
   "config": {
     "model_provider": {
@@ -9,7 +9,7 @@
       "profile": {
         "id": "provider-app-1",
         "scope_type": "app",
-        "scope_key": "licaiclaw",
+        "scope_key": "caiclaw",
         "provider_key": "openai",
         "provider_label": "OpenAI Compat",
         "api_protocol": "openai-completions",
@@ -101,7 +101,7 @@
       "profile": {
         "id": "memory-app-1",
         "scope_type": "app",
-        "scope_key": "licaiclaw",
+        "scope_key": "caiclaw",
         "provider_key": "bailian",
         "provider_label": "Bailian",
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",

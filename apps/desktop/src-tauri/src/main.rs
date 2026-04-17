@@ -66,6 +66,7 @@ const DESKTOP_GATEWAY_ALLOWED_ORIGINS: &str =
     "http://127.0.0.1:1520,http://localhost:1520,tauri://localhost,http://tauri.localhost,https://tauri.localhost";
 const DESKTOP_UPDATER_PUBLIC_KEY: Option<&str> = option_env!("TAURI_UPDATER_PUBLIC_KEY");
 const MEMORY_RUNTIME_STATUS_TIMEOUT_MS: u64 = 2500;
+const MEMORY_RUNTIME_STATUS_CACHE_TTL_MS: u64 = 60_000;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -598,7 +599,7 @@ struct DesktopMemoryEntry {
     active: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct DesktopMemoryRuntimeStatus {
     backend: Option<String>,
@@ -625,8 +626,37 @@ struct DesktopMemoryRuntimeStatus {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct DesktopMemoryEntriesSnapshot {
+    entries: Vec<DesktopMemoryEntry>,
+    memory_dir: String,
+    archive_dir: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DesktopMemorySnapshot {
     entries: Vec<DesktopMemoryEntry>,
+    runtime_status: Option<DesktopMemoryRuntimeStatus>,
+    runtime_error: Option<String>,
+    memory_dir: String,
+    archive_dir: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopMemoryRuntimeStatusSnapshot {
+    runtime_status: Option<DesktopMemoryRuntimeStatus>,
+    runtime_error: Option<String>,
+    memory_dir: String,
+    archive_dir: String,
+    cached_at: Option<u64>,
+    stale: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct DesktopMemoryRuntimeStatusCacheRecord {
+    saved_at: u64,
     runtime_status: Option<DesktopMemoryRuntimeStatus>,
     runtime_error: Option<String>,
     memory_dir: String,
@@ -6754,12 +6784,25 @@ fn current_memory_timestamp() -> String {
     format!("{seconds}")
 }
 
+fn current_memory_timestamp_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 fn desktop_memory_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(openclaw_workspace_dir(app)?.join("memory"))
 }
 
 fn desktop_memory_archive_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(openclaw_workspace_dir(app)?.join(".iclaw-memory-archive"))
+}
+
+fn desktop_memory_status_cache_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(openclaw_state_dir(app)?
+        .join("memory")
+        .join("runtime-status-cache.json"))
 }
 
 fn ensure_desktop_memory_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -7019,6 +7062,62 @@ fn load_desktop_memory_entries(app: &AppHandle) -> Result<Vec<DesktopMemoryEntry
     Ok(entries)
 }
 
+fn load_desktop_memory_entries_snapshot(
+    app: &AppHandle,
+) -> Result<DesktopMemoryEntriesSnapshot, String> {
+    ensure_openclaw_workspace_seed(app)?;
+    Ok(DesktopMemoryEntriesSnapshot {
+        entries: load_desktop_memory_entries(app)?,
+        memory_dir: desktop_memory_dir(app)?.to_string_lossy().to_string(),
+        archive_dir: desktop_memory_archive_dir(app)?
+            .to_string_lossy()
+            .to_string(),
+    })
+}
+
+fn read_desktop_memory_runtime_status_cache(
+    app: &AppHandle,
+) -> Result<Option<DesktopMemoryRuntimeStatusCacheRecord>, String> {
+    let path = desktop_memory_status_cache_path(app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "failed to read memory runtime status cache {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    let parsed = serde_json::from_str::<DesktopMemoryRuntimeStatusCacheRecord>(&raw).map_err(
+        |e| {
+            format!(
+                "failed to parse memory runtime status cache {}: {e}",
+                path.to_string_lossy()
+            )
+        },
+    )?;
+    Ok(Some(parsed))
+}
+
+fn write_desktop_memory_runtime_status_cache(
+    app: &AppHandle,
+    record: &DesktopMemoryRuntimeStatusCacheRecord,
+) -> Result<(), String> {
+    let path = desktop_memory_status_cache_path(app)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create memory runtime cache dir: {e}"))?;
+    }
+    let raw = serde_json::to_string(record)
+        .map_err(|e| format!("failed to serialize memory runtime status cache: {e}"))?;
+    fs::write(&path, raw).map_err(|e| {
+        format!(
+            "failed to write memory runtime status cache {}: {e}",
+            path.to_string_lossy()
+        )
+    })
+}
+
 fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> Result<(), String> {
     if let Err(error) = sync_current_brand_runtime_snapshot(app) {
         eprintln!("failed to sync OEM runtime snapshot before memory runtime command: {error}");
@@ -7255,6 +7354,75 @@ fn load_desktop_memory_runtime_status_with_timeout(
                 MEMORY_RUNTIME_STATUS_TIMEOUT_MS
             )
         })?
+}
+
+fn load_desktop_memory_runtime_status_snapshot(
+    app: &AppHandle,
+    force_refresh: bool,
+) -> Result<DesktopMemoryRuntimeStatusSnapshot, String> {
+    ensure_openclaw_workspace_seed(app)?;
+    let memory_dir = desktop_memory_dir(app)?.to_string_lossy().to_string();
+    let archive_dir = desktop_memory_archive_dir(app)?
+        .to_string_lossy()
+        .to_string();
+    let now = current_memory_timestamp_ms();
+    let cached = read_desktop_memory_runtime_status_cache(app)?;
+
+    if !force_refresh {
+        if let Some(record) = cached.as_ref() {
+            if now.saturating_sub(record.saved_at) <= MEMORY_RUNTIME_STATUS_CACHE_TTL_MS {
+                return Ok(DesktopMemoryRuntimeStatusSnapshot {
+                    runtime_status: record.runtime_status.clone(),
+                    runtime_error: record.runtime_error.clone(),
+                    memory_dir: record.memory_dir.clone(),
+                    archive_dir: record.archive_dir.clone(),
+                    cached_at: Some(record.saved_at),
+                    stale: false,
+                });
+            }
+        }
+    }
+
+    match load_desktop_memory_runtime_status_with_timeout(app) {
+        Ok(runtime_status) => {
+            let record = DesktopMemoryRuntimeStatusCacheRecord {
+                saved_at: now,
+                runtime_status: Some(runtime_status.clone()),
+                runtime_error: None,
+                memory_dir: memory_dir.clone(),
+                archive_dir: archive_dir.clone(),
+            };
+            let _ = write_desktop_memory_runtime_status_cache(app, &record);
+            Ok(DesktopMemoryRuntimeStatusSnapshot {
+                runtime_status: Some(runtime_status),
+                runtime_error: None,
+                memory_dir,
+                archive_dir,
+                cached_at: Some(now),
+                stale: false,
+            })
+        }
+        Err(error) => {
+            if let Some(record) = cached {
+                return Ok(DesktopMemoryRuntimeStatusSnapshot {
+                    runtime_status: record.runtime_status,
+                    runtime_error: Some(error),
+                    memory_dir: record.memory_dir,
+                    archive_dir: record.archive_dir,
+                    cached_at: Some(record.saved_at),
+                    stale: true,
+                });
+            }
+            Ok(DesktopMemoryRuntimeStatusSnapshot {
+                runtime_status: None,
+                runtime_error: Some(error),
+                memory_dir,
+                archive_dir,
+                cached_at: None,
+                stale: false,
+            })
+        }
+    }
 }
 
 fn write_workspace_files(
@@ -7549,29 +7717,28 @@ fn save_desktop_client_config(app: AppHandle, config: serde_json::Value) -> Resu
 }
 
 #[tauri::command]
+fn load_memory_entries_snapshot(app: AppHandle) -> Result<DesktopMemoryEntriesSnapshot, String> {
+    load_desktop_memory_entries_snapshot(&app)
+}
+
+#[tauri::command]
+fn load_memory_runtime_status_snapshot(
+    app: AppHandle,
+    force: Option<bool>,
+) -> Result<DesktopMemoryRuntimeStatusSnapshot, String> {
+    load_desktop_memory_runtime_status_snapshot(&app, force.unwrap_or(false))
+}
+
+#[tauri::command]
 fn load_memory_snapshot(app: AppHandle) -> Result<DesktopMemorySnapshot, String> {
-    ensure_openclaw_workspace_seed(&app)?;
-    let entries = load_desktop_memory_entries(&app)?;
-    let memory_dir = desktop_memory_dir(&app)?.to_string_lossy().to_string();
-    let archive_dir = desktop_memory_archive_dir(&app)?
-        .to_string_lossy()
-        .to_string();
-    match load_desktop_memory_runtime_status_with_timeout(&app) {
-        Ok(runtime_status) => Ok(DesktopMemorySnapshot {
-            entries,
-            runtime_status: Some(runtime_status),
-            runtime_error: None,
-            memory_dir,
-            archive_dir,
-        }),
-        Err(error) => Ok(DesktopMemorySnapshot {
-            entries,
-            runtime_status: None,
-            runtime_error: Some(error),
-            memory_dir,
-            archive_dir,
-        }),
-    }
+    let snapshot = load_desktop_memory_entries_snapshot(&app)?;
+    Ok(DesktopMemorySnapshot {
+        entries: snapshot.entries,
+        runtime_status: None,
+        runtime_error: None,
+        memory_dir: snapshot.memory_dir,
+        archive_dir: snapshot.archive_dir,
+    })
 }
 
 #[tauri::command]
@@ -8146,6 +8313,8 @@ fn main() {
             save_iclaw_workspace_section,
             load_desktop_client_config,
             save_desktop_client_config,
+            load_memory_entries_snapshot,
+            load_memory_runtime_status_snapshot,
             load_memory_snapshot,
             save_memory_entry,
             delete_memory_entry,

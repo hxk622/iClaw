@@ -166,11 +166,11 @@ async function readActiveState(cdp) {
     activeSurfaceExpression(`
       const app = activeWrapper?.querySelector('openclaw-app') || document.querySelector('openclaw-app');
       const persistenceScope =
-        localStorage.getItem('licaiclaw:chat.user_scope') ||
+        localStorage.getItem('caiclaw:chat.user_scope') ||
         localStorage.getItem('iclaw:chat.user_scope') ||
         'guest';
       const activeRoute = JSON.parse(
-        localStorage.getItem(\`licaiclaw:desktop.active-chat-route.v1:scope:\${persistenceScope}\`) ||
+        localStorage.getItem(\`caiclaw:desktop.active-chat-route.v1:scope:\${persistenceScope}\`) ||
         localStorage.getItem(\`iclaw.desktop.active-chat-route.v1:scope:\${persistenceScope}\`) ||
         'null',
       );
@@ -353,18 +353,18 @@ async function seedStorage(cdp, seedData) {
     cdp,
     `(() => {
       const scope =
-        localStorage.getItem('licaiclaw:chat.user_scope') ||
+        localStorage.getItem('caiclaw:chat.user_scope') ||
         localStorage.getItem('iclaw:chat.user_scope') ||
         'guest';
       const conversationKey = 'iclaw.chat.conversations.v1:scope:' + scope;
       const turnKey = 'iclaw.chat.turns.v1:scope:' + scope;
-      const activeRouteKey = 'licaiclaw:desktop.active-chat-route.v1:scope:' + scope;
-      const activeRouteGlobalKey = 'licaiclaw:desktop.active-chat-route.global.v1';
+      const activeRouteKey = 'caiclaw:desktop.active-chat-route.v1:scope:' + scope;
+      const activeRouteGlobalKey = 'caiclaw:desktop.active-chat-route.global.v1';
       const legacyActiveRouteKey = 'iclaw.desktop.active-chat-route.v1:scope:' + scope;
       const legacyActiveRouteGlobalKey = 'iclaw.desktop.active-chat-route.global.v1';
       const workspaceSceneKey = 'iclaw.desktop.active-workspace-scene.v1:scope:' + scope;
       const selectedConversationKey = 'iclaw.desktop.selected-conversation.v1:scope:' + scope;
-      const appNames = ['iclaw', 'licaiclaw'];
+      const appNames = ['iclaw', 'caiclaw'];
       localStorage.setItem(conversationKey, JSON.stringify(${JSON.stringify(seedData.conversations)}));
       localStorage.setItem(turnKey, JSON.stringify(${JSON.stringify(seedData.turns)}));
       const routePayload = JSON.stringify({
@@ -438,7 +438,7 @@ async function cleanupSeededStorage(cdp, seededStorage) {
     cdp,
     `(() => {
       const seededStorage = ${JSON.stringify(seededStorage)};
-      const appNames = ['iclaw', 'licaiclaw'];
+      const appNames = ['iclaw', 'caiclaw'];
       localStorage.removeItem(seededStorage.conversationKey);
       localStorage.removeItem(seededStorage.turnKey);
       localStorage.removeItem(seededStorage.activeRouteKey);

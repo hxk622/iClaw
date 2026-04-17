@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 async function loadConfigModule() {
-  process.env.APP_NAME = process.env.APP_NAME || 'licaiclaw';
+  process.env.APP_NAME = process.env.APP_NAME || 'caiclaw';
   return import(`./config.ts?test=${Date.now()}-${Math.random().toString(16).slice(2)}`);
 }
 

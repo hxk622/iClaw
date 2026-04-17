@@ -74,7 +74,7 @@ function createMockApiServer() {
 
   const appList = [
     {appName: 'iclaw', displayName: 'iClaw', status: 'active', updatedAt: nowIso()},
-    {appName: 'licaiclaw', displayName: 'LiCaiClaw', status: 'active', updatedAt: nowIso()},
+    {appName: 'caiclaw', displayName: 'LiCaiClaw', status: 'active', updatedAt: nowIso()},
   ];
 
   const emptyItems = {items: []};
@@ -299,7 +299,7 @@ async function main() {
     await click(page.cdp, '[data-page="payments-config"]');
     await waitForSelector(page.cdp, '[data-testid="payment-provider-tab-platform"]');
     await waitForSelector(page.cdp, '[data-testid="payment-provider-tab-iclaw"]');
-    await waitForSelector(page.cdp, '[data-testid="payment-provider-tab-licaiclaw"]');
+    await waitForSelector(page.cdp, '[data-testid="payment-provider-tab-caiclaw"]');
 
     await selectPaymentTab(page, 'platform');
     const platformBefore = await readGatewayFields(page);
@@ -309,9 +309,9 @@ async function main() {
       key: 'platform-key-001',
     });
 
-    await selectPaymentTab(page, 'licaiclaw');
-    const licaiclawBefore = await readGatewayFields(page);
-    assert.deepEqual(licaiclawBefore, platformBefore);
+    await selectPaymentTab(page, 'caiclaw');
+    const caiclawBefore = await readGatewayFields(page);
+    assert.deepEqual(caiclawBefore, platformBefore);
 
     await selectPaymentTab(page, 'iclaw');
     await setInputValue(page.cdp, '[data-testid="payment-gateway-partner-id"]', 'iclaw-partner-777');
@@ -333,9 +333,9 @@ async function main() {
     const platformAfter = await readGatewayFields(page);
     assert.deepEqual(platformAfter, platformBefore, 'platform gateway should stay unchanged');
 
-    await selectPaymentTab(page, 'licaiclaw');
-    const licaiclawAfter = await readGatewayFields(page);
-    assert.deepEqual(licaiclawAfter, platformBefore, 'licaiclaw should keep inheriting platform config');
+    await selectPaymentTab(page, 'caiclaw');
+    const caiclawAfter = await readGatewayFields(page);
+    assert.deepEqual(caiclawAfter, platformBefore, 'caiclaw should keep inheriting platform config');
 
     await selectPaymentTab(page, 'iclaw');
     const iclawAfter = await readGatewayFields(page);
@@ -357,7 +357,7 @@ async function main() {
       key: 'iclaw-key-777',
       updated_at: mockApi.state.apps.get('iclaw').updated_at,
     });
-    assert.equal(mockApi.state.apps.has('licaiclaw'), false, 'licaiclaw should not gain an app-specific gateway');
+    assert.equal(mockApi.state.apps.has('caiclaw'), false, 'caiclaw should not gain an app-specific gateway');
 
     const savedPath = await screenshot(page.cdp, SCREENSHOT_PATH);
     console.log(
@@ -366,7 +366,7 @@ async function main() {
           ok: true,
           platform_before: platformBefore,
           platform_after: platformAfter,
-          licaiclaw_after: licaiclawAfter,
+          caiclaw_after: caiclawAfter,
           iclaw_after: iclawAfter,
           requests: mockApi.state.requests.filter((item) => item.path === '/admin/payments/gateway-config'),
           screenshot: savedPath,

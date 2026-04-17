@@ -1,5 +1,5 @@
 Ralph Progress
 ==============
 
-Project: iClaw Thought Library Shell Phase 2
-Branch: ralph/thought-library-shell
+Project: iClaw Investment Experts and Memory Performance Refactor
+Branch: ralph/perf-investment-memory

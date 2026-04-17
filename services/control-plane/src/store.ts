@@ -1591,6 +1591,8 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       entry: input.entry || 'installer',
       accountState: input.account_state || 'anonymous',
       userId: input.user_id || null,
+      username: null,
+      userDisplayName: null,
       deviceId: input.device_id || '',
       installSessionId: input.install_session_id || null,
       appName: input.app_name || '',
