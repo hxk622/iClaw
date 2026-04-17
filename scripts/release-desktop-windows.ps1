@@ -104,13 +104,68 @@ function Get-PnpmCommand {
 function Get-JsonValue {
   param(
     [Parameter(Mandatory = $true)][string]$ScriptPath,
-    [Parameter(Mandatory = $true)][string[]]$Arguments
+    [Parameter(Mandatory = $true)][string[]]$Arguments,
+    [Parameter()][hashtable]$Environment = @{}
   )
-  $output = & $ScriptPath @Arguments
-  if ($LASTEXITCODE -ne 0) {
-    throw "Failed to read JSON-backed value from $ScriptPath"
+  $previousValues = @{}
+  foreach ($entry in $Environment.GetEnumerator()) {
+    $name = [string]$entry.Key
+    if (Test-Path "Env:$name") {
+      $previousValues[$name] = (Get-Item "Env:$name").Value
+    } else {
+      $previousValues[$name] = $null
+    }
+    Set-Item "Env:$name" -Value ([string]$entry.Value)
+  }
+
+  try {
+    $output = & $ScriptPath @Arguments
+    if ($LASTEXITCODE -ne 0) {
+      throw "Failed to read JSON-backed value from $ScriptPath"
+    }
+  }
+  finally {
+    foreach ($entry in $previousValues.GetEnumerator()) {
+      if ($null -eq $entry.Value) {
+        Remove-Item "Env:$($entry.Key)" -ErrorAction SilentlyContinue
+      } else {
+        Set-Item "Env:$($entry.Key)" -Value $entry.Value
+      }
+    }
   }
   return ($output | Select-Object -Last 1).Trim()
+}
+
+function Get-ObjectPropertyValue {
+  param(
+    [Parameter()][object]$Object,
+    [Parameter(Mandatory = $true)][string]$Name
+  )
+  if ($null -eq $Object) {
+    return $null
+  }
+  $property = $Object.PSObject.Properties[$Name]
+  if ($null -eq $property) {
+    return $null
+  }
+  return $property.Value
+}
+
+function Get-BrandPackagingValue {
+  param(
+    [Parameter(Mandatory = $true)][string]$Channel,
+    [Parameter(Mandatory = $true)][string]$Path
+  )
+  $node = Get-CommandPath -Name 'node'
+  $normalizedChannel = Normalize-EnvName $Channel
+  return Get-JsonValue -ScriptPath $node -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, '--env', $normalizedChannel, $Path) -Environment @{
+    ICLAW_ENV_NAME = $normalizedChannel
+    ICLAW_PACKAGING_ENV = $normalizedChannel
+    NODE_ENV = $normalizedChannel
+    APP_NAME = $Brand
+    ICLAW_PORTAL_APP_NAME = $Brand
+    ICLAW_BRAND = $Brand
+  }
 }
 
 function Normalize-EnvName {
@@ -428,6 +483,123 @@ function Build-HomeWebProd {
   Invoke-Checked -FilePath $pnpm -Arguments @('pnpm', '--dir', 'home-web', 'build') -Environment $Environment -WorkingDirectory $RootDir
 }
 
+function Invoke-WebHeadVerified {
+  param([Parameter(Mandatory = $true)][string]$Url)
+  try {
+    $response = Invoke-WebRequest -Method Head -Uri $Url -UseBasicParsing
+  }
+  catch {
+    throw "Public release verification failed for ${Url}: $($_.Exception.Message)"
+  }
+  if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) {
+    throw "Public release verification failed for ${Url}: unexpected status $($response.StatusCode)"
+  }
+}
+
+function Invoke-WebJsonVerified {
+  param(
+    [Parameter(Mandatory = $true)][string]$Url,
+    [Parameter(Mandatory = $true)][string]$ExpectedReleaseVersion
+  )
+  try {
+    $response = Invoke-WebRequest -Method Get -Uri $Url -UseBasicParsing
+  }
+  catch {
+    throw "Public manifest verification failed for ${Url}: $($_.Exception.Message)"
+  }
+  if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) {
+    throw "Public manifest verification failed for ${Url}: unexpected status $($response.StatusCode)"
+  }
+
+  $payload = $null
+  try {
+    $payload = $response.Content | ConvertFrom-Json
+  }
+  catch {
+    throw "Public manifest verification failed for ${Url}: invalid JSON payload"
+  }
+
+  $matchedReleaseVersion = $null
+  $entryPayload = Get-ObjectPropertyValue -Object $payload -Name 'entry'
+  if ($entryPayload) {
+    $entryReleaseVersion = Get-ObjectPropertyValue -Object $entryPayload -Name 'release_version'
+    if ($entryReleaseVersion) {
+      $matchedReleaseVersion = [string]$entryReleaseVersion
+    }
+  }
+
+  if (-not $matchedReleaseVersion) {
+    $entriesPayload = Get-ObjectPropertyValue -Object $payload -Name 'entries'
+    if ($entriesPayload) {
+      foreach ($entry in $entriesPayload) {
+        $entryReleaseVersion = Get-ObjectPropertyValue -Object $entry -Name 'release_version'
+        if ($entryReleaseVersion) {
+          $matchedReleaseVersion = [string]$entryReleaseVersion
+          break
+        }
+      }
+    }
+  }
+
+  if (-not $matchedReleaseVersion -and $payload -is [array]) {
+    foreach ($entry in $payload) {
+      $entryReleaseVersion = Get-ObjectPropertyValue -Object $entry -Name 'release_version'
+      if ($entryReleaseVersion) {
+        $matchedReleaseVersion = [string]$entryReleaseVersion
+        break
+      }
+    }
+  }
+
+  if ($matchedReleaseVersion -ne $ExpectedReleaseVersion) {
+    throw "Public manifest verification failed for ${Url}: expected release_version=$ExpectedReleaseVersion, got $matchedReleaseVersion"
+  }
+}
+
+function Test-TargetHasInstaller {
+  param(
+    [Parameter(Mandatory = $true)][string]$ArtifactBaseName,
+    [Parameter(Mandatory = $true)][string]$Channel,
+    [Parameter(Mandatory = $true)][string]$ArchLabel
+  )
+  $match = Get-ChildItem -LiteralPath $ReleaseDir -File -Filter "${ArtifactBaseName}_${ReleaseVersion}_${ArchLabel}_${Channel}.exe" -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+  return $null -ne $match
+}
+
+function Verify-PublishedChannel {
+  param(
+    [Parameter(Mandatory = $true)][string]$Channel,
+    [Parameter(Mandatory = $true)][string]$ArtifactBaseName
+  )
+
+  $channelValue = Normalize-EnvName $Channel
+  if ($channelValue -eq 'dev') {
+    $publicBaseUrl = Get-BrandPackagingValue -Channel $channelValue -Path 'distribution.downloads.dev.publicBaseUrl'
+  } elseif ($channelValue -eq 'test') {
+    $publicBaseUrl = Get-BrandPackagingValue -Channel $channelValue -Path 'distribution.downloads.test.publicBaseUrl'
+  } else {
+    $publicBaseUrl = Get-BrandPackagingValue -Channel $channelValue -Path 'distribution.downloads.prod.publicBaseUrl'
+  }
+
+  $normalizedBaseUrl = $publicBaseUrl.TrimEnd('/')
+  if (-not $normalizedBaseUrl) {
+    throw "Missing publicBaseUrl for brand=$Brand channel=$channelValue"
+  }
+
+  Invoke-WebJsonVerified -Url "$normalizedBaseUrl/latest-$channelValue.json" -ExpectedReleaseVersion $ReleaseVersion
+
+  foreach ($archLabel in @('x64', 'aarch64')) {
+    if (-not (Test-TargetHasInstaller -ArtifactBaseName $ArtifactBaseName -Channel $channelValue -ArchLabel $archLabel)) {
+      continue
+    }
+
+    $artifactName = "${ArtifactBaseName}_${ReleaseVersion}_${archLabel}_${channelValue}.exe"
+    Invoke-WebHeadVerified -Url "$normalizedBaseUrl/windows/$archLabel/$artifactName"
+    Invoke-WebJsonVerified -Url "$normalizedBaseUrl/windows/$archLabel/latest-$channelValue-windows-$archLabel.json" -ExpectedReleaseVersion $ReleaseVersion
+  }
+}
+
 function Publish-Channel {
   param(
     [Parameter(Mandatory = $true)][string]$Channel,
@@ -438,16 +610,16 @@ function Publish-Channel {
   $channelValue = Normalize-EnvName $Channel
   if ($channelValue -eq 'dev') {
     $alias = if ($env:ICLAW_MINIO_DEV_ALIAS) { $env:ICLAW_MINIO_DEV_ALIAS } else { 'local' }
-    $bucket = if ($env:ICLAW_MINIO_DEV_BUCKET) { $env:ICLAW_MINIO_DEV_BUCKET } else { Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.dev.bucket') }
-    $publicBaseUrl = Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.dev.publicBaseUrl')
+    $bucket = if ($env:ICLAW_MINIO_DEV_BUCKET) { $env:ICLAW_MINIO_DEV_BUCKET } else { Get-BrandPackagingValue -Channel $channelValue -Path 'distribution.downloads.dev.bucket' }
+    $publicBaseUrl = Get-BrandPackagingValue -Channel $channelValue -Path 'distribution.downloads.dev.publicBaseUrl'
   } elseif ($channelValue -eq 'test') {
     $alias = if ($env:ICLAW_MINIO_TEST_ALIAS) { $env:ICLAW_MINIO_TEST_ALIAS } else { 'local' }
-    $bucket = if ($env:ICLAW_MINIO_TEST_BUCKET) { $env:ICLAW_MINIO_TEST_BUCKET } else { Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.test.bucket') }
-    $publicBaseUrl = Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.test.publicBaseUrl')
+    $bucket = if ($env:ICLAW_MINIO_TEST_BUCKET) { $env:ICLAW_MINIO_TEST_BUCKET } else { Get-BrandPackagingValue -Channel $channelValue -Path 'distribution.downloads.test.bucket' }
+    $publicBaseUrl = Get-BrandPackagingValue -Channel $channelValue -Path 'distribution.downloads.test.publicBaseUrl'
   } else {
     $alias = if ($env:ICLAW_MINIO_PROD_ALIAS) { $env:ICLAW_MINIO_PROD_ALIAS } else { 'remoteprod' }
-    $bucket = if ($env:ICLAW_MINIO_PROD_BUCKET) { $env:ICLAW_MINIO_PROD_BUCKET } else { Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.prod.bucket') }
-    $publicBaseUrl = Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.prod.publicBaseUrl')
+    $bucket = if ($env:ICLAW_MINIO_PROD_BUCKET) { $env:ICLAW_MINIO_PROD_BUCKET } else { Get-BrandPackagingValue -Channel $channelValue -Path 'distribution.downloads.prod.bucket' }
+    $publicBaseUrl = Get-BrandPackagingValue -Channel $channelValue -Path 'distribution.downloads.prod.publicBaseUrl'
   }
   $uploadPrefix = Resolve-UploadPrefix -PublicBaseUrl $publicBaseUrl
   $uploadLatestOnly = -not ($env:ICLAW_UPLOAD_ALL_RELEASES -and $env:ICLAW_UPLOAD_ALL_RELEASES.Trim() -match '^(1|true|yes)$')
@@ -584,6 +756,7 @@ try {
   if (-not $SkipPublish) {
     foreach ($normalizedChannel in $normalizedChannels) {
       Publish-Channel -Channel $normalizedChannel -ArtifactBaseName $artifactBaseName
+      Verify-PublishedChannel -Channel $normalizedChannel -ArtifactBaseName $artifactBaseName
     }
   }
 
@@ -593,7 +766,7 @@ try {
 
     $nginxHost = if ($env:ICLAW_NGINX_HOST) { $env:ICLAW_NGINX_HOST } else { '113.44.132.75' }
     $nginxUser = if ($env:ICLAW_NGINX_USER) { $env:ICLAW_NGINX_USER } else { 'root' }
-    $nginxPath = if ($env:ICLAW_NGINX_PATH) { $env:ICLAW_NGINX_PATH } else { Get-JsonValue -ScriptPath $node -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.home.nginxPath') }
+    $nginxPath = if ($env:ICLAW_NGINX_PATH) { $env:ICLAW_NGINX_PATH } else { Get-BrandPackagingValue -Channel 'prod' -Path 'distribution.home.nginxPath' }
 
     $ssh = Get-CommandPath -Name 'ssh'
     Invoke-Checked -FilePath $ssh -Arguments @("$nginxUser@$nginxHost", "mkdir -p '$nginxPath' && find '$nginxPath' -mindepth 1 -maxdepth 1 -exec rm -rf {} +")

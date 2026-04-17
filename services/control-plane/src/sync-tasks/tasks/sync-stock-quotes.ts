@@ -112,7 +112,7 @@ export async function syncStockQuotes() {
 
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : String(e);
-    logError('Sync stock quotes failed:', e);
+    logError('Sync stock quotes failed', { error: e });
     await logTaskFailed(taskId, errorMsg, syncCount);
     throw e;
   }

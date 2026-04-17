@@ -13,6 +13,7 @@ function readPath(root, pathExpression) {
 async function main() {
   const args = process.argv.slice(2);
   let brandId = resolveBrandId();
+  let envName = '';
   const paths = [];
 
   for (let index = 0; index < args.length; index += 1) {
@@ -22,10 +23,15 @@ async function main() {
       index += 1;
       continue;
     }
+    if (arg === '--env') {
+      envName = String(args[index + 1] || '').trim();
+      index += 1;
+      continue;
+    }
     paths.push(arg);
   }
 
-  const context = await loadDesktopBrandContext({ brandId });
+  const context = await loadDesktopBrandContext({ brandId, envName });
   const profile = context.profile;
   const queryRoot = {
     ...profile,

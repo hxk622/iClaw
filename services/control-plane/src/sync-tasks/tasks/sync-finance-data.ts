@@ -123,7 +123,7 @@ export async function syncFinanceData() {
 
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : String(e);
-    logError('Sync finance data failed:', e);
+    logError('Sync finance data failed', { error: e });
     await logTaskFailed(taskId, errorMsg, syncCount);
     throw e;
   }

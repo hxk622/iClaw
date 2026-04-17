@@ -69,7 +69,7 @@
         "publicBaseUrl": "http://127.0.0.1:9000/caiclaw-dev"
       },
       "prod": {
-        "bucket": "caiclaw-prod",
+        "bucket": "licaiclaw-prod",
         "publicBaseUrl": "https://caiclaw.aiyuanxi.com/downloads"
       }
     },
@@ -84,7 +84,7 @@
       "publicBaseUrl": "http://127.0.0.1:9000/caiclaw-dev"
     },
     "prod": {
-      "bucket": "caiclaw-prod",
+      "bucket": "licaiclaw-prod",
       "publicBaseUrl": "https://caiclaw.aiyuanxi.com"
     }
   },

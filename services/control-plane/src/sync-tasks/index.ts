@@ -18,7 +18,7 @@ export function startSyncTasks() {
       await syncStockBasics();
       logInfo('Stock basics sync task completed successfully');
     } catch (e) {
-      logError('Stock basics sync task failed:', e);
+      logError('Stock basics sync task failed', { error: e });
     }
   }, {
     timezone: 'Asia/Shanghai'
@@ -31,7 +31,7 @@ export function startSyncTasks() {
       await syncStockQuotes();
       logInfo('Stock quotes sync task completed successfully');
     } catch (e) {
-      logError('Stock quotes sync task failed:', e);
+      logError('Stock quotes sync task failed', { error: e });
     }
   }, {
     timezone: 'Asia/Shanghai'
@@ -44,7 +44,7 @@ export function startSyncTasks() {
       await syncIndustryConcept();
       logInfo('Industry concept sync task completed successfully');
     } catch (e) {
-      logError('Industry concept sync task failed:', e);
+      logError('Industry concept sync task failed', { error: e });
     }
   }, {
     timezone: 'Asia/Shanghai'
@@ -57,7 +57,7 @@ export function startSyncTasks() {
       await syncFinanceData();
       logInfo('Finance data sync task completed successfully');
     } catch (e) {
-      logError('Finance data sync task failed:', e);
+      logError('Finance data sync task failed', { error: e });
     }
   }, {
     timezone: 'Asia/Shanghai'

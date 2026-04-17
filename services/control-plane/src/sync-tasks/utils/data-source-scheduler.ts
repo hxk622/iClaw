@@ -1,4 +1,4 @@
-import { logger } from '../../logger';
+import { logError, logInfo, logWarn } from '../../logger.ts';
 
 export type DataSourceName = 'akshare' | 'efinance' | 'baostock' | 'tushare';
 
@@ -58,7 +58,7 @@ function markFail(name: DataSourceName) {
     fuse.lastFailTime = Date.now();
     if (fuse.failCount >= FUSE_CONFIG.maxFailCount) {
       fuse.isFused = true;
-      logger.warn(`DataSource ${name} is fused for ${FUSE_CONFIG.fuseDuration / 60000} minutes due to continuous failures`);
+      logWarn(`DataSource ${name} is fused for ${FUSE_CONFIG.fuseDuration / 60000} minutes due to continuous failures`);
     }
   }
 }
@@ -75,7 +75,7 @@ function isFused(name: DataSourceName): boolean {
   if (Date.now() - fuse.lastFailTime > FUSE_CONFIG.fuseDuration) {
     fuse.isFused = false;
     fuse.failCount = 0;
-    logger.info(`DataSource ${name} is recovered from fuse`);
+    logInfo(`DataSource ${name} is recovered from fuse`);
     return false;
   }
   return true;
@@ -93,19 +93,19 @@ export async function scheduleDataSource<T>(dataSources: DataSource<T>[]): Promi
   for (const source of sortedSources) {
     initFuse(source.name);
     if (isFused(source.name)) {
-      logger.info(`DataSource ${source.name} is fused, skip`);
+      logInfo(`DataSource ${source.name} is fused, skip`);
       continue;
     }
 
     try {
-      logger.info(`Trying to fetch data from ${source.name}...`);
+      logInfo(`Trying to fetch data from ${source.name}...`);
       const data = await source.fetch();
       markSuccess(source.name);
-      logger.info(`Fetch data from ${source.name} successfully`);
+      logInfo(`Fetch data from ${source.name} successfully`);
       return { data, source: source.name };
     } catch (e) {
       markFail(source.name);
-      logger.error(`Fetch data from ${source.name} failed:`, e);
+      logError(`Fetch data from ${source.name} failed`, { error: e });
     }
   }
 

@@ -8,13 +8,13 @@ KEEP_VERSIONS="${ICLAW_KEEP_VERSIONS:-2}"
 MANIFEST_VERSION_OVERRIDE="${ICLAW_RELEASE_VERSION:-${ICLAW_DESKTOP_RELEASE_VERSION:-}}"
 
 export ICLAW_PACKAGING_ENV="$ENV_NAME"
-ARTIFACT_BASE_NAME="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.artifactBaseName | tail -n1)"
-DEV_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.dev.bucket | tail -n1)"
-TEST_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.test.bucket | tail -n1)"
-PROD_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.prod.bucket | tail -n1)"
-DEV_PUBLIC_BASE_URL="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.dev.publicBaseUrl | tail -n1)"
-TEST_PUBLIC_BASE_URL="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.test.publicBaseUrl | tail -n1)"
-PROD_PUBLIC_BASE_URL="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.prod.publicBaseUrl | tail -n1)"
+ARTIFACT_BASE_NAME="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --env "$ENV_NAME" distribution.artifactBaseName | tail -n1)"
+DEV_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --env dev distribution.downloads.dev.bucket | tail -n1)"
+TEST_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --env test distribution.downloads.test.bucket | tail -n1)"
+PROD_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --env prod distribution.downloads.prod.bucket | tail -n1)"
+DEV_PUBLIC_BASE_URL="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --env dev distribution.downloads.dev.publicBaseUrl | tail -n1)"
+TEST_PUBLIC_BASE_URL="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --env test distribution.downloads.test.publicBaseUrl | tail -n1)"
+PROD_PUBLIC_BASE_URL="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --env prod distribution.downloads.prod.publicBaseUrl | tail -n1)"
 
 if [[ ! -d "$RELEASE_DIR" ]]; then
   echo "Missing release dir: $RELEASE_DIR" >&2
