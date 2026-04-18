@@ -21,6 +21,8 @@ import type {
   InstallMcpInput,
   InstallSkillInput,
   MarketFundRecord,
+  MarketNewsItemRecord,
+  MarketOverviewRecord,
   MarketStockRecord,
   McpCatalogEntryRecord,
   OAuthAccountRecord,
@@ -765,6 +767,24 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   async getMarketFund(fundId: string): Promise<MarketFundRecord | null> {
     return this.base.getMarketFund(fundId);
+  }
+
+  async getMarketOverview(input?: {
+    marketScope?: string | null;
+    indexLimit?: number | null;
+    headlineLimit?: number | null;
+  }): Promise<MarketOverviewRecord | null> {
+    return this.base.getMarketOverview(input);
+  }
+
+  async listMarketNews(input?: {
+    marketScope?: string | null;
+    symbol?: string | null;
+    tag?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{items: MarketNewsItemRecord[]; total: number}> {
+    return this.base.listMarketNews(input);
   }
 
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {

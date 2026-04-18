@@ -1724,6 +1724,110 @@ export type MarketFundView = {
   updated_at: string;
 };
 
+export type MarketIndexSnapshotRecord = {
+  indexKey: string;
+  indexName: string;
+  marketScope: string;
+  value: number | null;
+  changeAmount: number | null;
+  changePercent: number | null;
+  source: string | null;
+  snapshotAt: string;
+  isDelayed: boolean;
+  metadata: Record<string, unknown>;
+};
+
+export type MarketIndexSnapshotView = {
+  index_key: string;
+  index_name: string;
+  market_scope: string;
+  value: number | null;
+  change_amount: number | null;
+  change_percent: number | null;
+  source: string | null;
+  snapshot_at: string;
+  is_delayed: boolean;
+  metadata: Record<string, unknown>;
+};
+
+export type MarketNewsItemRecord = {
+  newsId: string;
+  source: string;
+  sourceItemId: string | null;
+  title: string;
+  summary: string | null;
+  contentUrl: string | null;
+  publishedAt: string;
+  occurredAt: string | null;
+  language: string | null;
+  marketScope: string;
+  importanceScore: number | null;
+  sentimentLabel: string | null;
+  relatedSymbols: string[];
+  relatedTags: string[];
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MarketNewsItemView = {
+  news_id: string;
+  source: string;
+  source_item_id: string | null;
+  title: string;
+  summary: string | null;
+  content_url: string | null;
+  published_at: string;
+  occurred_at: string | null;
+  language: string | null;
+  market_scope: string;
+  importance_score: number | null;
+  sentiment_label: string | null;
+  related_symbols: string[];
+  related_tags: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MarketOverviewRecord = {
+  marketScope: string;
+  overviewKey: string | null;
+  source: string | null;
+  tradingDate: string | null;
+  snapshotAt: string | null;
+  totalTurnover: number | null;
+  northboundNetInflow: number | null;
+  advancers: number | null;
+  decliners: number | null;
+  flatCount: number | null;
+  limitUpCount: number | null;
+  limitDownCount: number | null;
+  topSectors: Array<Record<string, unknown>>;
+  indices: MarketIndexSnapshotRecord[];
+  headlines: MarketNewsItemRecord[];
+  metadata: Record<string, unknown>;
+};
+
+export type MarketOverviewView = {
+  market_scope: string;
+  overview_key: string | null;
+  source: string | null;
+  trading_date: string | null;
+  snapshot_at: string | null;
+  total_turnover: number | null;
+  northbound_net_inflow: number | null;
+  advancers: number | null;
+  decliners: number | null;
+  flat_count: number | null;
+  limit_up_count: number | null;
+  limit_down_count: number | null;
+  top_sectors: Array<Record<string, unknown>>;
+  indices: MarketIndexSnapshotView[];
+  headlines: MarketNewsItemView[];
+  metadata: Record<string, unknown>;
+};
+
 export type UserPrivateSkillRecord = {
   userId: string;
   slug: string;

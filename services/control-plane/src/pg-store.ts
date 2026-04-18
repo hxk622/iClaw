@@ -49,6 +49,9 @@ import type {
   InstallMcpInput,
   InstallSkillInput,
   MarketFundRecord,
+  MarketIndexSnapshotRecord,
+  MarketNewsItemRecord,
+  MarketOverviewRecord,
   MarketStockRecord,
   McpCatalogEntryRecord,
   McpCatalogRecord,
@@ -406,6 +409,56 @@ type MarketFundRow = {
   metadata_json: Record<string, unknown> | null;
   imported_at: Date;
   updated_at: Date;
+};
+
+type MarketIndexSnapshotRow = {
+  index_key: string;
+  index_name: string;
+  market_scope: string;
+  value: string | number | null;
+  change_amount: string | number | null;
+  change_percent: string | number | null;
+  source: string | null;
+  snapshot_at: Date;
+  is_delayed: boolean;
+  metadata_json: Record<string, unknown> | null;
+};
+
+type MarketNewsItemRow = {
+  news_id: string;
+  source: string;
+  source_item_id: string | null;
+  title: string;
+  summary: string | null;
+  content_url: string | null;
+  published_at: Date;
+  occurred_at: Date | null;
+  language: string | null;
+  market_scope: string;
+  importance_score: string | number | null;
+  sentiment_label: string | null;
+  related_symbols: string[] | null;
+  related_tags: string[] | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type MarketOverviewRow = {
+  overview_key: string;
+  market_scope: string;
+  source: string | null;
+  trading_date: Date | null;
+  snapshot_at: Date;
+  total_turnover: string | number | null;
+  northbound_net_inflow: string | number | null;
+  advancers: number | null;
+  decliners: number | null;
+  flat_count: number | null;
+  limit_up_count: number | null;
+  limit_down_count: number | null;
+  top_sectors_json: unknown;
+  metadata_json: Record<string, unknown> | null;
 };
 
 function parseRunBillingSummary(
@@ -1393,6 +1446,43 @@ function mapMarketFundRow(row: MarketFundRow): MarketFundRecord {
     strategyTags: Array.isArray(row.strategy_tags) ? row.strategy_tags.filter((item) => typeof item === 'string') : [],
     metadata: parseJsonObject(row.metadata_json),
     importedAt: row.imported_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapMarketIndexSnapshotRow(row: MarketIndexSnapshotRow): MarketIndexSnapshotRecord {
+  return {
+    indexKey: row.index_key,
+    indexName: row.index_name,
+    marketScope: row.market_scope,
+    value: row.value === null ? null : parseDbNumber(row.value),
+    changeAmount: row.change_amount === null ? null : parseDbNumber(row.change_amount),
+    changePercent: row.change_percent === null ? null : parseDbNumber(row.change_percent),
+    source: row.source,
+    snapshotAt: row.snapshot_at.toISOString(),
+    isDelayed: Boolean(row.is_delayed),
+    metadata: parseJsonObject(row.metadata_json),
+  };
+}
+
+function mapMarketNewsItemRow(row: MarketNewsItemRow): MarketNewsItemRecord {
+  return {
+    newsId: row.news_id,
+    source: row.source,
+    sourceItemId: row.source_item_id,
+    title: row.title,
+    summary: row.summary,
+    contentUrl: row.content_url,
+    publishedAt: row.published_at.toISOString(),
+    occurredAt: row.occurred_at ? row.occurred_at.toISOString() : null,
+    language: row.language,
+    marketScope: row.market_scope,
+    importanceScore: row.importance_score === null ? null : parseDbNumber(row.importance_score),
+    sentimentLabel: row.sentiment_label,
+    relatedSymbols: Array.isArray(row.related_symbols) ? row.related_symbols.filter((item) => typeof item === 'string') : [],
+    relatedTags: Array.isArray(row.related_tags) ? row.related_tags.filter((item) => typeof item === 'string') : [],
+    metadata: parseJsonObject(row.metadata_json),
+    createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
@@ -5673,6 +5763,194 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       [fundId],
     );
     return result.rows[0] ? mapMarketFundRow(result.rows[0]) : null;
+  }
+
+  async getMarketOverview(input?: {
+    marketScope?: string | null;
+    indexLimit?: number | null;
+    headlineLimit?: number | null;
+  }): Promise<MarketOverviewRecord | null> {
+    const marketScope = typeof input?.marketScope === 'string' ? input.marketScope.trim() : '';
+    const scope = marketScope || 'cn';
+    const indexLimit =
+      typeof input?.indexLimit === 'number' && Number.isFinite(input.indexLimit) ? Math.max(1, Math.floor(input.indexLimit)) : 6;
+    const headlineLimit =
+      typeof input?.headlineLimit === 'number' && Number.isFinite(input.headlineLimit)
+        ? Math.max(1, Math.floor(input.headlineLimit))
+        : 8;
+
+    const [overviewResult, indexRowsResult, headlineRowsResult] = await Promise.all([
+      this.pool.query<MarketOverviewRow>(
+        `
+          select
+            overview_key,
+            market_scope,
+            source,
+            trading_date,
+            snapshot_at,
+            total_turnover,
+            northbound_net_inflow,
+            advancers,
+            decliners,
+            flat_count,
+            limit_up_count,
+            limit_down_count,
+            top_sectors_json,
+            metadata_json
+          from market_overview_snapshot
+          where market_scope = $1
+          order by snapshot_at desc
+          limit 1
+        `,
+        [scope],
+      ),
+      this.pool.query<MarketIndexSnapshotRow>(
+        `
+          select *
+          from (
+            select distinct on (index_key)
+              index_key,
+              index_name,
+              market_scope,
+              value,
+              change_amount,
+              change_percent,
+              source,
+              snapshot_at,
+              is_delayed,
+              metadata_json
+            from market_index_snapshot
+            where market_scope = $1
+            order by index_key asc, snapshot_at desc
+          ) latest_indices
+          order by snapshot_at desc, index_key asc
+          limit $2
+        `,
+        [scope, indexLimit],
+      ),
+      this.pool.query<MarketNewsItemRow>(
+        `
+          select
+            news_id,
+            source,
+            source_item_id,
+            title,
+            summary,
+            content_url,
+            published_at,
+            occurred_at,
+            language,
+            market_scope,
+            importance_score,
+            sentiment_label,
+            related_symbols,
+            related_tags,
+            metadata_json,
+            created_at,
+            updated_at
+          from market_news_item
+          where market_scope = $1
+          order by published_at desc, created_at desc
+          limit $2
+        `,
+        [scope, headlineLimit],
+      ),
+    ]);
+
+    const overviewRow = overviewResult.rows[0];
+    const indices = indexRowsResult.rows.map(mapMarketIndexSnapshotRow);
+    const headlines = headlineRowsResult.rows.map(mapMarketNewsItemRow);
+
+    if (!overviewRow && indices.length === 0 && headlines.length === 0) {
+      return null;
+    }
+
+    return {
+      marketScope: overviewRow?.market_scope || scope,
+      overviewKey: overviewRow?.overview_key || null,
+      source: overviewRow?.source || null,
+      tradingDate: overviewRow?.trading_date ? overviewRow.trading_date.toISOString().slice(0, 10) : null,
+      snapshotAt: overviewRow?.snapshot_at ? overviewRow.snapshot_at.toISOString() : null,
+      totalTurnover: overviewRow?.total_turnover == null ? null : parseDbNumber(overviewRow.total_turnover),
+      northboundNetInflow:
+        overviewRow?.northbound_net_inflow == null ? null : parseDbNumber(overviewRow.northbound_net_inflow),
+      advancers: overviewRow?.advancers ?? null,
+      decliners: overviewRow?.decliners ?? null,
+      flatCount: overviewRow?.flat_count ?? null,
+      limitUpCount: overviewRow?.limit_up_count ?? null,
+      limitDownCount: overviewRow?.limit_down_count ?? null,
+      topSectors: parseJsonObjectArray(overviewRow?.top_sectors_json),
+      indices,
+      headlines,
+      metadata: parseJsonObject(overviewRow?.metadata_json),
+    };
+  }
+
+  async listMarketNews(input?: {
+    marketScope?: string | null;
+    symbol?: string | null;
+    tag?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{items: MarketNewsItemRecord[]; total: number}> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    const marketScope = typeof input?.marketScope === 'string' ? input.marketScope.trim() : '';
+    const symbol = typeof input?.symbol === 'string' ? input.symbol.trim() : '';
+    const tag = typeof input?.tag === 'string' ? input.tag.trim() : '';
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 40;
+    const offset = typeof input?.offset === 'number' && Number.isFinite(input.offset) ? Math.max(0, Math.floor(input.offset)) : 0;
+
+    if (marketScope) {
+      values.push(marketScope);
+      conditions.push(`market_scope = $${values.length}`);
+    }
+    if (symbol) {
+      values.push(symbol);
+      conditions.push(`related_symbols @> array[$${values.length}]::text[]`);
+    }
+    if (tag) {
+      values.push(tag);
+      conditions.push(`related_tags @> array[$${values.length}]::text[]`);
+    }
+
+    const whereSql = conditions.length ? `where ${conditions.join(' and ')}` : '';
+    const totalResult = await this.pool.query<{count: string}>(
+      `select count(*)::text as count from market_news_item ${whereSql}`,
+      values,
+    );
+    const pagedValues = [...values, limit, offset];
+    const rowsResult = await this.pool.query<MarketNewsItemRow>(
+      `
+        select
+          news_id,
+          source,
+          source_item_id,
+          title,
+          summary,
+          content_url,
+          published_at,
+          occurred_at,
+          language,
+          market_scope,
+          importance_score,
+          sentiment_label,
+          related_symbols,
+          related_tags,
+          metadata_json,
+          created_at,
+          updated_at
+        from market_news_item
+        ${whereSql}
+        order by published_at desc, created_at desc
+        limit $${pagedValues.length - 1} offset $${pagedValues.length}
+      `,
+      pagedValues,
+    );
+    return {
+      items: rowsResult.rows.map(mapMarketNewsItemRow),
+      total: Number.parseInt(totalResult.rows[0]?.count || '0', 10) || 0,
+    };
   }
 
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {

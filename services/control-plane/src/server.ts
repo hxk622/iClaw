@@ -938,6 +938,28 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/market/overview',
+    handler: ({url}: HandlerContext) =>
+      service.getMarketOverview({
+        market_scope: (url.searchParams.get('market_scope') || '').trim() || null,
+        index_limit: Number.parseInt(url.searchParams.get('index_limit') || '', 10),
+        headline_limit: Number.parseInt(url.searchParams.get('headline_limit') || '', 10),
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/market/news',
+    handler: ({url}: HandlerContext) =>
+      service.listMarketNews({
+        market_scope: (url.searchParams.get('market_scope') || '').trim() || null,
+        symbol: (url.searchParams.get('symbol') || '').trim() || null,
+        tag: (url.searchParams.get('tag') || '').trim() || null,
+        limit: Number.parseInt(url.searchParams.get('limit') || '', 10),
+        offset: Number.parseInt(url.searchParams.get('offset') || '', 10),
+      }),
+  },
+  {
+    method: 'GET',
     path: '/agents/catalog',
     handler: () => service.listAgentCatalog(),
   },

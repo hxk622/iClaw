@@ -659,6 +659,60 @@ function toMarketFundView(record: MarketFundRecord): MarketFundView {
   };
 }
 
+function toMarketNewsItemView(record: MarketNewsItemRecord): MarketNewsItemView {
+  return {
+    news_id: record.newsId,
+    source: record.source,
+    source_item_id: record.sourceItemId,
+    title: record.title,
+    summary: record.summary,
+    content_url: record.contentUrl,
+    published_at: record.publishedAt,
+    occurred_at: record.occurredAt,
+    language: record.language,
+    market_scope: record.marketScope,
+    importance_score: record.importanceScore,
+    sentiment_label: record.sentimentLabel,
+    related_symbols: record.relatedSymbols,
+    related_tags: record.relatedTags,
+    metadata: record.metadata,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+  };
+}
+
+function toMarketOverviewView(record: MarketOverviewRecord): MarketOverviewView {
+  return {
+    market_scope: record.marketScope,
+    overview_key: record.overviewKey,
+    source: record.source,
+    trading_date: record.tradingDate,
+    snapshot_at: record.snapshotAt,
+    total_turnover: record.totalTurnover,
+    northbound_net_inflow: record.northboundNetInflow,
+    advancers: record.advancers,
+    decliners: record.decliners,
+    flat_count: record.flatCount,
+    limit_up_count: record.limitUpCount,
+    limit_down_count: record.limitDownCount,
+    top_sectors: record.topSectors,
+    indices: record.indices.map((item) => ({
+      index_key: item.indexKey,
+      index_name: item.indexName,
+      market_scope: item.marketScope,
+      value: item.value,
+      change_amount: item.changeAmount,
+      change_percent: item.changePercent,
+      source: item.source,
+      snapshot_at: item.snapshotAt,
+      is_delayed: item.isDelayed,
+      metadata: item.metadata,
+    })),
+    headlines: record.headlines.map(toMarketNewsItemView),
+    metadata: record.metadata,
+  };
+}
+
 function toAdminPaymentOrderSummaryView(order: {
   id: string;
   status: PaymentOrderRecord['status'];
@@ -5123,6 +5177,53 @@ export class ControlPlaneService {
       throw new HttpError(404, 'NOT_FOUND', 'fund not found');
     }
     return toMarketFundView(record);
+  }
+
+  async getMarketOverview(input?: {
+    market_scope?: string | null;
+    index_limit?: number | null;
+    headline_limit?: number | null;
+  }): Promise<MarketOverviewView | null> {
+    const record = await this.store.getMarketOverview({
+      marketScope: typeof input?.market_scope === 'string' ? input.market_scope.trim() || null : null,
+      indexLimit: normalizeMarketOverviewIndexLimit(input?.index_limit),
+      headlineLimit: normalizeMarketOverviewHeadlineLimit(input?.headline_limit),
+    });
+    return record ? toMarketOverviewView(record) : null;
+  }
+
+  async listMarketNews(input?: {
+    market_scope?: string | null;
+    symbol?: string | null;
+    tag?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{
+    items: MarketNewsItemView[];
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+    next_offset: number | null;
+  }> {
+    const limit = normalizeMarketNewsLimit(input?.limit);
+    const offset = normalizeCatalogOffset(input?.offset);
+    const result = await this.store.listMarketNews({
+      marketScope: typeof input?.market_scope === 'string' ? input.market_scope.trim() || null : null,
+      symbol: typeof input?.symbol === 'string' ? input.symbol.trim() || null : null,
+      tag: typeof input?.tag === 'string' ? input.tag.trim() || null : null,
+      limit,
+      offset,
+    });
+    const nextOffset = offset + result.items.length;
+    return {
+      items: result.items.map(toMarketNewsItemView),
+      total: result.total,
+      limit,
+      offset,
+      has_more: nextOffset < result.total,
+      next_offset: nextOffset < result.total ? nextOffset : null,
+    };
   }
 
   async listAgentCatalog(): Promise<{items: AgentCatalogEntryView[]}> {

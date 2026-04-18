@@ -46,6 +46,8 @@ import type {
   InstallMcpInput,
   InstallSkillInput,
   MarketFundRecord,
+  MarketNewsItemRecord,
+  MarketOverviewRecord,
   MarketStockRecord,
   McpCatalogEntryRecord,
   OAuthAccountRecord,
@@ -426,6 +428,18 @@ export interface ControlPlaneStore {
     offset?: number | null;
   }): Promise<{items: MarketFundRecord[]; total: number}>;
   getMarketFund(fundId: string): Promise<MarketFundRecord | null>;
+  getMarketOverview(input?: {
+    marketScope?: string | null;
+    indexLimit?: number | null;
+    headlineLimit?: number | null;
+  }): Promise<MarketOverviewRecord | null>;
+  listMarketNews(input?: {
+    marketScope?: string | null;
+    symbol?: string | null;
+    tag?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{items: MarketNewsItemRecord[]; total: number}>;
   listAgentCatalog(): Promise<AgentCatalogEntryRecord[]>;
   listInvestmentExpertCatalogSummaries(): Promise<InvestmentExpertCatalogSummaryRecord[]>;
   listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]>;
@@ -2226,6 +2240,14 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
 
   async getMarketFund(_fundId: string): Promise<MarketFundRecord | null> {
     return null;
+  }
+
+  async getMarketOverview(): Promise<MarketOverviewRecord | null> {
+    return null;
+  }
+
+  async listMarketNews(): Promise<{items: MarketNewsItemRecord[]; total: number}> {
+    return {items: [], total: 0};
   }
 
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {

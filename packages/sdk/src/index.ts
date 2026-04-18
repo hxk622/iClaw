@@ -682,6 +682,58 @@ export interface MarketFundData {
   updated_at: string;
 }
 
+export interface MarketIndexSnapshotData {
+  index_key: string;
+  index_name: string;
+  market_scope: string;
+  value: number | null;
+  change_amount: number | null;
+  change_percent: number | null;
+  source: string | null;
+  snapshot_at: string;
+  is_delayed: boolean;
+  metadata: Record<string, unknown>;
+}
+
+export interface MarketNewsItemData {
+  news_id: string;
+  source: string;
+  source_item_id: string | null;
+  title: string;
+  summary: string | null;
+  content_url: string | null;
+  published_at: string;
+  occurred_at: string | null;
+  language: string | null;
+  market_scope: string;
+  importance_score: number | null;
+  sentiment_label: string | null;
+  related_symbols: string[];
+  related_tags: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOverviewData {
+  market_scope: string;
+  overview_key: string | null;
+  source: string | null;
+  trading_date: string | null;
+  snapshot_at: string | null;
+  total_turnover: number | null;
+  northbound_net_inflow: number | null;
+  advancers: number | null;
+  decliners: number | null;
+  flat_count: number | null;
+  limit_up_count: number | null;
+  limit_down_count: number | null;
+  top_sectors: Array<Record<string, unknown>>;
+  indices: MarketIndexSnapshotData[];
+  headlines: MarketNewsItemData[];
+  metadata: Record<string, unknown>;
+}
+
 export interface McpCatalogEntryData {
   mcp_key: string;
   name: string;
@@ -2251,6 +2303,67 @@ export class IClawClient {
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: MarketFundData};
     return json.data;
+  }
+
+  async getMarketOverview(options?: {
+    marketScope?: string;
+    indexLimit?: number;
+    headlineLimit?: number;
+  }): Promise<MarketOverviewData | null> {
+    const searchParams = new URLSearchParams();
+    if (options?.marketScope?.trim()) searchParams.set('market_scope', options.marketScope.trim());
+    if (typeof options?.indexLimit === 'number' && Number.isFinite(options.indexLimit)) {
+      searchParams.set('index_limit', String(Math.max(1, Math.floor(options.indexLimit))));
+    }
+    if (typeof options?.headlineLimit === 'number' && Number.isFinite(options.headlineLimit)) {
+      searchParams.set('headline_limit', String(Math.max(1, Math.floor(options.headlineLimit))));
+    }
+    const query = searchParams.size ? `?${searchParams.toString()}` : '';
+    const res = await this.fetchAuth(`/market/overview${query}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: MarketOverviewData | null};
+    return json.data;
+  }
+
+  async listMarketNewsPage(options?: {
+    marketScope?: string;
+    symbol?: string;
+    tag?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<SkillCatalogPageData<MarketNewsItemData>> {
+    const searchParams = new URLSearchParams();
+    if (options?.marketScope?.trim()) searchParams.set('market_scope', options.marketScope.trim());
+    if (options?.symbol?.trim()) searchParams.set('symbol', options.symbol.trim());
+    if (options?.tag?.trim()) searchParams.set('tag', options.tag.trim());
+    if (typeof options?.limit === 'number' && Number.isFinite(options.limit)) {
+      searchParams.set('limit', String(Math.max(1, Math.floor(options.limit))));
+    }
+    if (typeof options?.offset === 'number' && Number.isFinite(options.offset) && options.offset > 0) {
+      searchParams.set('offset', String(Math.max(0, Math.floor(options.offset))));
+    }
+    const query = searchParams.size ? `?${searchParams.toString()}` : '';
+    const res = await this.fetchAuth(`/market/news${query}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: SkillCatalogPageData<MarketNewsItemData>};
+    return json.data;
+  }
+
+  async listMarketNews(options?: {
+    marketScope?: string;
+    symbol?: string;
+    tag?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<MarketNewsItemData[]> {
+    const page = await this.listMarketNewsPage(options);
+    return page.items;
   }
 
   async listSkillsCatalogPage(options?: {
