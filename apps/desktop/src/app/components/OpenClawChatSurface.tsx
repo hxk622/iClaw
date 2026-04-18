@@ -30,12 +30,14 @@ import './openclaw-chat-surface.css';
 import { Button } from '@/app/components/ui/Button';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
 import { PageSurface } from '@/app/components/ui/PageLayout';
+import { ComplianceDisclaimerBanner } from '@/app/components/ComplianceDisclaimerBanner';
 import {
   HighRiskConfirmationModal,
   type HighRiskConfirmationModalProps,
   type HighRiskImpactItem,
   type HighRiskRollbackStatus,
 } from '@/app/components/HighRiskConfirmationModal';
+import { HighRiskBlockCard } from '@/app/components/HighRiskBlockCard';
 import { K2CWelcomePage } from '@/app/components/K2CWelcomePage';
 import { createCoalescedDomTask } from '@/app/lib/coalesced-dom-task';
 import { readAppLocale } from '@/app/lib/general-preferences';
@@ -9716,9 +9718,15 @@ export function OpenClawChatSurface({
 
         {financeComplianceBannerText ? (
           <div className="mb-4">
-            <div className="rounded-[16px] border border-[rgba(168,140,93,0.24)] bg-[rgba(168,140,93,0.10)] px-4 py-3 text-[13px] leading-6 text-[var(--brand-primary)] shadow-[0_8px_20px_rgba(168,140,93,0.08)]">
-              {financeComplianceBannerText}
-            </div>
+            {latestFinanceComplianceTurn?.financeCompliance?.blocked ? (
+              <HighRiskBlockCard
+                requestType="金融执行操作"
+                onContinueResearch={() => scrollChatToBottom({ force: true })}
+                onModifyQuestion={() => composerRef.current?.focus()}
+              />
+            ) : (
+              <ComplianceDisclaimerBanner mode="normal" />
+            )}
           </div>
         ) : null}
 
