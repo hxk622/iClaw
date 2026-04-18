@@ -18,6 +18,15 @@
     session: null,
   };
 
+  function extensionDisplayName() {
+    try {
+      const manifestName = chrome?.runtime?.getManifest?.()?.name;
+      return String(manifestName || 'iClaw').trim() || 'iClaw';
+    } catch {
+      return 'iClaw';
+    }
+  }
+
   function getStorage() {
     try {
       return chrome?.storage?.local || null;
@@ -672,7 +681,7 @@
       <div class="panel">
         <div class="head">
           <div class="head-main">
-            <span>iClaw Capture</span>
+            <span>${extensionDisplayName()}</span>
             <span id="authBadge" class="badge" data-tone="muted">等待中</span>
           </div>
           <button id="closeBtn" class="secondary" style="padding:6px 10px; border-radius:10px;">关闭</button>
