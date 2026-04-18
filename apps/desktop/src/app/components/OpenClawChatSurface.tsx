@@ -2700,6 +2700,25 @@ function extractMessageText(message: unknown): string {
     .trim();
 }
 
+function extractMessageFinanceCompliance(message: unknown): Record<string, unknown> | null {
+  if (!message || typeof message !== 'object' || Array.isArray(message)) {
+    return null;
+  }
+  const raw = message as Record<string, unknown>;
+  const metadata =
+    raw.metadata && typeof raw.metadata === 'object' && !Array.isArray(raw.metadata)
+      ? (raw.metadata as Record<string, unknown>)
+      : null;
+  const financeCompliance =
+    metadata?.financeCompliance && typeof metadata.financeCompliance === 'object' && !Array.isArray(metadata.financeCompliance)
+      ? (metadata.financeCompliance as Record<string, unknown>)
+      : null;
+  if (!financeCompliance || financeCompliance.domain !== 'finance') {
+    return null;
+  }
+  return financeCompliance;
+}
+
 function extractChatMessageGroupText(group: ChatMessageGroup | null): string {
   if (!group) {
     return '';
@@ -2710,6 +2729,19 @@ function extractChatMessageGroupText(group: ChatMessageGroup | null): string {
     .filter(Boolean)
     .join('\n\n')
     .trim();
+}
+
+function extractChatMessageGroupFinanceCompliance(group: ChatMessageGroup | null): Record<string, unknown> | null {
+  if (!group) {
+    return null;
+  }
+  for (let index = group.messages.length - 1; index >= 0; index -= 1) {
+    const candidate = extractMessageFinanceCompliance(group.messages[index]);
+    if (candidate) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 const INTERNAL_MEMORY_FLUSH_MARKERS = [
@@ -7492,20 +7524,66 @@ export function OpenClawChatSurface({
 
     const artifacts = collectLatestArtifactKinds(hostRef.current);
     const app = appRef.current;
-    const assistantText =
+    const assistantGroup =
       app && Array.isArray(app.chatMessages)
-        ? extractChatMessageGroupText(findAssistantGroupForRun(app.chatMessages, activeRun.runId, activeRun.startedAt))
-        : '';
+        ? findAssistantGroupForRun(app.chatMessages, activeRun.runId, activeRun.startedAt)
+        : null;
+    const assistantText =
+      assistantGroup ? extractChatMessageGroupText(assistantGroup) : '';
     const finalAnswer = assistantText || activeRun.prompt;
+    const messageFinanceCompliance = extractChatMessageGroupFinanceCompliance(assistantGroup);
     const financeCompliance =
-      buildHeuristicFinanceComplianceEnvelope({
-        appName,
-        channel: 'chat',
-        title: null,
-        prompt: activeRun.prompt,
-        answer: finalAnswer,
-        usedModel: activeRun.usedModel,
-      })?.compliance ?? null;
+      (messageFinanceCompliance as typeof activeRun extends never ? never : Record<string, unknown> | null)
+        ? ({
+            domain: 'finance',
+            inputClassification:
+              messageFinanceCompliance?.inputClassification === 'market_info' ||
+              messageFinanceCompliance?.inputClassification === 'research_request' ||
+              messageFinanceCompliance?.inputClassification === 'advice_request' ||
+              messageFinanceCompliance?.inputClassification === 'personalized_request' ||
+              messageFinanceCompliance?.inputClassification === 'execution_request'
+                ? messageFinanceCompliance.inputClassification
+                : null,
+            outputClassification:
+              messageFinanceCompliance?.outputClassification === 'market_data' ||
+              messageFinanceCompliance?.outputClassification === 'research_summary' ||
+              messageFinanceCompliance?.outputClassification === 'investment_view' ||
+              messageFinanceCompliance?.outputClassification === 'actionable_advice'
+                ? messageFinanceCompliance.outputClassification
+                : null,
+            riskLevel:
+              messageFinanceCompliance?.riskLevel === 'low' || messageFinanceCompliance?.riskLevel === 'high'
+                ? messageFinanceCompliance.riskLevel
+                : 'medium',
+            showDisclaimer: messageFinanceCompliance?.showDisclaimer === true,
+            disclaimerText:
+              typeof messageFinanceCompliance?.disclaimerText === 'string' && messageFinanceCompliance.disclaimerText.trim()
+                ? messageFinanceCompliance.disclaimerText.trim()
+                : null,
+            requiresRiskSection: messageFinanceCompliance?.requiresRiskSection === true,
+            blocked: messageFinanceCompliance?.blocked === true,
+            degraded: messageFinanceCompliance?.degraded === true,
+            reasons: Array.isArray(messageFinanceCompliance?.reasons)
+              ? messageFinanceCompliance.reasons.filter((item): item is string => typeof item === 'string')
+              : [],
+            usedCapabilities: Array.isArray(messageFinanceCompliance?.usedCapabilities)
+              ? messageFinanceCompliance.usedCapabilities.filter((item): item is string => typeof item === 'string')
+              : [],
+            usedModel:
+              typeof messageFinanceCompliance?.usedModel === 'string' && messageFinanceCompliance.usedModel.trim()
+                ? messageFinanceCompliance.usedModel.trim()
+                : null,
+            sourceAttributionRequired: messageFinanceCompliance?.sourceAttributionRequired === true,
+            timestampRequired: messageFinanceCompliance?.timestampRequired === true,
+          })
+        : buildHeuristicFinanceComplianceEnvelope({
+            appName,
+            channel: 'chat',
+            title: null,
+            prompt: activeRun.prompt,
+            answer: finalAnswer,
+            usedModel: activeRun.usedModel,
+          })?.compliance ?? null;
     if (activeRun.failureMessage) {
       markChatTurnFailed({
         id: activeRun.turnId,

@@ -118,6 +118,42 @@ const financeCompliancePlugin = {
     );
 
     api.on(
+      "before_message_write",
+      wrapHookFailOpen(api, "before_message_write", async (event) => {
+        const message = event?.message as Record<string, unknown> | undefined;
+        if (!message || message.role !== "assistant") {
+          return;
+        }
+        const text = extractTextFromUnknown(message);
+        const inputClassification = inputClassifier.classify(text);
+        const outputClassification = outputClassifier.classify(text);
+        const metadata = complianceTransformer.buildMessageMetadata({
+          inputClassification,
+          outputClassification,
+          usedModel: typeof message.model === "string" ? message.model : null,
+        });
+        if (!metadata) {
+          return;
+        }
+        auditRecorder.record("before_message_write", {
+          inputClassification,
+          outputClassification,
+        });
+        return {
+          message: {
+            ...message,
+            metadata: {
+              ...((message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata))
+                ? (message.metadata as Record<string, unknown>)
+                : {}),
+              ...metadata,
+            },
+          },
+        };
+      }),
+    );
+
+    api.on(
       "agent_end",
       wrapHookFailOpen(api, "agent_end", async (event) => {
         auditRecorder.record("agent_end", {
