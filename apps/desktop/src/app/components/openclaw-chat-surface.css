@@ -2999,13 +2999,118 @@ body {
   background: color-mix(in srgb, var(--chat-surface-panel) 98%, transparent);
 }
 
-.iclaw-artifact-preview-pane__loading {
+.iclaw-artifact-preview-pane__state {
+  min-height: 100%;
+}
+
+.iclaw-artifact-preview-pane__state--loading,
+.iclaw-artifact-preview-pane__state--office,
+.iclaw-artifact-preview-pane__state--error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.iclaw-artifact-preview-pane__state-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.iclaw-artifact-preview-pane__state-copy {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.iclaw-artifact-preview-pane__pdf-shell {
+  min-height: 100%;
+  padding: 32px;
+  background: color-mix(in srgb, var(--chat-surface-panel-muted) 58%, transparent);
+}
+
+.iclaw-artifact-preview-pane__pdf-card {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 96%, transparent);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.12);
+}
+
+.dark .iclaw-artifact-preview-pane__pdf-card {
+  background: #171717;
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.3);
+}
+
+.iclaw-artifact-preview-pane__pdf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: #f3f4f6;
+}
+
+.dark .iclaw-artifact-preview-pane__pdf-toolbar {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  background: #262626;
+}
+
+.iclaw-artifact-preview-pane__pdf-meta {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 18px 20px;
-  color: var(--text-secondary);
+  gap: 8px;
+  color: #6b7280;
   font-size: 13px;
+}
+
+.dark .iclaw-artifact-preview-pane__pdf-meta {
+  color: #a3a3a3;
+}
+
+.iclaw-artifact-preview-pane__pdf-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.iclaw-artifact-preview-pane__pdf-zoom button,
+.iclaw-artifact-preview-pane__pdf-zoom span {
+  min-width: 32px;
+  height: 28px;
+  border-radius: 8px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.iclaw-artifact-preview-pane__pdf-zoom button {
+  border: none;
+  background: transparent;
+}
+
+.iclaw-artifact-preview-pane__pdf-zoom button:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.dark .iclaw-artifact-preview-pane__pdf-zoom button,
+.dark .iclaw-artifact-preview-pane__pdf-zoom span {
+  color: #a3a3a3;
+}
+
+.dark .iclaw-artifact-preview-pane__pdf-zoom button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.iclaw-artifact-preview-pane__pdf-frame-shell {
+  flex: 1 1 auto;
+  min-height: 640px;
+  background: #ffffff;
 }
 
 .iclaw-artifact-preview-pane__frame {
@@ -3016,12 +3121,34 @@ body {
   background: #ffffff;
 }
 
-.iclaw-artifact-preview-pane__markdown {
+.iclaw-artifact-preview-pane__markdown-shell {
   min-height: 100%;
-  padding: 20px 22px 36px;
+  padding: 32px;
+  overflow: auto;
+}
+
+.iclaw-artifact-preview-pane__markdown {
+  max-width: 760px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 0;
   color: var(--text-primary);
   font-size: 14px;
   line-height: 1.72;
+}
+
+.iclaw-artifact-preview-pane__markdown :where(h1) {
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.iclaw-artifact-preview-pane__markdown :where(h2) {
+  margin-top: 28px;
+  margin-bottom: 12px;
+  font-size: 20px;
+  line-height: 1.35;
 }
 
 .iclaw-artifact-preview-pane__markdown :where(p, ul, ol, pre, blockquote, table) {
@@ -3037,16 +3164,169 @@ body {
   background: color-mix(in srgb, var(--chat-surface-code-bg) 88%, transparent);
 }
 
+.iclaw-artifact-preview-pane__text-shell {
+  min-height: 100%;
+  padding: 24px;
+}
+
 .iclaw-artifact-preview-pane__text {
   min-height: 100%;
   margin: 0;
   padding: 18px 20px 28px;
+  border: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 88%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--chat-surface-panel) 92%, white 8%);
   color: var(--text-primary);
   font-family: var(--mono);
   font-size: 12px;
   line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.iclaw-artifact-preview-pane__office-shell,
+.iclaw-artifact-preview-pane__error-shell {
+  width: min(100%, 520px);
+  text-align: center;
+}
+
+.iclaw-artifact-preview-pane__office-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.iclaw-artifact-preview-pane__office-icon,
+.iclaw-artifact-preview-pane__error-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+}
+
+.iclaw-artifact-preview-pane__office-icon {
+  border: 1px solid rgba(34, 197, 94, 0.22);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(16, 185, 129, 0.12));
+  color: rgb(22, 163, 74);
+}
+
+.dark .iclaw-artifact-preview-pane__office-icon {
+  color: rgb(110, 231, 183);
+}
+
+.iclaw-artifact-preview-pane__error-icon {
+  border: 1px solid color-mix(in srgb, var(--status-danger-text) 26%, transparent);
+  background: color-mix(in srgb, var(--status-danger-text) 10%, transparent);
+  color: var(--status-danger-text);
+}
+
+.iclaw-artifact-preview-pane__office-title,
+.iclaw-artifact-preview-pane__error-title {
+  color: var(--text-primary);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.iclaw-artifact-preview-pane__office-copy,
+.iclaw-artifact-preview-pane__error-copy {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.iclaw-artifact-preview-pane__office-metadata,
+.iclaw-artifact-preview-pane__error-panel {
+  width: 100%;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 96%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--chat-surface-panel-muted) 42%, transparent);
+}
+
+.iclaw-artifact-preview-pane__office-metadata {
+  text-align: left;
+}
+
+.iclaw-artifact-preview-pane__office-metadata div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.iclaw-artifact-preview-pane__office-metadata div + div {
+  margin-top: 10px;
+}
+
+.iclaw-artifact-preview-pane__office-metadata span {
+  color: var(--text-secondary);
+}
+
+.iclaw-artifact-preview-pane__office-metadata strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.iclaw-artifact-preview-pane__office-actions {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.iclaw-artifact-preview-pane__office-footnote,
+.iclaw-artifact-preview-pane__error-path {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.iclaw-artifact-preview-pane__error-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.iclaw-artifact-preview-pane__error-panel {
+  text-align: left;
+}
+
+.iclaw-artifact-preview-pane__error-block + .iclaw-artifact-preview-pane__error-block {
+  margin-top: 12px;
+}
+
+.iclaw-artifact-preview-pane__error-block--divider {
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 88%, transparent);
+}
+
+.iclaw-artifact-preview-pane__error-label {
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.iclaw-artifact-preview-pane__error-code {
+  color: color-mix(in srgb, var(--text-primary) 84%, var(--text-secondary));
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.iclaw-artifact-preview-pane__error-text {
+  color: color-mix(in srgb, var(--text-primary) 84%, var(--text-secondary));
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.iclaw-artifact-preview-pane__error-path span {
+  font-family: var(--mono);
 }
 
 .openclaw-chat-surface-shell .openclaw-chat-surface,

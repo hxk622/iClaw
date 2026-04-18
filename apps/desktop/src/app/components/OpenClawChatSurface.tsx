@@ -1,9 +1,14 @@
 import {
   ArrowDown,
+  AlertCircle,
   Copy,
+  Download,
+  ExternalLink,
+  File as FileIcon,
   Film,
   FileText,
   Image as ImageIcon,
+  Loader2,
   MessageCircleQuestionMark,
   MessageSquarePlus,
   RefreshCw,
@@ -634,6 +639,7 @@ type ArtifactPreviewState = {
   path: string;
   kind: ArtifactPreviewKind;
   content: string | null;
+  sizeBytes?: number | null;
   loading: boolean;
   error: string | null;
   openPath: string | null;
@@ -1088,6 +1094,55 @@ function areArtifactPathsEquivalent(a: string | null | undefined, b: string | nu
     return false;
   }
   return aCandidates.some((candidate) => bCandidates.has(candidate));
+}
+
+function formatArtifactFileSize(sizeBytes: number | null | undefined): string | null {
+  if (typeof sizeBytes !== 'number' || !Number.isFinite(sizeBytes) || sizeBytes < 0) {
+    return null;
+  }
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`;
+  }
+  const kib = sizeBytes / 1024;
+  if (kib < 1024) {
+    return `${kib.toFixed(kib >= 100 ? 0 : 1)} KB`;
+  }
+  const mib = kib / 1024;
+  return `${mib.toFixed(mib >= 100 ? 0 : mib >= 10 ? 1 : 2)} MB`;
+}
+
+function resolveArtifactOfficeLabel(extension: string | null): string {
+  switch (extension) {
+    case 'ppt':
+    case 'pptx':
+    case 'key':
+      return 'Presentation File';
+    case 'doc':
+    case 'docx':
+      return 'Document File';
+    case 'xls':
+    case 'xlsx':
+      return 'Spreadsheet File';
+    default:
+      return 'Office File';
+  }
+}
+
+function resolveArtifactOpenVerb(extension: string | null): string {
+  switch (extension) {
+    case 'ppt':
+    case 'pptx':
+    case 'key':
+      return 'Open in presentation app';
+    case 'doc':
+    case 'docx':
+      return 'Open in document editor';
+    case 'xls':
+    case 'xlsx':
+      return 'Open in spreadsheet app';
+    default:
+      return 'Open original file';
+  }
 }
 
 function isLikelyArtifactToolCard(card: HTMLElement): boolean {
@@ -4953,6 +5008,7 @@ export function OpenClawChatSurface({
           path: previewPath,
           kind: 'text',
           content: inlineContent,
+          sizeBytes: null,
           loading: false,
           error: null,
           openPath: null,
@@ -4968,6 +5024,7 @@ export function OpenClawChatSurface({
           path: previewPath,
           kind: 'unsupported',
           content: null,
+          sizeBytes: null,
           loading: false,
           error: '未解析到制品文件路径，当前无法在右侧分屏展示真实内容。',
           openPath: null,
@@ -4982,6 +5039,7 @@ export function OpenClawChatSurface({
         path,
         kind: previewKind,
         content: null,
+        sizeBytes: null,
         loading: true,
         error: null,
         openPath: null,
@@ -4995,6 +5053,7 @@ export function OpenClawChatSurface({
       if (previewKind === 'pdf') {
         let resolvedPdfContent: string | null = null;
         let resolvedPdfPath: string | null = null;
+        let resolvedPdfSizeBytes: number | null = null;
 
         for (const candidateName of nameCandidates) {
           try {
@@ -5002,6 +5061,7 @@ export function OpenClawChatSurface({
             if (result?.base64) {
               resolvedPdfContent = `data:${result.mimeType || 'application/pdf'};base64,${result.base64}`;
               resolvedPdfPath = result.path || candidateName;
+              resolvedPdfSizeBytes = typeof result.sizeBytes === 'number' ? result.sizeBytes : null;
               break;
             }
           } catch {
@@ -5019,6 +5079,7 @@ export function OpenClawChatSurface({
             path,
             kind: previewKind,
             content: null,
+            sizeBytes: null,
             loading: false,
             error: '已识别到 PDF 制品，但当前桌面端没有拿到可预览的二进制内容。',
             openPath: null,
@@ -5033,6 +5094,7 @@ export function OpenClawChatSurface({
           path: resolvedPdfPath ?? path,
           kind: previewKind,
           content: resolvedPdfContent,
+          sizeBytes: resolvedPdfSizeBytes,
           loading: false,
           error: null,
           openPath: resolvedPdfPath ?? path,
@@ -5044,12 +5106,14 @@ export function OpenClawChatSurface({
 
       if (previewKind === 'office') {
         let resolvedOfficePath: string | null = null;
+        let resolvedOfficeSizeBytes: number | null = null;
 
         for (const candidateName of nameCandidates) {
           try {
             const result = await resolveWorkspaceArtifactPath(candidateName);
             if (result?.path) {
               resolvedOfficePath = result.path;
+              resolvedOfficeSizeBytes = typeof result.sizeBytes === 'number' ? result.sizeBytes : null;
               break;
             }
           } catch {
@@ -5067,6 +5131,7 @@ export function OpenClawChatSurface({
             path,
             kind: previewKind,
             content: null,
+            sizeBytes: null,
             loading: false,
             error: '已识别到 Office 制品，但当前桌面端没有定位到可打开的原文件。',
             openPath: null,
@@ -5081,6 +5146,7 @@ export function OpenClawChatSurface({
           path: resolvedOfficePath,
           kind: previewKind,
           content: null,
+          sizeBytes: resolvedOfficeSizeBytes,
           loading: false,
           error: null,
           openPath: resolvedOfficePath,
@@ -5114,6 +5180,7 @@ export function OpenClawChatSurface({
           path: resolvedUnsupportedPath ?? path,
           kind: previewKind,
           content: null,
+          sizeBytes: null,
           loading: false,
           error: `暂不支持直接预览 ${extractArtifactExtension(path)?.toUpperCase() ?? '该'} 文件。`,
           openPath: resolvedUnsupportedPath,
@@ -5151,6 +5218,7 @@ export function OpenClawChatSurface({
           path,
           kind: previewKind,
           content: null,
+          sizeBytes: null,
           loading: false,
           error: '已识别到制品卡片，但没有从 OpenClaw workspace 读到对应文件内容。',
           openPath: null,
@@ -5165,6 +5233,7 @@ export function OpenClawChatSurface({
         path: resolvedName ?? path,
         kind: previewKind,
         content: resolvedContent,
+        sizeBytes: null,
         loading: false,
         error: null,
         openPath: resolvedName ?? path,
@@ -8903,6 +8972,10 @@ export function OpenClawChatSurface({
     artifactPreview?.kind === 'markdown' && artifactPreview.content
       ? { __html: toSanitizedMarkdownHtml(artifactPreview.content) }
       : null;
+  const artifactPreviewExtension = extractArtifactExtension(artifactPreview?.path ?? null);
+  const artifactPreviewSizeLabel = formatArtifactFileSize(artifactPreview?.sizeBytes ?? null);
+  const artifactPreviewOfficeLabel = resolveArtifactOfficeLabel(artifactPreviewExtension);
+  const artifactPreviewOpenVerb = resolveArtifactOpenVerb(artifactPreviewExtension);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -9927,9 +10000,9 @@ export function OpenClawChatSurface({
                     {artifactPreview.openPath && artifactPreview.actionLabel ? (
                       <Button
                         size="sm"
-                        variant="secondary"
+                        variant="ink"
                         className="iclaw-artifact-preview-pane__open-button"
-                        leadingIcon={<FileText className="h-4 w-4" />}
+                        leadingIcon={<ExternalLink className="h-4 w-4" />}
                         onClick={() => {
                           void handleOpenArtifactSourceFile(artifactPreview.openPath);
                         }}
@@ -9950,22 +10023,62 @@ export function OpenClawChatSurface({
                 </div>
                 <div className="iclaw-artifact-preview-pane__body">
                   {artifactPreview.loading ? (
-                    <div className="iclaw-artifact-preview-pane__loading" role="status" aria-live="polite">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      正在读取制品内容...
+                    <div className="iclaw-artifact-preview-pane__state iclaw-artifact-preview-pane__state--loading" role="status" aria-live="polite">
+                      <div className="iclaw-artifact-preview-pane__state-stack">
+                        <Loader2 className="h-8 w-8 animate-spin text-[var(--text-secondary)]" />
+                        <div className="iclaw-artifact-preview-pane__state-copy">Loading preview...</div>
+                      </div>
                     </div>
                   ) : artifactPreview.error ? (
-                    <EmptyStatePanel
-                      compact
-                      title="右侧分屏暂时没有拿到真实内容"
-                      description={artifactPreview.error}
-                    />
+                    <div className="iclaw-artifact-preview-pane__state iclaw-artifact-preview-pane__state--error">
+                      <div className="iclaw-artifact-preview-pane__error-shell">
+                        <div className="iclaw-artifact-preview-pane__error-icon">
+                          <AlertCircle className="h-8 w-8" />
+                        </div>
+                        <div className="iclaw-artifact-preview-pane__error-title">Preview unavailable</div>
+                        <div className="iclaw-artifact-preview-pane__error-copy">
+                          This file cannot be previewed in the artifact pane. It may be binary, encrypted, or in a format that requires a dedicated renderer.
+                        </div>
+                        <div className="iclaw-artifact-preview-pane__error-panel">
+                          <div className="iclaw-artifact-preview-pane__error-block">
+                            <div className="iclaw-artifact-preview-pane__error-label">Error details</div>
+                            <div className="iclaw-artifact-preview-pane__error-code">{artifactPreview.error}</div>
+                          </div>
+                          <div className="iclaw-artifact-preview-pane__error-block iclaw-artifact-preview-pane__error-block--divider">
+                            <div className="iclaw-artifact-preview-pane__error-label">Suggested action</div>
+                            <div className="iclaw-artifact-preview-pane__error-text">
+                              Open the file in your preferred editor to inspect the original contents.
+                            </div>
+                          </div>
+                        </div>
+                        <div className="iclaw-artifact-preview-pane__error-path">
+                          File path: <span>{artifactPreview.path}</span>
+                        </div>
+                      </div>
+                    </div>
                   ) : artifactPreview.kind === 'pdf' ? (
-                    <iframe
-                      title={artifactPreview.title}
-                      className="iclaw-artifact-preview-pane__frame"
-                      src={artifactPreview.content ?? ''}
-                    />
+                    <div className="iclaw-artifact-preview-pane__pdf-shell">
+                      <div className="iclaw-artifact-preview-pane__pdf-card">
+                        <div className="iclaw-artifact-preview-pane__pdf-toolbar">
+                          <div className="iclaw-artifact-preview-pane__pdf-meta">
+                            <FileText className="h-4 w-4" />
+                            <span>{artifactPreviewSizeLabel ? `Preview ready • ${artifactPreviewSizeLabel}` : 'Preview ready'}</span>
+                          </div>
+                          <div className="iclaw-artifact-preview-pane__pdf-zoom">
+                            <button type="button">−</button>
+                            <span>100%</span>
+                            <button type="button">+</button>
+                          </div>
+                        </div>
+                        <div className="iclaw-artifact-preview-pane__pdf-frame-shell">
+                          <iframe
+                            title={artifactPreview.title}
+                            className="iclaw-artifact-preview-pane__frame"
+                            src={artifactPreview.content ?? ''}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   ) : artifactPreview.kind === 'html' ? (
                     <iframe
                       title={artifactPreview.title}
@@ -9974,18 +10087,61 @@ export function OpenClawChatSurface({
                       srcDoc={artifactPreview.content ?? ''}
                     />
                   ) : artifactPreview.kind === 'office' ? (
-                    <EmptyStatePanel
-                      compact
-                      title="当前文件暂不支持内嵌预览"
-                      description="这类 Office 制品先走系统默认应用打开，右侧 pane 保留文件元信息和打开入口。"
-                    />
+                    <div className="iclaw-artifact-preview-pane__state iclaw-artifact-preview-pane__state--office">
+                      <div className="iclaw-artifact-preview-pane__office-shell">
+                        <div className="iclaw-artifact-preview-pane__office-icon">
+                          <FileIcon className="h-8 w-8" />
+                        </div>
+                        <div className="iclaw-artifact-preview-pane__office-title">{artifactPreviewOfficeLabel}</div>
+                        <div className="iclaw-artifact-preview-pane__office-copy">
+                          This file type requires a dedicated desktop app for full preview fidelity.
+                        </div>
+                        <div className="iclaw-artifact-preview-pane__office-metadata">
+                          <div><span>File type</span><strong>{artifactPreviewExtension ? `.${artifactPreviewExtension}` : 'Unknown'}</strong></div>
+                          <div><span>Size</span><strong>{artifactPreviewSizeLabel ?? 'Unavailable'}</strong></div>
+                          <div><span>Name</span><strong>{artifactPreview.title}</strong></div>
+                          <div><span>Mode</span><strong>Open externally</strong></div>
+                        </div>
+                        <div className="iclaw-artifact-preview-pane__office-actions">
+                          <Button
+                            size="md"
+                            variant="ink"
+                            block
+                            leadingIcon={<ExternalLink className="h-4 w-4" />}
+                            onClick={() => {
+                              void handleOpenArtifactSourceFile(artifactPreview.openPath);
+                            }}
+                          >
+                            {artifactPreviewOpenVerb}
+                          </Button>
+                          <Button
+                            size="md"
+                            variant="secondary"
+                            block
+                            leadingIcon={<Download className="h-4 w-4" />}
+                            onClick={() => {
+                              void handleOpenArtifactSourceFile(artifactPreview.openPath);
+                            }}
+                          >
+                            Download / reveal file
+                          </Button>
+                        </div>
+                        <div className="iclaw-artifact-preview-pane__office-footnote">
+                          Preview stays anchored here so the artifact still feels like part of the same workbench.
+                        </div>
+                      </div>
+                    </div>
                   ) : artifactPreview.kind === 'markdown' && artifactPreviewMarkup ? (
-                    <div
-                      className="iclaw-artifact-preview-pane__markdown"
-                      dangerouslySetInnerHTML={artifactPreviewMarkup}
-                    />
+                    <div className="iclaw-artifact-preview-pane__markdown-shell">
+                      <div
+                        className="iclaw-artifact-preview-pane__markdown"
+                        dangerouslySetInnerHTML={artifactPreviewMarkup}
+                      />
+                    </div>
                   ) : (
-                    <pre className="iclaw-artifact-preview-pane__text">{artifactPreview.content ?? ''}</pre>
+                    <div className="iclaw-artifact-preview-pane__text-shell">
+                      <pre className="iclaw-artifact-preview-pane__text">{artifactPreview.content ?? ''}</pre>
+                    </div>
                   )}
                 </div>
               </aside>
