@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   buildHeuristicFinanceComplianceEnvelope,
+  hasExplicitFinanceComplianceSnapshot,
+  resolveFinanceDisclaimerFromSnapshot,
   resolveFinanceComplianceEnvelope,
   softenFinanceSummaryForChannel,
   shouldShowFinanceDisclaimer,
@@ -145,4 +147,26 @@ test('softenFinanceSummaryForChannel replaces notification summary for actionabl
   });
 
   assert.equal(result, '已生成金融研究结果，请打开查看详情。');
+});
+
+test('explicit finance compliance snapshot suppresses heuristic fallback when disclaimer is false', () => {
+  const snapshot = {
+    domain: 'finance' as const,
+    inputClassification: 'market_info' as const,
+    outputClassification: 'market_data' as const,
+    riskLevel: 'low' as const,
+    showDisclaimer: false,
+    disclaimerText: null,
+    requiresRiskSection: false,
+    blocked: false,
+    degraded: false,
+    reasons: ['finance_domain'],
+    usedCapabilities: [],
+    usedModel: null,
+    sourceAttributionRequired: true,
+    timestampRequired: true,
+  };
+
+  assert.equal(hasExplicitFinanceComplianceSnapshot(snapshot), true);
+  assert.equal(resolveFinanceDisclaimerFromSnapshot(snapshot), null);
 });

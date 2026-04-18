@@ -186,6 +186,24 @@ export function resolveFinanceDisclaimerText(input: {
   return input.capabilityPolicies && input.capabilityPolicies.length > 0 ? DEFAULT_DISCLAIMER_TEXT : null;
 }
 
+export function hasExplicitFinanceComplianceSnapshot(
+  snapshot: FinanceComplianceSnapshot | null | undefined,
+): snapshot is FinanceComplianceSnapshot {
+  return Boolean(snapshot && snapshot.domain === 'finance');
+}
+
+export function resolveFinanceDisclaimerFromSnapshot(
+  snapshot: FinanceComplianceSnapshot | null | undefined,
+): string | null {
+  if (!hasExplicitFinanceComplianceSnapshot(snapshot)) {
+    return null;
+  }
+  if (!snapshot.showDisclaimer) {
+    return null;
+  }
+  return snapshot.disclaimerText || DEFAULT_DISCLAIMER_TEXT;
+}
+
 export function resolveFinanceComplianceEnvelope(
   input: ResolveFinanceComplianceInput,
 ): ResolveFinanceComplianceResult {

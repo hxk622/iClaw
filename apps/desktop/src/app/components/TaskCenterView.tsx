@@ -23,7 +23,11 @@ import {
   formatChatTurnRelativeTime,
   useChatTurns,
 } from '@/app/lib/chat-turns';
-import { buildHeuristicFinanceComplianceEnvelope } from '@/app/lib/finance-compliance';
+import {
+  buildHeuristicFinanceComplianceEnvelope,
+  hasExplicitFinanceComplianceSnapshot,
+  resolveFinanceDisclaimerFromSnapshot,
+} from '@/app/lib/finance-compliance';
 
 type ConversationFilter = 'all' | ChatTurnRecord['status'];
 
@@ -616,8 +620,8 @@ function mapConversationToViewModel(params: {
 }
 
 function resolveConversationFinanceDisclaimer(turn: ChatTurnRecord): string | null {
-  if (turn.financeCompliance?.showDisclaimer) {
-    return turn.financeCompliance.disclaimerText || '本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。';
+  if (hasExplicitFinanceComplianceSnapshot(turn.financeCompliance)) {
+    return resolveFinanceDisclaimerFromSnapshot(turn.financeCompliance);
   }
   const heuristic = buildHeuristicFinanceComplianceEnvelope({
     appName: 'licaiclaw',
