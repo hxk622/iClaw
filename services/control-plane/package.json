@@ -26,6 +26,8 @@
     "migrate:canonical-session-keys": "node --experimental-strip-types scripts/migrate-canonical-session-keys.ts",
     "import:a-share-stocks": "node --experimental-strip-types scripts/import-a-share-stocks.ts",
     "import:cn-funds": "node --experimental-strip-types scripts/import-cn-funds.ts",
+    "sync:market-overview": "node --experimental-strip-types scripts/sync-market-overview.ts",
+    "sync:market-news": "node --experimental-strip-types scripts/sync-market-news.ts",
     "sync:local-app-runtime": "node --experimental-strip-types scripts/sync-local-app-runtime.ts",
     "sync:local-app-brand-profile": "node --experimental-strip-types scripts/sync-local-app-brand-profile.ts",
     "sync:system-overrides": "node --experimental-strip-types scripts/sync-system-overrides.ts"

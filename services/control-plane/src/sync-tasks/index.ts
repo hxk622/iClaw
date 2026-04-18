@@ -7,6 +7,21 @@ import { syncMarketOverview } from './tasks/sync-market-overview.ts';
 import { syncMarketNews } from './tasks/sync-market-news.ts';
 import { logInfo, logError } from '../logger.ts';
 
+async function warmupMarketFeeds(): Promise<void> {
+  logInfo('Running initial market feed warmup...');
+  const results = await Promise.allSettled([syncMarketOverview(), syncMarketNews()]);
+  const failed = results.filter((item) => item.status === 'rejected');
+  if (failed.length > 0) {
+    for (const item of failed) {
+      logError('Initial market feed warmup task failed', {
+        error: item.reason,
+      });
+    }
+    return;
+  }
+  logInfo('Initial market feed warmup completed successfully');
+}
+
 /**
  * 启动所有定时同步任务
  */
@@ -91,5 +106,6 @@ export function startSyncTasks() {
     timezone: 'Asia/Shanghai'
   });
 
+  void warmupMarketFeeds();
   logInfo('All market data sync tasks started successfully');
 }
