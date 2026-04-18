@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Capture page sources and snippets into iClaw Knowledge Library.",
   "minimum_chrome_version": "116",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_title": "iClaw Capture"
