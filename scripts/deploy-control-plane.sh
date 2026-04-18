@@ -61,6 +61,9 @@ sync_path "$ROOT_DIR/home-web/package.json" "${ICLAW_CONTROL_PLANE_PATH}/home-we
 sync_path "$ROOT_DIR/packages/shared/package.json" "${ICLAW_CONTROL_PLANE_PATH}/packages/shared/package.json"
 sync_path "$ROOT_DIR/packages/sdk/package.json" "${ICLAW_CONTROL_PLANE_PATH}/packages/sdk/package.json"
 sync_path \
+  "$ROOT_DIR/packages/shared/src/" \
+  "${ICLAW_CONTROL_PLANE_PATH}/packages/shared/src/"
+sync_path \
   "$ROOT_DIR/services/control-plane/package.json" \
   "${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/package.json"
 
