@@ -1030,6 +1030,20 @@ function parseJsonObjectArray(raw: unknown): Array<Record<string, unknown>> {
     .filter((item) => Object.keys(item).length > 0);
 }
 
+function toIsoDate(value: string | Date | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
 function parseCreditLedgerAssistantTimestamp(metadata: Record<string, unknown> | null): number | null {
   const value = metadata?.assistant_timestamp;
   return typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : null;
@@ -1324,10 +1338,24 @@ function mapMarketStockRow(row: MarketStockRow): MarketStockRecord {
     amount: row.amount === null ? null : parseDbNumber(row.amount),
     turnoverRate: row.turnover_rate === null ? null : parseDbNumber(row.turnover_rate),
     peTtm: row.pe_ttm === null ? null : parseDbNumber(row.pe_ttm),
+    pb: row.pb === null ? null : parseDbNumber(row.pb),
     openPrice: row.open_price === null ? null : parseDbNumber(row.open_price),
+    highPrice: row.high_price === null ? null : parseDbNumber(row.high_price),
+    lowPrice: row.low_price === null ? null : parseDbNumber(row.low_price),
     prevClose: row.prev_close === null ? null : parseDbNumber(row.prev_close),
+    changeAmount: row.change_amount === null ? null : parseDbNumber(row.change_amount),
     totalMarketCap: row.total_market_cap === null ? null : parseDbNumber(row.total_market_cap),
     circulatingMarketCap: row.circulating_market_cap === null ? null : parseDbNumber(row.circulating_market_cap),
+    quoteSource: row.quote_source,
+    quoteSnapshotAt: row.quote_snapshot_at ? row.quote_snapshot_at.toISOString() : null,
+    quoteTradeDate: toIsoDate(row.quote_trade_date),
+    quoteIsDelayed: Boolean(row.quote_is_delayed),
+    fundamentalsSource: row.fundamentals_source,
+    fundamentalsUpdatedAt: row.fundamentals_updated_at ? row.fundamentals_updated_at.toISOString() : null,
+    industry: row.industry,
+    region: row.region,
+    mainBusiness: row.main_business,
+    listDate: toIsoDate(row.list_date),
     strategyTags: Array.isArray(row.strategy_tags) ? row.strategy_tags.filter((item) => typeof item === 'string') : [],
     metadata: parseJsonObject(row.metadata_json),
     importedAt: row.imported_at.toISOString(),
@@ -5247,20 +5275,20 @@ export class PgControlPlaneStore implements ControlPlaneStore {
 
     if (market) {
       values.push(market);
-      conditions.push(`market = $${values.length}`);
+      conditions.push(`c.market = $${values.length}`);
     }
     if (exchange) {
       values.push(exchange);
-      conditions.push(`exchange = $${values.length}`);
+      conditions.push(`c.exchange = $${values.length}`);
     }
     if (search) {
       values.push(`%${search}%`);
       const placeholder = `$${values.length}`;
-      conditions.push(`(symbol ilike ${placeholder} or company_name ilike ${placeholder})`);
+      conditions.push(`(c.symbol ilike ${placeholder} or c.company_name ilike ${placeholder})`);
     }
     if (tag) {
       values.push(tag);
-      conditions.push(`strategy_tags @> array[$${values.length}]::text[]`);
+      conditions.push(`c.strategy_tags @> array[$${values.length}]::text[]`);
     }
 
     const whereSql = conditions.length ? `where ${conditions.join(' and ')}` : '';
@@ -5284,33 +5312,98 @@ export class PgControlPlaneStore implements ControlPlaneStore {
 
     const selectSql = `
       select
-        id,
-        market,
-        exchange,
-        symbol,
-        company_name,
-        board,
-        status,
-        source,
-        source_id,
-        current_price,
-        change_percent,
-        amount,
-        turnover_rate,
-        pe_ttm,
-        open_price,
-        prev_close,
-        total_market_cap,
-        circulating_market_cap,
-        strategy_tags,
-        metadata_json,
-        imported_at,
-        updated_at
-      from market_stock_catalog
+        c.id,
+        c.market,
+        c.exchange,
+        c.symbol,
+        coalesce(nullif(c.company_name, ''), nullif(b.company_name, ''), nullif(b.stock_name, ''), c.symbol) as company_name,
+        c.board,
+        c.status,
+        c.source,
+        c.source_id,
+        coalesce(q.close, c.current_price) as current_price,
+        coalesce(q.change_percent, c.change_percent) as change_percent,
+        coalesce(q.amount, c.amount) as amount,
+        coalesce(q.turnover_rate, c.turnover_rate) as turnover_rate,
+        coalesce(nullif(b.pe_ttm, 0), c.pe_ttm) as pe_ttm,
+        nullif(b.pb, 0) as pb,
+        coalesce(q.open, c.open_price) as open_price,
+        q.high as high_price,
+        q.low as low_price,
+        coalesce(
+          case
+            when q.close is not null and q.change is not null then q.close - q.change
+            else null
+          end,
+          c.prev_close
+        ) as prev_close,
+        q.change as change_amount,
+        coalesce((nullif(b.market_cap, 0) * 100000000), c.total_market_cap) as total_market_cap,
+        coalesce((nullif(b.float_cap, 0) * 100000000), c.circulating_market_cap) as circulating_market_cap,
+        case
+          when q.stock_code is not null then 'akshare+efinance'
+          else c.source
+        end as quote_source,
+        coalesce(q.created_at, c.updated_at) as quote_snapshot_at,
+        q.trade_date as quote_trade_date,
+        case
+          when q.trade_date is null then true
+          else q.trade_date < timezone('Asia/Shanghai', now())::date
+        end as quote_is_delayed,
+        case
+          when b.stock_code is not null then 'akshare+efinance'
+          else null
+        end as fundamentals_source,
+        b.updated_at as fundamentals_updated_at,
+        nullif(b.industry, '') as industry,
+        nullif(b.region, '') as region,
+        nullif(b.main_business, '') as main_business,
+        b.list_date as list_date,
+        c.strategy_tags,
+        jsonb_strip_nulls(
+          coalesce(c.metadata_json, '{}'::jsonb)
+          || jsonb_build_object(
+            'quote_source', case when q.stock_code is not null then 'akshare+efinance' else c.source end,
+            'quote_snapshot_at', coalesce(q.created_at, c.updated_at),
+            'quote_trade_date', q.trade_date,
+            'quote_is_delayed', case when q.trade_date is null then true else q.trade_date < timezone('Asia/Shanghai', now())::date end,
+            'fundamentals_source', case when b.stock_code is not null then 'akshare+efinance' else null end,
+            'fundamentals_updated_at', b.updated_at,
+            'industry', nullif(b.industry, ''),
+            'region', nullif(b.region, ''),
+            'main_business', nullif(b.main_business, ''),
+            'list_date', b.list_date,
+            'high_price', q.high,
+            'low_price', q.low,
+            'change_amount', q.change
+          )
+        ) as metadata_json,
+        c.imported_at,
+        c.updated_at
+      from market_stock_catalog c
+      left join lateral (
+        select
+          sq.stock_code,
+          sq.trade_date,
+          sq.open,
+          sq.high,
+          sq.low,
+          sq.close,
+          sq.amount,
+          sq.change,
+          sq.change_percent,
+          sq.turnover_rate,
+          sq.created_at
+        from stock_quotes sq
+        where sq.stock_code = c.symbol
+        order by sq.trade_date desc, sq.created_at desc
+        limit 1
+      ) q on true
+      left join stock_basics b on b.stock_code = c.symbol
       ${whereSql}
     `;
 
-    const totalResult = await this.pool.query<{count: string}>(`select count(*)::text as count from market_stock_catalog ${whereSql}`, values);
+    const totalResult = await this.pool.query<{count: string}>(`select count(*)::text as count from market_stock_catalog c ${whereSql}`, values);
     const pagedValues = [...values, limit, offset];
     const rowsResult = await this.pool.query<MarketStockRow>(
       `${selectSql} order by ${sortSql} limit $${pagedValues.length - 1} offset $${pagedValues.length}`,
@@ -5326,30 +5419,95 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     const result = await this.pool.query<MarketStockRow>(
       `
         select
-          id,
-          market,
-          exchange,
-          symbol,
-          company_name,
-          board,
-          status,
-          source,
-          source_id,
-          current_price,
-          change_percent,
-          amount,
-          turnover_rate,
-          pe_ttm,
-          open_price,
-          prev_close,
-          total_market_cap,
-          circulating_market_cap,
-          strategy_tags,
-          metadata_json,
-          imported_at,
-          updated_at
-        from market_stock_catalog
-        where id = $1
+          c.id,
+          c.market,
+          c.exchange,
+          c.symbol,
+          coalesce(nullif(c.company_name, ''), nullif(b.company_name, ''), nullif(b.stock_name, ''), c.symbol) as company_name,
+          c.board,
+          c.status,
+          c.source,
+          c.source_id,
+          coalesce(q.close, c.current_price) as current_price,
+          coalesce(q.change_percent, c.change_percent) as change_percent,
+          coalesce(q.amount, c.amount) as amount,
+          coalesce(q.turnover_rate, c.turnover_rate) as turnover_rate,
+          coalesce(nullif(b.pe_ttm, 0), c.pe_ttm) as pe_ttm,
+          nullif(b.pb, 0) as pb,
+          coalesce(q.open, c.open_price) as open_price,
+          q.high as high_price,
+          q.low as low_price,
+          coalesce(
+            case
+              when q.close is not null and q.change is not null then q.close - q.change
+              else null
+            end,
+            c.prev_close
+          ) as prev_close,
+          q.change as change_amount,
+        coalesce((nullif(b.market_cap, 0) * 100000000), c.total_market_cap) as total_market_cap,
+        coalesce((nullif(b.float_cap, 0) * 100000000), c.circulating_market_cap) as circulating_market_cap,
+          case
+            when q.stock_code is not null then 'akshare+efinance'
+            else c.source
+          end as quote_source,
+          coalesce(q.created_at, c.updated_at) as quote_snapshot_at,
+          q.trade_date as quote_trade_date,
+          case
+            when q.trade_date is null then true
+            else q.trade_date < timezone('Asia/Shanghai', now())::date
+          end as quote_is_delayed,
+          case
+            when b.stock_code is not null then 'akshare+efinance'
+            else null
+          end as fundamentals_source,
+          b.updated_at as fundamentals_updated_at,
+          nullif(b.industry, '') as industry,
+          nullif(b.region, '') as region,
+          nullif(b.main_business, '') as main_business,
+          b.list_date as list_date,
+          c.strategy_tags,
+          jsonb_strip_nulls(
+            coalesce(c.metadata_json, '{}'::jsonb)
+            || jsonb_build_object(
+              'quote_source', case when q.stock_code is not null then 'akshare+efinance' else c.source end,
+              'quote_snapshot_at', coalesce(q.created_at, c.updated_at),
+              'quote_trade_date', q.trade_date,
+              'quote_is_delayed', case when q.trade_date is null then true else q.trade_date < timezone('Asia/Shanghai', now())::date end,
+              'fundamentals_source', case when b.stock_code is not null then 'akshare+efinance' else null end,
+              'fundamentals_updated_at', b.updated_at,
+              'industry', nullif(b.industry, ''),
+              'region', nullif(b.region, ''),
+              'main_business', nullif(b.main_business, ''),
+              'list_date', b.list_date,
+              'high_price', q.high,
+              'low_price', q.low,
+              'change_amount', q.change
+            )
+          ) as metadata_json,
+          c.imported_at,
+          c.updated_at
+        from market_stock_catalog c
+        left join lateral (
+          select
+            sq.stock_code,
+            sq.trade_date,
+            sq.open,
+            sq.high,
+            sq.low,
+            sq.close,
+            sq.amount,
+            sq.change,
+            sq.change_percent,
+            sq.turnover_rate,
+            sq.created_at
+          from stock_quotes sq
+          where sq.stock_code = c.symbol
+          order by sq.trade_date desc, sq.created_at desc
+          limit 1
+        ) q on true
+        left join stock_basics b on b.stock_code = c.symbol
+        where c.id = $1
         limit 1
       `,
       [stockId],

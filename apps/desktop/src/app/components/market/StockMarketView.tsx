@@ -85,9 +85,24 @@ function formatDatetime(value: string | null | undefined): string {
   return date.toLocaleString('zh-CN', {hour12: false});
 }
 
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('zh-CN');
+}
+
 function formatPe(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '--';
   return value.toFixed(2);
+}
+
+function formatDataSource(value: string | null | undefined): string {
+  const normalized = (value || '').trim();
+  if (!normalized) return '--';
+  if (normalized === 'akshare+efinance') return 'AKShare / efinance';
+  if (normalized === 'cninfo+tencent') return 'CNInfo / 腾讯';
+  return normalized;
 }
 
 function exchangeLabel(exchange: MarketStockData['exchange']): string {
@@ -99,6 +114,7 @@ function exchangeLabel(exchange: MarketStockData['exchange']): string {
 function buildCardSummary(stock: MarketStockData): string {
   const segments: string[] = [];
   if (stock.board) segments.push(`${stock.board}跟踪标的`);
+  if (stock.industry) segments.push(`${stock.industry}行业`);
   if (stock.strategy_tags.length > 0) segments.push(`命中 ${stock.strategy_tags.slice(0, 2).join(' / ')} 策略篮子`);
   if (typeof stock.total_market_cap === 'number' && Number.isFinite(stock.total_market_cap)) {
     segments.push(`总市值 ${formatCompactNumber(stock.total_market_cap)}`);
@@ -293,6 +309,11 @@ function StockCard({
                   {exchangeLabel(stock.exchange)}
                 </span>
                 <span className="text-[12px] text-[#6B6B6A] dark:text-[#9B9B9A]">{stock.board || 'A股'}</span>
+                {stock.quote_is_delayed ? (
+                  <span className="rounded bg-[#FEF3C7] px-2 py-0.5 text-[11px] text-[#92400E] dark:bg-[#4A3310] dark:text-[#FBBF24]">
+                    延迟快照
+                  </span>
+                ) : null}
               </div>
             </div>
 
@@ -344,6 +365,11 @@ function StockCard({
         >
           AI 对话
         </MarketActionButton>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#8A847C] dark:text-[#807B75]">
+        <span>数据源 {formatDataSource(stock.quote_source || stock.source)}</span>
+        <span>更新 {formatDatetime(stock.quote_snapshot_at || stock.updated_at)}</span>
       </div>
     </div>
   );
@@ -423,6 +449,11 @@ function StockDetailDrawer({
                         {stock.board}
                       </span>
                     ) : null}
+                    {stock.quote_is_delayed ? (
+                      <span className="rounded bg-[#FEF3C7] px-2 py-0.5 text-[11px] text-[#92400E] dark:bg-[#4A3310] dark:text-[#FBBF24]">
+                        延迟快照
+                      </span>
+                    ) : null}
                     {stock.status === 'suspended' ? (
                       <span className="rounded bg-[#FEF3F2] px-2 py-0.5 text-[11px] text-[#B91C1C] dark:bg-[#3A1A1A] dark:text-[#EF4444]">
                         停牌/无实时报价
@@ -495,8 +526,12 @@ function StockDetailDrawer({
                       <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatPe(stock.pe_ttm)}</p>
                     </div>
                     <div>
+                      <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">市净率 PB</span>
+                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatPe(stock.pb)}</p>
+                    </div>
+                    <div>
                       <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">更新时间</span>
-                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatDatetime(stock.updated_at)}</p>
+                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatDatetime(stock.quote_snapshot_at || stock.updated_at)}</p>
                     </div>
                   </div>
                 </div>
@@ -510,8 +545,10 @@ function StockDetailDrawer({
                     {label: '换手率', value: formatPercent(stock.turnover_rate), accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
                     {label: '开盘价', value: `¥${formatPrice(stock.open_price)}`, accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
                     {label: '昨收价', value: `¥${formatPrice(stock.prev_close)}`, accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
+                    {label: '日内高点', value: `¥${formatPrice(stock.high_price)}`, accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
+                    {label: '日内低点', value: `¥${formatPrice(stock.low_price)}`, accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
                     {label: '成交额', value: formatCompactNumber(stock.amount), accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
-                    {label: '研究标签', value: `${stock.strategy_tags.length} 个`, accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
+                    {label: '涨跌额', value: `¥${formatPrice(stock.change_amount)}`, accent: positive ? 'text-[#059669] dark:text-[#10B981]' : 'text-[#DC2626] dark:text-[#EF4444]'},
                   ].map((item) => (
                     <div key={item.label} className="rounded-lg bg-[#F9F8F6] p-3 dark:bg-[#1A1A1A]">
                       <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">{item.label}</span>
@@ -537,6 +574,23 @@ function StockDetailDrawer({
               </section>
 
               <section>
+                <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">数据状态</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    {label: '行情来源', value: formatDataSource(stock.quote_source || stock.source)},
+                    {label: '行情时间', value: formatDatetime(stock.quote_snapshot_at || stock.updated_at)},
+                    {label: '交易日期', value: formatDate(stock.quote_trade_date)},
+                    {label: '基础面时间', value: formatDatetime(stock.fundamentals_updated_at)},
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-lg bg-[#F9F8F6] p-3 dark:bg-[#1A1A1A]">
+                      <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">{item.label}</span>
+                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section>
                 <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">投资逻辑</h3>
                 <div className="space-y-2">
                   {investmentLogic.map((item) => (
@@ -557,6 +611,34 @@ function StockDetailDrawer({
                       <p className="flex-1 text-[13px] leading-6 text-[#4A4A49] dark:text-[#B0B0AF]">{item}</p>
                     </div>
                   ))}
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">公司画像</h3>
+                <div className="rounded-lg bg-[#F9F8F6] p-4 dark:bg-[#1A1A1A]">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">所属行业</span>
+                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{stock.industry || '--'}</p>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">区域</span>
+                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{stock.region || '--'}</p>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">上市日期</span>
+                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatDate(stock.list_date)}</p>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">研究标签</span>
+                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{stock.strategy_tags.length} 个</p>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">主营业务</span>
+                    <p className="mt-1 text-[13px] leading-6 text-[#4A4A49] dark:text-[#B0B0AF]">{stock.main_business || '当前基础面同步还没有主营业务摘要。'}</p>
+                  </div>
                 </div>
               </section>
             </div>
