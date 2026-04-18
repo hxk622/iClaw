@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildHeuristicFinanceComplianceEnvelope,
   resolveFinanceComplianceEnvelope,
   shouldShowFinanceDisclaimer,
   type FinanceCapabilityPolicy,
@@ -77,4 +78,19 @@ test('resolveFinanceComplianceEnvelope blocks execution requests', () => {
   assert.equal(result.compliance.blocked, true);
   assert.equal(result.presentation.mode, 'block');
   assert.match(result.presentation.replacementText || '', /高风险金融执行/);
+});
+
+test('buildHeuristicFinanceComplianceEnvelope detects finance advice text', () => {
+  const result = buildHeuristicFinanceComplianceEnvelope({
+    appName: 'licaiclaw',
+    channel: 'cron',
+    title: '开盘前晨报 · A股 / 美股',
+    prompt: '请生成一份开盘前晨报，分析今天市场和仓位配置。',
+    answer: '当前A股估值分化较大，建议关注高股息方向，控制仓位。',
+  });
+
+  assert.ok(result);
+  assert.equal(result?.compliance.domain, 'finance');
+  assert.equal(result?.compliance.showDisclaimer, true);
+  assert.equal(result?.compliance.outputClassification, 'actionable_advice');
 });

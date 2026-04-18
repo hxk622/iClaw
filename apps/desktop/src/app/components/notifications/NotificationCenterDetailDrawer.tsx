@@ -151,6 +151,15 @@ export function NotificationCenterDetailDrawer({
               </div>
             </div>
           ) : null}
+
+          {detail.financeDisclaimer ? (
+            <div>
+              <div className="mb-2 text-xs font-medium text-[#a39d98] dark:text-[#6b6662]">风险提示</div>
+              <div className="rounded-lg border border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.08)] px-3 py-2.5 dark:border-[rgba(180,154,112,0.24)] dark:bg-[rgba(180,154,112,0.10)]">
+                <p className="text-sm leading-relaxed text-[var(--brand-primary)]">{detail.financeDisclaimer}</p>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store
 import { findChatConversationBySessionKey, syncChatConversationMetadata } from '@/app/lib/chat-conversations';
 import { canonicalizeChatSessionKey, tryCanonicalizeChatSessionKey } from '@/app/lib/chat-session';
 import { buildChatScopedStorageKey } from '@/app/lib/chat-persistence-scope';
+import type { FinanceComplianceSnapshot } from '@/app/lib/finance-compliance';
 
 export type ChatTurnStatus = 'running' | 'completed' | 'failed';
 export type ChatTurnArtifact = 'report' | 'ppt' | 'webpage' | 'pdf' | 'sheet';
@@ -30,6 +31,7 @@ export interface ChatTurnRecord {
   provider?: string | null;
   deliveryStatus?: string | null;
   nextRunAt?: number | null;
+  financeCompliance?: FinanceComplianceSnapshot | null;
 }
 
 interface StartChatTurnInput {
@@ -58,6 +60,7 @@ interface UpsertCronTaskTurnInput {
   deliveryStatus?: string | null;
   nextRunAt?: number | null;
   runAt?: number | null;
+  financeCompliance?: FinanceComplianceSnapshot | null;
 }
 
 const CHAT_TURNS_STORAGE_KEY = 'iclaw.chat.turns.v1';
@@ -133,6 +136,7 @@ function normalizeChatTurn(turn: ChatTurnRecord): ChatTurnRecord {
       provider: collapseText(turn.provider),
       deliveryStatus: collapseText(turn.deliveryStatus),
       nextRunAt: typeof turn.nextRunAt === 'number' && Number.isFinite(turn.nextRunAt) ? turn.nextRunAt : null,
+      financeCompliance: normalizeFinanceCompliance(turn.financeCompliance),
     };
   }
 
@@ -163,6 +167,49 @@ function normalizeChatTurn(turn: ChatTurnRecord): ChatTurnRecord {
     provider: collapseText(turn.provider),
     deliveryStatus: collapseText(turn.deliveryStatus),
     nextRunAt: typeof turn.nextRunAt === 'number' && Number.isFinite(turn.nextRunAt) ? turn.nextRunAt : null,
+    financeCompliance: normalizeFinanceCompliance(turn.financeCompliance),
+  };
+}
+
+function normalizeFinanceCompliance(value: unknown): FinanceComplianceSnapshot | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const source = value as Record<string, unknown>;
+  const domain = source.domain === 'finance' ? 'finance' : null;
+  if (!domain) {
+    return null;
+  }
+  return {
+    domain,
+    inputClassification:
+      source.inputClassification === 'market_info' ||
+      source.inputClassification === 'research_request' ||
+      source.inputClassification === 'advice_request' ||
+      source.inputClassification === 'personalized_request' ||
+      source.inputClassification === 'execution_request'
+        ? source.inputClassification
+        : null,
+    outputClassification:
+      source.outputClassification === 'market_data' ||
+      source.outputClassification === 'research_summary' ||
+      source.outputClassification === 'investment_view' ||
+      source.outputClassification === 'actionable_advice'
+        ? source.outputClassification
+        : null,
+    riskLevel: source.riskLevel === 'low' || source.riskLevel === 'high' ? source.riskLevel : 'medium',
+    showDisclaimer: source.showDisclaimer === true,
+    disclaimerText: collapseText(typeof source.disclaimerText === 'string' ? source.disclaimerText : null) || null,
+    requiresRiskSection: source.requiresRiskSection === true,
+    blocked: source.blocked === true,
+    degraded: source.degraded === true,
+    reasons: Array.isArray(source.reasons) ? source.reasons.filter((item): item is string => typeof item === 'string') : [],
+    usedCapabilities: Array.isArray(source.usedCapabilities)
+      ? source.usedCapabilities.filter((item): item is string => typeof item === 'string')
+      : [],
+    usedModel: collapseText(typeof source.usedModel === 'string' ? source.usedModel : null) || null,
+    sourceAttributionRequired: source.sourceAttributionRequired === true,
+    timestampRequired: source.timestampRequired === true,
   };
 }
 
@@ -289,6 +336,7 @@ export function startChatTurn(input: StartChatTurnInput): ChatTurnRecord {
     provider: null,
     deliveryStatus: null,
     nextRunAt: null,
+    financeCompliance: null,
   };
 
   updateTurnList((turns) => [nextTurn, ...turns]);
@@ -311,6 +359,7 @@ export function markChatTurnCompleted(input: FinishChatTurnInput): void {
             updatedAt: new Date().toISOString(),
             artifacts: dedupeArtifacts([...(turn.artifacts ?? []), ...(input.artifacts ?? [])]),
             lastError: null,
+            financeCompliance: turn.financeCompliance ?? null,
           }
         : turn,
     ),
@@ -327,6 +376,7 @@ export function markChatTurnFailed(input: FinishChatTurnInput): void {
             updatedAt: new Date().toISOString(),
             artifacts: dedupeArtifacts([...(turn.artifacts ?? []), ...(input.artifacts ?? [])]),
             lastError: collapseText(input.error ?? '') || '任务执行失败',
+            financeCompliance: turn.financeCompliance ?? null,
           }
         : turn,
     ),
@@ -415,6 +465,7 @@ export function upsertCronTaskTurn(input: UpsertCronTaskTurnInput): ChatTurnReco
       provider: collapseText(input.provider),
       deliveryStatus: collapseText(input.deliveryStatus),
       nextRunAt: typeof input.nextRunAt === 'number' && Number.isFinite(input.nextRunAt) ? input.nextRunAt : null,
+      financeCompliance: normalizeFinanceCompliance(input.financeCompliance),
     };
     return [
       nextRecord as ChatTurnRecord,

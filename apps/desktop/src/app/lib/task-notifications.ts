@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
 import { buildChatScopedStorageKey } from '@/app/lib/chat-persistence-scope';
+import type { FinanceComplianceSnapshot } from '@/app/lib/finance-compliance';
 
 export type AppNotificationTone = 'success' | 'error' | 'info';
 export type AppNotificationSource = 'cron' | 'chat' | 'system';
@@ -18,6 +19,7 @@ export interface AppNotificationMetadata {
   runAt?: number | null;
   errorReason?: string | null;
   result?: string | null;
+  financeCompliance?: FinanceComplianceSnapshot | null;
 }
 
 export interface AppNotificationRecord {
@@ -75,6 +77,48 @@ function normalizeMetadata(value: unknown): AppNotificationMetadata | null {
     runAt: normalizeOptionalNumber(source.runAt),
     errorReason: normalizeText(source.errorReason),
     result: normalizeText(source.result),
+    financeCompliance: normalizeFinanceCompliance(source.financeCompliance),
+  };
+}
+
+function normalizeFinanceCompliance(value: unknown): FinanceComplianceSnapshot | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const source = value as Record<string, unknown>;
+  if (source.domain !== 'finance') {
+    return null;
+  }
+  return {
+    domain: 'finance',
+    inputClassification:
+      source.inputClassification === 'market_info' ||
+      source.inputClassification === 'research_request' ||
+      source.inputClassification === 'advice_request' ||
+      source.inputClassification === 'personalized_request' ||
+      source.inputClassification === 'execution_request'
+        ? source.inputClassification
+        : null,
+    outputClassification:
+      source.outputClassification === 'market_data' ||
+      source.outputClassification === 'research_summary' ||
+      source.outputClassification === 'investment_view' ||
+      source.outputClassification === 'actionable_advice'
+        ? source.outputClassification
+        : null,
+    riskLevel: source.riskLevel === 'low' || source.riskLevel === 'high' ? source.riskLevel : 'medium',
+    showDisclaimer: source.showDisclaimer === true,
+    disclaimerText: normalizeText(source.disclaimerText),
+    requiresRiskSection: source.requiresRiskSection === true,
+    blocked: source.blocked === true,
+    degraded: source.degraded === true,
+    reasons: Array.isArray(source.reasons) ? source.reasons.filter((item): item is string => typeof item === 'string') : [],
+    usedCapabilities: Array.isArray(source.usedCapabilities)
+      ? source.usedCapabilities.filter((item): item is string => typeof item === 'string')
+      : [],
+    usedModel: normalizeText(source.usedModel),
+    sourceAttributionRequired: source.sourceAttributionRequired === true,
+    timestampRequired: source.timestampRequired === true,
   };
 }
 

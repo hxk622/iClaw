@@ -6,6 +6,7 @@ import {
   type ChatTurnRecord,
   upsertCronTaskTurn,
 } from '@/app/lib/chat-turns';
+import { buildHeuristicFinanceComplianceEnvelope } from '@/app/lib/finance-compliance';
 import { pushAppNotification } from '@/app/lib/task-notifications';
 import {
   markCronRunNotified,
@@ -192,6 +193,15 @@ export function CronTaskResultSync({
           const turn = persistedCronTurnsByJobIdRef.current[jobId] ?? null;
           const summary = resolveRunSummary(job, turn);
           const status = resolveTurnStatus(job, turn);
+          const financeCompliance =
+            buildHeuristicFinanceComplianceEnvelope({
+              appName: 'licaiclaw',
+              channel: 'cron',
+              title: job.name ?? turn?.title ?? '定时任务',
+              prompt: job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text,
+              answer: summary,
+              usedModel: turn?.model ?? null,
+            })?.compliance ?? null;
 
           upsertCronTaskTurn({
             jobId,
@@ -210,6 +220,7 @@ export function CronTaskResultSync({
             deliveryStatus: turn?.deliveryStatus ?? job.state?.lastDeliveryStatus ?? null,
             nextRunAt: job.state?.nextRunAtMs ?? turn?.nextRunAt ?? null,
             runAt: job.state?.lastRunAtMs ?? Date.now(),
+            financeCompliance,
           });
 
           const latestRunTs = job.state?.lastRunAtMs ?? 0;
@@ -239,6 +250,7 @@ export function CronTaskResultSync({
                 nextRunAt: job.state?.nextRunAtMs ?? turn?.nextRunAt ?? null,
                 runAt: job.state?.lastRunAtMs ?? latestRunTs,
                 result: summary,
+                financeCompliance,
               },
             });
             continue;
@@ -261,6 +273,7 @@ export function CronTaskResultSync({
                 nextRunAt: job.state?.nextRunAtMs ?? turn?.nextRunAt ?? null,
                 runAt: job.state?.lastRunAtMs ?? latestRunTs,
                 errorReason: job.state?.lastError?.trim() || summary,
+                financeCompliance,
               },
             });
           }

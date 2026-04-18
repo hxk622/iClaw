@@ -23,6 +23,7 @@ import {
   formatChatTurnRelativeTime,
   useChatTurns,
 } from '@/app/lib/chat-turns';
+import { buildHeuristicFinanceComplianceEnvelope } from '@/app/lib/finance-compliance';
 
 type ConversationFilter = 'all' | ChatTurnRecord['status'];
 
@@ -47,6 +48,7 @@ interface ConversationViewModel {
   source: string;
   routeTarget: 'chat' | 'cron';
   statusMessage: string;
+  financeDisclaimer?: string | null;
 }
 
 const FILTER_ITEMS: Array<{ value: ConversationFilter; label: string }> = [
@@ -530,6 +532,12 @@ function ConversationDetailPanel({
         </div>
       </div>
 
+      {conversation.financeDisclaimer ? (
+        <div className="mb-6 rounded-[12px] border border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.08)] px-4 py-3 text-[13px] leading-6 text-[var(--brand-primary)]">
+          {conversation.financeDisclaimer}
+        </div>
+      ) : null}
+
       {conversation.routeTarget === 'chat' ? (
         <Button
           variant="primary"
@@ -603,7 +611,26 @@ function mapConversationToViewModel(params: {
     source: latestTurn.source === 'cron' ? latestTurn.sourceLabel || '定时任务' : params.chatMenuLabel,
     routeTarget: latestTurn.routeTarget === 'cron' ? 'cron' : 'chat',
     statusMessage: buildStatusMessage(latestTurn, resultTypes),
+    financeDisclaimer: resolveConversationFinanceDisclaimer(latestTurn),
   };
+}
+
+function resolveConversationFinanceDisclaimer(turn: ChatTurnRecord): string | null {
+  if (turn.financeCompliance?.showDisclaimer) {
+    return turn.financeCompliance.disclaimerText || '本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。';
+  }
+  const heuristic = buildHeuristicFinanceComplianceEnvelope({
+    appName: 'licaiclaw',
+    channel: turn.source === 'cron' ? 'cron' : 'chat',
+    title: turn.title,
+    prompt: turn.prompt,
+    answer: turn.summary,
+    usedModel: turn.model || null,
+  });
+  if (!heuristic?.compliance.showDisclaimer) {
+    return null;
+  }
+  return heuristic.compliance.disclaimerText || '本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。';
 }
 
 function buildStatusMessage(turn: ChatTurnRecord, resultTypes: string[]): string {

@@ -17,6 +17,7 @@ export interface NotificationCenterDetail {
   provider?: string;
   result?: string;
   errorReason?: string;
+  financeDisclaimer?: string;
 }
 
 export interface NotificationCenterItem {
@@ -164,6 +165,10 @@ export function buildNotificationCenterItems(records: AppNotificationRecord[]): 
       provider: record.metadata?.provider || undefined,
       result: resolveResult(record),
       errorReason: resolveErrorReason(record),
+      financeDisclaimer:
+        record.metadata?.financeCompliance?.showDisclaimer === true
+          ? record.metadata.financeCompliance.disclaimerText || '本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。'
+          : undefined,
     },
   }));
 }
