@@ -20,6 +20,7 @@
 - `knowledge-library-schema-v1.md`
 - `extension-to-knowledge-library-mapping.md`
 - `extension-auth-bridge-architecture.md`
+- `extension-session-contracts-v1.md`
 - `knowledge-graph-view-v1.md`
 - `native-agent-store-architecture.md`
 - `oem-capability-architecture.md`
