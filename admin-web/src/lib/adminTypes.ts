@@ -27,6 +27,7 @@ export type AdminRoute =
   | 'payments-orders'
   | 'audit-log'
   | 'client-metrics'
+  | 'finance-compliance'
   | 'fault-reports';
 
 export type NavItem = {

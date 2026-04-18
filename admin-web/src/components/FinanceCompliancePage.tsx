@@ -1,0 +1,135 @@
+import { useEffect, useState } from 'react';
+import { formatDateTime } from '../lib/adminFormat';
+import { loadFinanceComplianceEvents } from '../lib/adminApi';
+import type { FinanceComplianceEventRecord } from '../lib/adminTypes';
+import { adminFilterControlStyle, AdminFilterStack, AdminSearchRow, AdminSelectorRow } from './AdminFilterLayout';
+
+export function FinanceCompliancePage() {
+  const [appName, setAppName] = useState('caiclaw');
+  const [channel, setChannel] = useState('');
+  const [riskLevel, setRiskLevel] = useState('');
+  const [events, setEvents] = useState<FinanceComplianceEventRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    loadFinanceComplianceEvents({
+      appName,
+      channel,
+      riskLevel,
+      limit: 200,
+    })
+      .then((nextEvents) => {
+        if (cancelled) return;
+        setEvents(nextEvents);
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : '金融合规审计事件加载失败');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [appName, channel, riskLevel]);
+
+  return (
+    <div className="fig-page">
+      <div className="fig-page__header">
+        <div className="fig-page__header-inner fig-page__header-inner--stack">
+          <div>
+            <h1>金融合规审计</h1>
+            <p className="fig-page__description">
+              查看金融回答的输入分类、输出分类、免责声明展示与降级/拦截决策。
+            </p>
+          </div>
+          <AdminFilterStack>
+            <AdminSearchRow>
+              <input
+                className="field-input"
+                placeholder="筛选 app，例如 caiclaw"
+                value={appName}
+                onChange={(event) => setAppName(event.target.value)}
+                style={adminFilterControlStyle()}
+              />
+            </AdminSearchRow>
+            <AdminSelectorRow>
+              <select className="field-select" value={channel} onChange={(event) => setChannel(event.target.value)} style={adminFilterControlStyle()}>
+                <option value="">所有渠道</option>
+                <option value="chat">chat</option>
+                <option value="cron">cron</option>
+                <option value="notification">notification</option>
+                <option value="report">report</option>
+              </select>
+              <select className="field-select" value={riskLevel} onChange={(event) => setRiskLevel(event.target.value)} style={adminFilterControlStyle()}>
+                <option value="">所有风险等级</option>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+              </select>
+            </AdminSelectorRow>
+          </AdminFilterStack>
+        </div>
+      </div>
+
+      <div className="fig-page__body">
+        {error ? <div className="empty-state empty-state--panel">{error}</div> : null}
+
+        <section className="fig-card fig-card--subtle">
+          <div className="fig-card__head">
+            <h3>事件概览</h3>
+            <span>{loading ? '加载中…' : `${events.length} 条`}</span>
+          </div>
+          <div className="fig-meta-cards">
+            <div className="fig-meta-card"><span>总事件数</span><strong>{String(events.length)}</strong></div>
+            <div className="fig-meta-card"><span>显示免责声明</span><strong>{String(events.filter((item) => item.showDisclaimer).length)}</strong></div>
+            <div className="fig-meta-card"><span>降级</span><strong>{String(events.filter((item) => item.degraded).length)}</strong></div>
+            <div className="fig-meta-card"><span>拦截</span><strong>{String(events.filter((item) => item.blocked).length)}</strong></div>
+          </div>
+        </section>
+
+        <section className="fig-card fig-card--subtle" style={{ marginTop: 20 }}>
+          <div className="fig-card__head">
+            <h3>最近事件</h3>
+            <span>用于回放“为什么这次有/没有小字”</span>
+          </div>
+          <div className="fig-list">
+            {events.length ? (
+              events.map((item) => (
+                <article key={item.id} className="fig-list-item">
+                  <div className="fig-list-item__body">
+                    <div className="fig-list-item__title">
+                      {item.channel} · {item.riskLevel} · {item.outputClassification || 'unknown'}
+                    </div>
+                    <div className="fig-list-item__meta">
+                      {`${formatDateTime(item.createdAt)} · ${item.appName} · ${item.sessionKey}`}
+                    </div>
+                    <div className="fig-list-item__meta">
+                      {`input=${item.inputClassification || 'n/a'} · output=${item.outputClassification || 'n/a'} · disclaimer=${item.showDisclaimer ? 'yes' : 'no'} · degraded=${item.degraded ? 'yes' : 'no'} · blocked=${item.blocked ? 'yes' : 'no'}`}
+                    </div>
+                    <div className="fig-list-item__meta">
+                      {item.reasons.length ? item.reasons.join(' | ') : '无规则命中明细'}
+                    </div>
+                    {item.disclaimerText ? (
+                      <div className="fig-list-item__meta" style={{ color: '#8b6a21' }}>
+                        {item.disclaimerText}
+                      </div>
+                    ) : null}
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="empty-state">暂无金融合规审计事件。</div>
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}

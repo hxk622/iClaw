@@ -70,6 +70,7 @@ import { BrandDetailPage } from './components/BrandDetailPage';
 import { BrandsPage } from './components/BrandsPage';
 import { ClientMetricsPage } from './components/ClientMetricsPage';
 import { CloudMcpPage } from './components/CloudMcpPage';
+import { FinanceCompliancePage } from './components/FinanceCompliancePage';
 import { ModelCenterPage } from './components/ModelCenterPage';
 import { PaymentConfigPage } from './components/PaymentConfigPage';
 import { RechargePackagesPage } from './components/RechargePackagesPage';
@@ -106,6 +107,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: '总览' },
   { id: 'brands', label: '品牌管理' },
   { id: 'client-metrics', label: '客户端监控' },
+  { id: 'finance-compliance', label: '金融合规审计' },
   { id: 'agent-center', label: 'Agent中心' },
   { id: 'skill-center', label: '平台级 Skill' },
   { id: 'mcp-center', label: '平台级 MCP' },
@@ -2439,6 +2441,8 @@ export default function App() {
                 />
               ) : route === 'client-metrics' ? (
                 <ClientMetricsPage />
+              ) : route === 'finance-compliance' ? (
+                <FinanceCompliancePage />
               ) : route === 'user-action-audit' ? (
                 <UserActionAuditPage
                   items={userActionAuditItems}
