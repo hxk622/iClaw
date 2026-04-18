@@ -2668,7 +2668,7 @@ body {
   position: relative;
   display: block;
   gap: 0;
-  padding: 10px 0 6px;
+  padding: 8px 0 4px;
   min-width: 0;
 }
 
@@ -2694,16 +2694,18 @@ body {
   width: 100%;
   min-height: 56px;
   padding-left: 46px;
-  padding-right: 0;
+  padding-right: 42px;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__placeholder {
   left: 54px;
+  right: 46px;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__footer {
+  position: relative;
   min-height: 34px;
-  padding: 2px 0 6px;
+  padding: 0 0 4px;
   border-top-color: rgba(0, 0, 0, 0.08);
 }
 
@@ -2719,7 +2721,7 @@ body {
 .knowledge-library-embedded-chat .iclaw-composer__footer-main {
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
   flex-wrap: nowrap;
 }
@@ -2732,6 +2734,7 @@ body {
   padding-left: 0;
   padding-right: 0;
   white-space: nowrap;
+  gap: 6px;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__actions {
@@ -2739,8 +2742,9 @@ body {
   width: auto;
   min-width: 0;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   flex: 0 0 auto;
+  padding-right: 42px;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__model-trigger,
@@ -2749,18 +2753,22 @@ body {
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__model-trigger {
-  flex: 0 1 132px;
-  max-width: 132px;
-  width: 132px;
-  padding: 0 10px;
+  flex: 0 1 116px;
+  max-width: 116px;
+  width: 116px;
+  min-height: 32px;
+  padding: 0 9px;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__submit {
+  position: absolute;
+  right: 0;
+  top: -44px;
   flex: 0 0 auto;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__model-trigger-main {
-  gap: 8px;
+  gap: 6px;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__model-logo {
@@ -2774,7 +2782,7 @@ body {
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__model-trigger .iclaw-composer__model-label {
-  font-size: 11.5px;
+  font-size: 11px;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__support {
@@ -2786,6 +2794,17 @@ body {
 .knowledge-library-embedded-chat .iclaw-composer__submit {
   width: 34px;
   height: 34px;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__support-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__editor {
+  min-height: calc(1.6em * 2 + 6px);
+  padding-top: 6px;
+  padding-bottom: 4px;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__editor,
