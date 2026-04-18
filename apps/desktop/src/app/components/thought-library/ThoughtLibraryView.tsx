@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, RefreshCw, Search } from 'lucide-react';
 
 import { Button } from '@/app/components/ui/Button';
@@ -6,9 +6,10 @@ import { Chip } from '@/app/components/ui/Chip';
 import { cn } from '@/app/lib/cn';
 import {
   THOUGHT_LIBRARY_TAB_CONFIG,
-  getThoughtLibraryItems,
+  getStaticThoughtLibraryItems,
   getThoughtLibraryPanelDescription,
   getThoughtLibraryPanelTitle,
+  type ThoughtLibraryItem,
   type GraphViewMode,
   type ThoughtLibraryTab,
 } from './model';
@@ -17,6 +18,9 @@ import { buildThoughtLibraryContextPrompt } from './chat-context';
 import { ThoughtLibraryEmbeddedChatSurface } from './ThoughtLibraryEmbeddedChatSurface';
 import type { IClawClient } from '@iclaw/sdk';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
+import { createLocalKnowledgeLibraryRepository } from './repository';
+import { useCreateRawMaterial, useRawMaterialDetail, useRawMaterials } from './hooks';
+import { mapRawMaterialToThoughtLibraryItem } from './raw-mappers';
 
 export function ThoughtLibraryView({
   title,
@@ -59,22 +63,48 @@ export function ThoughtLibraryView({
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
 }) {
   const initialState = useMemo(() => readThoughtLibraryState(), []);
+  const repository = useMemo(() => createLocalKnowledgeLibraryRepository(), []);
+  const { create: createRawMaterialRecord } = useCreateRawMaterial(repository);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeTab, setActiveTab] = useState<ThoughtLibraryTab>(initialState.activeTab);
   const [selectedByTab, setSelectedByTab] = useState(initialState.selectedByTab);
   const [query, setQuery] = useState('');
   const [graphViewMode, setGraphViewMode] = useState<GraphViewMode>('page');
+  const [materialsRefreshKey, setMaterialsRefreshKey] = useState(0);
 
-  const items = useMemo(() => {
-    const source = getThoughtLibraryItems(activeTab);
+  const {
+    items: rawMaterials,
+    loading: rawMaterialsLoading,
+  } = useRawMaterials({
+    repository,
+    query: activeTab === 'materials' ? query : '',
+    refreshKey: materialsRefreshKey,
+  });
+
+  const items = useMemo<ThoughtLibraryItem[]>(() => {
+    if (activeTab === 'materials') {
+      return rawMaterials.map(mapRawMaterialToThoughtLibraryItem);
+    }
+    const source = getStaticThoughtLibraryItems(activeTab);
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) return source;
     return source.filter((item) =>
       [item.title, item.subtitle, item.summary, ...item.tags].join(' ').toLowerCase().includes(normalizedQuery),
     );
-  }, [activeTab, query]);
+  }, [activeTab, query, rawMaterials]);
 
   const selectedId = selectedByTab[activeTab];
   const selectedItem = useMemo(() => items.find((item) => item.id === selectedId) || items[0] || null, [items, selectedId]);
+  const { item: selectedRawMaterial } = useRawMaterialDetail({
+    repository,
+    rawMaterialId: activeTab === 'materials' ? selectedItem?.id || null : null,
+    refreshKey: materialsRefreshKey,
+  });
+  const selectedDisplayItem = useMemo<ThoughtLibraryItem | null>(() => {
+    if (!selectedItem) return null;
+    if (activeTab !== 'materials') return selectedItem;
+    return selectedRawMaterial ? mapRawMaterialToThoughtLibraryItem(selectedRawMaterial) : selectedItem;
+  }, [activeTab, selectedItem, selectedRawMaterial]);
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -90,7 +120,7 @@ export function ThoughtLibraryView({
 
   const handleSwitchTab = (nextTab: ThoughtLibraryTab) => {
     setActiveTab(nextTab);
-    const nextItems = getThoughtLibraryItems(nextTab);
+    const nextItems = nextTab === 'materials' ? rawMaterials.map(mapRawMaterialToThoughtLibraryItem) : getStaticThoughtLibraryItems(nextTab);
     setSelectedByTab((current) => ({
       ...current,
       [nextTab]: current[nextTab] || nextItems[0]?.id || null,
@@ -101,16 +131,82 @@ export function ThoughtLibraryView({
   };
 
   const handleOpenContextChat = () => {
-    if (!selectedItem || !onOpenContextChat) {
+    if (!selectedDisplayItem || !onOpenContextChat) {
       return;
     }
     onOpenContextChat({
-      title: selectedItem.title,
+      title: selectedDisplayItem.title,
       prompt: buildThoughtLibraryContextPrompt({
         tab: activeTab,
-        item: selectedItem,
+        item: selectedDisplayItem,
       }),
     });
+  };
+
+  const handleRefresh = async () => {
+    if (activeTab === 'materials') {
+      setMaterialsRefreshKey((current) => current + 1);
+      return;
+    }
+  };
+
+  const handleOpenNew = () => {
+    if (activeTab === 'materials') {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const processFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    let lastCreatedId: string | null = null;
+    for (const file of files) {
+      const lowerName = file.name.toLowerCase();
+      const isTextLike =
+        file.type.startsWith('text/') ||
+        file.type === 'application/json' ||
+        file.type === 'application/xml' ||
+        lowerName.endsWith('.md') ||
+        lowerName.endsWith('.txt') ||
+        lowerName.endsWith('.json') ||
+        lowerName.endsWith('.csv');
+
+      let contentText = '';
+      if (isTextLike) {
+        try {
+          contentText = await file.text();
+        } catch {
+          contentText = '';
+        }
+      }
+      const title = file.name.replace(/\\.[^.]+$/, '') || file.name;
+      const created = await createRawMaterialRecord({
+        kind: 'upload',
+        title,
+        excerpt:
+          contentText.trim().slice(0, 260) ||
+          `已导入文件 ${file.name}，当前版本先完成素材入库，正文解析会在后续迭代补齐。`,
+        content_text: contentText,
+        source_name: '本地上传',
+        source_type:
+          isTextLike
+            ? 'text'
+            : file.type === 'application/pdf'
+            ? 'pdf'
+            : file.type.startsWith('image/')
+              ? 'image'
+              : file.type.startsWith('audio/')
+                ? 'audio'
+                : 'file',
+        mime_type: file.type || 'application/octet-stream',
+        tags: ['上传', ...(file.type === 'application/pdf' ? ['PDF'] : [])],
+      });
+      lastCreatedId = created.id;
+    }
+    setMaterialsRefreshKey((current) => current + 1);
+    if (lastCreatedId) {
+      setActiveTab('materials');
+      setSelectedByTab((current) => ({ ...current, materials: lastCreatedId }));
+    }
   };
 
   return (
@@ -139,11 +235,11 @@ export function ThoughtLibraryView({
                 className="h-10 w-full rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] pl-10 pr-4 text-[13px] text-[#1E293B] outline-none transition placeholder:text-[#64748B] focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#E8E8E3] dark:placeholder:text-[#94A3B8]"
               />
             </label>
-            <Button variant="secondary" size="sm" leadingIcon={<RefreshCw className="h-4 w-4" />}>
+            <Button variant="secondary" size="sm" leadingIcon={<RefreshCw className="h-4 w-4" />} onClick={() => void handleRefresh()}>
               刷新
             </Button>
-            <Button size="sm" leadingIcon={<Plus className="h-4 w-4" />}>
-              新建
+            <Button size="sm" leadingIcon={<Plus className="h-4 w-4" />} onClick={handleOpenNew}>
+              {activeTab === 'materials' ? '上传' : '新建'}
             </Button>
           </div>
         </div>
@@ -174,6 +270,18 @@ export function ThoughtLibraryView({
             })}
           </div>
           <div className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
+            {activeTab === 'materials' && rawMaterialsLoading ? (
+              <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-white px-4 py-4 text-[12px] text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#94A3B8]">
+                正在加载素材...
+              </div>
+            ) : null}
+            {items.length === 0 ? (
+              <div className="rounded-[14px] border border-dashed border-[rgba(0,0,0,0.12)] bg-white/70 px-4 py-5 text-[12px] leading-6 text-[#64748B] dark:border-[rgba(255,255,255,0.12)] dark:bg-[#1A1A1A] dark:text-[#94A3B8]">
+                {activeTab === 'materials'
+                  ? '还没有真实素材。你可以先点击右上角“上传”，把本地文件导入到 Raw / 素材。'
+                  : '当前分类下还没有可显示对象。'}
+              </div>
+            ) : null}
             {items.map((item) => {
               const active = selectedItem?.id === item.id;
               const Icon = item.icon;
@@ -224,25 +332,34 @@ export function ThoughtLibraryView({
               <p className="mt-1 text-[13px] leading-6 text-[#64748B] dark:text-[#94A3B8]">{getThoughtLibraryPanelDescription(activeTab)}</p>
             </div>
 
-            {selectedItem ? (
+            {selectedDisplayItem ? (
               <div className="space-y-4">
                 <div className="rounded-[18px] border border-[rgba(0,0,0,0.08)] bg-white px-5 py-5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#1E293B] dark:text-[#E8E8E3]">{selectedItem.title}</h2>
+                      <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#1E293B] dark:text-[#E8E8E3]">{selectedDisplayItem.title}</h2>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {selectedItem.tags.map((tag) => (
+                        {selectedDisplayItem.tags.map((tag) => (
                           <Chip key={tag} tone="accent" className="px-2.5 py-1 text-[11px]">
                             {tag}
                           </Chip>
                         ))}
                       </div>
                     </div>
-                    <Button variant="secondary" size="sm">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        if (selectedDisplayItem.sourceUrl) {
+                          window.open(selectedDisplayItem.sourceUrl, '_blank', 'noopener,noreferrer');
+                        }
+                      }}
+                      disabled={!selectedDisplayItem.sourceUrl}
+                    >
                       查看来源
                     </Button>
                   </div>
-                  <p className="mt-4 text-[14px] leading-7 text-[#64748B] dark:text-[#94A3B8]">{selectedItem.summary}</p>
+                  <p className="mt-4 text-[14px] leading-7 text-[#64748B] dark:text-[#94A3B8]">{selectedDisplayItem.summary}</p>
                 </div>
 
                 <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -275,7 +392,7 @@ export function ThoughtLibraryView({
                     {activeTab === 'graph' && graphViewMode === 'graph' ? (
                       <div className="relative h-[360px] overflow-hidden rounded-[16px] border border-[var(--border-primary)] bg-[radial-gradient(circle_at_top,rgba(180,154,112,0.10),transparent_46%),var(--bg-page)]">
                         <div className="absolute left-1/2 top-[20%] -translate-x-1/2 rounded-full border border-[rgba(180,154,112,0.35)] bg-[rgba(180,154,112,0.12)] px-4 py-2 text-[12px] text-[var(--text-primary)]">
-                          {selectedItem.title}
+                          {selectedDisplayItem.title}
                         </div>
                         <div className="absolute left-[18%] top-[52%] rounded-full border border-[var(--border-primary)] bg-[var(--bg-panel)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)]">
                           关键关系 A
@@ -291,6 +408,26 @@ export function ThoughtLibraryView({
                           <line x1="50%" y1="24%" x2="78%" y2="46%" stroke="rgba(180,154,112,0.35)" strokeWidth="1.5" />
                           <line x1="50%" y1="24%" x2="50%" y2="74%" stroke="rgba(180,154,112,0.25)" strokeWidth="1.5" />
                         </svg>
+                      </div>
+                    ) : activeTab === 'materials' ? (
+                      <div className="space-y-3">
+                        <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
+                          {selectedDisplayItem.bodyText?.trim() || selectedDisplayItem.summary}
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源类型</div>
+                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                              {selectedRawMaterial?.source_type || 'file'} · {selectedRawMaterial?.source_name || '本地素材'}
+                            </div>
+                          </div>
+                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">更新时间</div>
+                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                              {selectedRawMaterial?.updated_at ? new Date(selectedRawMaterial.updated_at).toLocaleString() : '刚刚'}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
@@ -322,7 +459,13 @@ export function ThoughtLibraryView({
                   </div>
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="rounded-[18px] border border-dashed border-[rgba(0,0,0,0.12)] bg-white/70 px-5 py-6 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.12)] dark:bg-[#1A1A1A] dark:text-[#94A3B8]">
+                {activeTab === 'materials'
+                  ? '还没有可展示的素材详情。先从右上角上传一个本地文件，知识库会把它写入 Raw / 素材。'
+                  : '当前对象视图将在后续阶段继续真实化。'}
+              </div>
+            )}
           </div>
         </section>
 
@@ -332,7 +475,7 @@ export function ThoughtLibraryView({
         >
           <div className="flex items-center justify-between border-b border-[rgba(0,0,0,0.08)] px-4 py-3 dark:border-[rgba(255,255,255,0.08)]">
             <div className="text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">对话</div>
-            {selectedItem ? (
+            {selectedDisplayItem ? (
               <button
                 type="button"
                 onClick={handleOpenContextChat}
@@ -343,7 +486,7 @@ export function ThoughtLibraryView({
             ) : null}
           </div>
           <ThoughtLibraryEmbeddedChatSurface
-            selectedItem={selectedItem}
+            selectedItem={selectedDisplayItem}
             activeTab={activeTab}
             gatewayUrl={gatewayUrl}
             gatewayToken={gatewayToken}
@@ -360,6 +503,18 @@ export function ThoughtLibraryView({
           />
         </div>
       </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        multiple
+        accept=".txt,.md,.json,.csv,.pdf,text/*,application/json,application/pdf"
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? []);
+          void processFiles(files);
+          event.target.value = '';
+        }}
+      />
     </div>
   );
 }

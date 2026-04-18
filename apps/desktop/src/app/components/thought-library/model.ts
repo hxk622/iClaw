@@ -3,14 +3,11 @@ import {
   BookOpen,
   Brain,
   FileText,
-  Globe,
-  Link2,
-  Mic,
   Network,
   Sparkles,
-  Upload,
   WandSparkles,
 } from 'lucide-react';
+import type { RawMaterial } from './types';
 
 export type ThoughtLibraryTab = 'materials' | 'graph' | 'artifacts';
 export type GraphViewMode = 'page' | 'graph';
@@ -23,6 +20,10 @@ export type ThoughtLibraryItem = {
   tags: string[];
   icon: ComponentType<{ className?: string }>;
   meta: string;
+  bodyText?: string;
+  sourceUrl?: string | null;
+  sourceLabel?: string | null;
+  rawMaterial?: RawMaterial | null;
 };
 
 export const THOUGHT_LIBRARY_TAB_CONFIG: Array<{
@@ -30,50 +31,12 @@ export const THOUGHT_LIBRARY_TAB_CONFIG: Array<{
   label: string;
   icon: ComponentType<{ className?: string }>;
 }> = [
-  { id: 'materials', label: '素材', icon: FileText },
-  { id: 'graph', label: '图谱', icon: Network },
-  { id: 'artifacts', label: '成果', icon: Sparkles },
+  { id: 'materials', label: 'Raw / 素材', icon: FileText },
+  { id: 'graph', label: 'Graph / 图谱', icon: Network },
+  { id: 'artifacts', label: 'Output / 成果', icon: Sparkles },
 ];
 
-export const THOUGHT_LIBRARY_ITEMS: Record<ThoughtLibraryTab, ThoughtLibraryItem[]> = {
-  materials: [
-    {
-      id: 'material-1',
-      title: '桥水研究纪要 2026Q1',
-      subtitle: '本地上传 · PDF',
-      summary: '桥水关于利率、通胀与资产轮动的季度研究材料，包含多张大类资产框架图。',
-      tags: ['宏观', '桥水', '资产配置'],
-      icon: Upload,
-      meta: '2 小时前导入',
-    },
-    {
-      id: 'material-2',
-      title: 'AI 芯片产业链 Clip',
-      subtitle: '浏览器 Clip · Snippet',
-      summary: '从网页中滑选保存的摘要片段，聚焦国产算力芯片供应链与资本开支节奏。',
-      tags: ['Clip', '芯片', '成长'],
-      icon: Globe,
-      meta: '昨天 21:14',
-    },
-    {
-      id: 'material-3',
-      title: '关于霍华德·马克斯的对话沉淀',
-      subtitle: 'AI 对话 · 12 条消息',
-      summary: '围绕周期摆钟、第二层思维和风险定价的多轮对话，已抽取成若干候选知识卡。',
-      tags: ['对话', '周期', '风险'],
-      icon: Sparkles,
-      meta: '今天 09:32',
-    },
-    {
-      id: 'material-4',
-      title: '播客转写：杰弗里·冈拉克',
-      subtitle: '语音转写 · 38 分钟',
-      summary: '来自债券与宏观访谈的全文转写，适合作为固收视角补充原料。',
-      tags: ['固收', '播客', '债券'],
-      icon: Mic,
-      meta: '3 天前',
-    },
-  ],
+const STATIC_THOUGHT_LIBRARY_ITEMS: Record<Exclude<ThoughtLibraryTab, 'materials'>, ThoughtLibraryItem[]> = {
   graph: [
     {
       id: 'graph-1',
@@ -134,8 +97,8 @@ export const THOUGHT_LIBRARY_ITEMS: Record<ThoughtLibraryTab, ThoughtLibraryItem
   ],
 };
 
-export function getThoughtLibraryItems(tab: ThoughtLibraryTab): ThoughtLibraryItem[] {
-  return THOUGHT_LIBRARY_ITEMS[tab];
+export function getStaticThoughtLibraryItems(tab: Exclude<ThoughtLibraryTab, 'materials'>): ThoughtLibraryItem[] {
+  return STATIC_THOUGHT_LIBRARY_ITEMS[tab];
 }
 
 export function getThoughtLibraryPanelTitle(tab: ThoughtLibraryTab): string {
