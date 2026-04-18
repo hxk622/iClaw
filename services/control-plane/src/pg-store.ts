@@ -21,6 +21,7 @@ import type {
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
   CreateDesktopFaultReportInput,
+  CreateFinanceComplianceEventInput,
   CreateClientMetricEventInput,
   CreateClientCrashEventInput,
   CreateClientPerfSampleInput,
@@ -41,6 +42,7 @@ import type {
   ClientMetricEventRecord,
   ClientCrashEventRecord,
   ClientPerfSampleRecord,
+  FinanceComplianceEventRecord,
   ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
@@ -788,6 +790,38 @@ type ClientPerfSampleRow = {
   created_at: Date;
 };
 
+type FinanceComplianceEventRow = {
+  id: string;
+  app_name: string;
+  session_key: string;
+  conversation_id: string | null;
+  channel: 'chat' | 'cron' | 'notification' | 'report';
+  source_surface: string | null;
+  input_classification:
+    | 'market_info'
+    | 'research_request'
+    | 'advice_request'
+    | 'personalized_request'
+    | 'execution_request'
+    | null;
+  output_classification:
+    | 'market_data'
+    | 'research_summary'
+    | 'investment_view'
+    | 'actionable_advice'
+    | null;
+  risk_level: 'low' | 'medium' | 'high';
+  show_disclaimer: boolean;
+  disclaimer_text: string | null;
+  degraded: boolean;
+  blocked: boolean;
+  reasons_json: unknown[] | null;
+  used_capabilities_json: unknown[] | null;
+  used_model: string | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: Date;
+};
+
 function mapUserRow(row: UserRow): UserRecord {
   return {
     id: row.id,
@@ -1229,6 +1263,33 @@ function mapClientPerfSampleRow(row: ClientPerfSampleRow): ClientPerfSampleRecor
     unit: row.unit,
     sampleRate: row.sample_rate == null ? null : Number(row.sample_rate),
     payload: row.payload_json || {},
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapFinanceComplianceEventRow(row: FinanceComplianceEventRow): FinanceComplianceEventRecord {
+  return {
+    id: row.id,
+    appName: row.app_name,
+    sessionKey: row.session_key,
+    conversationId: row.conversation_id,
+    channel: row.channel,
+    sourceSurface: row.source_surface,
+    inputClassification: row.input_classification,
+    outputClassification: row.output_classification,
+    riskLevel: row.risk_level,
+    showDisclaimer: row.show_disclaimer,
+    disclaimerText: row.disclaimer_text,
+    degraded: row.degraded,
+    blocked: row.blocked,
+    reasons: Array.isArray(row.reasons_json)
+      ? row.reasons_json.filter((item): item is string => typeof item === 'string')
+      : [],
+    usedCapabilities: Array.isArray(row.used_capabilities_json)
+      ? row.used_capabilities_json.filter((item): item is string => typeof item === 'string')
+      : [],
+    usedModel: row.used_model,
+    metadata: row.metadata_json || {},
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -4241,6 +4302,107 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       created.push(mapClientPerfSampleRow(result.rows[0]));
     }
     return created;
+  }
+
+  async listFinanceComplianceEvents(input?: {
+    appName?: string | null;
+    sessionKey?: string | null;
+    channel?: string | null;
+    inputClassification?: string | null;
+    outputClassification?: string | null;
+    riskLevel?: string | null;
+    limit?: number | null;
+  }): Promise<FinanceComplianceEventRecord[]> {
+    const values: unknown[] = [];
+    const where: string[] = [];
+    if (input?.appName) {
+      values.push(input.appName);
+      where.push(`app_name = $${values.length}`);
+    }
+    if (input?.sessionKey) {
+      values.push(input.sessionKey);
+      where.push(`session_key = $${values.length}`);
+    }
+    if (input?.channel) {
+      values.push(input.channel);
+      where.push(`channel = $${values.length}`);
+    }
+    if (input?.inputClassification) {
+      values.push(input.inputClassification);
+      where.push(`input_classification = $${values.length}`);
+    }
+    if (input?.outputClassification) {
+      values.push(input.outputClassification);
+      where.push(`output_classification = $${values.length}`);
+    }
+    if (input?.riskLevel) {
+      values.push(input.riskLevel);
+      where.push(`risk_level = $${values.length}`);
+    }
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    values.push(limit);
+    const result = await this.pool.query<FinanceComplianceEventRow>(
+      `
+        select
+          id, app_name, session_key, conversation_id, channel, source_surface,
+          input_classification, output_classification, risk_level, show_disclaimer,
+          disclaimer_text, degraded, blocked, reasons_json, used_capabilities_json,
+          used_model, metadata_json, created_at
+        from finance_compliance_events
+        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+        order by created_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapFinanceComplianceEventRow);
+  }
+
+  async createFinanceComplianceEvent(
+    input: Required<CreateFinanceComplianceEventInput> & {id: string; created_at: string},
+  ): Promise<FinanceComplianceEventRecord> {
+    const result = await this.pool.query<FinanceComplianceEventRow>(
+      `
+        insert into finance_compliance_events (
+          id, app_name, session_key, conversation_id, channel, source_surface,
+          input_classification, output_classification, risk_level, show_disclaimer,
+          disclaimer_text, degraded, blocked, reasons_json, used_capabilities_json,
+          used_model, metadata_json, created_at
+        )
+        values (
+          $1, $2, $3, $4, $5, $6,
+          $7, $8, $9, $10,
+          $11, $12, $13, $14::jsonb, $15::jsonb,
+          $16, $17::jsonb, $18
+        )
+        returning
+          id, app_name, session_key, conversation_id, channel, source_surface,
+          input_classification, output_classification, risk_level, show_disclaimer,
+          disclaimer_text, degraded, blocked, reasons_json, used_capabilities_json,
+          used_model, metadata_json, created_at
+      `,
+      [
+        input.id,
+        input.app_name,
+        input.session_key,
+        input.conversation_id || null,
+        input.channel,
+        input.source_surface || null,
+        input.input_classification || null,
+        input.output_classification || null,
+        input.risk_level,
+        input.show_disclaimer === true,
+        input.disclaimer_text || null,
+        input.degraded === true,
+        input.blocked === true,
+        JSON.stringify(input.reasons_json || []),
+        JSON.stringify(input.used_capabilities_json || []),
+        input.used_model || null,
+        JSON.stringify(input.metadata_json || {}),
+        input.created_at,
+      ],
+    );
+    return mapFinanceComplianceEventRow(result.rows[0]);
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {

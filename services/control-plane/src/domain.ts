@@ -642,6 +642,41 @@ export type ClientPerfSampleRecord = {
   createdAt: string;
 };
 
+export type FinanceComplianceChannel = 'chat' | 'cron' | 'notification' | 'report';
+export type FinanceComplianceRiskLevel = 'low' | 'medium' | 'high';
+export type FinanceInputClassification =
+  | 'market_info'
+  | 'research_request'
+  | 'advice_request'
+  | 'personalized_request'
+  | 'execution_request';
+export type FinanceOutputClassification =
+  | 'market_data'
+  | 'research_summary'
+  | 'investment_view'
+  | 'actionable_advice';
+
+export type FinanceComplianceEventRecord = {
+  id: string;
+  appName: string;
+  sessionKey: string;
+  conversationId: string | null;
+  channel: FinanceComplianceChannel;
+  sourceSurface: string | null;
+  inputClassification: FinanceInputClassification | null;
+  outputClassification: FinanceOutputClassification | null;
+  riskLevel: FinanceComplianceRiskLevel;
+  showDisclaimer: boolean;
+  disclaimerText: string | null;
+  degraded: boolean;
+  blocked: boolean;
+  reasons: string[];
+  usedCapabilities: string[];
+  usedModel: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type AdminDesktopActionPolicyRuleView = {
   id: string;
   scope: DesktopActionPolicyScope;
@@ -1067,6 +1102,27 @@ export type CreateClientPerfSampleInput = {
   unit?: string | null;
   sample_rate?: number | null;
   payload_json?: Record<string, unknown> | null;
+  created_at?: string | null;
+};
+
+export type CreateFinanceComplianceEventInput = {
+  id?: string | null;
+  app_name?: string | null;
+  session_key?: string | null;
+  conversation_id?: string | null;
+  channel?: FinanceComplianceChannel | null;
+  source_surface?: string | null;
+  input_classification?: FinanceInputClassification | null;
+  output_classification?: FinanceOutputClassification | null;
+  risk_level?: FinanceComplianceRiskLevel | null;
+  show_disclaimer?: boolean | null;
+  disclaimer_text?: string | null;
+  degraded?: boolean | null;
+  blocked?: boolean | null;
+  reasons_json?: string[] | null;
+  used_capabilities_json?: string[] | null;
+  used_model?: string | null;
+  metadata_json?: Record<string, unknown> | null;
   created_at?: string | null;
 };
 

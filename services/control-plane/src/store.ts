@@ -23,6 +23,7 @@ import type {
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
   CreateDesktopFaultReportInput,
+  CreateFinanceComplianceEventInput,
   CreateClientMetricEventInput,
   CreateClientCrashEventInput,
   CreateClientPerfSampleInput,
@@ -38,6 +39,7 @@ import type {
   ClientMetricEventRecord,
   ClientCrashEventRecord,
   ClientPerfSampleRecord,
+  FinanceComplianceEventRecord,
   ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
@@ -344,6 +346,18 @@ export interface ControlPlaneStore {
   createClientPerfSamples(
     input: Array<Required<CreateClientPerfSampleInput> & {id: string; created_at: string}>,
   ): Promise<ClientPerfSampleRecord[]>;
+  listFinanceComplianceEvents(input?: {
+    appName?: string | null;
+    sessionKey?: string | null;
+    channel?: string | null;
+    inputClassification?: string | null;
+    outputClassification?: string | null;
+    riskLevel?: string | null;
+    limit?: number | null;
+  }): Promise<FinanceComplianceEventRecord[]>;
+  createFinanceComplianceEvent(
+    input: Required<CreateFinanceComplianceEventInput> & {id: string; created_at: string},
+  ): Promise<FinanceComplianceEventRecord>;
   applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null>;
   getRunGrantById(grantId: string): Promise<RunGrantRecord | null>;
   getRunBillingSummary(grantId: string): Promise<RunBillingSummaryRecord | null>;
@@ -542,6 +556,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly clientMetricEventsById = new Map<string, ClientMetricEventRecord>();
   private readonly clientCrashEventsById = new Map<string, ClientCrashEventRecord>();
   private readonly clientPerfSamplesById = new Map<string, ClientPerfSampleRecord>();
+  private readonly financeComplianceEventsById = new Map<string, FinanceComplianceEventRecord>();
   private readonly paymentOrdersById = new Map<string, PaymentOrderRecord>();
   private readonly rechargePaymentMethodConfigsByApp = new Map<string, Record<string, unknown>>();
   private readonly systemStateByKey = new Map<string, Record<string, unknown>>();
@@ -1817,6 +1832,58 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       return record;
     });
     return created;
+  }
+
+  async listFinanceComplianceEvents(input?: {
+    appName?: string | null;
+    sessionKey?: string | null;
+    channel?: string | null;
+    inputClassification?: string | null;
+    outputClassification?: string | null;
+    riskLevel?: string | null;
+    limit?: number | null;
+  }): Promise<FinanceComplianceEventRecord[]> {
+    const items = Array.from(this.financeComplianceEventsById.values())
+      .filter((item) => (!input?.appName ? true : item.appName === input.appName))
+      .filter((item) => (!input?.sessionKey ? true : item.sessionKey === input.sessionKey))
+      .filter((item) => (!input?.channel ? true : item.channel === input.channel))
+      .filter((item) => (!input?.inputClassification ? true : item.inputClassification === input.inputClassification))
+      .filter((item) =>
+        !input?.outputClassification ? true : item.outputClassification === input.outputClassification,
+      )
+      .filter((item) => (!input?.riskLevel ? true : item.riskLevel === input.riskLevel))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const limit = input?.limit && input.limit > 0 ? input.limit : items.length;
+    return items.slice(0, limit);
+  }
+
+  async createFinanceComplianceEvent(
+    input: Required<CreateFinanceComplianceEventInput> & {id: string; created_at: string},
+  ): Promise<FinanceComplianceEventRecord> {
+    const record: FinanceComplianceEventRecord = {
+      id: input.id,
+      appName: input.app_name || '',
+      sessionKey: input.session_key || '',
+      conversationId: input.conversation_id || null,
+      channel: input.channel || 'chat',
+      sourceSurface: input.source_surface || null,
+      inputClassification: input.input_classification || null,
+      outputClassification: input.output_classification || null,
+      riskLevel: input.risk_level || 'medium',
+      showDisclaimer: input.show_disclaimer === true,
+      disclaimerText: input.disclaimer_text || null,
+      degraded: input.degraded === true,
+      blocked: input.blocked === true,
+      reasons: Array.isArray(input.reasons_json) ? input.reasons_json.filter((item) => typeof item === 'string') : [],
+      usedCapabilities: Array.isArray(input.used_capabilities_json)
+        ? input.used_capabilities_json.filter((item) => typeof item === 'string')
+        : [],
+      usedModel: input.used_model || null,
+      metadata: input.metadata_json || {},
+      createdAt: input.created_at,
+    };
+    this.financeComplianceEventsById.set(record.id, record);
+    return record;
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {

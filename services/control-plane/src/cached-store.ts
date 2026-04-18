@@ -3,6 +3,7 @@ import type {
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
   CreateDesktopFaultReportInput,
+  CreateFinanceComplianceEventInput,
   CreateClientMetricEventInput,
   CreateClientCrashEventInput,
   CreateClientPerfSampleInput,
@@ -48,6 +49,7 @@ import type {
   ClientMetricEventRecord,
   ClientCrashEventRecord,
   ClientPerfSampleRecord,
+  FinanceComplianceEventRecord,
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentProviderProfileInput,
@@ -603,6 +605,24 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     input: Array<Required<CreateClientPerfSampleInput> & {id: string; created_at: string}>,
   ): Promise<ClientPerfSampleRecord[]> {
     return this.base.createClientPerfSamples(input);
+  }
+
+  async listFinanceComplianceEvents(input?: {
+    appName?: string | null;
+    sessionKey?: string | null;
+    channel?: string | null;
+    inputClassification?: string | null;
+    outputClassification?: string | null;
+    riskLevel?: string | null;
+    limit?: number | null;
+  }): Promise<FinanceComplianceEventRecord[]> {
+    return this.base.listFinanceComplianceEvents(input);
+  }
+
+  async createFinanceComplianceEvent(
+    input: Required<CreateFinanceComplianceEventInput> & {id: string; created_at: string},
+  ): Promise<FinanceComplianceEventRecord> {
+    return this.base.createFinanceComplianceEvent(input);
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {
