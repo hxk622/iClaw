@@ -29,6 +29,8 @@ import type {
   AdminDesktopDiagnosticUploadView,
   AdminDesktopFaultReportDetailView,
   AdminDesktopFaultReportSummaryView,
+  AdminDesktopUpdateEventView,
+  AdminDesktopUpdateRolloutSummaryView,
   AdminClientMetricEventView,
   AdminClientCrashEventView,
   AdminRefundPaymentOrderInput,
@@ -898,6 +900,40 @@ function toAdminClientMetricEventView(record: ClientMetricEventRecord): AdminCli
     duration_ms: record.durationMs,
     payload: record.payload,
     created_at: record.createdAt,
+  };
+}
+
+function isDesktopUpdateMetricEventName(eventName: string): boolean {
+  return eventName.startsWith('desktop_update_');
+}
+
+function readPayloadString(payload: Record<string, unknown>, key: string): string | null {
+  const value = payload[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function resolveDesktopUpdateEventIdentity(record: ClientMetricEventRecord): string {
+  const payload = record.payload || {};
+  return (
+    readPayloadString(payload, 'update_identity') ||
+    readPayloadString(payload, 'rollout_id') ||
+    readPayloadString(payload, 'target_version') ||
+    `${record.appName}:${record.platform}:${record.arch}:${record.eventTime}`
+  );
+}
+
+function toAdminDesktopUpdateEventView(record: ClientMetricEventRecord): AdminDesktopUpdateEventView {
+  const base = toAdminClientMetricEventView(record);
+  const payload = record.payload || {};
+  return {
+    ...base,
+    rollout_id: readPayloadString(payload, 'rollout_id'),
+    update_identity: resolveDesktopUpdateEventIdentity(record),
+    target_version: readPayloadString(payload, 'target_version'),
+    current_version: readPayloadString(payload, 'current_version'),
+    update_mode: readPayloadString(payload, 'update_mode'),
+    trigger_source: readPayloadString(payload, 'trigger_source'),
+    status: readPayloadString(payload, 'status'),
   };
 }
 
@@ -3911,6 +3947,104 @@ export class ControlPlaneService {
       limit: input.limit,
     });
     return { items: items.map(toAdminClientMetricEventView) };
+  }
+
+  async listAdminDesktopUpdateEvents(
+    accessToken: string,
+    input: {
+      rollout_id?: string | null;
+      event_name?: string | null;
+      app_name?: string | null;
+      brand_id?: string | null;
+      platform?: string | null;
+      arch?: string | null;
+      target_version?: string | null;
+      result?: string | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminDesktopUpdateEventView[]}> {
+    await this.requireAdminUser(accessToken);
+    const records = await this.store.listClientMetricEvents({
+      eventName: input.event_name || null,
+      appName: input.app_name || null,
+      brandId: input.brand_id || null,
+      platform: input.platform || null,
+      result: input.result || null,
+      limit: input.limit && input.limit > 0 ? Math.max(input.limit, 500) : 500,
+    });
+    const items = records
+      .filter((record) => isDesktopUpdateMetricEventName(record.eventName))
+      .filter((record) => (!input.arch ? true : record.arch === input.arch))
+      .filter((record) => (!input.rollout_id ? true : readPayloadString(record.payload || {}, 'rollout_id') === input.rollout_id))
+      .filter((record) =>
+        !input.target_version ? true : readPayloadString(record.payload || {}, 'target_version') === input.target_version
+      )
+      .map(toAdminDesktopUpdateEventView);
+    const limit = input.limit && input.limit > 0 ? input.limit : items.length;
+    return { items: items.slice(0, limit) };
+  }
+
+  async listAdminDesktopUpdateRollouts(
+    accessToken: string,
+    input: {
+      app_name?: string | null;
+      brand_id?: string | null;
+      platform?: string | null;
+      arch?: string | null;
+      target_version?: string | null;
+      rollout_id?: string | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminDesktopUpdateRolloutSummaryView[]}> {
+    const events = await this.listAdminDesktopUpdateEvents(accessToken, {
+      app_name: input.app_name || null,
+      brand_id: input.brand_id || null,
+      platform: input.platform || null,
+      arch: input.arch || null,
+      target_version: input.target_version || null,
+      rollout_id: input.rollout_id || null,
+      limit: input.limit && input.limit > 0 ? Math.max(input.limit * 20, 500) : 1000,
+    });
+    const grouped = new Map<string, {latest: AdminDesktopUpdateEventView; items: AdminDesktopUpdateEventView[]}>();
+    for (const item of events.items) {
+      const key = item.update_identity;
+      const existing = grouped.get(key);
+      if (!existing) {
+        grouped.set(key, { latest: item, items: [item] });
+        continue;
+      }
+      existing.items.push(item);
+      if (item.event_time > existing.latest.event_time) {
+        existing.latest = item;
+      }
+    }
+    const summaries = Array.from(grouped.values()).map(({ latest, items }) => {
+      const uniqueDevices = new Set(items.map((item) => item.device_id));
+      return {
+        rollout_id: latest.rollout_id,
+        update_identity: latest.update_identity,
+        app_name: latest.app_name,
+        brand_id: latest.brand_id,
+        release_channel: latest.release_channel,
+        platform: latest.platform,
+        arch: latest.arch,
+        target_version: latest.target_version,
+        current_version: latest.current_version,
+        latest_event_name: latest.event_name,
+        latest_event_time: latest.event_time,
+        latest_result: latest.result,
+        latest_error_code: latest.error_code,
+        total_events: items.length,
+        success_events: items.filter((item) => item.result === 'success').length,
+        failed_events: items.filter((item) => item.result === 'failed').length,
+        unique_devices: uniqueDevices.size,
+        check_events: items.filter((item) => item.event_name === 'desktop_update_check').length,
+        execute_events: items.filter((item) => item.event_name === 'desktop_update_execute_start').length,
+        restart_success_events: items.filter((item) => item.event_name === 'desktop_update_restart_success').length,
+      } satisfies AdminDesktopUpdateRolloutSummaryView;
+    }).sort((left, right) => right.latest_event_time.localeCompare(left.latest_event_time));
+    const limit = input.limit && input.limit > 0 ? input.limit : summaries.length;
+    return { items: summaries.slice(0, limit) };
   }
 
   async listAdminClientCrashEvents(

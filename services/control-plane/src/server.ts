@@ -1637,6 +1637,38 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/admin/desktop-updates/events',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminDesktopUpdateEvents(requireBearerToken(headers), {
+        rollout_id: (url.searchParams.get('rollout_id') || url.searchParams.get('rolloutId') || '').trim() || null,
+        event_name: (url.searchParams.get('event_name') || url.searchParams.get('eventName') || '').trim() || null,
+        app_name: (url.searchParams.get('app_name') || url.searchParams.get('appName') || '').trim() || null,
+        brand_id: (url.searchParams.get('brand_id') || url.searchParams.get('brandId') || '').trim() || null,
+        platform: (url.searchParams.get('platform') || '').trim() || null,
+        arch: (url.searchParams.get('arch') || '').trim() || null,
+        target_version:
+          (url.searchParams.get('target_version') || url.searchParams.get('targetVersion') || '').trim() || null,
+        result: (url.searchParams.get('result') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/admin/desktop-updates/rollouts',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminDesktopUpdateRollouts(requireBearerToken(headers), {
+        rollout_id: (url.searchParams.get('rollout_id') || url.searchParams.get('rolloutId') || '').trim() || null,
+        app_name: (url.searchParams.get('app_name') || url.searchParams.get('appName') || '').trim() || null,
+        brand_id: (url.searchParams.get('brand_id') || url.searchParams.get('brandId') || '').trim() || null,
+        platform: (url.searchParams.get('platform') || '').trim() || null,
+        arch: (url.searchParams.get('arch') || '').trim() || null,
+        target_version:
+          (url.searchParams.get('target_version') || url.searchParams.get('targetVersion') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'GET',
     path: '/admin/client-metrics/crashes',
     handler: ({headers, url}: HandlerContext) =>
       service.listAdminClientCrashEvents(requireBearerToken(headers), {

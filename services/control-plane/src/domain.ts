@@ -845,6 +845,39 @@ export type AdminClientPerfSampleView = {
   created_at: string;
 };
 
+export type AdminDesktopUpdateEventView = AdminClientMetricEventView & {
+  rollout_id: string | null;
+  update_identity: string;
+  target_version: string | null;
+  current_version: string | null;
+  update_mode: string | null;
+  trigger_source: string | null;
+  status: string | null;
+};
+
+export type AdminDesktopUpdateRolloutSummaryView = {
+  rollout_id: string | null;
+  update_identity: string;
+  app_name: string;
+  brand_id: string;
+  release_channel: string | null;
+  platform: string;
+  arch: string;
+  target_version: string | null;
+  current_version: string | null;
+  latest_event_name: string;
+  latest_event_time: string;
+  latest_result: ClientMetricEventResult | null;
+  latest_error_code: string | null;
+  total_events: number;
+  success_events: number;
+  failed_events: number;
+  unique_devices: number;
+  check_events: number;
+  execute_events: number;
+  restart_success_events: number;
+};
+
 export type UpsertDesktopActionPolicyRuleInput = {
   id?: string | null;
   scope?: DesktopActionPolicyScope | null;

@@ -584,6 +584,100 @@ test('client metrics events and crash ingestion support anonymous and authentica
   assert.equal(storedCrashes.length, 1);
 });
 
+test('desktop updater metrics can be listed and summarized as rollout views', async () => {
+  await withBootstrapRoles({adminEmails: ['updater-admin@example.com']}, async () => {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+    const admin = await service.register({
+      username: 'updater-admin',
+      email: 'updater-admin@example.com',
+      password: 'password123',
+      name: 'Updater Admin',
+    });
+
+    await service.recordClientMetricEvents(null, [
+      {
+        event_name: 'desktop_update_check',
+        event_time: '2026-04-18T08:00:00.000Z',
+        device_id: 'device-updater-001',
+        app_name: 'caiclaw',
+        brand_id: 'caiclaw',
+        app_version: '1.0.8',
+        release_channel: 'prod',
+        platform: 'windows',
+        arch: 'x64',
+        result: 'success',
+        payload_json: {
+          rollout_id: 'desktop-prod-1.0.9-20260418080000',
+          update_identity: 'desktop-prod-1.0.9-20260418080000',
+          current_version: '1.0.8',
+          target_version: '1.0.9',
+          update_available: true,
+          update_mode: 'native',
+          status: 'update_available',
+        },
+      },
+      {
+        event_name: 'desktop_update_native_start',
+        event_time: '2026-04-18T08:00:05.000Z',
+        device_id: 'device-updater-001',
+        app_name: 'caiclaw',
+        brand_id: 'caiclaw',
+        app_version: '1.0.8',
+        release_channel: 'prod',
+        platform: 'windows',
+        arch: 'x64',
+        result: 'success',
+        payload_json: {
+          rollout_id: 'desktop-prod-1.0.9-20260418080000',
+          update_identity: 'desktop-prod-1.0.9-20260418080000',
+          current_version: '1.0.8',
+          target_version: '1.0.9',
+          update_mode: 'native',
+          status: 'downloading',
+        },
+      },
+      {
+        event_name: 'desktop_update_restart_success',
+        event_time: '2026-04-18T08:01:10.000Z',
+        device_id: 'device-updater-001',
+        app_name: 'caiclaw',
+        brand_id: 'caiclaw',
+        app_version: '1.0.9',
+        release_channel: 'prod',
+        platform: 'windows',
+        arch: 'x64',
+        result: 'success',
+        payload_json: {
+          rollout_id: 'desktop-prod-1.0.9-20260418080000',
+          update_identity: 'desktop-prod-1.0.9-20260418080000',
+          current_version: '1.0.9',
+          target_version: '1.0.9',
+          update_mode: 'native',
+          status: 'restart_restored',
+        },
+      },
+    ]);
+
+    const events = await service.listAdminDesktopUpdateEvents(admin.tokens.access_token, {
+      rollout_id: 'desktop-prod-1.0.9-20260418080000',
+    });
+    assert.equal(events.items.length, 3);
+    assert.equal(events.items[0]?.rollout_id, 'desktop-prod-1.0.9-20260418080000');
+    assert.equal(events.items[0]?.target_version, '1.0.9');
+
+    const rollouts = await service.listAdminDesktopUpdateRollouts(admin.tokens.access_token, {
+      rollout_id: 'desktop-prod-1.0.9-20260418080000',
+    });
+    assert.equal(rollouts.items.length, 1);
+    assert.equal(rollouts.items[0]?.total_events, 3);
+    assert.equal(rollouts.items[0]?.success_events, 3);
+    assert.equal(rollouts.items[0]?.restart_success_events, 1);
+    assert.equal(rollouts.items[0]?.latest_event_name, 'desktop_update_restart_success');
+    assert.equal(rollouts.items[0]?.target_version, '1.0.9');
+  });
+});
+
 test('client performance samples support anonymous and authenticated ingestion', async () => {
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneService(store);

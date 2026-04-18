@@ -128,6 +128,7 @@ import {
 } from './lib/desktop-updates';
 import { openExternalUrl } from './lib/open-external-url';
 import { executeDesktopUpdateUpgrade } from './lib/desktop-update-upgrade';
+import { buildDesktopUpdateMetricPayload, resolveDesktopUpdateMetricErrorCode } from './lib/desktop-update-metrics';
 import { syncManagedSkills, type SkillStoreItem } from './lib/skill-store';
 import { readCacheJson, readCacheString, writeCacheJson, writeCacheString } from './lib/persistence/cache-store';
 import { buildStorageKey } from './lib/storage';
@@ -1595,6 +1596,39 @@ export default function App() {
     [accessToken, client],
   );
 
+  const recordDesktopUpdateMetric = useCallback(
+    async (
+      eventName: string,
+      options: {
+        hint?: DesktopUpdateHint | null;
+        result?: 'success' | 'failed' | null;
+        errorCode?: string | null;
+        durationMs?: number | null;
+        updateMode?: 'native' | 'installer' | 'external' | 'unknown' | null;
+        triggerSource?: 'manual' | 'auto_forced' | 'startup_restore' | 'background_check' | 'manual_check' | null;
+        status?: string | null;
+        extra?: Record<string, unknown>;
+      } = {},
+    ) => {
+      await recordMetric(eventName, {
+        result: options.result ?? null,
+        errorCode: options.errorCode || null,
+        durationMs: options.durationMs ?? null,
+        payload: buildDesktopUpdateMetricPayload({
+          hint: options.hint || null,
+          currentVersion: DESKTOP_APP_VERSION,
+          releaseChannel: DESKTOP_RELEASE_CHANNEL,
+          runtimePlatform: DESKTOP_RUNTIME_PLATFORM,
+          updateMode: options.updateMode || null,
+          triggerSource: options.triggerSource || null,
+          status: options.status || null,
+          extra: options.extra,
+        }),
+      });
+    },
+    [recordMetric],
+  );
+
   useEffect(() => {
     if (launchStartTrackedRef.current) {
       return;
@@ -2008,6 +2042,15 @@ export default function App() {
     void clearDesktopUpdateSceneSnapshot()
       .then(() => {
         setDesktopUpdateStatusMessage('已恢复到升级前页面。');
+        void recordDesktopUpdateMetric('desktop_update_restart_success', {
+          result: 'success',
+          triggerSource: 'startup_restore',
+          status: 'restart_restored',
+          extra: {
+            target_version: snapshot.targetVersion,
+            installer_url: snapshot.installerUrl || null,
+          },
+        });
       })
       .catch((error) => {
         console.warn('[desktop] failed to clear desktop update scene snapshot', error);
@@ -2043,6 +2086,12 @@ export default function App() {
     setDesktopUpdateProgress(null);
     setDesktopUpdateDetail(null);
     setDesktopUpdateStatusMessage(`已跳过版本 ${desktopUpdateHint.latestVersion}`);
+    void recordDesktopUpdateMetric('desktop_update_skip', {
+      hint: desktopUpdateHint,
+      result: 'success',
+      triggerSource: 'manual',
+      status: 'skipped',
+    });
   };
 
   const handleCheckForDesktopUpdates = async (options: {silent?: boolean} = {}) => {
@@ -2060,6 +2109,7 @@ export default function App() {
         setDesktopUpdateDetail('正在检查是否有新版本。');
       }
     }
+    const startedAt = Date.now();
     try {
       const hint = await client.getDesktopUpdateHint({
         appVersion: DESKTOP_APP_VERSION,
@@ -2068,17 +2118,42 @@ export default function App() {
       desktopUpdateLastCheckedAtRef.current = Date.now();
       if (hint.updateAvailable) {
         setDesktopUpdateHint(hint);
+        void recordDesktopUpdateMetric('desktop_update_check', {
+          hint,
+          result: 'success',
+          durationMs: Date.now() - startedAt,
+          triggerSource: silent ? 'background_check' : 'manual_check',
+          status: 'update_available',
+        });
         if (!silent || normalizeDesktopUpdateEnforcementState(hint) !== 'recommended') {
           setDesktopUpdateStatusMessage(buildDesktopUpdateAnnouncement(hint));
         }
       } else {
         setDesktopUpdateHint(null);
+        void recordDesktopUpdateMetric('desktop_update_check', {
+          hint,
+          result: 'success',
+          durationMs: Date.now() - startedAt,
+          triggerSource: silent ? 'background_check' : 'manual_check',
+          status: 'up_to_date',
+        });
         if (!silent) {
           setDesktopUpdateStatusMessage('当前已是最新版本。');
         }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : '检查更新失败';
+      void recordDesktopUpdateMetric('desktop_update_check', {
+        hint: effectiveDesktopUpdateHint,
+        result: 'failed',
+        durationMs: Date.now() - startedAt,
+        triggerSource: silent ? 'background_check' : 'manual_check',
+        status: 'check_failed',
+        errorCode: resolveDesktopUpdateMetricErrorCode(error) || 'desktop_update_check_failed',
+        extra: {
+          error_message: message,
+        },
+      });
       if (!silent) {
         setDesktopUpdateError(message);
         setDesktopUpdateStatusMessage(message);
@@ -2091,11 +2166,18 @@ export default function App() {
     }
   };
 
-  const handleUpgradeDesktopApp = useCallback(async () => {
+  const handleUpgradeDesktopApp = useCallback(async (triggerSource: 'manual' | 'auto_forced' = 'manual') => {
     if (!effectiveDesktopUpdateHint) return;
+    const startedAt = Date.now();
     setDesktopUpdateActionState('checking');
     setDesktopUpdateError(null);
     setDesktopUpdateStatusMessage(null);
+    void recordDesktopUpdateMetric('desktop_update_execute_start', {
+      hint: effectiveDesktopUpdateHint,
+      triggerSource,
+      status: 'execute_start',
+      updateMode: IS_TAURI_RUNTIME ? 'native' : 'external',
+    });
     try {
       if (IS_TAURI_RUNTIME) {
         await writeDesktopUpdateSceneSnapshot({
@@ -2136,11 +2218,45 @@ export default function App() {
         setDesktopUpdateActionState('downloading');
         setDesktopUpdateProgress(result.progress);
         setDesktopUpdateDetail(result.detail);
+        void recordDesktopUpdateMetric('desktop_update_native_start', {
+          hint: effectiveDesktopUpdateHint,
+          result: 'success',
+          durationMs: Date.now() - startedAt,
+          triggerSource,
+          updateMode: 'native',
+          status: 'downloading',
+          extra: {
+            progress: result.progress,
+            detail: result.detail,
+          },
+        });
         return;
       }
 
       setDesktopUpdateActionState(result.actionState);
       setDesktopUpdateStatusMessage(result.statusMessage);
+      if (result.mode === 'installer') {
+        void recordDesktopUpdateMetric('desktop_update_installer_launch', {
+          hint: effectiveDesktopUpdateHint,
+          result: 'success',
+          durationMs: Date.now() - startedAt,
+          triggerSource,
+          updateMode: 'installer',
+          status: result.actionState,
+        });
+      } else if (result.mode === 'external') {
+        void recordDesktopUpdateMetric('desktop_update_external_open', {
+          hint: effectiveDesktopUpdateHint,
+          result: 'success',
+          durationMs: Date.now() - startedAt,
+          triggerSource,
+          updateMode: 'external',
+          status: result.actionState,
+          extra: {
+            opened_url: result.openedUrl,
+          },
+        });
+      }
     } catch (error) {
       if (IS_TAURI_RUNTIME) {
         void clearDesktopUpdateSceneSnapshot().catch((clearError) => {
@@ -2149,10 +2265,23 @@ export default function App() {
       }
       desktopUpdateAutoTriggeredVersionRef.current = null;
       setDesktopUpdateActionState('idle');
-      setDesktopUpdateError(error instanceof Error ? error.message : '打开更新链接失败');
-      setDesktopUpdateStatusMessage(error instanceof Error ? error.message : '打开更新链接失败');
+      const message = error instanceof Error ? error.message : '打开更新链接失败';
+      void recordDesktopUpdateMetric('desktop_update_execute_failed', {
+        hint: effectiveDesktopUpdateHint,
+        result: 'failed',
+        durationMs: Date.now() - startedAt,
+        triggerSource,
+        updateMode: IS_TAURI_RUNTIME ? 'native' : 'external',
+        status: 'execute_failed',
+        errorCode: resolveDesktopUpdateMetricErrorCode(error) || 'desktop_update_execute_failed',
+        extra: {
+          error_message: message,
+        },
+      });
+      setDesktopUpdateError(message);
+      setDesktopUpdateStatusMessage(message);
     }
-  }, [effectiveDesktopUpdateHint, overlayView, primaryView]);
+  }, [IS_TAURI_RUNTIME, effectiveDesktopUpdateHint, overlayView, primaryView, recordDesktopUpdateMetric]);
 
   const handleRestartDesktopApp = async () => {
     if (!IS_TAURI_RUNTIME) return;
@@ -2177,7 +2306,7 @@ export default function App() {
       return;
     }
     desktopUpdateAutoTriggeredVersionRef.current = updateIdentity;
-    void handleUpgradeDesktopApp();
+    void handleUpgradeDesktopApp('auto_forced');
   }, [
     desktopUpdateActionState,
     desktopUpdateGateState,

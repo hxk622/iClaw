@@ -118,6 +118,21 @@ This phase does not yet fully implement:
 - update telemetry warehouse
 - admin rollout UI
 
+## 6.1 Minimal Telemetry Enhancement
+
+To avoid over-design, updater telemetry should reuse the existing `client_metric_events` pipeline before introducing new tables.
+
+Current minimal enhancement:
+
+- desktop emits `desktop_update_*` events into the existing client metrics channel
+- payload carries `rollout_id`, `update_identity`, `current_version`, `target_version`, `update_mode`, `trigger_source`, and `status`
+- control-plane exposes updater-focused admin queries by aggregating those events instead of creating a parallel updater metrics store
+
+Admin query endpoints:
+
+- `GET /admin/desktop-updates/events`
+- `GET /admin/desktop-updates/rollouts`
+
 ## 7. Next Architecture Steps
 
 ### P1
