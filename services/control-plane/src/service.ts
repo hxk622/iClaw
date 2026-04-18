@@ -57,6 +57,7 @@ import type {
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
   CreateDesktopFaultReportInput,
+  CreateFinanceComplianceEventInput,
   CreateClientMetricEventInput,
   CreateClientCrashEventInput,
   CreateClientPerfSampleInput,
@@ -85,6 +86,12 @@ import type {
   ClientPerfMetricName,
   ClientPerfSampleRecord,
   AdminClientPerfSampleView,
+  AdminFinanceComplianceEventView,
+  FinanceComplianceChannel,
+  FinanceComplianceEventRecord,
+  FinanceComplianceRiskLevel,
+  FinanceInputClassification,
+  FinanceOutputClassification,
   ExtensionInstallTarget,
   ExtensionSetupStatus,
   ImportUserPrivateSkillInput,
@@ -230,6 +237,21 @@ const CLIENT_PERF_METRIC_NAMES = new Set<ClientPerfMetricName>([
   'api_latency_ms',
   'memory_mb',
   'cpu_percent',
+]);
+const FINANCE_COMPLIANCE_CHANNELS = new Set<FinanceComplianceChannel>(['chat', 'cron', 'notification', 'report']);
+const FINANCE_COMPLIANCE_RISK_LEVELS = new Set<FinanceComplianceRiskLevel>(['low', 'medium', 'high']);
+const FINANCE_INPUT_CLASSIFICATIONS = new Set<FinanceInputClassification>([
+  'market_info',
+  'research_request',
+  'advice_request',
+  'personalized_request',
+  'execution_request',
+]);
+const FINANCE_OUTPUT_CLASSIFICATIONS = new Set<FinanceOutputClassification>([
+  'market_data',
+  'research_summary',
+  'investment_view',
+  'actionable_advice',
 ]);
 
 type ImBotPlatformId =
@@ -977,6 +999,29 @@ function toAdminClientPerfSampleView(record: ClientPerfSampleRecord): AdminClien
     unit: record.unit,
     sample_rate: record.sampleRate,
     payload: record.payload,
+    created_at: record.createdAt,
+  };
+}
+
+function toAdminFinanceComplianceEventView(record: FinanceComplianceEventRecord): AdminFinanceComplianceEventView {
+  return {
+    id: record.id,
+    app_name: record.appName,
+    session_key: record.sessionKey,
+    conversation_id: record.conversationId,
+    channel: record.channel,
+    source_surface: record.sourceSurface,
+    input_classification: record.inputClassification,
+    output_classification: record.outputClassification,
+    risk_level: record.riskLevel,
+    show_disclaimer: record.showDisclaimer,
+    disclaimer_text: record.disclaimerText,
+    degraded: record.degraded,
+    blocked: record.blocked,
+    reasons: record.reasons,
+    used_capabilities: record.usedCapabilities,
+    used_model: record.usedModel,
+    metadata: record.metadata,
     created_at: record.createdAt,
   };
 }
@@ -4735,6 +4780,124 @@ export class ControlPlaneService {
       }),
     );
     return { items: records };
+  }
+
+  async recordFinanceComplianceEvents(
+    accessToken: string | null,
+    input: CreateFinanceComplianceEventInput | CreateFinanceComplianceEventInput[],
+  ): Promise<{items: FinanceComplianceEventRecord[]}> {
+    await this.getOptionalUserForAccessToken(accessToken);
+    const items = Array.isArray(input) ? input : [input];
+    if (items.length === 0) {
+      return {items: []};
+    }
+    const records = await Promise.all(
+      items.map((item) => {
+        const appName = String(item.app_name || '').trim().toLowerCase();
+        const sessionKey = String(item.session_key || '').trim();
+        const channel = String(item.channel || '').trim().toLowerCase() as FinanceComplianceChannel;
+        const riskLevel = String(item.risk_level || '').trim().toLowerCase() as FinanceComplianceRiskLevel;
+        if (!appName || !sessionKey || !channel || !riskLevel) {
+          throw new HttpError(400, 'BAD_REQUEST', 'app_name, session_key, channel, risk_level are required');
+        }
+        if (!FINANCE_COMPLIANCE_CHANNELS.has(channel)) {
+          throw new HttpError(400, 'BAD_REQUEST', 'invalid finance compliance channel');
+        }
+        if (!FINANCE_COMPLIANCE_RISK_LEVELS.has(riskLevel)) {
+          throw new HttpError(400, 'BAD_REQUEST', 'invalid finance compliance risk_level');
+        }
+        const inputClassification =
+          normalizeOptionalCatalogString(item.input_classification, 'input_classification', {
+            allowNull: true,
+            trimToNull: true,
+          }) ?? null;
+        if (inputClassification && !FINANCE_INPUT_CLASSIFICATIONS.has(inputClassification as FinanceInputClassification)) {
+          throw new HttpError(400, 'BAD_REQUEST', 'invalid finance input_classification');
+        }
+        const outputClassification =
+          normalizeOptionalCatalogString(item.output_classification, 'output_classification', {
+            allowNull: true,
+            trimToNull: true,
+          }) ?? null;
+        if (
+          outputClassification &&
+          !FINANCE_OUTPUT_CLASSIFICATIONS.has(outputClassification as FinanceOutputClassification)
+        ) {
+          throw new HttpError(400, 'BAD_REQUEST', 'invalid finance output_classification');
+        }
+        return this.store.createFinanceComplianceEvent({
+          id: normalizeOptionalCatalogString(item.id, 'id', {allowNull: true, trimToNull: true}) || randomUUID(),
+          app_name: appName,
+          session_key: sessionKey,
+          conversation_id:
+            normalizeOptionalCatalogString(item.conversation_id, 'conversation_id', {
+              allowNull: true,
+              trimToNull: true,
+            }) ?? null,
+          channel,
+          source_surface:
+            normalizeOptionalCatalogString(item.source_surface, 'source_surface', {
+              allowNull: true,
+              trimToNull: true,
+            }) ?? null,
+          input_classification: inputClassification as FinanceInputClassification | null,
+          output_classification: outputClassification as FinanceOutputClassification | null,
+          risk_level: riskLevel,
+          show_disclaimer: item.show_disclaimer === true,
+          disclaimer_text:
+            normalizeOptionalCatalogString(item.disclaimer_text, 'disclaimer_text', {
+              allowNull: true,
+              trimToNull: true,
+            }) ?? null,
+          degraded: item.degraded === true,
+          blocked: item.blocked === true,
+          reasons_json: Array.isArray(item.reasons_json)
+            ? item.reasons_json.filter((value): value is string => typeof value === 'string')
+            : [],
+          used_capabilities_json: Array.isArray(item.used_capabilities_json)
+            ? item.used_capabilities_json.filter((value): value is string => typeof value === 'string')
+            : [],
+          used_model:
+            normalizeOptionalCatalogString(item.used_model, 'used_model', {
+              allowNull: true,
+              trimToNull: true,
+            }) ?? null,
+          metadata_json:
+            item.metadata_json && typeof item.metadata_json === 'object' && !Array.isArray(item.metadata_json)
+              ? item.metadata_json
+              : {},
+          created_at:
+            normalizeOptionalCatalogString(item.created_at, 'created_at', {allowNull: true, trimToNull: true}) ||
+            new Date().toISOString(),
+        });
+      }),
+    );
+    return {items: records};
+  }
+
+  async listAdminFinanceComplianceEvents(
+    accessToken: string,
+    input: {
+      app_name?: string | null;
+      session_key?: string | null;
+      channel?: string | null;
+      input_classification?: string | null;
+      output_classification?: string | null;
+      risk_level?: string | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminFinanceComplianceEventView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listFinanceComplianceEvents({
+      appName: input.app_name || null,
+      sessionKey: input.session_key || null,
+      channel: input.channel || null,
+      inputClassification: input.input_classification || null,
+      outputClassification: input.output_classification || null,
+      riskLevel: input.risk_level || null,
+      limit: input.limit,
+    });
+    return {items: items.map(toAdminFinanceComplianceEventView)};
   }
 
   async getWorkspaceBackup(accessToken: string): Promise<WorkspaceBackupView | null> {

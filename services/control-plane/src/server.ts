@@ -22,6 +22,7 @@ import type {
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
   CreateDesktopFaultReportInput,
+  CreateFinanceComplianceEventInput,
   CreateClientMetricEventInput,
   CreateClientCrashEventInput,
   CreateClientPerfSampleInput,
@@ -2289,6 +2290,20 @@ const server = createJsonServer([
     },
   },
   {
+    method: 'GET',
+    path: '/admin/finance-compliance/events',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminFinanceComplianceEvents(requireBearerToken(headers), {
+        app_name: url.searchParams.get('app_name'),
+        session_key: url.searchParams.get('session_key'),
+        channel: url.searchParams.get('channel'),
+        input_classification: url.searchParams.get('input_classification'),
+        output_classification: url.searchParams.get('output_classification'),
+        risk_level: url.searchParams.get('risk_level'),
+        limit: url.searchParams.get('limit') ? Number.parseInt(url.searchParams.get('limit') || '', 10) : null,
+      }),
+  },
+  {
     method: 'POST',
     path: '/portal/client-metrics/events',
     handler: ({headers, body}: HandlerContext) =>
@@ -2312,6 +2327,16 @@ const server = createJsonServer([
         readBearerToken(headers),
         ((body || {}) as { items?: CreateClientPerfSampleInput[] }).items ||
           ((body || {}) as CreateClientPerfSampleInput | CreateClientPerfSampleInput[]),
+      ),
+  },
+  {
+    method: 'POST',
+    path: '/portal/finance-compliance/events',
+    handler: ({headers, body}: HandlerContext) =>
+      service.recordFinanceComplianceEvents(
+        readBearerToken(headers),
+        ((body || {}) as {items?: CreateFinanceComplianceEventInput[]}).items ||
+          ((body || {}) as CreateFinanceComplianceEventInput | CreateFinanceComplianceEventInput[]),
       ),
   },
   {

@@ -880,6 +880,27 @@ export type AdminClientPerfSampleView = {
   created_at: string;
 };
 
+export type AdminFinanceComplianceEventView = {
+  id: string;
+  app_name: string;
+  session_key: string;
+  conversation_id: string | null;
+  channel: FinanceComplianceChannel;
+  source_surface: string | null;
+  input_classification: FinanceInputClassification | null;
+  output_classification: FinanceOutputClassification | null;
+  risk_level: FinanceComplianceRiskLevel;
+  show_disclaimer: boolean;
+  disclaimer_text: string | null;
+  degraded: boolean;
+  blocked: boolean;
+  reasons: string[];
+  used_capabilities: string[];
+  used_model: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
 export type AdminDesktopUpdateEventView = AdminClientMetricEventView & {
   rollout_id: string | null;
   update_identity: string;

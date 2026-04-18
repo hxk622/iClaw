@@ -242,6 +242,11 @@ interface RecordClientPerfSamplesInput {
   items: Array<Record<string, unknown>>;
 }
 
+interface RecordFinanceComplianceEventsInput {
+  token?: string | null;
+  items: Array<Record<string, unknown>>;
+}
+
 interface InstallSkillLibraryInput {
   token: string;
   slug: string;
@@ -415,6 +420,33 @@ export interface ClientPerfSampleData {
   unit: string;
   sample_rate: number | null;
   payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface FinanceComplianceEventData {
+  id: string;
+  app_name: string;
+  session_key: string;
+  conversation_id: string | null;
+  channel: 'chat' | 'cron' | 'notification' | 'report';
+  source_surface: string | null;
+  input_classification:
+    | 'market_info'
+    | 'research_request'
+    | 'advice_request'
+    | 'personalized_request'
+    | 'execution_request'
+    | null;
+  output_classification: 'market_data' | 'research_summary' | 'investment_view' | 'actionable_advice' | null;
+  risk_level: 'low' | 'medium' | 'high';
+  show_disclaimer: boolean;
+  disclaimer_text: string | null;
+  degraded: boolean;
+  blocked: boolean;
+  reasons: string[];
+  used_capabilities: string[];
+  used_model: string | null;
+  metadata: Record<string, unknown>;
   created_at: string;
 }
 
@@ -1991,6 +2023,23 @@ export class IClawClient {
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as { data: { items: ClientPerfSampleData[] } };
+    return Array.isArray(json.data?.items) ? json.data.items : [];
+  }
+
+  async recordFinanceComplianceEvents(input: RecordFinanceComplianceEventsInput): Promise<FinanceComplianceEventData[]> {
+    const res = await this.fetchAuth('/portal/finance-compliance/events', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        ...(input.token?.trim() ? { Authorization: `Bearer ${input.token.trim()}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        items: input.items,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as { data: { items: FinanceComplianceEventData[] } };
     return Array.isArray(json.data?.items) ? json.data.items : [];
   }
 
