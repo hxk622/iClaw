@@ -12,7 +12,7 @@ import {
   WifiOff,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { CreditQuoteData, IClawClient, MarketFundData, MarketStockData, RunBillingSummaryData } from '@iclaw/sdk';
 import '@openclaw-ui/main.ts';
@@ -95,6 +95,7 @@ import {
   readChatTurns,
   setChatTurnFinanceCompliance,
   startChatTurn,
+  useChatTurns,
 } from '../lib/chat-turns';
 import { buildHeuristicFinanceComplianceEnvelope } from '../lib/finance-compliance';
 import { recordFinanceComplianceEvents } from '../lib/finance-compliance-events';
@@ -4662,6 +4663,22 @@ export function OpenClawChatSurface({
     estimatedInputTokens: null,
     estimatedOutputTokens: null,
   });
+  const chatTurns = useChatTurns();
+  const latestFinanceComplianceTurn = useMemo(
+    () =>
+      chatTurns.find(
+        (turn) =>
+          turn.source === 'chat' &&
+          turn.conversationId === conversationId &&
+          (turn.financeCompliance?.degraded || turn.financeCompliance?.blocked),
+      ) ?? null,
+    [chatTurns, conversationId],
+  );
+  const financeComplianceBannerText = latestFinanceComplianceTurn?.financeCompliance?.blocked
+    ? '当前请求涉及高风险金融执行或受限建议场景，界面仅按研究参考口径展示，不直接支持执行性结论。'
+    : latestFinanceComplianceTurn?.financeCompliance?.degraded
+      ? '当前回答已按研究参考口径展示。请结合前提、风险与失效条件自行判断，不应直接视为投资建议。'
+      : null;
 
   useEffect(() => {
     if (!runtimeStateKey) {
@@ -9449,6 +9466,14 @@ export function OpenClawChatSurface({
               >
                 <X className="h-4 w-4" />
               </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {financeComplianceBannerText ? (
+          <div className="mb-4">
+            <div className="rounded-[16px] border border-[rgba(168,140,93,0.24)] bg-[rgba(168,140,93,0.10)] px-4 py-3 text-[13px] leading-6 text-[var(--brand-primary)] shadow-[0_8px_20px_rgba(168,140,93,0.08)]">
+              {financeComplianceBannerText}
             </div>
           </div>
         ) : null}
