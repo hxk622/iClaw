@@ -1180,6 +1180,15 @@ function findLatestArtifactToolCard(host: HTMLElement): HTMLElement | null {
   return null;
 }
 
+function hasAnyArtifactToolCard(host: HTMLElement | null): boolean {
+  if (!host) {
+    return false;
+  }
+  return Array.from(host.querySelectorAll('.chat-tool-card--clickable')).some(
+    (node): boolean => node instanceof HTMLElement && isLikelyArtifactToolCard(node),
+  );
+}
+
 function collectLatestArtifactKinds(host: HTMLElement | null): ReturnType<typeof inferChatTurnArtifactsFromText> {
   if (!host) {
     return [];
@@ -4698,6 +4707,7 @@ export function OpenClawChatSurface({
   const [pendingSettlementCount, setPendingSettlementCount] = useState(0);
   const [queuedMessages, setQueuedMessages] = useState<QueuedComposerMessage[]>([]);
   const [artifactPreview, setArtifactPreview] = useState<ArtifactPreviewState | null>(null);
+  const [hasArtifactWorkbench, setHasArtifactWorkbench] = useState(false);
   const [creditEstimate, setCreditEstimate] = useState<ComposerCreditEstimateState>({
     loading: false,
     low: null,
@@ -7408,6 +7418,15 @@ export function OpenClawChatSurface({
   }, [artifactPreview, renderState.chatMessageCount, renderState.groupCount]);
 
   useEffect(() => {
+    const host = hostRef.current;
+    if (!host) {
+      setHasArtifactWorkbench(false);
+      return;
+    }
+    setHasArtifactWorkbench(hasAnyArtifactToolCard(host));
+  }, [renderState.chatMessageCount, renderState.groupCount, status.busy, sessionKey, conversationId]);
+
+  useEffect(() => {
     if (!selectionMenu) {
       return;
     }
@@ -8978,6 +8997,7 @@ export function OpenClawChatSurface({
   const artifactPreviewSizeLabel = formatArtifactFileSize(artifactPreview?.sizeBytes ?? null);
   const artifactPreviewOfficeLabel = resolveArtifactOfficeLabel(artifactPreviewExtension);
   const artifactPreviewOpenVerb = resolveArtifactOpenVerb(artifactPreviewExtension);
+  const artifactWorkbenchVisible = hasArtifactWorkbench || Boolean(artifactPreview);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -9739,7 +9759,7 @@ export function OpenClawChatSurface({
         >
           <div
             className={`iclaw-chat-stage flex min-h-0 min-w-0 flex-1 overflow-hidden ${
-              artifactPreview ? 'iclaw-chat-stage--artifact-open' : ''
+              artifactWorkbenchVisible ? 'iclaw-chat-stage--artifact-open' : ''
             }`}
           >
             <div className="iclaw-chat-stage__main min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -9994,50 +10014,52 @@ export function OpenClawChatSurface({
               </div>
             </div>
 
-            {artifactPreview ? (
+            {artifactWorkbenchVisible ? (
               <aside className="iclaw-artifact-preview-pane">
-                <div className="iclaw-artifact-preview-pane__header">
-                  <div className="iclaw-artifact-preview-pane__meta">
-                    <div className="iclaw-artifact-preview-pane__title">{artifactPreview.title}</div>
-                    <div className="iclaw-artifact-preview-pane__path">{artifactPreview.path}</div>
-                    {artifactPreview.actionError ? (
-                      <div className="iclaw-artifact-preview-pane__action-error">{artifactPreview.actionError}</div>
-                    ) : null}
-                  </div>
-                  <div className="iclaw-artifact-preview-pane__actions">
-                    {artifactPreview.openPath && artifactPreview.actionLabel ? (
-                      <Button
-                        size="sm"
-                        variant="ink"
-                        className="iclaw-artifact-preview-pane__open-button"
-                        leadingIcon={<ExternalLink className="h-4 w-4" />}
-                        onClick={() => {
-                          void handleOpenArtifactSourceFile(artifactPreview.openPath);
-                        }}
-                      >
-                        {artifactPreview.actionLabel}
-                      </Button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="iclaw-artifact-preview-pane__close"
-                      aria-label="关闭制品预览"
-                      title="关闭制品预览"
-                      onClick={closeArtifactPreview}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                <div className="iclaw-artifact-preview-pane__body">
-                  {artifactPreview.loading ? (
+                {artifactPreview ? (
+                  <>
+                    <div className="iclaw-artifact-preview-pane__header">
+                      <div className="iclaw-artifact-preview-pane__meta">
+                        <div className="iclaw-artifact-preview-pane__title">{artifactPreview.title}</div>
+                        <div className="iclaw-artifact-preview-pane__path">{artifactPreview.path}</div>
+                        {artifactPreview.actionError ? (
+                          <div className="iclaw-artifact-preview-pane__action-error">{artifactPreview.actionError}</div>
+                        ) : null}
+                      </div>
+                      <div className="iclaw-artifact-preview-pane__actions">
+                        {artifactPreview.openPath && artifactPreview.actionLabel ? (
+                          <Button
+                            size="sm"
+                            variant="ink"
+                            className="iclaw-artifact-preview-pane__open-button"
+                            leadingIcon={<ExternalLink className="h-4 w-4" />}
+                            onClick={() => {
+                              void handleOpenArtifactSourceFile(artifactPreview.openPath);
+                            }}
+                          >
+                            {artifactPreview.actionLabel}
+                          </Button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="iclaw-artifact-preview-pane__close"
+                          aria-label="关闭制品预览"
+                          title="关闭制品预览"
+                          onClick={closeArtifactPreview}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="iclaw-artifact-preview-pane__body">
+                      {artifactPreview.loading ? (
                     <div className="iclaw-artifact-preview-pane__state iclaw-artifact-preview-pane__state--loading" role="status" aria-live="polite">
                       <div className="iclaw-artifact-preview-pane__state-stack">
                         <Loader2 className="h-8 w-8 animate-spin text-[var(--text-secondary)]" />
                         <div className="iclaw-artifact-preview-pane__state-copy">Loading preview...</div>
                       </div>
                     </div>
-                  ) : artifactPreview.error ? (
+                      ) : artifactPreview.error ? (
                     <div className="iclaw-artifact-preview-pane__state iclaw-artifact-preview-pane__state--error">
                       <div className="iclaw-artifact-preview-pane__error-shell">
                         <div className="iclaw-artifact-preview-pane__error-icon">
@@ -10064,7 +10086,7 @@ export function OpenClawChatSurface({
                         </div>
                       </div>
                     </div>
-                  ) : artifactPreview.kind === 'pdf' ? (
+                      ) : artifactPreview.kind === 'pdf' ? (
                     <div className="iclaw-artifact-preview-pane__pdf-shell">
                       <div className="iclaw-artifact-preview-pane__pdf-card">
                         <div className="iclaw-artifact-preview-pane__pdf-toolbar">
@@ -10087,14 +10109,14 @@ export function OpenClawChatSurface({
                         </div>
                       </div>
                     </div>
-                  ) : artifactPreview.kind === 'html' ? (
+                      ) : artifactPreview.kind === 'html' ? (
                     <iframe
                       title={artifactPreview.title}
                       className="iclaw-artifact-preview-pane__frame"
                       sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
                       srcDoc={artifactPreview.content ?? ''}
                     />
-                  ) : artifactPreview.kind === 'office' ? (
+                      ) : artifactPreview.kind === 'office' ? (
                     <div className="iclaw-artifact-preview-pane__state iclaw-artifact-preview-pane__state--office">
                       <div className="iclaw-artifact-preview-pane__office-shell">
                         <div className="iclaw-artifact-preview-pane__office-icon">
@@ -10139,19 +10161,38 @@ export function OpenClawChatSurface({
                         </div>
                       </div>
                     </div>
-                  ) : artifactPreview.kind === 'markdown' && artifactPreviewMarkup ? (
+                      ) : artifactPreview.kind === 'markdown' && artifactPreviewMarkup ? (
                     <div className="iclaw-artifact-preview-pane__markdown-shell">
                       <div
                         className="iclaw-artifact-preview-pane__markdown"
                         dangerouslySetInnerHTML={artifactPreviewMarkup}
                       />
                     </div>
-                  ) : (
+                      ) : (
                     <div className="iclaw-artifact-preview-pane__text-shell">
                       <pre className="iclaw-artifact-preview-pane__text">{artifactPreview.content ?? ''}</pre>
                     </div>
-                  )}
-                </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="iclaw-artifact-preview-pane__header">
+                      <div className="iclaw-artifact-preview-pane__meta">
+                        <div className="iclaw-artifact-preview-pane__title">No artifact selected</div>
+                        <div className="iclaw-artifact-preview-pane__path">Click an artifact card to preview it here</div>
+                      </div>
+                    </div>
+                    <div className="iclaw-artifact-preview-pane__body">
+                      <div className="iclaw-artifact-preview-pane__state iclaw-artifact-preview-pane__state--empty">
+                        <div className="iclaw-artifact-preview-pane__state-stack">
+                          <FileText className="h-8 w-8 text-[var(--text-secondary)]" />
+                          <div className="iclaw-artifact-preview-pane__state-copy">Select an artifact card from the chat thread to open the workbench.</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </aside>
             ) : null}
           </div>

@@ -3005,7 +3005,8 @@ body {
 
 .iclaw-artifact-preview-pane__state--loading,
 .iclaw-artifact-preview-pane__state--office,
-.iclaw-artifact-preview-pane__state--error {
+.iclaw-artifact-preview-pane__state--error,
+.iclaw-artifact-preview-pane__state--empty {
   display: flex;
   align-items: center;
   justify-content: center;
