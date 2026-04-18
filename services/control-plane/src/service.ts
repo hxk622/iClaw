@@ -3140,6 +3140,21 @@ export class ControlPlaneService {
     };
   }
 
+  async refreshExtensionSession(refreshToken: string): Promise<ExtensionSessionView> {
+    const payload = await this.refresh(refreshToken);
+    const user = await this.getUserForAccessToken(payload.access_token);
+    return {
+      access_token: payload.access_token,
+      refresh_token: payload.refresh_token,
+      expires_in: payload.expires_in,
+      refresh_expires_in: config.refreshTokenTtlSeconds,
+      token_type: 'Bearer',
+      scope: ['knowledge.raw.read', 'knowledge.raw.write', 'profile.basic.read'],
+      audience: 'extension',
+      user: toPublicUser(user),
+    };
+  }
+
   async updateProfile(accessToken: string, input: UpdateProfileInput): Promise<PublicUser> {
     const user = await this.getUserForAccessToken(accessToken);
     const nextName = input.name?.trim();

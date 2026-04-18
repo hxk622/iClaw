@@ -1,5 +1,6 @@
 const TOGGLE_MESSAGE_TYPE = 'ICLAW_EXTENSION_TOGGLE_PANEL';
 const REQUEST_DESKTOP_SESSION_MESSAGE_TYPE = 'ICLAW_EXTENSION_REQUEST_DESKTOP_SESSION';
+const REFRESH_DESKTOP_SESSION_MESSAGE_TYPE = 'ICLAW_EXTENSION_REFRESH_DESKTOP_SESSION';
 const BRIDGE_BASE = 'http://127.0.0.1:1537';
 const SESSION_TIMEOUT_MS = 1800;
 
@@ -35,10 +36,18 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 async function requestDesktopSession(payload) {
+  return requestBridgeJson('/v1/extension/session', payload);
+}
+
+async function refreshDesktopSession(payload) {
+  return requestBridgeJson('/v1/extension/refresh', payload);
+}
+
+async function requestBridgeJson(path, payload) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SESSION_TIMEOUT_MS);
   try {
-    const response = await fetch(`${BRIDGE_BASE}/v1/extension/session`, {
+    const response = await fetch(`${BRIDGE_BASE}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload || {}),
@@ -59,6 +68,12 @@ async function requestDesktopSession(payload) {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === REQUEST_DESKTOP_SESSION_MESSAGE_TYPE) {
     requestDesktopSession(message.payload)
+      .then((result) => sendResponse(result || { ok: false, error: 'UNKNOWN_ERROR' }))
+      .catch(() => sendResponse({ ok: false, error: 'UNKNOWN_ERROR' }));
+    return true;
+  }
+  if (message?.type === REFRESH_DESKTOP_SESSION_MESSAGE_TYPE) {
+    refreshDesktopSession(message.payload)
       .then((result) => sendResponse(result || { ok: false, error: 'UNKNOWN_ERROR' }))
       .catch(() => sendResponse({ ok: false, error: 'UNKNOWN_ERROR' }));
     return true;

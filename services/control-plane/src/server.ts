@@ -760,6 +760,12 @@ const server = createJsonServer([
       ),
   },
   {
+    method: 'POST',
+    path: '/auth/extension/refresh',
+    handler: ({body}: HandlerContext) =>
+      service.refreshExtensionSession(String((body as {refresh_token?: string} | null)?.refresh_token || '')),
+  },
+  {
     method: 'PUT',
     path: '/auth/profile',
     handler: ({headers, body}: HandlerContext) =>

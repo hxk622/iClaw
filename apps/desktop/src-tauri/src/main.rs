@@ -1081,6 +1081,12 @@ struct DesktopExtensionSessionResponse {
     user: serde_json::Value,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct DesktopExtensionRefreshInput {
+    refresh_token: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ExtensionBridgeResponse {
@@ -6895,6 +6901,29 @@ fn issue_extension_session_via_control_plane(
     Ok(envelope.data)
 }
 
+fn refresh_extension_session_via_control_plane(
+    input: &DesktopExtensionRefreshInput,
+) -> Result<DesktopExtensionSessionResponse, String> {
+    let auth_base_url = desktop_auth_base_url()?;
+    let client = build_desktop_auth_client()?;
+    let headers = desktop_auth_headers()?;
+    let response = client
+        .post(format!("{auth_base_url}/auth/extension/refresh"))
+        .headers(headers)
+        .json(&json!({
+            "refresh_token": input.refresh_token.trim(),
+        }))
+        .send()
+        .map_err(|e| format!("extension refresh request failed: {e}"))?;
+    if !response.status().is_success() {
+        return Err(parse_desktop_error_response(response)?);
+    }
+    let envelope = response
+        .json::<ControlPlaneEnvelope<DesktopExtensionSessionResponse>>()
+        .map_err(|e| format!("failed to parse extension refresh response: {e}"))?;
+    Ok(envelope.data)
+}
+
 fn issue_extension_session(app: &AppHandle, request: &ExtensionSessionRequest) -> ExtensionBridgeResponse {
     let desktop_tokens = match load_auth_tokens() {
         Ok(Some(tokens)) => tokens,
@@ -7082,6 +7111,59 @@ fn handle_extension_bridge_connection(app: AppHandle, mut stream: TcpStream) -> 
     }
 
     if !request_line.starts_with("POST /v1/extension/session ") {
+        if request_line.starts_with("POST /v1/extension/refresh ") {
+            let mut body = vec![0u8; content_length];
+            if content_length > 0 {
+                reader
+                    .read_exact(&mut body)
+                    .map_err(|e| format!("failed to read extension bridge refresh body: {e}"))?;
+            }
+            let input = serde_json::from_slice::<DesktopExtensionRefreshInput>(&body).unwrap_or_default();
+            let payload = match refresh_extension_session_via_control_plane(&input) {
+                Ok(session) => ExtensionBridgeResponse {
+                    ok: true,
+                    grant_required: false,
+                    error: None,
+                    session: Some(ExtensionSessionPayload {
+                        access_token: session.access_token,
+                        refresh_token: session.refresh_token,
+                        expires_in: session.expires_in,
+                        refresh_expires_in: session.refresh_expires_in,
+                        token_type: session.token_type,
+                        scope: session.scope,
+                        audience: session.audience,
+                        grant_id: String::from("existing-grant"),
+                        user: ExtensionSessionUser {
+                            id: session
+                                .user
+                                .get("id")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("desktop-user")
+                                .to_string(),
+                            name: session
+                                .user
+                                .get("name")
+                                .or_else(|| session.user.get("display_name"))
+                                .and_then(|value| value.as_str())
+                                .map(|value| value.to_string()),
+                            email: session
+                                .user
+                                .get("email")
+                                .and_then(|value| value.as_str())
+                                .map(|value| value.to_string()),
+                        },
+                    }),
+                },
+                Err(error) => ExtensionBridgeResponse {
+                    ok: false,
+                    grant_required: false,
+                    error: Some(error),
+                    session: None,
+                },
+            };
+            return write_extension_http_response(&mut stream, "200 OK", &payload);
+        }
+
         let payload = ExtensionBridgeResponse {
             ok: false,
             grant_required: false,

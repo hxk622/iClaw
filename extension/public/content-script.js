@@ -2,6 +2,7 @@
   const ROOT_ID = 'iclaw-extension-capture-root';
   const TOGGLE_MESSAGE_TYPE = 'ICLAW_EXTENSION_TOGGLE_PANEL';
   const REQUEST_DESKTOP_SESSION_MESSAGE_TYPE = 'ICLAW_EXTENSION_REQUEST_DESKTOP_SESSION';
+  const REFRESH_DESKTOP_SESSION_MESSAGE_TYPE = 'ICLAW_EXTENSION_REFRESH_DESKTOP_SESSION';
   const IMPORT_MESSAGE_TYPE = 'iclaw-knowledge-library-import-raw';
   const AUTH_STORAGE_KEY = 'iclaw_extension_auth_state_v1';
   const EXTENSION_ID = 'iclaw-browser-extension';
@@ -14,6 +15,7 @@
     message: '等待桌面端授权',
     userName: '',
     checkedAt: 0,
+    session: null,
   };
 
   function getStorage() {
@@ -131,6 +133,18 @@
     return authState.phase === 'ready';
   }
 
+  function isSessionUsable(session) {
+    if (!session || typeof session !== 'object') return false;
+    const expiresAt = Number(session.expiresAt || 0);
+    return Number.isFinite(expiresAt) && expiresAt > Date.now() + 15_000;
+  }
+
+  function isRefreshUsable(session) {
+    if (!session || typeof session !== 'object') return false;
+    const refreshExpiresAt = Number(session.refreshExpiresAt || 0);
+    return Number.isFinite(refreshExpiresAt) && refreshExpiresAt > Date.now() + 15_000 && typeof session.refreshToken === 'string' && session.refreshToken.trim();
+  }
+
   function authBadgeText() {
     switch (authState.phase) {
       case 'checking':
@@ -147,6 +161,97 @@
         return '异常';
       default:
         return '等待中';
+    }
+  }
+
+  function authThemeMode() {
+    try {
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch {
+      return 'dark';
+    }
+  }
+
+  function statusConfig() {
+    switch (authState.phase) {
+      case 'checking':
+        return {
+          badge: '检测中',
+          badgeTone: 'blue',
+          title: '正在检测桌面端...',
+          description: '请稍候，正在尝试连接 iClaw 桌面应用',
+          primaryText: '连接桌面端',
+          primaryDisabled: true,
+          secondaryText: '重新检测',
+          secondaryDisabled: true,
+          hint: '首次使用需要打开 iClaw 桌面端并登录',
+          captureDisabled: true,
+        };
+      case 'desktop_unavailable':
+        return {
+          badge: '未连接',
+          badgeTone: 'muted',
+          title: '桌面端未启动',
+          description: '未检测到 iClaw 桌面应用运行',
+          primaryText: '连接桌面端',
+          primaryDisabled: true,
+          secondaryText: '重新检测',
+          secondaryDisabled: false,
+          hint: '请先启动 iClaw 桌面端，然后点击“重新检测”',
+          captureDisabled: true,
+        };
+      case 'desktop_not_logged_in':
+        return {
+          badge: '未登录',
+          badgeTone: 'amber',
+          title: '桌面端未登录',
+          description: '检测到 iClaw 桌面端，但尚未登录账号',
+          primaryText: '连接桌面端',
+          primaryDisabled: true,
+          secondaryText: '重新检测',
+          secondaryDisabled: false,
+          hint: '请在桌面端登录后，点击“重新检测”',
+          captureDisabled: true,
+        };
+      case 'grant_required':
+        return {
+          badge: '待授权',
+          badgeTone: 'purple',
+          title: '需要首次授权',
+          description: '桌面端已就绪，请在桌面端确认授权',
+          primaryText: '连接桌面端',
+          primaryDisabled: false,
+          secondaryText: '重新检测',
+          secondaryDisabled: false,
+          hint: '点击“连接桌面端”后，在 iClaw 桌面端授权一次；后续会自动记住',
+          captureDisabled: true,
+        };
+      case 'ready':
+        return {
+          badge: '已连接',
+          badgeTone: 'emerald',
+          title: '授权成功',
+          description: authState.userName ? `已连接到 iClaw 桌面端 · ${authState.userName}` : '已连接到 iClaw 桌面端，可以开始采集',
+          primaryText: '连接桌面端',
+          primaryDisabled: true,
+          secondaryText: '重新检测',
+          secondaryDisabled: false,
+          hint: '授权关系已保存，后续使用无需重新授权',
+          captureDisabled: false,
+        };
+      default:
+        return {
+          badge: '等待中',
+          badgeTone: 'muted',
+          title: '等待桌面端授权',
+          description: '插件正式使用依赖桌面端授权桥',
+          primaryText: '连接桌面端',
+          primaryDisabled: false,
+          secondaryText: '重新检测',
+          secondaryDisabled: false,
+          hint: '正式用户路径：打开 iClaw 桌面端并登录，再授权一次；后续会自动记住',
+          captureDisabled: true,
+        };
     }
   }
 
@@ -185,6 +290,26 @@
     };
   }
 
+  function normalizeSessionPayload(session) {
+    if (!session || typeof session !== 'object') return null;
+    const accessToken = String(session.access_token || '').trim();
+    const refreshToken = String(session.refresh_token || '').trim();
+    const expiresIn = Number(session.expires_in || 0);
+    const refreshExpiresIn = Number(session.refresh_expires_in || 0);
+    if (!accessToken || !refreshToken || !Number.isFinite(expiresIn) || expiresIn <= 0) {
+      return null;
+    }
+    return {
+      accessToken,
+      refreshToken,
+      expiresAt: Date.now() + expiresIn * 1000,
+      refreshExpiresAt: Number.isFinite(refreshExpiresIn) && refreshExpiresIn > 0 ? Date.now() + refreshExpiresIn * 1000 : Date.now() + 7 * 24 * 3600 * 1000,
+      userName: String(session?.user?.name || session?.user?.email || '').trim(),
+      grantId: String(session.grant_id || '').trim(),
+      scope: Array.isArray(session.scope) ? session.scope : [],
+    };
+  }
+
   async function requestDesktopSession() {
     return new Promise((resolve) => {
       try {
@@ -217,23 +342,89 @@
     });
   }
 
+  async function refreshDesktopSession(refreshToken) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(
+          {
+            type: REFRESH_DESKTOP_SESSION_MESSAGE_TYPE,
+            payload: {
+              refresh_token: String(refreshToken || '').trim(),
+            },
+          },
+          (response) => {
+            if (chrome.runtime?.lastError) {
+              resolve({ ok: false, error: 'DESKTOP_APP_NOT_READY' });
+              return;
+            }
+            resolve(response || { ok: false, error: 'DESKTOP_APP_NOT_READY' });
+          },
+        );
+      } catch {
+        resolve({ ok: false, error: 'DESKTOP_APP_NOT_READY' });
+      }
+    });
+  }
+
   async function syncAuthState() {
+    if (isSessionUsable(authState.session)) {
+      authState = {
+        ...authState,
+        phase: 'ready',
+        message: '已连接桌面端',
+        userName: authState.session.userName || authState.userName || '',
+        checkedAt: Date.now(),
+      };
+      await persistAuthState();
+      renderState();
+      return;
+    }
+
+    if (isRefreshUsable(authState.session)) {
+      authState = {
+        ...authState,
+        phase: 'checking',
+        message: '正在刷新插件会话...',
+        checkedAt: Date.now(),
+      };
+      await persistAuthState();
+      renderState();
+      const refreshed = await refreshDesktopSession(authState.session.refreshToken);
+      if (refreshed?.ok && refreshed?.session) {
+        const normalizedSession = normalizeSessionPayload(refreshed.session);
+        authState = {
+          ...authState,
+          phase: 'ready',
+          message: '已连接桌面端',
+          userName: normalizedSession?.userName || authState.userName || '',
+          checkedAt: Date.now(),
+          session: normalizedSession,
+        };
+        await persistAuthState();
+        renderState();
+        return;
+      }
+    }
+
     authState = {
       phase: 'checking',
       message: '正在检测桌面端授权状态...',
       userName: authState.userName || '',
       checkedAt: Date.now(),
+      session: authState.session || null,
     };
     await persistAuthState();
     renderState();
 
     const result = await requestDesktopSession();
     if (result?.ok && result?.session) {
+      const normalizedSession = normalizeSessionPayload(result.session);
       authState = {
         phase: 'ready',
         message: '已连接桌面端',
-        userName: String(result.session?.user?.name || result.session?.user?.email || '').trim(),
+        userName: normalizedSession?.userName || String(result.session?.user?.name || result.session?.user?.email || '').trim(),
         checkedAt: Date.now(),
+        session: normalizedSession,
       };
       await persistAuthState();
       renderState();
@@ -247,6 +438,7 @@
         message: '桌面端需要确认授权',
         userName: '',
         checkedAt: Date.now(),
+        session: null,
       };
     } else if (error === 'DESKTOP_NOT_LOGGED_IN') {
       authState = {
@@ -254,6 +446,7 @@
         message: '桌面端未登录',
         userName: '',
         checkedAt: Date.now(),
+        session: null,
       };
     } else if (error === 'DESKTOP_APP_NOT_READY') {
       authState = {
@@ -261,6 +454,7 @@
         message: '未检测到本地桌面桥',
         userName: '',
         checkedAt: Date.now(),
+        session: authState.session || null,
       };
     } else {
       authState = {
@@ -268,6 +462,7 @@
         message: error,
         userName: '',
         checkedAt: Date.now(),
+        session: authState.session || null,
       };
     }
     await persistAuthState();
@@ -290,13 +485,43 @@
     const shadow = root.attachShadow({ mode: 'open' });
     shadow.innerHTML = `
       <style>
+        :host, .theme-root {
+          --bg: #f7f7f8;
+          --card: #ffffff;
+          --text-primary: #111111;
+          --text-secondary: #6b7280;
+          --text-tertiary: #8b8f97;
+          --border: #e5e7eb;
+          --button-primary: #111111;
+          --button-primary-text: #ffffff;
+          --button-secondary: #f1f2f4;
+          --button-secondary-text: #1a1b1f;
+          --button-secondary-border: #d7d9dd;
+          --section-bg: rgba(17, 17, 17, 0.03);
+          --shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+        }
+        .theme-root[data-theme='dark'] {
+          --bg: #0b0b0c;
+          --card: #141416;
+          --text-primary: #f5f5f5;
+          --text-secondary: #a1a1aa;
+          --text-tertiary: #71717a;
+          --border: #2a2a2e;
+          --button-primary: #f5f5f5;
+          --button-primary-text: #111111;
+          --button-secondary: rgba(255,255,255,0.06);
+          --button-secondary-text: #f4f4f5;
+          --button-secondary-border: rgba(255,255,255,0.10);
+          --section-bg: rgba(255,255,255,0.05);
+          --shadow: 0 18px 42px rgba(0,0,0,0.32);
+        }
         .panel {
           width: 292px;
-          border: 1px solid rgba(255,255,255,0.10);
-          border-radius: 18px;
-          background: rgba(16,16,18,0.96);
-          color: #f4f4f5;
-          box-shadow: 0 18px 42px rgba(0,0,0,0.32);
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          background: color-mix(in srgb, var(--card) 96%, transparent);
+          color: var(--text-primary);
+          box-shadow: var(--shadow);
           overflow: hidden;
           backdrop-filter: blur(16px);
         }
@@ -305,7 +530,7 @@
           align-items:center;
           justify-content:space-between;
           padding: 12px 14px;
-          border-bottom: 1px solid rgba(255,255,255,0.08);
+          border-bottom: 1px solid var(--border);
           font-size: 13px;
           font-weight: 600;
         }
@@ -322,10 +547,54 @@
           height: 22px;
           padding: 0 8px;
           border-radius: 999px;
-          background: rgba(255,255,255,0.10);
-          color: rgba(255,255,255,0.88);
           font-size: 10px;
           font-weight: 700;
+          border: 1px solid transparent;
+        }
+        .badge[data-tone='blue'] {
+          background: rgba(59, 130, 246, 0.16);
+          color: #93c5fd;
+          border-color: rgba(59, 130, 246, 0.24);
+        }
+        .theme-root[data-theme='light'] .badge[data-tone='blue'] {
+          background: rgba(59, 130, 246, 0.10);
+          color: #1d4ed8;
+          border-color: rgba(59, 130, 246, 0.18);
+        }
+        .badge[data-tone='muted'] {
+          background: rgba(113, 113, 122, 0.18);
+          color: var(--text-secondary);
+          border-color: rgba(113, 113, 122, 0.18);
+        }
+        .badge[data-tone='amber'] {
+          background: rgba(245, 158, 11, 0.16);
+          color: #fcd34d;
+          border-color: rgba(245, 158, 11, 0.24);
+        }
+        .theme-root[data-theme='light'] .badge[data-tone='amber'] {
+          background: rgba(245, 158, 11, 0.10);
+          color: #b45309;
+          border-color: rgba(245, 158, 11, 0.18);
+        }
+        .badge[data-tone='purple'] {
+          background: rgba(168, 85, 247, 0.16);
+          color: #d8b4fe;
+          border-color: rgba(168, 85, 247, 0.24);
+        }
+        .theme-root[data-theme='light'] .badge[data-tone='purple'] {
+          background: rgba(168, 85, 247, 0.10);
+          color: #7e22ce;
+          border-color: rgba(168, 85, 247, 0.18);
+        }
+        .badge[data-tone='emerald'] {
+          background: rgba(16, 185, 129, 0.16);
+          color: #86efac;
+          border-color: rgba(16, 185, 129, 0.24);
+        }
+        .theme-root[data-theme='light'] .badge[data-tone='emerald'] {
+          background: rgba(16, 185, 129, 0.10);
+          color: #047857;
+          border-color: rgba(16, 185, 129, 0.18);
         }
         .body {
           padding: 12px;
@@ -339,19 +608,20 @@
           gap: 8px;
           padding: 10px;
           border-radius: 14px;
-          background: rgba(255,255,255,0.05);
+          background: var(--section-bg);
+          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
         }
         .section-title {
           font-size: 11px;
           font-weight: 700;
-          color: rgba(255,255,255,0.78);
+          color: var(--text-tertiary);
           letter-spacing: 0.02em;
           text-transform: uppercase;
         }
         .desc {
           font-size: 12px;
           line-height: 1.6;
-          color: rgba(255,255,255,0.72);
+          color: var(--text-secondary);
         }
         .actions {
           display:grid;
@@ -360,47 +630,63 @@
         }
         button {
           appearance:none;
-          border:none;
+          border: 1px solid transparent;
           border-radius: 12px;
           padding: 10px 12px;
           font-size: 12px;
           font-weight: 600;
           cursor: pointer;
+          transition: background 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease;
         }
         button:disabled {
           cursor: not-allowed;
           opacity: 0.5;
         }
-        .primary { background: #f5c26b; color: #111827; }
-        .secondary { background: rgba(255,255,255,0.08); color: #f4f4f5; }
+        .primary {
+          background: var(--button-primary);
+          color: var(--button-primary-text);
+        }
+        .primary:hover:not(:disabled) {
+          opacity: 0.94;
+        }
+        .secondary {
+          background: var(--button-secondary);
+          color: var(--button-secondary-text);
+          border-color: var(--button-secondary-border);
+        }
+        .secondary:hover:not(:disabled) {
+          opacity: 0.94;
+        }
         .status {
           min-height: 18px;
           font-size: 11px;
-          color: rgba(255,255,255,0.58);
+          color: var(--text-tertiary);
         }
         .hint {
           font-size: 11px;
           line-height: 1.6;
-          color: rgba(255,255,255,0.56);
+          color: var(--text-tertiary);
         }
       </style>
+      <div class="theme-root" data-theme="${authThemeMode()}">
       <div class="panel">
         <div class="head">
           <div class="head-main">
             <span>iClaw Capture</span>
-            <span id="authBadge" class="badge">等待中</span>
+            <span id="authBadge" class="badge" data-tone="muted">等待中</span>
           </div>
           <button id="closeBtn" class="secondary" style="padding:6px 10px; border-radius:10px;">关闭</button>
         </div>
         <div class="body">
           <div class="section">
             <div class="section-title">授权状态</div>
+            <div id="authTitle" class="desc" style="font-weight:600; color:var(--text-primary);">等待桌面端授权</div>
             <div id="authMessage" class="desc">插件正式使用依赖桌面端授权桥。</div>
             <div class="actions">
               <button id="connectBtn" class="primary">连接桌面端</button>
               <button id="retryBtn" class="secondary">重新检测</button>
             </div>
-            <div class="hint">正式用户路径：打开 iClaw 桌面端并登录，再授权一次；后续会自动记住。</div>
+            <div id="authHint" class="hint">正式用户路径：打开 iClaw 桌面端并登录，再授权一次；后续会自动记住。</div>
           </div>
           <div class="section">
             <div class="section-title">采集</div>
@@ -413,9 +699,12 @@
           </div>
         </div>
       </div>
+      </div>
     `;
 
     const authBadge = shadow.getElementById('authBadge');
+    const authTitle = shadow.getElementById('authTitle');
+    const authHint = shadow.getElementById('authHint');
     const authMessage = shadow.getElementById('authMessage');
     const status = shadow.getElementById('status');
     const savePageBtn = shadow.getElementById('savePageBtn');
@@ -460,7 +749,7 @@
       root.style.display = 'none';
     });
 
-    root.__iclawRefs = { authBadge, authMessage, status, savePageBtn, saveSnippetBtn, connectBtn, retryBtn };
+    root.__iclawRefs = { authBadge, authTitle, authHint, authMessage, status, savePageBtn, saveSnippetBtn, connectBtn, retryBtn };
     document.documentElement.appendChild(root);
     return root;
   }
@@ -468,12 +757,24 @@
   function renderState() {
     const root = createRoot();
     const refs = root.__iclawRefs || {};
-    if (refs.authBadge) refs.authBadge.textContent = authBadgeText();
-    if (refs.authMessage) refs.authMessage.textContent = authMessageText();
-    if (refs.savePageBtn) refs.savePageBtn.disabled = !isCaptureReady();
-    if (refs.saveSnippetBtn) refs.saveSnippetBtn.disabled = !isCaptureReady();
-    if (refs.connectBtn) refs.connectBtn.disabled = authState.phase === 'checking';
-    if (refs.retryBtn) refs.retryBtn.disabled = authState.phase === 'checking';
+    const config = statusConfig();
+    if (refs.authBadge) {
+      refs.authBadge.textContent = config.badge;
+      refs.authBadge.setAttribute('data-tone', config.badgeTone);
+    }
+    if (refs.authTitle) refs.authTitle.textContent = config.title;
+    if (refs.authMessage) refs.authMessage.textContent = config.description;
+    if (refs.authHint) refs.authHint.textContent = config.hint;
+    if (refs.savePageBtn) refs.savePageBtn.disabled = config.captureDisabled;
+    if (refs.saveSnippetBtn) refs.saveSnippetBtn.disabled = config.captureDisabled;
+    if (refs.connectBtn) {
+      refs.connectBtn.disabled = config.primaryDisabled;
+      refs.connectBtn.textContent = config.primaryText;
+    }
+    if (refs.retryBtn) {
+      refs.retryBtn.disabled = config.secondaryDisabled;
+      refs.retryBtn.textContent = config.secondaryText;
+    }
   }
 
   function setPanelVisible(nextVisible) {
