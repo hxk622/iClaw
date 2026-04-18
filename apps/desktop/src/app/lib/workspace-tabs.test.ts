@@ -6,6 +6,7 @@ import {
   ACTIVE_WORKSPACE_TABS_STORAGE_KEY,
   createWorkspaceTabRecord,
   readPersistedWorkspaceTabsSnapshot,
+  reorderWorkspaceTabs,
   writePersistedWorkspaceTabsSnapshot,
 } from './workspace-tabs.ts';
 import { readCacheJson } from './persistence/cache-store.ts';
@@ -127,4 +128,55 @@ test('readPersistedWorkspaceTabsSnapshot returns null for malformed route record
   assert.ok(snapshot);
   assert.equal(snapshot.tabs.length, 0);
   assert.equal(snapshot.activeTabId, null);
+});
+
+test('reorderWorkspaceTabs moves the dragged tab before the drop target', () => {
+  const createTab = (id: string) =>
+    createWorkspaceTabRecord({
+      id,
+      title: id,
+      route: {
+        conversationId: id,
+        sessionKey: `agent:main:${id}`,
+        initialPrompt: null,
+        initialPromptKey: null,
+        focusedTurnId: null,
+        focusedTurnKey: null,
+        initialAgentSlug: null,
+        initialSkillSlug: null,
+        initialSkillOption: null,
+        initialStockContext: null,
+      },
+    });
+
+  const tabs = [createTab('tab-a'), createTab('tab-b'), createTab('tab-c')];
+  const reordered = reorderWorkspaceTabs(tabs, 'tab-c', 'tab-a');
+
+  assert.deepEqual(
+    reordered.map((tab) => tab.id),
+    ['tab-c', 'tab-a', 'tab-b'],
+  );
+});
+
+test('reorderWorkspaceTabs returns original array when source or target is missing', () => {
+  const tab = createWorkspaceTabRecord({
+    id: 'tab-a',
+    title: 'A',
+    route: {
+      conversationId: 'conv-a',
+      sessionKey: 'agent:main:a',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+
+  const tabs = [tab];
+  assert.equal(reorderWorkspaceTabs(tabs, 'missing', 'tab-a'), tabs);
+  assert.equal(reorderWorkspaceTabs(tabs, 'tab-a', 'missing'), tabs);
 });

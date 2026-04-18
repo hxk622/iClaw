@@ -233,3 +233,24 @@ export function readPersistedWorkspaceTabsSnapshot(): WorkspaceTabsSnapshot | nu
 export function writePersistedWorkspaceTabsSnapshot(snapshot: WorkspaceTabsSnapshot | null): void {
   writeCacheJson(resolveWorkspaceTabsStorageKey(), snapshot);
 }
+
+export function reorderWorkspaceTabs(
+  tabs: WorkspaceTabRecord[],
+  fromTabId: string,
+  toTabId: string,
+): WorkspaceTabRecord[] {
+  if (fromTabId === toTabId) {
+    return tabs;
+  }
+
+  const fromIndex = tabs.findIndex((tab) => tab.id === fromTabId);
+  const toIndex = tabs.findIndex((tab) => tab.id === toTabId);
+  if (fromIndex < 0 || toIndex < 0) {
+    return tabs;
+  }
+
+  const nextTabs = [...tabs];
+  const [movedTab] = nextTabs.splice(fromIndex, 1);
+  nextTabs.splice(toIndex, 0, movedTab);
+  return nextTabs;
+}

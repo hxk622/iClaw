@@ -170,6 +170,7 @@ import {
   createWorkspaceTabRecord,
   MAX_WORKSPACE_TABS,
   readPersistedWorkspaceTabsSnapshot,
+  reorderWorkspaceTabs,
   writePersistedWorkspaceTabsSnapshot,
   type WorkspaceTabRecord,
   type WorkspaceTabRouteSnapshot,
@@ -904,10 +905,13 @@ function WorkspaceTabsBar(props: {
   onColorChange: (tabId: string, color: WorkspaceTabRecord['color']) => void;
   onCloseOthers: (tabId: string) => void;
   onCloseToRight: (tabId: string) => void;
+  onReorder: (fromTabId: string, toTabId: string) => void;
 }) {
   const [menuTabId, setMenuTabId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
+  const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
   const [portalReady, setPortalReady] = useState(false);
   const activeTabRef = useRef<HTMLDivElement | null>(null);
@@ -998,8 +1002,15 @@ function WorkspaceTabsBar(props: {
               cursor: 'pointer',
               borderColor: isActive ? 'color-mix(in srgb, var(--border-strong) 78%, transparent)' : 'var(--chat-surface-panel-border)',
               background: isActive ? colorStyle.activeBg : 'var(--chat-surface-panel-muted)',
-              boxShadow: isActive ? 'var(--lobster-shadow-tab)' : 'none',
+              boxShadow:
+                dragOverTabId === tab.id
+                  ? `0 0 0 2px color-mix(in srgb, ${colorStyle.accent} 24%, transparent), var(--lobster-shadow-tab)`
+                  : isActive
+                    ? 'var(--lobster-shadow-tab)'
+                    : 'none',
+              opacity: draggingTabId === tab.id ? 0.54 : 1,
             }}
+            draggable={!renaming}
             onContextMenu={(event) => {
               event.preventDefault();
               setRenamingTabId(null);
@@ -1015,6 +1026,50 @@ function WorkspaceTabsBar(props: {
               setMenuTabId(tab.id);
             }}
             onDoubleClick={() => handleStartRename(tab.id, tab.title)}
+            onDragStart={(event) => {
+              if (renaming) {
+                event.preventDefault();
+                return;
+              }
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', tab.id);
+              setDraggingTabId(tab.id);
+              setDragOverTabId(null);
+            }}
+            onDragOver={(event) => {
+              if (!draggingTabId || draggingTabId === tab.id) {
+                return;
+              }
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+              setDragOverTabId(tab.id);
+            }}
+            onDragLeave={(event) => {
+              if (dragOverTabId !== tab.id) {
+                return;
+              }
+              const relatedTarget = event.relatedTarget as Node | null;
+              if (relatedTarget && (event.currentTarget as HTMLDivElement).contains(relatedTarget)) {
+                return;
+              }
+              setDragOverTabId((current) => (current === tab.id ? null : current));
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              const sourceTabId = draggingTabId || event.dataTransfer.getData('text/plain');
+              if (!sourceTabId || sourceTabId === tab.id) {
+                setDraggingTabId(null);
+                setDragOverTabId(null);
+                return;
+              }
+              props.onReorder(sourceTabId, tab.id);
+              setDraggingTabId(null);
+              setDragOverTabId(null);
+            }}
+            onDragEnd={() => {
+              setDraggingTabId(null);
+              setDragOverTabId(null);
+            }}
           >
             {!renaming ? (
               <button
@@ -3767,6 +3822,13 @@ function AuthedView({
     [activateWorkspaceTab],
   );
 
+  const handleReorderWorkspaceTabs = useCallback((fromTabId: string, toTabId: string) => {
+    if (fromTabId === toTabId) {
+      return;
+    }
+    setWorkspaceTabs((current) => reorderWorkspaceTabs(current, fromTabId, toTabId));
+  }, []);
+
   useEffect(() => {
     if (!authBootstrapReady) {
       return;
@@ -4856,6 +4918,7 @@ function AuthedView({
               onColorChange={handleChangeWorkspaceTabColor}
               onCloseOthers={handleCloseOtherWorkspaceTabs}
               onCloseToRight={handleCloseWorkspaceTabsToRight}
+              onReorder={handleReorderWorkspaceTabs}
             />
           ) : null}
           <div className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden [contain:layout_paint_style]">
