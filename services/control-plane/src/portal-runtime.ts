@@ -32,6 +32,24 @@ function buildDefaultMarketingLegalPageContent(appName: string, displayName: str
     termsContent: `${legalEntity} 向用户提供 ${productLabel} 桌面端、AI 问答、工具执行、内容处理与配套账户服务。用户应保证注册资料真实、完整、可联系，并妥善保管账号、密码与本地设备环境。\n\n1. ${productLabel} 可调用本地运行时、第三方模型、云端接口或工具服务，回答结果受模型能力、上下文、外部依赖与网络状态影响，不保证绝对准确、连续或无中断。\n2. 用户不得利用平台从事违法违规、侵权、恶意攻击、批量滥用、绕过计费、传播恶意内容或损害平台及第三方权益的行为。\n3. 涉及文件、工具执行、浏览器操作、设备调用等能力时，用户应自行确认任务目标、系统权限与潜在影响，并承担由主动操作产生的后果。\n4. ${productLabel} 输出内容仅供参考，用户应结合具体场景自行判断，不应在未经核验的情况下直接用于高风险决策。\n5. 如用户存在账号共享、自动化刷量、恶意并发、逆向接口或其他破坏服务稳定性的行为，${legalEntity} 有权限制、暂停或终止服务。\n6. ${legalEntity} 可根据产品演进、技术变化或合规要求更新本协议，更新后继续使用即视为接受新的协议内容。`,
   };
 }
+
+function buildDefaultFinanceComplianceConfig(appName: string): PortalJsonObject {
+  const normalizedAppName = String(appName || '').trim().toLowerCase();
+  if (normalizedAppName !== 'caiclaw' && normalizedAppName !== 'licaiclaw') {
+    return {};
+  }
+  return {
+    enabled: true,
+    classificationPolicy: 'finance_v1',
+    disclaimerPolicy: 'finance_inline_small',
+    disclaimerText: '本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。',
+    blockingPolicy: 'research_only',
+    showFor: ['investment_view', 'actionable_advice'],
+    hideFor: ['market_data'],
+    blockFor: ['execution_request'],
+    degradeFor: ['advice_request', 'personalized_request'],
+  };
+}
 import {stripPortalDesktopReleaseConfig} from './portal-desktop-release.ts';
 import {resolveRechargePaymentMethods} from './recharge-payment-methods.ts';
 
@@ -546,6 +564,10 @@ export function buildPortalPublicConfig(
         ...Object.fromEntries(assetEntries),
       },
       marketingSite: cloneJson(nextHomeWebSurfaceConfig),
+      financeCompliance: {
+        ...buildDefaultFinanceComplianceConfig(detail.app.appName),
+        ...cloneJson(asObject(existingConfig.financeCompliance)),
+      },
       surfaces: resolvedSurfaces,
       capabilities: {
         ...existingCapabilities,
