@@ -11,6 +11,7 @@ import {writePortalDesktopReleaseConfig, type PortalDesktopReleaseConfig, type P
 
 function buildPublishedConfig(input: {
   version: string;
+  rolloutId?: string;
   mandatory?: boolean;
   allowCurrentRunToFinish?: boolean;
   extraTargets?: PortalDesktopReleaseTarget[];
@@ -48,6 +49,7 @@ function buildPublishedConfig(input: {
     },
     release: {
       version: input.version,
+      rolloutId: input.rolloutId || 'rollout-prod-20260404',
       notes: 'Desktop release notes',
       publishedAt: '2026-04-04T00:00:00.000Z',
       policy: {
@@ -65,6 +67,7 @@ function buildPublishedConfig(input: {
       dev: {
         draft: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -78,6 +81,7 @@ function buildPublishedConfig(input: {
         },
         published: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -93,6 +97,7 @@ function buildPublishedConfig(input: {
       prod: {
         draft: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -106,6 +111,7 @@ function buildPublishedConfig(input: {
         },
         published: {
           version: input.version,
+          rolloutId: input.rolloutId || 'rollout-prod-20260404',
           notes: 'Desktop release notes',
           targets: [target, ...(input.extraTargets || [])],
           policy: {
@@ -178,10 +184,12 @@ test('desktop update hint route returns managed payload', async () => {
 
   assert.equal(typeof payload, 'object');
   assert.equal((payload as Record<string, unknown>).latestVersion, '1.0.2+202604041200');
+  assert.equal((payload as Record<string, unknown>).rolloutId, 'rollout-prod-20260404');
   assert.equal((payload as Record<string, unknown>).updateAvailable, true);
   assert.equal((payload as Record<string, unknown>).enforcementState, 'recommended');
   assert.match(String((payload as Record<string, unknown>).manifestUrl || ''), /desktop\/release-manifest/);
   assert.match(String((payload as Record<string, unknown>).artifactUrl || ''), /artifact_type=installer/);
+  assert.equal((payload as Record<string, unknown>).artifactSha256, 'installer-sha');
 });
 
 test('desktop update hint route rejects requests without current_version', async () => {
@@ -229,10 +237,12 @@ test('desktop updater route returns signed native updater payload', async () => 
   assert.equal(raw.headers?.['Cache-Control'], 'no-store');
   const payload = JSON.parse(String(raw.body)) as Record<string, unknown>;
   assert.equal(payload.version, '1.0.2+202604041200');
+  assert.equal(payload.rollout_id, 'rollout-prod-20260404');
   assert.equal(payload.signature, 'signed-updater-payload');
   assert.equal(payload.enforcement_state, 'recommended');
   assert.match(String(payload.url || ''), /artifact_type=updater/);
   assert.match(String(payload.external_download_url || ''), /artifact_type=installer/);
+  assert.equal(payload.external_download_sha256, 'installer-sha');
 });
 
 test('desktop update hint and updater routes return aligned policy fields for windows targets', async () => {
@@ -273,6 +283,7 @@ test('desktop update hint and updater routes return aligned policy fields for wi
           },
           release: {
             version: '1.0.2+202604041200',
+            rolloutId: 'rollout-win-20260404',
             notes: 'Windows release notes',
             publishedAt: '2026-04-04T00:00:00.000Z',
             policy: {
@@ -313,6 +324,8 @@ test('desktop update hint and updater routes return aligned policy fields for wi
 
   assert.equal(hint.enforcementState, payload.enforcement_state);
   assert.equal(hint.blockNewRuns, payload.block_new_runs);
+  assert.equal(hint.rolloutId, 'rollout-win-20260404');
+  assert.equal(payload.rollout_id, 'rollout-win-20260404');
   assert.equal(hint.reasonCode, payload.reason_code);
   assert.equal(hint.reasonMessage, payload.reason_message);
   assert.equal(payload.enforcement_state, 'required_after_run');

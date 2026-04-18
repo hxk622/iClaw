@@ -19,12 +19,14 @@ export type DesktopUpdateSceneOverlayView = 'settings' | 'account' | 'recharge';
 type DesktopReleaseTargetManifest = {
   entry?: {
     artifact_url?: string | null;
+    artifact_sha256?: string | null;
   } | null;
 };
 
 type DesktopReleaseIndexManifest = {
   entries?: Array<{
     artifact_url?: string | null;
+    artifact_sha256?: string | null;
   }> | null;
 };
 
@@ -74,6 +76,15 @@ async function writeDesktopUpdateConfig(next: DesktopUpdateConfig): Promise<void
 
 export function formatDesktopUpdateVersion(version: string): string {
   return trimString(version).split('+', 1)[0] || version;
+}
+
+export function resolveDesktopUpdateIdentity(
+  hint: Pick<DesktopUpdateHint, 'latestVersion' | 'rolloutId'> | null | undefined,
+): string | null {
+  if (!hint) {
+    return null;
+  }
+  return trimString(hint.rolloutId) || trimString(hint.latestVersion) || null;
 }
 
 export function readSkippedDesktopUpdateVersion(): string | null {
@@ -213,12 +224,27 @@ export function shouldShowDesktopUpdateHint(
   }) !== 'none';
 }
 
-export async function resolveDesktopUpdateArtifactUrl(hint: DesktopUpdateHint): Promise<string | null> {
+export type ResolvedDesktopUpdateArtifact = {
+  artifactUrl: string | null;
+  artifactSha256: string | null;
+};
+
+export async function resolveDesktopUpdateArtifact(hint: DesktopUpdateHint): Promise<ResolvedDesktopUpdateArtifact> {
   const directArtifactUrl = trimString(hint.artifactUrl);
-  if (directArtifactUrl) return directArtifactUrl;
+  if (directArtifactUrl) {
+    return {
+      artifactUrl: directArtifactUrl,
+      artifactSha256: trimString(hint.artifactSha256) || null,
+    };
+  }
 
   const manifestUrl = trimString(hint.manifestUrl);
-  if (!manifestUrl) return null;
+  if (!manifestUrl) {
+    return {
+      artifactUrl: null,
+      artifactSha256: null,
+    };
+  }
 
   const response = await fetch(manifestUrl, {
     headers: {
@@ -231,10 +257,23 @@ export async function resolveDesktopUpdateArtifactUrl(hint: DesktopUpdateHint): 
 
   const payload = (await response.json()) as DesktopReleaseTargetManifest | DesktopReleaseIndexManifest;
   const targetArtifactUrl = trimString((payload as DesktopReleaseTargetManifest)?.entry?.artifact_url);
-  if (targetArtifactUrl) return targetArtifactUrl;
+  if (targetArtifactUrl) {
+    return {
+      artifactUrl: targetArtifactUrl,
+      artifactSha256: trimString((payload as DesktopReleaseTargetManifest)?.entry?.artifact_sha256) || null,
+    };
+  }
 
-  const firstArtifactUrl = Array.isArray((payload as DesktopReleaseIndexManifest)?.entries)
-    ? trimString((payload as DesktopReleaseIndexManifest).entries?.[0]?.artifact_url)
-    : '';
-  return firstArtifactUrl || null;
+  const firstEntry = Array.isArray((payload as DesktopReleaseIndexManifest)?.entries)
+    ? (payload as DesktopReleaseIndexManifest).entries?.[0]
+    : null;
+  return {
+    artifactUrl: trimString(firstEntry?.artifact_url) || null,
+    artifactSha256: trimString(firstEntry?.artifact_sha256) || null,
+  };
+}
+
+export async function resolveDesktopUpdateArtifactUrl(hint: DesktopUpdateHint): Promise<string | null> {
+  const resolved = await resolveDesktopUpdateArtifact(hint);
+  return resolved.artifactUrl;
 }

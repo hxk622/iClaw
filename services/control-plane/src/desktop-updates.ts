@@ -9,28 +9,34 @@ export const DESKTOP_UPDATE_RESPONSE_HEADERS = [
   'x-iclaw-update-mandatory',
   'x-iclaw-update-enforcement-state',
   'x-iclaw-update-block-new-runs',
+  'x-iclaw-update-rollout-id',
   'x-iclaw-update-reason-code',
   'x-iclaw-update-reason-message',
   'x-iclaw-update-manifest-url',
   'x-iclaw-update-artifact-url',
+  'x-iclaw-update-artifact-sha256',
 ] as const;
 
 type DesktopReleaseManifestEntry = {
   platform?: unknown;
   arch?: unknown;
   version?: unknown;
+  rollout_id?: unknown;
   artifact_url?: unknown;
+  artifact_sha256?: unknown;
   published_at?: unknown;
   updater?: unknown;
 };
 
 type DesktopReleaseIndexManifest = {
   version?: unknown;
+  rollout_id?: unknown;
   entries?: unknown;
 };
 
 type DesktopReleaseTargetManifest = {
   version?: unknown;
+  rollout_id?: unknown;
   entry?: unknown;
 };
 
@@ -54,6 +60,7 @@ export type DesktopUpdateRequest = {
 export type DesktopUpdateHint = {
   appName?: string | null;
   latestVersion: string;
+  rolloutId?: string | null;
   updateAvailable: boolean;
   mandatory: boolean;
   enforcementState?: 'recommended' | 'required_after_run' | 'required_now';
@@ -62,10 +69,12 @@ export type DesktopUpdateHint = {
   reasonMessage?: string | null;
   manifestUrl: string | null;
   artifactUrl: string | null;
+  artifactSha256?: string | null;
 };
 
 export type DesktopUpdaterPayload = {
   version: string;
+  rolloutId?: string | null;
   url: string;
   signature: string;
   notes: string | null;
@@ -76,6 +85,7 @@ export type DesktopUpdaterPayload = {
   reasonCode?: string | null;
   reasonMessage?: string | null;
   externalDownloadUrl: string | null;
+  externalDownloadSha256?: string | null;
 };
 
 type CacheRecord = {
@@ -227,7 +237,12 @@ async function loadTargetManifest(source: DesktopUpdateManifestSource, platform:
       version,
       manifestUrl: buildManifestUrl(source.publicBaseUrl, fileName),
       artifactUrl: trimString(entry?.artifact_url) || null,
-      entry,
+      entry: entry
+        ? {
+            ...entry,
+            rollout_id: trimString(manifest.rollout_id) || trimString(entry.rollout_id) || null,
+          }
+        : null,
     };
   }
 
@@ -241,7 +256,12 @@ async function loadTargetManifest(source: DesktopUpdateManifestSource, platform:
     version,
     manifestUrl: remoteUrl,
     artifactUrl: trimString(entry?.artifact_url) || null,
-    entry,
+    entry: entry
+      ? {
+          ...entry,
+          rollout_id: trimString(manifest.rollout_id) || trimString(entry.rollout_id) || null,
+        }
+      : null,
   };
 }
 
@@ -263,7 +283,12 @@ async function loadIndexManifest(source: DesktopUpdateManifestSource): Promise<{
       version,
       manifestUrl: buildManifestUrl(source.publicBaseUrl, fileName),
       artifactUrl: trimString(firstEntry?.artifact_url) || null,
-      entry: firstEntry,
+      entry: firstEntry
+        ? {
+            ...firstEntry,
+            rollout_id: trimString(manifest.rollout_id) || trimString(firstEntry.rollout_id) || null,
+          }
+        : null,
     };
   }
 
@@ -278,7 +303,12 @@ async function loadIndexManifest(source: DesktopUpdateManifestSource): Promise<{
     version,
     manifestUrl: remoteUrl,
     artifactUrl: trimString(firstEntry?.artifact_url) || null,
-    entry: firstEntry,
+    entry: firstEntry
+      ? {
+          ...firstEntry,
+          rollout_id: trimString(manifest.rollout_id) || trimString(firstEntry.rollout_id) || null,
+        }
+      : null,
   };
 }
 
@@ -333,11 +363,13 @@ export async function resolveDesktopUpdateHint(
   const hint = latest
     ? {
         latestVersion: latest.version,
+        rolloutId: trimString(latest.entry?.rollout_id) || null,
         updateAvailable: compareVersions(latest.version, appVersion) > 0,
         mandatory:
           compareVersions(latest.version, appVersion) > 0 && (source.mandatory || isForcedUpdate(source, appVersion)),
         manifestUrl: latest.manifestUrl,
         artifactUrl: latest.artifactUrl,
+        artifactSha256: trimString(latest.entry?.artifact_sha256) || null,
       }
     : null;
 
@@ -389,11 +421,13 @@ export async function resolveDesktopUpdaterPayload(
 
   return {
     version: latest.version,
+    rolloutId: trimString(latest.entry?.rollout_id) || null,
     url: updater.url,
     signature: updater.signature,
     notes: updater.notes,
     pubDate: updater.pubDate,
     mandatory: source.mandatory || isForcedUpdate(source, appVersion),
     externalDownloadUrl: latest.artifactUrl,
+    externalDownloadSha256: trimString(latest.entry?.artifact_sha256) || null,
   };
 }

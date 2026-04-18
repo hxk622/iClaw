@@ -727,10 +727,12 @@ struct DesktopUpdateCheckResult {
     supported: bool,
     available: bool,
     version: Option<String>,
+    rollout_id: Option<String>,
     notes: Option<String>,
     pub_date: Option<String>,
     mandatory: bool,
     external_download_url: Option<String>,
+    external_download_sha256: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -8058,10 +8060,12 @@ async fn check_desktop_update(
             supported: false,
             available: false,
             version: None,
+            rollout_id: None,
             notes: None,
             pub_date: None,
             mandatory: false,
             external_download_url: None,
+            external_download_sha256: None,
         });
     };
 
@@ -8072,10 +8076,12 @@ async fn check_desktop_update(
                 supported: false,
                 available: false,
                 version: None,
+                rollout_id: None,
                 notes: None,
                 pub_date: None,
                 mandatory: false,
                 external_download_url: None,
+                external_download_sha256: None,
             })
         }
     };
@@ -8105,10 +8111,12 @@ async fn check_desktop_update(
             supported: true,
             available: true,
             version: Some(update.version.clone()),
+            rollout_id: parse_raw_update_string(&raw_json, "rollout_id"),
             notes: update.body.clone(),
             pub_date: update.date.map(|value| value.to_string()),
             mandatory: parse_raw_update_flag(&raw_json, "mandatory"),
             external_download_url: parse_raw_update_string(&raw_json, "external_download_url"),
+            external_download_sha256: parse_raw_update_string(&raw_json, "external_download_sha256"),
         };
         *pending = Some(update);
         Ok(result)
@@ -8118,10 +8126,12 @@ async fn check_desktop_update(
             supported: true,
             available: false,
             version: None,
+            rollout_id: None,
             notes: None,
             pub_date: None,
             mandatory: false,
             external_download_url: None,
+            external_download_sha256: None,
         })
     }
 }

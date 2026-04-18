@@ -115,6 +115,7 @@ import {
   clearDesktopUpdateSceneSnapshot,
   formatDesktopUpdateVersion,
   normalizeDesktopUpdateEnforcementState,
+  resolveDesktopUpdateIdentity,
   resolveDesktopUpdateSceneOverlayView,
   resolveDesktopUpdateScenePrimaryView,
   readSkippedDesktopUpdateVersion,
@@ -971,7 +972,7 @@ export default function App() {
 
           setDesktopUpdateHint((current) => {
             if (
-              current?.latestVersion === hint.latestVersion &&
+              resolveDesktopUpdateIdentity(current) === resolveDesktopUpdateIdentity(hint) &&
               current.mandatory === hint.mandatory &&
               current.enforcementState === hint.enforcementState &&
               current.reasonMessage === hint.reasonMessage &&
@@ -1905,7 +1906,7 @@ export default function App() {
 
   useEffect(() => {
     if (!desktopUpdateHint) return;
-    if (desktopUpdateHint.latestVersion !== skippedDesktopUpdateVersion) {
+    if (formatDesktopUpdateVersion(desktopUpdateHint.latestVersion) !== formatDesktopUpdateVersion(skippedDesktopUpdateVersion || '')) {
       desktopUpdateAutoTriggeredVersionRef.current = null;
       if (desktopUpdateActionState !== 'ready-to-restart') {
         setDesktopUpdateActionState('idle');
@@ -2168,10 +2169,14 @@ export default function App() {
     if (desktopUpdateActionState !== 'idle') {
       return;
     }
-    if (desktopUpdateAutoTriggeredVersionRef.current === effectiveDesktopUpdateHint.latestVersion) {
+    const updateIdentity = resolveDesktopUpdateIdentity(effectiveDesktopUpdateHint);
+    if (!updateIdentity) {
       return;
     }
-    desktopUpdateAutoTriggeredVersionRef.current = effectiveDesktopUpdateHint.latestVersion;
+    if (desktopUpdateAutoTriggeredVersionRef.current === updateIdentity) {
+      return;
+    }
+    desktopUpdateAutoTriggeredVersionRef.current = updateIdentity;
     void handleUpgradeDesktopApp();
   }, [
     desktopUpdateActionState,

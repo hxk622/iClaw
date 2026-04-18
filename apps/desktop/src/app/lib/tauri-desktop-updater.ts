@@ -5,10 +5,12 @@ export interface DesktopUpdateCheckResult {
   supported: boolean;
   available: boolean;
   version: string | null;
+  rollout_id: string | null;
   notes: string | null;
   pub_date: string | null;
   mandatory: boolean;
   external_download_url: string | null;
+  external_download_sha256: string | null;
 }
 
 export interface DesktopUpdateProgress {

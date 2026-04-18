@@ -44,10 +44,12 @@ export function createDesktopUpdateApiRoutes({portalStore, resolvePublicBaseUrl}
           mandatory: false,
           enforcementState: 'recommended',
           blockNewRuns: false,
+          rolloutId: null,
           reasonCode: null,
           reasonMessage: null,
           manifestUrl: null,
           artifactUrl: null,
+          artifactSha256: null,
         };
       },
     },
@@ -71,6 +73,7 @@ export function createDesktopUpdateApiRoutes({portalStore, resolvePublicBaseUrl}
         return createRawResponse(
           JSON.stringify({
             version: payload.version,
+            rollout_id: payload.rolloutId,
             url: payload.url,
             signature: payload.signature,
             notes: payload.notes,
@@ -81,6 +84,7 @@ export function createDesktopUpdateApiRoutes({portalStore, resolvePublicBaseUrl}
             reason_code: payload.reasonCode,
             reason_message: payload.reasonMessage,
             external_download_url: payload.externalDownloadUrl,
+            external_download_sha256: payload.externalDownloadSha256,
           }),
           {
             statusCode: 200,

@@ -4,8 +4,10 @@ import assert from 'node:assert/strict';
 import {
   formatDesktopUpdateVersion,
   normalizeDesktopUpdateEnforcementState,
+  resolveDesktopUpdateArtifact,
   resolveDesktopUpdateArtifactUrl,
   resolveDesktopUpdateGateState,
+  resolveDesktopUpdateIdentity,
   resolveDesktopUpdateSceneOverlayView,
   resolveDesktopUpdateScenePrimaryView,
 } from './desktop-updates.ts';
@@ -13,6 +15,23 @@ import {
 test('formatDesktopUpdateVersion removes build metadata from display label', () => {
   assert.equal(formatDesktopUpdateVersion('1.0.1+202604021919'), '1.0.1');
   assert.equal(formatDesktopUpdateVersion('1.0.1'), '1.0.1');
+});
+
+test('resolveDesktopUpdateIdentity prefers rollout id before version', () => {
+  assert.equal(
+    resolveDesktopUpdateIdentity({
+      latestVersion: '1.0.1+202604021919',
+      rolloutId: 'rollout-prod-20260404',
+    }),
+    'rollout-prod-20260404',
+  );
+  assert.equal(
+    resolveDesktopUpdateIdentity({
+      latestVersion: '1.0.1+202604021919',
+      rolloutId: null,
+    }),
+    '1.0.1+202604021919',
+  );
 });
 
 test('normalizeDesktopUpdateEnforcementState respects explicit enforcement state before mandatory fallback', () => {
@@ -158,6 +177,31 @@ test('resolveDesktopUpdateArtifactUrl prefers direct artifact url without fetchi
   }
 });
 
+test('resolveDesktopUpdateArtifact preserves direct artifact sha256 without fetching manifest', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error('fetch should not run when artifact url already exists');
+  };
+
+  try {
+    const resolved = await resolveDesktopUpdateArtifact({
+      latestVersion: '1.0.2+202604041200',
+      updateAvailable: true,
+      mandatory: false,
+      enforcementState: 'recommended',
+      manifestUrl: 'https://updates.example.com/latest-prod.json',
+      artifactUrl: 'https://downloads.example.com/iclaw.dmg',
+      artifactSha256: 'direct-artifact-sha',
+    });
+    assert.deepEqual(resolved, {
+      artifactUrl: 'https://downloads.example.com/iclaw.dmg',
+      artifactSha256: 'direct-artifact-sha',
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('resolveDesktopUpdateArtifactUrl reads artifact url from target manifest payload', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
@@ -185,6 +229,42 @@ test('resolveDesktopUpdateArtifactUrl reads artifact url from target manifest pa
       artifactUrl: null,
     });
     assert.equal(url, 'https://downloads.example.com/iclaw-target.dmg');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('resolveDesktopUpdateArtifact reads artifact sha256 from target manifest payload', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        entry: {
+          artifact_url: 'https://downloads.example.com/iclaw-target.dmg',
+          artifact_sha256: 'target-artifact-sha',
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+  try {
+    const resolved = await resolveDesktopUpdateArtifact({
+      latestVersion: '1.0.2+202604041200',
+      updateAvailable: true,
+      mandatory: false,
+      enforcementState: 'recommended',
+      manifestUrl: 'https://updates.example.com/latest-prod-mac-aarch64.json',
+      artifactUrl: null,
+    });
+    assert.deepEqual(resolved, {
+      artifactUrl: 'https://downloads.example.com/iclaw-target.dmg',
+      artifactSha256: 'target-artifact-sha',
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -219,6 +299,44 @@ test('resolveDesktopUpdateArtifactUrl falls back to first entry in index manifes
       artifactUrl: null,
     });
     assert.equal(url, 'https://downloads.example.com/iclaw-index.dmg');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('resolveDesktopUpdateArtifact falls back to first entry sha256 in index manifest payload', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        entries: [
+          {
+            artifact_url: 'https://downloads.example.com/iclaw-index.dmg',
+            artifact_sha256: 'index-artifact-sha',
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+  try {
+    const resolved = await resolveDesktopUpdateArtifact({
+      latestVersion: '1.0.2+202604041200',
+      updateAvailable: true,
+      mandatory: false,
+      enforcementState: 'recommended',
+      manifestUrl: 'https://updates.example.com/latest-prod.json',
+      artifactUrl: null,
+    });
+    assert.deepEqual(resolved, {
+      artifactUrl: 'https://downloads.example.com/iclaw-index.dmg',
+      artifactSha256: 'index-artifact-sha',
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }

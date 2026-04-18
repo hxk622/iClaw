@@ -43,6 +43,7 @@ test('executeDesktopUpdateUpgrade prefers native tauri updater when signed updat
           pub_date: '2026-04-04T00:00:00.000Z',
           mandatory: false,
           external_download_url: null,
+          external_download_sha256: null,
         };
       },
       downloadAndInstallDesktopUpdate: async () => {
@@ -102,6 +103,7 @@ test('executeDesktopUpdateUpgrade prefers native tauri updater on windows when s
           pub_date: '2026-04-04T00:00:00.000Z',
           mandatory: true,
           external_download_url: 'https://downloads.example.com/iclaw-installer.exe',
+          external_download_sha256: 'runtime-installer-sha',
         };
       },
       downloadAndInstallDesktopUpdate: async () => {
@@ -184,7 +186,6 @@ test('executeDesktopUpdateUpgrade falls back to windows installer when native up
 
   assert.deepEqual(calls, [
     'check',
-    'artifact',
     'prepare:https://downloads.example.com/iclaw-installer.exe:1.0.4',
     'installer:https://downloads.example.com/iclaw-installer.exe:1.0.4',
   ]);
@@ -222,6 +223,7 @@ test('executeDesktopUpdateUpgrade falls back to windows installer when native up
           pub_date: '2026-04-04T00:00:00.000Z',
           mandatory: false,
           external_download_url: 'https://downloads.example.com/iclaw-installer.exe',
+          external_download_sha256: 'runtime-installer-sha',
         };
       },
       downloadAndInstallDesktopUpdate: async () => {
@@ -229,7 +231,7 @@ test('executeDesktopUpdateUpgrade falls back to windows installer when native up
         throw new Error('native install failed');
       },
       downloadAndLaunchDesktopInstaller: async (input) => {
-        calls.push(`installer:${input.artifactUrl}:${input.version}`);
+        calls.push(`installer:${input.artifactUrl}:${input.version}:${input.artifactSha256}`);
         return true;
       },
       onBeforeInstallerLaunch: async (input) => {
@@ -247,7 +249,7 @@ test('executeDesktopUpdateUpgrade falls back to windows installer when native up
     'check',
     'native',
     'prepare:https://downloads.example.com/iclaw-installer.exe:1.0.4',
-    'installer:https://downloads.example.com/iclaw-installer.exe:1.0.4',
+    'installer:https://downloads.example.com/iclaw-installer.exe:1.0.4:runtime-installer-sha',
   ]);
   assert.deepEqual(result, {
     mode: 'installer',
@@ -280,6 +282,7 @@ test('executeDesktopUpdateUpgrade opens runtime-provided external download url w
           pub_date: null,
           mandatory: false,
           external_download_url: 'https://downloads.example.com/iclaw.dmg',
+          external_download_sha256: 'runtime-dmg-sha',
         };
       },
       downloadAndInstallDesktopUpdate: async () => false,

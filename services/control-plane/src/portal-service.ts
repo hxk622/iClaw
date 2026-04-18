@@ -1854,10 +1854,12 @@ export class PortalService {
     };
     const publishedAt = new Date().toISOString();
     const nextNotes = normalizeOptionalString(input.notes, 'notes');
+    const rolloutId = `desktop-${channel}-${version.replace(/[^a-zA-Z0-9._-]+/g, '-')}-${publishedAt.replace(/[^0-9]/g, '').slice(0, 14)}`;
     if (platform && arch) {
       for (const target of activeTargets) {
         target.release = {
           version,
+          rolloutId,
           notes: nextNotes,
           policy: nextPolicy,
           publishedAt,
@@ -1865,12 +1867,14 @@ export class PortalService {
       }
     } else {
       nextDraft.version = version;
+      nextDraft.rolloutId = rolloutId;
       nextDraft.notes = nextNotes;
       nextDraft.policy = nextPolicy;
       nextDraft.publishedAt = publishedAt;
       for (const target of activeTargets) {
         target.release = {
           version,
+          rolloutId,
           notes: nextNotes,
           policy: nextPolicy,
           publishedAt,

@@ -1,5 +1,5 @@
 import type { DesktopUpdateHint } from '@iclaw/sdk';
-import { resolveDesktopUpdateArtifactUrl } from './desktop-updates.ts';
+import { resolveDesktopUpdateArtifact, resolveDesktopUpdateArtifactUrl } from './desktop-updates.ts';
 import type { DesktopUpdateCheckResult } from './tauri-desktop-updater.ts';
 
 export type DesktopUpdateUpgradeConfig = {
@@ -52,13 +52,14 @@ async function startInstallerFallback(input: {
   hint: DesktopUpdateHint;
   deps: DesktopUpdateUpgradeDeps;
   artifactUrl: string;
+  artifactSha256?: string | null;
 }): Promise<DesktopUpdateUpgradeResult> {
-  const { hint, deps, artifactUrl } = input;
+  const { hint, deps, artifactUrl, artifactSha256 } = input;
   await deps.onBeforeInstallerLaunch?.({ hint, artifactUrl });
   const started = await deps.downloadAndLaunchDesktopInstaller({
     artifactUrl,
     version: hint.latestVersion,
-    artifactSha256: null,
+    artifactSha256: artifactSha256 || null,
   });
   if (!started) {
     if (deps.platform !== 'windows') {
@@ -111,12 +112,27 @@ export async function executeDesktopUpdateUpgrade(input: {
     }
 
     const runtimeArtifactUrl = trimString(updaterCheck?.external_download_url);
-    const artifactUrl = runtimeArtifactUrl || trimString(await resolveArtifactUrl(hint));
+    const runtimeArtifactSha256 = trimString(updaterCheck?.external_download_sha256);
+    let artifactUrl = runtimeArtifactUrl;
+    let artifactSha256 = runtimeArtifactSha256 || null;
+    if (!artifactUrl) {
+      if (trimString(hint.artifactUrl)) {
+        artifactUrl = trimString(hint.artifactUrl);
+        artifactSha256 = trimString(hint.artifactSha256) || null;
+      } else if (deps.resolveDesktopUpdateArtifactUrl) {
+        artifactUrl = trimString(await deps.resolveDesktopUpdateArtifactUrl(hint));
+      } else {
+        const resolvedArtifact = await resolveDesktopUpdateArtifact(hint);
+        artifactUrl = trimString(resolvedArtifact.artifactUrl);
+        artifactSha256 = trimString(resolvedArtifact.artifactSha256) || null;
+      }
+    }
     if (artifactUrl) {
       return startInstallerFallback({
         hint,
         deps,
         artifactUrl,
+        artifactSha256,
       });
     }
   }

@@ -15,6 +15,7 @@ import {
 
 function buildPublishedConfig(input: {
   version: string;
+  rolloutId?: string;
   notes?: string;
   mandatory?: boolean;
   forceUpdateBelowVersion?: string | null;
@@ -59,6 +60,7 @@ function buildPublishedConfig(input: {
         },
     release: {
       version: input.version,
+      rolloutId: input.rolloutId || 'rollout-prod-20260404',
       notes: input.notes || 'Desktop release notes',
       publishedAt: '2026-04-04T00:00:00.000Z',
       policy: {
@@ -76,6 +78,7 @@ function buildPublishedConfig(input: {
       dev: {
         draft: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -89,6 +92,7 @@ function buildPublishedConfig(input: {
         },
         published: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -104,6 +108,7 @@ function buildPublishedConfig(input: {
       prod: {
         draft: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -117,6 +122,7 @@ function buildPublishedConfig(input: {
         },
         published: {
           version: input.version,
+          rolloutId: input.rolloutId || 'rollout-prod-20260404',
           notes: input.notes || 'Desktop release notes',
           targets: [target, ...(input.extraTargets || [])],
           policy: {
@@ -158,12 +164,14 @@ test('resolvePortalDesktopReleaseHint reports available recommended update when 
 
   assert.ok(hint);
   assert.equal(hint.latestVersion, '1.0.2+202604041200');
+  assert.equal(hint.rolloutId, 'rollout-prod-20260404');
   assert.equal(hint.updateAvailable, true);
   assert.equal(hint.mandatory, false);
   assert.equal(hint.enforcementState, 'recommended');
   assert.equal(hint.blockNewRuns, false);
   assert.match(hint.manifestUrl || '', /desktop\/release-manifest/);
   assert.match(hint.artifactUrl || '', /artifact_type=installer/);
+  assert.equal(hint.artifactSha256, 'installer-sha');
 });
 
 test('resolvePortalDesktopUpdaterPayload returns signed updater payload when updater artifacts exist', () => {
@@ -184,9 +192,11 @@ test('resolvePortalDesktopUpdaterPayload returns signed updater payload when upd
 
   assert.ok(payload);
   assert.equal(payload.version, '1.0.2+202604041200');
+  assert.equal(payload.rolloutId, 'rollout-prod-20260404');
   assert.equal(payload.signature, 'signed-updater-payload');
   assert.match(payload.url, /artifact_type=updater/);
   assert.match(payload.externalDownloadUrl || '', /artifact_type=installer/);
+  assert.equal(payload.externalDownloadSha256, 'installer-sha');
   assert.equal(payload.mandatory, false);
   assert.equal(payload.enforcementState, 'recommended');
 });
@@ -251,6 +261,7 @@ test('resolvePortalDesktopReleaseHint and updater payload share the same policy 
         },
         release: {
           version: '1.0.2+202604041200',
+          rolloutId: 'rollout-win-20260404',
           notes: 'Windows release notes',
           publishedAt: '2026-04-04T00:00:00.000Z',
           policy: {
@@ -294,6 +305,8 @@ test('resolvePortalDesktopReleaseHint and updater payload share the same policy 
   assert.equal(hint.reasonMessage, payload.reasonMessage);
   assert.equal(payload.enforcementState, 'required_now');
   assert.equal(payload.reasonMessage, 'Windows must update now.');
+  assert.equal(hint.rolloutId, 'rollout-win-20260404');
+  assert.equal(payload.rolloutId, 'rollout-win-20260404');
 });
 
 test('resolvePortalDesktopReleaseHint upgrades to mandatory when forceUpdateBelowVersion is hit', () => {
@@ -375,6 +388,7 @@ test('readPortalDesktopReleaseConfig hydrates snapshot-level release fields onto
       dev: {
         draft: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -388,6 +402,7 @@ test('readPortalDesktopReleaseConfig hydrates snapshot-level release fields onto
         },
         published: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -403,6 +418,7 @@ test('readPortalDesktopReleaseConfig hydrates snapshot-level release fields onto
       prod: {
         draft: {
           version: '1.2.3',
+          rolloutId: 'rollout-prod-1.2.3',
           notes: 'Unified desktop release',
           targets: [
             {
@@ -449,6 +465,7 @@ test('readPortalDesktopReleaseConfig hydrates snapshot-level release fields onto
         },
         published: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -514,6 +531,7 @@ test('buildPortalDesktopReleaseManifestPayload prefers target-scoped release met
         },
         release: {
           version: '1.0.3+202604050101',
+          rolloutId: 'rollout-win-20260405',
           notes: 'Windows target release notes',
           publishedAt: '2026-04-05T00:00:00.000Z',
           policy: {
@@ -597,6 +615,7 @@ test('buildPortalDesktopReleaseManifestPayload returns the exact windows target 
         },
         release: {
           version: '1.0.2+202604041200',
+          rolloutId: 'rollout-win-20260404',
           notes: 'Windows release notes',
           publishedAt: '2026-04-04T00:00:00.000Z',
           policy: {

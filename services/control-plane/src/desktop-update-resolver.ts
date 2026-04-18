@@ -62,6 +62,9 @@ export async function resolveDesktopUpdateResponseHeaders(
     'x-iclaw-update-enforcement-state': hint.enforcementState || 'recommended',
     'x-iclaw-update-block-new-runs': hint.blockNewRuns ? 'true' : 'false',
   };
+  if (hint.rolloutId) {
+    responseHeaders['x-iclaw-update-rollout-id'] = hint.rolloutId;
+  }
   if (hint.reasonCode) {
     responseHeaders['x-iclaw-update-reason-code'] = hint.reasonCode;
   }
@@ -73,6 +76,9 @@ export async function resolveDesktopUpdateResponseHeaders(
   }
   if (hint.artifactUrl) {
     responseHeaders['x-iclaw-update-artifact-url'] = hint.artifactUrl;
+  }
+  if (hint.artifactSha256) {
+    responseHeaders['x-iclaw-update-artifact-sha256'] = hint.artifactSha256;
   }
   return responseHeaders;
 }
@@ -100,6 +106,7 @@ export async function resolveDesktopUpdateHintPayload(
         return {
           appName,
           latestVersion: managed.latestVersion,
+          rolloutId: managed.rolloutId,
           updateAvailable: managed.updateAvailable,
           mandatory: managed.mandatory,
           enforcementState: managed.enforcementState,
@@ -108,6 +115,7 @@ export async function resolveDesktopUpdateHintPayload(
           reasonMessage: managed.reasonMessage,
           manifestUrl: managed.manifestUrl,
           artifactUrl: managed.artifactUrl,
+          artifactSha256: managed.artifactSha256,
         };
       }
     }
@@ -137,6 +145,7 @@ export async function resolveDesktopUpdaterRoutePayload(
       if (managed) {
         return {
           version: managed.version,
+          rolloutId: managed.rolloutId,
           url: managed.url,
           signature: managed.signature,
           notes: managed.notes,
@@ -147,6 +156,7 @@ export async function resolveDesktopUpdaterRoutePayload(
           reasonCode: managed.reasonCode,
           reasonMessage: managed.reasonMessage,
           externalDownloadUrl: managed.externalDownloadUrl,
+          externalDownloadSha256: managed.externalDownloadSha256,
         };
       }
     }

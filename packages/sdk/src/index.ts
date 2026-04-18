@@ -20,6 +20,7 @@ export interface ClientOptions {
 export interface DesktopUpdateHint {
   appName?: string | null;
   latestVersion: string;
+  rolloutId?: string | null;
   updateAvailable: boolean;
   mandatory: boolean;
   enforcementState?: 'recommended' | 'required_after_run' | 'required_now';
@@ -28,6 +29,7 @@ export interface DesktopUpdateHint {
   reasonMessage?: string | null;
   manifestUrl?: string | null;
   artifactUrl?: string | null;
+  artifactSha256?: string | null;
 }
 
 export interface DesktopUpdateHintInput {
@@ -1347,13 +1349,16 @@ export class IClawClient {
     const mandatory = response.headers.get('x-iclaw-update-mandatory') === 'true';
     const enforcementState = response.headers.get('x-iclaw-update-enforcement-state')?.trim() || 'recommended';
     const blockNewRuns = response.headers.get('x-iclaw-update-block-new-runs') === 'true';
+    const rolloutId = response.headers.get('x-iclaw-update-rollout-id')?.trim() || null;
     const reasonCode = response.headers.get('x-iclaw-update-reason-code')?.trim() || null;
     const reasonMessage = response.headers.get('x-iclaw-update-reason-message')?.trim() || null;
     const manifestUrl = response.headers.get('x-iclaw-update-manifest-url');
     const artifactUrl = response.headers.get('x-iclaw-update-artifact-url');
+    const artifactSha256 = response.headers.get('x-iclaw-update-artifact-sha256');
     this.onDesktopUpdateHint({
       appName,
       latestVersion,
+      rolloutId,
       updateAvailable,
       mandatory,
       enforcementState:
@@ -1365,6 +1370,7 @@ export class IClawClient {
       reasonMessage,
       manifestUrl: manifestUrl?.trim() || null,
       artifactUrl: artifactUrl?.trim() || null,
+      artifactSha256: artifactSha256?.trim() || null,
     });
   }
 

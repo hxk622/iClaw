@@ -10,6 +10,7 @@ import { writePortalDesktopReleaseConfig, type PortalDesktopReleaseConfig, type 
 
 function buildPublishedConfig(input: {
   version: string;
+  rolloutId?: string;
   mandatory?: boolean;
   allowCurrentRunToFinish?: boolean;
 }): Record<string, unknown> {
@@ -46,6 +47,7 @@ function buildPublishedConfig(input: {
     },
     release: {
       version: input.version,
+      rolloutId: input.rolloutId || 'rollout-prod-20260404',
       notes: 'Desktop release notes',
       publishedAt: '2026-04-04T00:00:00.000Z',
       policy: {
@@ -63,6 +65,7 @@ function buildPublishedConfig(input: {
       dev: {
         draft: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -76,6 +79,7 @@ function buildPublishedConfig(input: {
         },
         published: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -91,6 +95,7 @@ function buildPublishedConfig(input: {
       prod: {
         draft: {
           version: null,
+          rolloutId: null,
           notes: null,
           targets: [],
           policy: {
@@ -104,6 +109,7 @@ function buildPublishedConfig(input: {
         },
         published: {
           version: input.version,
+          rolloutId: input.rolloutId || 'rollout-prod-20260404',
           notes: 'Desktop release notes',
           targets: [target],
           policy: {
@@ -153,10 +159,12 @@ test('resolveDesktopUpdateHintPayload returns managed desktop release hint for c
 
   assert.ok(hint);
   assert.equal(hint.latestVersion, '1.0.2+202604041200');
+  assert.equal(hint.rolloutId, 'rollout-prod-20260404');
   assert.equal(hint.updateAvailable, true);
   assert.equal(hint.enforcementState, 'recommended');
   assert.match(hint.manifestUrl || '', /desktop\/release-manifest/);
   assert.match(hint.artifactUrl || '', /artifact_type=installer/);
+  assert.equal(hint.artifactSha256, 'installer-sha');
 });
 
 test('resolveDesktopUpdateResponseHeaders exposes desktop update metadata for the desktop shell', async () => {
@@ -182,9 +190,11 @@ test('resolveDesktopUpdateResponseHeaders exposes desktop update metadata for th
   assert.equal(headers['x-iclaw-update-mandatory'], 'true');
   assert.equal(headers['x-iclaw-update-enforcement-state'], 'required_now');
   assert.equal(headers['x-iclaw-update-block-new-runs'], 'true');
+  assert.equal(headers['x-iclaw-update-rollout-id'], 'rollout-prod-20260404');
   assert.equal(headers['x-iclaw-update-reason-code'], 'desktop_update');
   assert.match(headers['x-iclaw-update-manifest-url'] || '', /desktop\/release-manifest/);
   assert.match(headers['x-iclaw-update-artifact-url'] || '', /artifact_type=installer/);
+  assert.equal(headers['x-iclaw-update-artifact-sha256'], 'installer-sha');
 });
 
 test('resolveDesktopUpdaterRoutePayload returns signed updater payload for native auto-update checks', async () => {
@@ -204,10 +214,12 @@ test('resolveDesktopUpdaterRoutePayload returns signed updater payload for nativ
 
   assert.ok(payload);
   assert.equal(payload.version, '1.0.2+202604041200');
+  assert.equal(payload.rolloutId, 'rollout-prod-20260404');
   assert.equal(payload.signature, 'signed-updater-payload');
   assert.equal(payload.enforcementState, 'recommended');
   assert.match(payload.url, /artifact_type=updater/);
   assert.match(payload.externalDownloadUrl || '', /artifact_type=installer/);
+  assert.equal(payload.externalDownloadSha256, 'installer-sha');
 });
 
 test('resolveDesktopUpdateResponseHeaders returns empty object when app is unmanaged', async () => {

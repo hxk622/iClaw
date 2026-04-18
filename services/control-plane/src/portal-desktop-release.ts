@@ -33,6 +33,7 @@ export type PortalDesktopReleaseTarget = {
 
 export type PortalDesktopReleaseTargetRelease = {
   version: string | null;
+  rolloutId: string | null;
   notes: string | null;
   policy: PortalDesktopReleasePolicy;
   publishedAt: string | null;
@@ -48,6 +49,7 @@ export type PortalDesktopReleasePolicy = {
 
 export type PortalDesktopReleaseSnapshot = {
   version: string | null;
+  rolloutId: string | null;
   notes: string | null;
   targets: PortalDesktopReleaseTarget[];
   policy: PortalDesktopReleasePolicy;
@@ -65,6 +67,7 @@ export type PortalDesktopReleaseConfig = {
 
 export type PortalDesktopReleaseHint = {
   latestVersion: string;
+  rolloutId: string | null;
   updateAvailable: boolean;
   mandatory: boolean;
   enforcementState: DesktopUpdateEnforcementState;
@@ -73,10 +76,12 @@ export type PortalDesktopReleaseHint = {
   reasonMessage: string | null;
   manifestUrl: string | null;
   artifactUrl: string | null;
+  artifactSha256: string | null;
 };
 
 export type PortalDesktopUpdaterPayload = {
   version: string;
+  rolloutId: string | null;
   url: string;
   signature: string;
   notes: string | null;
@@ -87,12 +92,14 @@ export type PortalDesktopUpdaterPayload = {
   reasonCode: string | null;
   reasonMessage: string | null;
   externalDownloadUrl: string | null;
+  externalDownloadSha256: string | null;
 };
 
 type PortalDesktopManifestEntry = {
   platform: DesktopReleasePlatform;
   arch: DesktopReleaseArch;
   version: string;
+  rollout_id: string | null;
   artifact_name: string;
   artifact_url: string;
   artifact_size: number;
@@ -165,6 +172,7 @@ function normalizeDesktopReleaseSignature(value: unknown): PortalDesktopReleaseS
 function emptyTargetRelease(): PortalDesktopReleaseTargetRelease {
   return {
     version: null,
+    rolloutId: null,
     notes: null,
     policy: emptyPolicy(),
     publishedAt: null,
@@ -175,6 +183,7 @@ function normalizeTargetRelease(value: unknown): PortalDesktopReleaseTargetRelea
   const release = asObject(value);
   return {
     version: trimString(release.version) || null,
+    rolloutId: trimString(release.rolloutId || release.rollout_id) || null,
     notes: trimString(release.notes) || null,
     policy: normalizePolicy(release.policy),
     publishedAt: trimString(release.publishedAt || release.published_at) || null,
@@ -234,6 +243,7 @@ function normalizeTarget(value: unknown): PortalDesktopReleaseTarget | null {
 function hasTargetScopedRelease(release: PortalDesktopReleaseTargetRelease): boolean {
   return (
     Boolean(release.version) ||
+    Boolean(release.rolloutId) ||
     Boolean(release.notes) ||
     Boolean(release.publishedAt) ||
     Boolean(release.policy.mandatory) ||
@@ -246,7 +256,7 @@ function hasTargetScopedRelease(release: PortalDesktopReleaseTargetRelease): boo
 
 function hydrateTargetRelease(
   target: PortalDesktopReleaseTarget,
-  snapshot: Pick<PortalDesktopReleaseSnapshot, 'version' | 'notes' | 'policy' | 'publishedAt'>,
+  snapshot: Pick<PortalDesktopReleaseSnapshot, 'version' | 'rolloutId' | 'notes' | 'policy' | 'publishedAt'>,
 ): PortalDesktopReleaseTarget {
   if (hasTargetScopedRelease(target.release)) {
     return target;
@@ -255,6 +265,7 @@ function hydrateTargetRelease(
     ...target,
     release: {
       version: snapshot.version,
+      rolloutId: snapshot.rolloutId,
       notes: snapshot.notes,
       policy: snapshot.policy,
       publishedAt: snapshot.publishedAt,
@@ -265,6 +276,7 @@ function hydrateTargetRelease(
 function emptySnapshot(): PortalDesktopReleaseSnapshot {
   return {
     version: null,
+    rolloutId: null,
     notes: null,
     targets: [],
     policy: emptyPolicy(),
@@ -276,10 +288,11 @@ function normalizeSnapshot(value: unknown): PortalDesktopReleaseSnapshot {
   const snapshot = asObject(value);
   const normalizedSnapshot = {
     version: trimString(snapshot.version) || null,
+    rolloutId: trimString(snapshot.rolloutId || snapshot.rollout_id) || null,
     notes: trimString(snapshot.notes) || null,
     policy: normalizePolicy(snapshot.policy),
     publishedAt: trimString(snapshot.publishedAt || snapshot.published_at) || null,
-  } satisfies Pick<PortalDesktopReleaseSnapshot, 'version' | 'notes' | 'policy' | 'publishedAt'>;
+  } satisfies Pick<PortalDesktopReleaseSnapshot, 'version' | 'rolloutId' | 'notes' | 'policy' | 'publishedAt'>;
   return {
     ...normalizedSnapshot,
     targets: asArray(snapshot.targets)
@@ -441,12 +454,22 @@ export function buildPortalDesktopReleaseManifestUrl(input: {
   return `${baseUrl}/desktop/release-manifest?${params.toString()}`;
 }
 
-function buildManifestEntry(baseUrl: string, appName: string, channel: DesktopReleaseChannel, target: PortalDesktopReleaseTarget, version: string, notes: string | null, publishedAt: string | null): PortalDesktopManifestEntry | null {
+function buildManifestEntry(
+  baseUrl: string,
+  appName: string,
+  channel: DesktopReleaseChannel,
+  target: PortalDesktopReleaseTarget,
+  version: string,
+  rolloutId: string | null,
+  notes: string | null,
+  publishedAt: string | null,
+): PortalDesktopManifestEntry | null {
   if (!target.installer) return null;
   return {
     platform: target.platform,
     arch: target.arch,
     version,
+    rollout_id: rolloutId,
     artifact_name: target.installer.fileName,
     artifact_url: buildPortalDesktopReleaseArtifactUrl({
       baseUrl,
@@ -484,6 +507,7 @@ function resolveTargetRelease(target: PortalDesktopReleaseTarget, snapshot: Port
   }
   return {
     version: snapshot.version,
+    rolloutId: snapshot.rolloutId,
     notes: snapshot.notes,
     policy: snapshot.policy,
     publishedAt: snapshot.publishedAt,
@@ -509,6 +533,7 @@ export function buildPortalDesktopReleaseManifestPayload(input: {
         input.channel,
         target,
         version,
+        release.rolloutId,
         release.notes,
         release.publishedAt,
       );
@@ -524,6 +549,7 @@ export function buildPortalDesktopReleaseManifestPayload(input: {
         app_name: input.appName,
         channel: input.channel,
         version: targetEntry.version,
+        rollout_id: targetEntry.rollout_id,
         generated_at: new Date().toISOString(),
         entry: targetEntry,
       };
@@ -537,6 +563,7 @@ export function buildPortalDesktopReleaseManifestPayload(input: {
     app_name: input.appName,
     channel: input.channel,
     version: uniqueVersions.length === 1 ? uniqueVersions[0] : null,
+    rollout_id: uniqueVersions.length === 1 ? entries[0]?.rollout_id || null : null,
     generated_at: new Date().toISOString(),
     entries,
   };
@@ -571,6 +598,7 @@ export function resolvePortalDesktopReleaseHint(input: {
   });
   return {
     latestVersion,
+    rolloutId: release.rolloutId,
     updateAvailable,
     mandatory: policyState.mandatory,
     enforcementState: policyState.enforcementState,
@@ -592,6 +620,7 @@ export function resolvePortalDesktopReleaseHint(input: {
       arch: target.arch,
       artifactType: 'installer',
     }),
+    artifactSha256: target.installer.sha256 || null,
   };
 }
 
@@ -625,6 +654,7 @@ export function resolvePortalDesktopUpdaterPayload(input: {
   });
   return {
     version: latestVersion,
+    rolloutId: release.rolloutId,
     url: buildPortalDesktopReleaseArtifactUrl({
       baseUrl: input.baseUrl,
       appName: input.appName,
@@ -649,6 +679,7 @@ export function resolvePortalDesktopUpdaterPayload(input: {
       arch: target.arch,
       artifactType: 'installer',
     }),
+    externalDownloadSha256: target.installer?.sha256 || null,
   };
 }
 
