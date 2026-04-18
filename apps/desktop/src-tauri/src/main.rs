@@ -209,6 +209,24 @@ struct PublicBrandAppRef {
     app_name: Option<String>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ResolvedWorkspaceArtifactPath {
+    path: String,
+    extension: Option<String>,
+    size_bytes: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceArtifactBinaryPayload {
+    path: String,
+    extension: Option<String>,
+    size_bytes: u64,
+    mime_type: String,
+    base64: String,
+}
+
 fn openclaw_main_agent_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = openclaw_state_dir(app)?
         .join("agents")
@@ -6969,6 +6987,100 @@ fn openclaw_workspace_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(runtime_scope_root_dir_raw(app).join("workspace"))
 }
 
+fn normalize_workspace_artifact_display_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn guess_workspace_artifact_mime_type(path: &Path) -> String {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("pdf") => String::from("application/pdf"),
+        Some("ppt") => String::from("application/vnd.ms-powerpoint"),
+        Some("pptx") => String::from(
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ),
+        Some("key") => String::from("application/vnd.apple.keynote"),
+        Some("doc") => String::from("application/msword"),
+        Some("docx") => String::from(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ),
+        Some("xls") => String::from("application/vnd.ms-excel"),
+        Some("xlsx") => String::from(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ),
+        _ => String::from("application/octet-stream"),
+    }
+}
+
+fn resolve_workspace_artifact_path_internal(
+    app: &AppHandle,
+    input_path: &str,
+) -> Result<(PathBuf, ResolvedWorkspaceArtifactPath), String> {
+    let trimmed = input_path.trim();
+    if trimmed.is_empty() {
+        return Err(String::from("artifact path is empty"));
+    }
+
+    let workspace_dir = openclaw_workspace_dir(app)?;
+    fs::create_dir_all(&workspace_dir).map_err(|e| {
+        format!(
+            "failed to create workspace dir {}: {e}",
+            workspace_dir.to_string_lossy()
+        )
+    })?;
+    let workspace_canonical = fs::canonicalize(&workspace_dir).map_err(|e| {
+        format!(
+            "failed to canonicalize workspace dir {}: {e}",
+            workspace_dir.to_string_lossy()
+        )
+    })?;
+
+    let requested_path = PathBuf::from(trimmed);
+    let candidate_path = if requested_path.is_absolute() {
+        requested_path
+    } else {
+        workspace_dir.join(requested_path)
+    };
+    let canonical_path = fs::canonicalize(&candidate_path).map_err(|e| {
+        format!(
+            "failed to resolve workspace artifact {}: {e}",
+            candidate_path.to_string_lossy()
+        )
+    })?;
+
+    if !canonical_path.starts_with(&workspace_canonical) {
+        return Err(String::from("artifact path escapes workspace"));
+    }
+
+    let relative_path = canonical_path
+        .strip_prefix(&workspace_canonical)
+        .map_err(|e| format!("failed to relativize artifact path: {e}"))?;
+    let display_path = normalize_workspace_artifact_display_path(relative_path);
+    let extension = relative_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase());
+    let metadata = fs::metadata(&canonical_path).map_err(|e| {
+        format!(
+            "failed to read artifact metadata {}: {e}",
+            canonical_path.to_string_lossy()
+        )
+    })?;
+
+    Ok((
+        canonical_path,
+        ResolvedWorkspaceArtifactPath {
+            path: display_path,
+            extension,
+            size_bytes: metadata.len(),
+        },
+    ))
+}
+
 fn value_str(settings: &serde_json::Value, path: &[&str], default: &str) -> String {
     let mut current = settings;
     for key in path {
@@ -8274,6 +8386,74 @@ fn open_external_url(url: String) -> Result<bool, String> {
     Ok(true)
 }
 
+#[tauri::command]
+fn resolve_workspace_artifact_path(
+    app: AppHandle,
+    path: String,
+) -> Result<ResolvedWorkspaceArtifactPath, String> {
+    let (_, resolved) = resolve_workspace_artifact_path_internal(&app, &path)?;
+    Ok(resolved)
+}
+
+#[tauri::command]
+fn read_workspace_artifact_base64(
+    app: AppHandle,
+    path: String,
+) -> Result<WorkspaceArtifactBinaryPayload, String> {
+    let (resolved_path, resolved) = resolve_workspace_artifact_path_internal(&app, &path)?;
+    let bytes = fs::read(&resolved_path).map_err(|e| {
+        format!(
+            "failed to read artifact bytes {}: {e}",
+            resolved_path.to_string_lossy()
+        )
+    })?;
+
+    Ok(WorkspaceArtifactBinaryPayload {
+        path: resolved.path,
+        extension: resolved.extension,
+        size_bytes: resolved.size_bytes,
+        mime_type: guess_workspace_artifact_mime_type(&resolved_path),
+        base64: base64::engine::general_purpose::STANDARD.encode(bytes),
+    })
+}
+
+#[tauri::command]
+fn open_workspace_artifact(app: AppHandle, path: String) -> Result<bool, String> {
+    let (resolved_path, _) = resolve_workspace_artifact_path_internal(&app, &path)?;
+    let resolved_path_string = resolved_path.to_string_lossy().to_string();
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut cmd = Command::new("open");
+        cmd.arg(&resolved_path_string);
+        cmd
+    };
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut cmd = Command::new("cmd");
+        cmd.args(["/C", "start", "", &resolved_path_string]);
+        configure_background_child_process(&mut cmd);
+        cmd
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut cmd = Command::new("xdg-open");
+        cmd.arg(&resolved_path_string);
+        cmd
+    };
+
+    command.stdout(Stdio::null()).stderr(Stdio::null());
+    command.spawn().map_err(|e| {
+        format!(
+            "failed to open workspace artifact {}: {e}",
+            resolved_path.to_string_lossy()
+        )
+    })?;
+    Ok(true)
+}
+
 fn desktop_update_downloads_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app_data_base_dir(app)?
         .join("desktop-updates")
@@ -8627,6 +8807,9 @@ fn main() {
             delete_memory_entry,
             archive_memory_entry,
             reindex_memory,
+            resolve_workspace_artifact_path,
+            read_workspace_artifact_base64,
+            open_workspace_artifact,
             check_desktop_update,
             download_and_install_desktop_update,
             download_and_launch_desktop_installer,

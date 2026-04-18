@@ -46,7 +46,18 @@ import {
   looksLikeOpenClawTransportIssue,
   resolveOpenClawChatRecoveryAction,
 } from '@/app/lib/openclaw-chat-recovery';
+import {
+  buildArtifactOpenActionLabel,
+  extractArtifactExtension,
+  resolveArtifactPreviewKind,
+  type ArtifactPreviewKind,
+} from '@/app/lib/artifact-preview';
 import { buildArtifactWorkspaceNameCandidates } from '@/app/lib/artifact-workspace-path';
+import {
+  openWorkspaceArtifact,
+  readWorkspaceArtifactBase64,
+  resolveWorkspaceArtifactPath,
+} from '@/app/lib/tauri-artifact-preview';
 import {
   deriveOpenClawGatewayReadiness,
   deriveOpenClawChatSurfaceLifecycle,
@@ -514,44 +525,6 @@ const ARTIFACT_CARD_KEYWORDS = [
   '幻灯片',
   '文档',
 ];
-const ARTIFACT_PREVIEW_HTML_EXTENSIONS = new Set(['html', 'htm']);
-const ARTIFACT_PREVIEW_MARKDOWN_EXTENSIONS = new Set(['md', 'markdown']);
-const ARTIFACT_PREVIEW_TEXT_EXTENSIONS = new Set([
-  'txt',
-  'text',
-  'json',
-  'js',
-  'jsx',
-  'ts',
-  'tsx',
-  'css',
-  'scss',
-  'less',
-  'xml',
-  'yml',
-  'yaml',
-  'csv',
-  'tsv',
-  'sql',
-  'py',
-  'rb',
-  'go',
-  'rs',
-  'java',
-  'kt',
-  'swift',
-  'sh',
-  'bash',
-  'zsh',
-  'c',
-  'cc',
-  'cpp',
-  'h',
-  'hpp',
-  'vue',
-  'svelte',
-  'mdx',
-]);
 const ARTIFACT_PATH_PATTERN = new RegExp(
   `([^\\s|)\\]}]+?\\.(?:${ARTIFACT_CARD_EXTENSIONS.join('|')}))`,
   'ig',
@@ -656,8 +629,6 @@ type DraggedFileSummary = {
   unsupportedCount: number;
 };
 
-type ArtifactPreviewKind = 'html' | 'markdown' | 'text' | 'unsupported';
-
 type ArtifactPreviewState = {
   title: string;
   path: string;
@@ -665,6 +636,9 @@ type ArtifactPreviewState = {
   content: string | null;
   loading: boolean;
   error: string | null;
+  openPath: string | null;
+  actionLabel: string | null;
+  actionError: string | null;
 };
 
 type ChatSessionSnapshot = {
@@ -995,31 +969,6 @@ function buildToolCardSignature(card: HTMLElement): string {
     .filter(Boolean);
 
   return parts.join(' | ');
-}
-
-function extractArtifactExtension(path: string | null): string | null {
-  if (!path) {
-    return null;
-  }
-  const match = /\.([a-z0-9]+)$/i.exec(path.trim());
-  return match?.[1]?.toLowerCase() ?? null;
-}
-
-function resolveArtifactPreviewKind(path: string | null): ArtifactPreviewKind {
-  const extension = extractArtifactExtension(path);
-  if (!extension) {
-    return 'text';
-  }
-  if (ARTIFACT_PREVIEW_HTML_EXTENSIONS.has(extension)) {
-    return 'html';
-  }
-  if (ARTIFACT_PREVIEW_MARKDOWN_EXTENSIONS.has(extension)) {
-    return 'markdown';
-  }
-  if (ARTIFACT_PREVIEW_TEXT_EXTENSIONS.has(extension)) {
-    return 'text';
-  }
-  return 'unsupported';
 }
 
 function sanitizeArtifactPathCandidate(value: string | null | undefined): string | null {
@@ -4888,6 +4837,35 @@ export function OpenClawChatSurface({
     setArtifactPreview(null);
   }, []);
 
+  const handleOpenArtifactSourceFile = useCallback(async (path: string | null) => {
+    if (!path) {
+      return false;
+    }
+    try {
+      const opened = await openWorkspaceArtifact(path);
+      setArtifactPreview((current) =>
+        current && current.openPath === path
+          ? {
+              ...current,
+              actionError: opened ? null : '当前系统没有成功打开这个文件。',
+            }
+          : current,
+      );
+      return opened;
+    } catch (error) {
+      console.error('[desktop] failed to open artifact source file', { path, error });
+      setArtifactPreview((current) =>
+        current && current.openPath === path
+          ? {
+              ...current,
+              actionError: '打开原文件失败，请检查本地默认应用是否可用。',
+            }
+          : current,
+      );
+      return false;
+    }
+  }, []);
+
   const ensureArtifactPreviewWorkspaceDir = useCallback(async (): Promise<string | null> => {
     if (artifactPreviewWorkspaceDirRef.current) {
       return artifactPreviewWorkspaceDirRef.current;
@@ -4940,6 +4918,9 @@ export function OpenClawChatSurface({
           content: inlineContent,
           loading: false,
           error: null,
+          openPath: null,
+          actionLabel: null,
+          actionError: null,
         });
         return true;
       }
@@ -4952,18 +4933,9 @@ export function OpenClawChatSurface({
           content: null,
           loading: false,
           error: '未解析到制品文件路径，当前无法在右侧分屏展示真实内容。',
-        });
-        return false;
-      }
-
-      if (previewKind === 'unsupported') {
-        setArtifactPreview({
-          title,
-          path,
-          kind: previewKind,
-          content: null,
-          loading: false,
-          error: `暂不支持直接预览 ${extractArtifactExtension(path)?.toUpperCase() ?? '该'} 文件，请改成文本/Markdown/HTML 制品后再预览。`,
+          openPath: null,
+          actionLabel: null,
+          actionError: null,
         });
         return false;
       }
@@ -4975,10 +4947,144 @@ export function OpenClawChatSurface({
         content: null,
         loading: true,
         error: null,
+        openPath: null,
+        actionLabel: null,
+        actionError: null,
       });
 
       const workspaceDir = await ensureArtifactPreviewWorkspaceDir();
       const nameCandidates = buildArtifactWorkspaceNameCandidates(path, workspaceDir);
+
+      if (previewKind === 'pdf') {
+        let resolvedPdfContent: string | null = null;
+        let resolvedPdfPath: string | null = null;
+
+        for (const candidateName of nameCandidates) {
+          try {
+            const result = await readWorkspaceArtifactBase64(candidateName);
+            if (result?.base64) {
+              resolvedPdfContent = `data:${result.mimeType || 'application/pdf'};base64,${result.base64}`;
+              resolvedPdfPath = result.path || candidateName;
+              break;
+            }
+          } catch {
+            // Try the next candidate before surfacing a failure.
+          }
+        }
+
+        if (artifactPreviewRequestSeqRef.current !== requestSeq) {
+          return true;
+        }
+
+        if (!resolvedPdfContent) {
+          setArtifactPreview({
+            title,
+            path,
+            kind: previewKind,
+            content: null,
+            loading: false,
+            error: '已识别到 PDF 制品，但当前桌面端没有拿到可预览的二进制内容。',
+            openPath: null,
+            actionLabel: null,
+            actionError: null,
+          });
+          return false;
+        }
+
+        setArtifactPreview({
+          title,
+          path: resolvedPdfPath ?? path,
+          kind: previewKind,
+          content: resolvedPdfContent,
+          loading: false,
+          error: null,
+          openPath: resolvedPdfPath ?? path,
+          actionLabel: buildArtifactOpenActionLabel(resolvedPdfPath ?? path),
+          actionError: null,
+        });
+        return true;
+      }
+
+      if (previewKind === 'office') {
+        let resolvedOfficePath: string | null = null;
+
+        for (const candidateName of nameCandidates) {
+          try {
+            const result = await resolveWorkspaceArtifactPath(candidateName);
+            if (result?.path) {
+              resolvedOfficePath = result.path;
+              break;
+            }
+          } catch {
+            // Try the next candidate before surfacing a failure.
+          }
+        }
+
+        if (artifactPreviewRequestSeqRef.current !== requestSeq) {
+          return true;
+        }
+
+        if (!resolvedOfficePath) {
+          setArtifactPreview({
+            title,
+            path,
+            kind: previewKind,
+            content: null,
+            loading: false,
+            error: '已识别到 Office 制品，但当前桌面端没有定位到可打开的原文件。',
+            openPath: null,
+            actionLabel: null,
+            actionError: null,
+          });
+          return false;
+        }
+
+        setArtifactPreview({
+          title,
+          path: resolvedOfficePath,
+          kind: previewKind,
+          content: null,
+          loading: false,
+          error: null,
+          openPath: resolvedOfficePath,
+          actionLabel: buildArtifactOpenActionLabel(resolvedOfficePath),
+          actionError: null,
+        });
+        return true;
+      }
+
+      if (previewKind === 'unsupported') {
+        let resolvedUnsupportedPath: string | null = null;
+
+        for (const candidateName of nameCandidates) {
+          try {
+            const result = await resolveWorkspaceArtifactPath(candidateName);
+            if (result?.path) {
+              resolvedUnsupportedPath = result.path;
+              break;
+            }
+          } catch {
+            // Try the next candidate before surfacing a failure.
+          }
+        }
+
+        if (artifactPreviewRequestSeqRef.current !== requestSeq) {
+          return true;
+        }
+
+        setArtifactPreview({
+          title,
+          path: resolvedUnsupportedPath ?? path,
+          kind: previewKind,
+          content: null,
+          loading: false,
+          error: `暂不支持直接预览 ${extractArtifactExtension(path)?.toUpperCase() ?? '该'} 文件。`,
+          openPath: resolvedUnsupportedPath,
+          actionLabel: resolvedUnsupportedPath ? buildArtifactOpenActionLabel(resolvedUnsupportedPath) : null,
+          actionError: null,
+        });
+        return false;
+      }
 
       let resolvedContent: string | null = null;
       let resolvedName: string | null = null;
@@ -5010,6 +5116,9 @@ export function OpenClawChatSurface({
           content: null,
           loading: false,
           error: '已识别到制品卡片，但没有从 OpenClaw workspace 读到对应文件内容。',
+          openPath: null,
+          actionLabel: null,
+          actionError: null,
         });
         return false;
       }
@@ -5021,6 +5130,9 @@ export function OpenClawChatSurface({
         content: resolvedContent,
         loading: false,
         error: null,
+        openPath: resolvedName ?? path,
+        actionLabel: null,
+        actionError: null,
       });
       return true;
     },
@@ -9770,6 +9882,30 @@ export function OpenClawChatSurface({
                       compact
                       title="右侧分屏暂时没有拿到真实内容"
                       description={artifactPreview.error}
+                      action={
+                        artifactPreview.openPath && artifactPreview.actionLabel ? (
+                          <div className="flex flex-col items-start gap-3">
+                            <Button
+                              size="sm"
+                              leadingIcon={<FileText className="h-4 w-4" />}
+                              onClick={() => {
+                                void handleOpenArtifactSourceFile(artifactPreview.openPath);
+                              }}
+                            >
+                              {artifactPreview.actionLabel}
+                            </Button>
+                            {artifactPreview.actionError ? (
+                              <div className="text-[12px] text-[var(--text-secondary)]">{artifactPreview.actionError}</div>
+                            ) : null}
+                          </div>
+                        ) : undefined
+                      }
+                    />
+                  ) : artifactPreview.kind === 'pdf' ? (
+                    <iframe
+                      title={artifactPreview.title}
+                      className="iclaw-artifact-preview-pane__frame"
+                      src={artifactPreview.content ?? ''}
                     />
                   ) : artifactPreview.kind === 'html' ? (
                     <iframe
@@ -9777,6 +9913,30 @@ export function OpenClawChatSurface({
                       className="iclaw-artifact-preview-pane__frame"
                       sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
                       srcDoc={artifactPreview.content ?? ''}
+                    />
+                  ) : artifactPreview.kind === 'office' ? (
+                    <EmptyStatePanel
+                      compact
+                      title="当前文件暂不支持内嵌预览"
+                      description="这类 Office 制品先走系统默认应用打开，右侧 pane 保留文件元信息和打开入口。"
+                      action={
+                        artifactPreview.openPath && artifactPreview.actionLabel ? (
+                          <div className="flex flex-col items-start gap-3">
+                            <Button
+                              size="sm"
+                              leadingIcon={<FileText className="h-4 w-4" />}
+                              onClick={() => {
+                                void handleOpenArtifactSourceFile(artifactPreview.openPath);
+                              }}
+                            >
+                              {artifactPreview.actionLabel}
+                            </Button>
+                            {artifactPreview.actionError ? (
+                              <div className="text-[12px] text-[var(--text-secondary)]">{artifactPreview.actionError}</div>
+                            ) : null}
+                          </div>
+                        ) : undefined
+                      }
                     />
                   ) : artifactPreview.kind === 'markdown' && artifactPreviewMarkup ? (
                     <div
