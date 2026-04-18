@@ -4,6 +4,7 @@ import type {
   ClientCrashEventRecord,
   ClientMetricEventRecord,
   ClientPerfSampleRecord,
+  FinanceComplianceEventRecord,
   DesktopFaultReportDetailRecord,
   DesktopFaultReportSummaryRecord,
   OverviewData,
@@ -1378,6 +1379,50 @@ export async function loadClientCrashEvents(input: {
     stackSummary: stringValue(item.stack_summary || item.stackSummary),
     fileBucket: stringValue(item.file_bucket || item.fileBucket),
     fileKey: stringValue(item.file_key || item.fileKey),
+    createdAt: stringValue(item.created_at || item.createdAt),
+  }));
+}
+
+export async function loadFinanceComplianceEvents(input: {
+  appName?: string;
+  sessionKey?: string;
+  channel?: string;
+  inputClassification?: string;
+  outputClassification?: string;
+  riskLevel?: string;
+  limit?: number;
+} = {}): Promise<FinanceComplianceEventRecord[]> {
+  const params = new URLSearchParams();
+  if (input.appName?.trim()) params.set('app_name', input.appName.trim());
+  if (input.sessionKey?.trim()) params.set('session_key', input.sessionKey.trim());
+  if (input.channel?.trim()) params.set('channel', input.channel.trim());
+  if (input.inputClassification?.trim()) params.set('input_classification', input.inputClassification.trim());
+  if (input.outputClassification?.trim()) params.set('output_classification', input.outputClassification.trim());
+  if (input.riskLevel?.trim()) params.set('risk_level', input.riskLevel.trim());
+  params.set('limit', String(input.limit && input.limit > 0 ? input.limit : 200));
+  const data = await apiFetch(`/admin/finance-compliance/events?${params.toString()}`, { method: 'GET' });
+  return toArray<Record<string, unknown>>(asObject(data).items).map((item) => ({
+    id: stringValue(item.id),
+    appName: stringValue(item.app_name || item.appName),
+    sessionKey: stringValue(item.session_key || item.sessionKey),
+    conversationId: stringValue(item.conversation_id || item.conversationId) || null,
+    channel: (stringValue(item.channel) || 'chat') as FinanceComplianceEventRecord['channel'],
+    sourceSurface: stringValue(item.source_surface || item.sourceSurface) || null,
+    inputClassification: (stringValue(item.input_classification || item.inputClassification) ||
+      null) as FinanceComplianceEventRecord['inputClassification'],
+    outputClassification: (stringValue(item.output_classification || item.outputClassification) ||
+      null) as FinanceComplianceEventRecord['outputClassification'],
+    riskLevel: (stringValue(item.risk_level || item.riskLevel) || 'medium') as FinanceComplianceEventRecord['riskLevel'],
+    showDisclaimer: Boolean(item.show_disclaimer ?? item.showDisclaimer),
+    disclaimerText: stringValue(item.disclaimer_text || item.disclaimerText) || null,
+    degraded: Boolean(item.degraded),
+    blocked: Boolean(item.blocked),
+    reasons: toArray<string>(item.reasons).filter((value) => typeof value === 'string'),
+    usedCapabilities: toArray<string>(item.used_capabilities || item.usedCapabilities).filter(
+      (value) => typeof value === 'string',
+    ),
+    usedModel: stringValue(item.used_model || item.usedModel) || null,
+    metadata: asObject(item.metadata),
     createdAt: stringValue(item.created_at || item.createdAt),
   }));
 }

@@ -732,6 +732,33 @@ export type ClientPerfSampleRecord = {
   createdAt: string;
 };
 
+export type FinanceComplianceEventRecord = {
+  id: string;
+  appName: string;
+  sessionKey: string;
+  conversationId: string | null;
+  channel: 'chat' | 'cron' | 'notification' | 'report';
+  sourceSurface: string | null;
+  inputClassification:
+    | 'market_info'
+    | 'research_request'
+    | 'advice_request'
+    | 'personalized_request'
+    | 'execution_request'
+    | null;
+  outputClassification: 'market_data' | 'research_summary' | 'investment_view' | 'actionable_advice' | null;
+  riskLevel: 'low' | 'medium' | 'high';
+  showDisclaimer: boolean;
+  disclaimerText: string | null;
+  degraded: boolean;
+  blocked: boolean;
+  reasons: string[];
+  usedCapabilities: string[];
+  usedModel: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type BrandDetailData = {
   brand: {
     brandId: string;
