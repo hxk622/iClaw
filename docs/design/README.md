@@ -12,6 +12,7 @@
 - `desktop-auto-update-force-restore-design.md`
 - `desktop-ui-interaction-guidelines.md`
 - `desktop-visual-design-system.md`
+- `finance-compliance-figma-prompts.md`
 - `finance-compliance-prd.md`
 - `finance-compliance-technical-design.md`
 - `figma-mapping.md`
