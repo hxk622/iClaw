@@ -8,6 +8,7 @@ export function FinanceCompliancePage() {
   const [appName, setAppName] = useState('caiclaw');
   const [channel, setChannel] = useState('');
   const [riskLevel, setRiskLevel] = useState('');
+  const [selectedId, setSelectedId] = useState('');
   const [events, setEvents] = useState<FinanceComplianceEventRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -25,6 +26,7 @@ export function FinanceCompliancePage() {
       .then((nextEvents) => {
         if (cancelled) return;
         setEvents(nextEvents);
+        setSelectedId((current) => (current && nextEvents.some((item) => item.id === current) ? current : nextEvents[0]?.id || ''));
       })
       .catch((loadError) => {
         if (!cancelled) {
@@ -77,6 +79,10 @@ export function FinanceCompliancePage() {
       .sort((left, right) => right[1] - left[1])
       .slice(0, 10);
   }, [events]);
+  const selectedEvent = useMemo(
+    () => events.find((item) => item.id === selectedId) || events[0] || null,
+    [events, selectedId],
+  );
 
   return (
     <div className="fig-page">
@@ -199,41 +205,120 @@ export function FinanceCompliancePage() {
           </section>
         </div>
 
-        <section className="fig-card fig-card--subtle" style={{ marginTop: 20 }}>
-          <div className="fig-card__head">
-            <h3>最近事件</h3>
-            <span>用于回放“为什么这次有/没有小字”</span>
-          </div>
-          <div className="fig-list">
-            {events.length ? (
-              events.map((item) => (
-                <article key={item.id} className="fig-list-item">
-                  <div className="fig-list-item__body">
-                    <div className="fig-list-item__title">
-                      {item.channel} · {item.riskLevel} · {item.outputClassification || 'unknown'}
-                    </div>
-                    <div className="fig-list-item__meta">
-                      {`${formatDateTime(item.createdAt)} · ${item.appName} · ${item.sessionKey}`}
-                    </div>
-                    <div className="fig-list-item__meta">
-                      {`input=${item.inputClassification || 'n/a'} · output=${item.outputClassification || 'n/a'} · disclaimer=${item.showDisclaimer ? 'yes' : 'no'} · degraded=${item.degraded ? 'yes' : 'no'} · blocked=${item.blocked ? 'yes' : 'no'}`}
-                    </div>
-                    <div className="fig-list-item__meta">
-                      {item.reasons.length ? item.reasons.join(' | ') : '无规则命中明细'}
-                    </div>
-                    {item.disclaimerText ? (
-                      <div className="fig-list-item__meta" style={{ color: '#8b6a21' }}>
-                        {item.disclaimerText}
+        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(0, 1.2fr) minmax(340px, 0.8fr)', marginTop: 20 }}>
+          <section className="fig-card fig-card--subtle">
+            <div className="fig-card__head">
+              <h3>最近事件</h3>
+              <span>用于回放“为什么这次有/没有小字”</span>
+            </div>
+            <div className="fig-list">
+              {events.length ? (
+                events.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`fig-audit-row${selectedId === item.id ? ' is-active' : ''}`}
+                    onClick={() => setSelectedId(item.id)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      textAlign: 'left',
+                      border: 'none',
+                      background: selectedId === item.id ? '#eef2ff' : 'transparent',
+                      borderRadius: 14,
+                      padding: 0,
+                    }}
+                  >
+                    <article className="fig-list-item">
+                      <div className="fig-list-item__body">
+                        <div className="fig-list-item__title">
+                          {item.channel} · {item.riskLevel} · {item.outputClassification || 'unknown'}
+                        </div>
+                        <div className="fig-list-item__meta">
+                          {`${formatDateTime(item.createdAt)} · ${item.appName} · ${item.sessionKey}`}
+                        </div>
+                        <div className="fig-list-item__meta">
+                          {`input=${item.inputClassification || 'n/a'} · output=${item.outputClassification || 'n/a'} · disclaimer=${item.showDisclaimer ? 'yes' : 'no'} · degraded=${item.degraded ? 'yes' : 'no'} · blocked=${item.blocked ? 'yes' : 'no'}`}
+                        </div>
                       </div>
-                    ) : null}
+                    </article>
+                  </button>
+                ))
+              ) : (
+                <div className="empty-state">暂无金融合规审计事件。</div>
+              )}
+            </div>
+          </section>
+
+          <section className="fig-card fig-card--subtle">
+            <div className="fig-card__head">
+              <h3>事件详情</h3>
+              <span>{selectedEvent ? '规则回放' : '未选择事件'}</span>
+            </div>
+            {selectedEvent ? (
+              <div style={{ display: 'grid', gap: 16 }}>
+                <div className="fig-meta-cards">
+                  <div className="fig-meta-card"><span>渠道</span><strong>{selectedEvent.channel}</strong></div>
+                  <div className="fig-meta-card"><span>风险等级</span><strong>{selectedEvent.riskLevel}</strong></div>
+                  <div className="fig-meta-card"><span>免责声明</span><strong>{selectedEvent.showDisclaimer ? 'yes' : 'no'}</strong></div>
+                  <div className="fig-meta-card"><span>降级 / 拦截</span><strong>{selectedEvent.degraded ? 'degraded' : selectedEvent.blocked ? 'blocked' : 'none'}</strong></div>
+                </div>
+
+                <div className="fig-list-item__meta">{formatDateTime(selectedEvent.createdAt)}</div>
+                <div className="fig-list-item__meta">{`app=${selectedEvent.appName} · session=${selectedEvent.sessionKey}`}</div>
+                <div className="fig-list-item__meta">
+                  {`input=${selectedEvent.inputClassification || 'n/a'} · output=${selectedEvent.outputClassification || 'n/a'} · model=${selectedEvent.usedModel || 'n/a'}`}
+                </div>
+
+                <div>
+                  <div className="fig-list-item__title">命中规则</div>
+                  <div className="fig-list-item__meta">
+                    {selectedEvent.reasons.length ? selectedEvent.reasons.join(' | ') : '无规则命中明细'}
                   </div>
-                </article>
-              ))
+                </div>
+
+                <div>
+                  <div className="fig-list-item__title">能力列表</div>
+                  <div className="fig-list-item__meta">
+                    {selectedEvent.usedCapabilities.length ? selectedEvent.usedCapabilities.join(', ') : '未记录'}
+                  </div>
+                </div>
+
+                {selectedEvent.disclaimerText ? (
+                  <div>
+                    <div className="fig-list-item__title">免责声明</div>
+                    <div className="fig-list-item__meta" style={{ color: '#8b6a21' }}>
+                      {selectedEvent.disclaimerText}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div>
+                  <div className="fig-list-item__title">Metadata</div>
+                  <pre
+                    style={{
+                      margin: 0,
+                      padding: 12,
+                      borderRadius: 12,
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      color: '#334155',
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      overflowX: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {JSON.stringify(selectedEvent.metadata, null, 2)}
+                  </pre>
+                </div>
+              </div>
             ) : (
-              <div className="empty-state">暂无金融合规审计事件。</div>
+              <div className="empty-state">选择一条金融合规事件查看详情。</div>
             )}
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
     </div>
   );
