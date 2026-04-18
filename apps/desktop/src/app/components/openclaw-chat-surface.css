@@ -2665,35 +2665,45 @@ body {
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__middle {
-  flex-direction: column;
-  gap: 10px;
-  padding: 10px 0 8px;
+  position: relative;
+  display: block;
+  gap: 0;
+  padding: 10px 0 6px;
   min-width: 0;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__add {
+  position: absolute;
+  left: 0;
+  top: 50%;
   width: 36px;
   min-width: 36px;
   height: 36px;
   flex: 0 0 36px;
   border-radius: 14px;
-  transform: none;
+  transform: translateY(-50%);
+  z-index: 2;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__add:hover:not(:disabled) {
-  transform: translateY(-1px) scale(1.02);
+  transform: translateY(calc(-50% - 1px)) scale(1.02);
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__input-shell {
   min-width: 0;
   width: 100%;
-  padding-left: 0;
+  min-height: 56px;
+  padding-left: 46px;
   padding-right: 0;
 }
 
+.knowledge-library-embedded-chat .iclaw-composer__placeholder {
+  left: 54px;
+}
+
 .knowledge-library-embedded-chat .iclaw-composer__footer {
-  min-height: 40px;
-  padding: 4px 0 8px;
+  min-height: 34px;
+  padding: 2px 0 6px;
   border-top-color: rgba(0, 0, 0, 0.08);
 }
 
@@ -2707,27 +2717,30 @@ body {
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__footer-main {
-  flex-direction: column;
-  align-items: stretch;
+  flex-direction: row;
+  align-items: center;
   gap: 8px;
   min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__supports {
   flex: 1 1 auto;
-  width: 100%;
+  width: auto;
   min-width: 0;
   overflow-x: auto;
   padding-left: 0;
   padding-right: 0;
+  white-space: nowrap;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__actions {
   display: flex;
-  width: 100%;
+  width: auto;
   min-width: 0;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
+  flex: 0 0 auto;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__model-trigger,
@@ -2736,13 +2749,43 @@ body {
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__model-trigger {
-  flex: 1 1 auto;
-  max-width: none;
-  width: 100%;
+  flex: 0 1 132px;
+  max-width: 132px;
+  width: 132px;
+  padding: 0 10px;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__submit {
   flex: 0 0 auto;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__model-trigger-main {
+  gap: 8px;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__model-logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__model-trigger .iclaw-composer__model-detail {
+  display: none;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__model-trigger .iclaw-composer__model-label {
+  font-size: 11.5px;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__support {
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__submit {
+  width: 34px;
+  height: 34px;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__editor,
