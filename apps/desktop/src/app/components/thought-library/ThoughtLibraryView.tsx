@@ -21,6 +21,14 @@ import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '@/a
 import { createLocalKnowledgeLibraryRepository } from './repository';
 import { useCreateRawMaterial, useRawMaterialDetail, useRawMaterials } from './hooks';
 import { mapRawMaterialToThoughtLibraryItem } from './raw-mappers';
+import {
+  importBrowserCaptureBatch,
+  importBrowserCapturePayload,
+  KNOWLEDGE_LIBRARY_IMPORT_EVENT,
+  KNOWLEDGE_LIBRARY_IMPORT_MESSAGE_TYPE,
+  type BrowserCaptureBatchPayload,
+  type BrowserCapturePayload,
+} from './browser-capture';
 
 export function ThoughtLibraryView({
   title,
@@ -117,6 +125,77 @@ export function ThoughtLibraryView({
   useEffect(() => {
     writeThoughtLibraryState({ activeTab, selectedByTab });
   }, [activeTab, selectedByTab]);
+
+  useEffect(() => {
+    const importSingle = async (payload: BrowserCapturePayload) => {
+      const imported = await importBrowserCapturePayload(repository, payload);
+      if (!imported) return;
+      setMaterialsRefreshKey((current) => current + 1);
+      setActiveTab('materials');
+      setSelectedByTab((current) => ({ ...current, materials: imported.id }));
+    };
+
+    const importBatch = async (payload: BrowserCaptureBatchPayload) => {
+      const imported = await importBrowserCaptureBatch(repository, payload);
+      if (imported.length === 0) return;
+      setMaterialsRefreshKey((current) => current + 1);
+      setActiveTab('materials');
+      setSelectedByTab((current) => ({ ...current, materials: imported[0]?.id || current.materials }));
+    };
+
+    const messageHandler = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+      const record = data as Record<string, unknown>;
+      if (record.type !== KNOWLEDGE_LIBRARY_IMPORT_MESSAGE_TYPE) return;
+      if (record.payload && typeof record.payload === 'object' && Array.isArray((record.payload as { items?: unknown[] }).items)) {
+        void importBatch(record.payload as BrowserCaptureBatchPayload);
+        return;
+      }
+      void importSingle(record.payload as BrowserCapturePayload);
+    };
+
+    const customEventHandler = (event: Event) => {
+      const custom = event as CustomEvent<BrowserCapturePayload | BrowserCaptureBatchPayload | undefined>;
+      const detail = custom.detail;
+      if (!detail || typeof detail !== 'object') return;
+      if (Array.isArray((detail as BrowserCaptureBatchPayload).items)) {
+        void importBatch(detail as BrowserCaptureBatchPayload);
+        return;
+      }
+      void importSingle(detail as BrowserCapturePayload);
+    };
+
+    window.__ICLAW_IMPORT_RAW__ = async (payload) => {
+      if (Array.isArray((payload as BrowserCaptureBatchPayload).items)) {
+        const imported = await importBrowserCaptureBatch(repository, payload as BrowserCaptureBatchPayload);
+        if (imported.length > 0) {
+          setMaterialsRefreshKey((current) => current + 1);
+          setActiveTab('materials');
+          setSelectedByTab((current) => ({ ...current, materials: imported[0]?.id || current.materials }));
+          return imported;
+        }
+        return [];
+      }
+      const imported = await importBrowserCapturePayload(repository, payload as BrowserCapturePayload);
+      if (imported) {
+        setMaterialsRefreshKey((current) => current + 1);
+        setActiveTab('materials');
+        setSelectedByTab((current) => ({ ...current, materials: imported.id }));
+      }
+      return imported;
+    };
+
+    window.addEventListener('message', messageHandler);
+    window.addEventListener(KNOWLEDGE_LIBRARY_IMPORT_EVENT, customEventHandler as EventListener);
+    return () => {
+      window.removeEventListener('message', messageHandler);
+      window.removeEventListener(KNOWLEDGE_LIBRARY_IMPORT_EVENT, customEventHandler as EventListener);
+      if (window.__ICLAW_IMPORT_RAW__) {
+        delete window.__ICLAW_IMPORT_RAW__;
+      }
+    };
+  }, [repository]);
 
   const handleSwitchTab = (nextTab: ThoughtLibraryTab) => {
     setActiveTab(nextTab);
