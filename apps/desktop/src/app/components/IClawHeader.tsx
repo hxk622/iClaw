@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { SecurityStatusInline } from '@/app/components/ui/SecurityStatusInline';
 import { NotificationCenterBell } from '@/app/components/notifications/NotificationCenterBell';
 import { cn } from '@/app/lib/cn';
+import { BRAND } from '@/app/lib/brand';
 import type { ResolvedHeaderConfig } from '@/app/lib/oem-runtime';
 
 type IClawHeaderProps = {
@@ -61,6 +62,9 @@ function traceHeaderRender(detail: Record<string, unknown>) {
 
 const HEADER_QUOTES_URL = ((import.meta.env.VITE_HEADER_MARKET_QUOTES_URL as string | undefined) || '').trim();
 const HEADER_NEWS_URL = ((import.meta.env.VITE_HEADER_MARKET_NEWS_URL as string | undefined) || '').trim();
+const HEADER_OVERVIEW_URL = ((import.meta.env.VITE_HEADER_MARKET_OVERVIEW_URL as string | undefined) || '').trim();
+const HEADER_AUTH_BASE_URL =
+  ((import.meta.env.VITE_AUTH_BASE_URL as string | undefined) || BRAND.endpoints.authBaseUrl || '').trim();
 const HEADER_QUOTES_REFRESH_MS = 30_000;
 const HEADER_NEWS_REFRESH_MS = 120_000;
 const HEADLINE_ROTATE_MS = 8_000;
@@ -203,6 +207,18 @@ function normalizeHeadline(raw: unknown, index: number): HeaderHeadline | null {
   };
 }
 
+function trimUrl(value: string | null | undefined): string {
+  return (value || '').trim().replace(/\/+$/, '');
+}
+
+function buildDefaultHeaderOverviewUrl(): string {
+  const normalizedBaseUrl = trimUrl(HEADER_AUTH_BASE_URL);
+  if (!normalizedBaseUrl) {
+    return '';
+  }
+  return `${normalizedBaseUrl}/market/overview?market_scope=cn&index_limit=6&headline_limit=8`;
+}
+
 async function fetchHeaderCollection<T>(
   url: string,
   normalizer: (value: unknown, index: number) => T | null,
@@ -245,6 +261,68 @@ async function fetchHeaderCollection<T>(
   return items.map(normalizer).filter((item): item is T => item !== null);
 }
 
+async function fetchHeaderOverview(
+  url: string,
+): Promise<{ quotes: HeaderMarketQuote[]; headlines: HeaderHeadline[]; updatedAt: number | null } | null> {
+  if (!url) {
+    return null;
+  }
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    throw new Error(`header overview http ${response.status}`);
+  }
+
+  const payload = (await response.json()) as
+    | { data?: Record<string, unknown> | null }
+    | Record<string, unknown>
+    | null;
+  const data =
+    payload && typeof payload === 'object' && 'data' in payload && payload.data && typeof payload.data === 'object'
+      ? (payload.data as Record<string, unknown>)
+      : payload && typeof payload === 'object'
+        ? (payload as Record<string, unknown>)
+        : null;
+  if (!data) {
+    return null;
+  }
+
+  const rawQuotes = Array.isArray(data.indices) ? data.indices : [];
+  const rawHeadlines = Array.isArray(data.headlines) ? data.headlines : [];
+  const quotes = rawQuotes
+    .map((raw, index) =>
+      normalizeQuote(
+        raw && typeof raw === 'object'
+          ? {
+              id: (raw as Record<string, unknown>).index_key,
+              label: (raw as Record<string, unknown>).index_name,
+              value: (raw as Record<string, unknown>).value,
+              changePercent: (raw as Record<string, unknown>).change_percent,
+              change: (raw as Record<string, unknown>).change_amount,
+            }
+          : raw,
+        index,
+      ),
+    )
+    .filter((item): item is HeaderMarketQuote => item !== null);
+  const headlines = rawHeadlines.map(normalizeHeadline).filter((item): item is HeaderHeadline => item !== null);
+
+  const snapshotAt =
+    typeof data.snapshot_at === 'string' && data.snapshot_at.trim()
+      ? Date.parse(data.snapshot_at)
+      : Number.NaN;
+
+  return {
+    quotes,
+    headlines,
+    updatedAt: Number.isFinite(snapshotAt) ? snapshotAt : null,
+  };
+}
+
 function getTrendIcon(change: number) {
   if (change > 0) {
     return <TrendingUp className="h-3.5 w-3.5" />;
@@ -273,6 +351,7 @@ function useHeaderFeed(config?: ResolvedHeaderConfig | null): HeaderFeedSnapshot
   const [quotesLive, setQuotesLive] = useState(false);
   const [newsLive, setNewsLive] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const defaultOverviewUrl = useMemo(() => HEADER_OVERVIEW_URL || buildDefaultHeaderOverviewUrl(), []);
 
   useEffect(() => {
     if (!quotesLive) {
@@ -290,6 +369,28 @@ function useHeaderFeed(config?: ResolvedHeaderConfig | null): HeaderFeedSnapshot
     let disposed = false;
 
     const loadQuotes = async () => {
+      if (!HEADER_QUOTES_URL && defaultOverviewUrl) {
+        try {
+          const snapshot = await fetchHeaderOverview(defaultOverviewUrl);
+          if (disposed || !snapshot || snapshot.quotes.length === 0) {
+            return;
+          }
+          setQuotes(snapshot.quotes.slice(0, 6));
+          setQuotesLive(true);
+          if (snapshot.headlines.length > 0) {
+            setHeadlines(snapshot.headlines.slice(0, 8));
+            setNewsLive(true);
+          }
+          setUpdatedAt(snapshot.updatedAt ?? Date.now());
+          return;
+        } catch {
+          if (!disposed) {
+            setQuotes(fallbackQuotes);
+            setQuotesLive(false);
+          }
+          return;
+        }
+      }
       if (!HEADER_QUOTES_URL) {
         setQuotes(fallbackQuotes);
         setQuotesLive(false);
@@ -320,12 +421,34 @@ function useHeaderFeed(config?: ResolvedHeaderConfig | null): HeaderFeedSnapshot
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [fallbackQuotes]);
+  }, [defaultOverviewUrl, fallbackQuotes]);
 
   useEffect(() => {
     let disposed = false;
 
     const loadNews = async () => {
+      if (!HEADER_NEWS_URL && defaultOverviewUrl) {
+        try {
+          const snapshot = await fetchHeaderOverview(defaultOverviewUrl);
+          if (disposed || !snapshot || snapshot.headlines.length === 0) {
+            return;
+          }
+          setHeadlines(snapshot.headlines.slice(0, 8));
+          setNewsLive(true);
+          if (snapshot.quotes.length > 0) {
+            setQuotes(snapshot.quotes.slice(0, 6));
+            setQuotesLive(true);
+          }
+          setUpdatedAt(snapshot.updatedAt ?? Date.now());
+          return;
+        } catch {
+          if (!disposed) {
+            setHeadlines(fallbackHeadlines);
+            setNewsLive(false);
+          }
+          return;
+        }
+      }
       if (!HEADER_NEWS_URL) {
         setHeadlines(fallbackHeadlines);
         setNewsLive(false);
@@ -356,7 +479,7 @@ function useHeaderFeed(config?: ResolvedHeaderConfig | null): HeaderFeedSnapshot
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [fallbackHeadlines]);
+  }, [defaultOverviewUrl, fallbackHeadlines]);
 
   return {
     quotes,
