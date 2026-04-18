@@ -2618,11 +2618,12 @@ body {
 .knowledge-library-embedded-chat .iclaw-composer__selectors {
   gap: 6px;
   flex-wrap: wrap;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   scrollbar-width: none;
   width: 100%;
   min-width: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__selectors::-webkit-scrollbar {
@@ -2639,6 +2640,15 @@ body {
   justify-content: center;
   gap: 0;
   flex: 0 0 34px;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__selector {
+  isolation: isolate;
+}
+
+.knowledge-library-embedded-chat .iclaw-composer__selector-menu,
+.knowledge-library-embedded-chat .iclaw-composer__floating-menu {
+  z-index: 80;
 }
 
 .knowledge-library-embedded-chat .iclaw-composer__selector-trigger-main {
