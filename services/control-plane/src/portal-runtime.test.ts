@@ -252,3 +252,36 @@ test('buildPortalPublicConfig preserves explicit marketing-site config from home
   assert.equal(((homePage.seo as Record<string, unknown>).title || ''), 'Custom Home');
   assert.equal((((homePage.blocks as unknown[])?.[0] as Record<string, unknown>).props as Record<string, unknown>).titleMain, 'Custom Hero');
 });
+
+test('buildPortalPublicConfig includes default finance compliance config for caiclaw', () => {
+  const detail: PortalAppDetail = {
+    app: {
+      appName: 'caiclaw',
+      displayName: '理财客',
+      description: null,
+      status: 'active',
+      defaultLocale: 'zh-CN',
+      config: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    skillBindings: [],
+    mcpBindings: [],
+    modelBindings: [],
+    menuBindings: [],
+    composerControlBindings: [],
+    composerShortcutBindings: [],
+    rechargePackageBindings: [],
+    assets: [],
+    releases: [],
+    audit: [],
+  };
+
+  const result = buildPortalPublicConfig(detail);
+  const financeCompliance = (result.config.financeCompliance || {}) as Record<string, unknown>;
+
+  assert.equal(financeCompliance.enabled, true);
+  assert.equal(financeCompliance.classificationPolicy, 'finance_v1');
+  assert.equal(financeCompliance.disclaimerPolicy, 'finance_inline_small');
+  assert.equal(financeCompliance.blockingPolicy, 'research_only');
+});
