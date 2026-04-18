@@ -57,6 +57,7 @@ docs/.obsidian/
 .tmp-packaging/
 .tmp-*/
 apps/desktop/src-tauri/tauri.build.local.json
+extension/dist/
 config/*.local.json
 .codex/
 docs/copilot/

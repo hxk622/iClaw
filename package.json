@@ -48,6 +48,7 @@
     "deploy:prod:marketing": "node scripts/run-bash.mjs scripts/deploy-prod-marketing.sh prod",
     "dev:home-web": "node scripts/run-with-env.mjs dev pnpm --dir home-web dev",
     "build:home-web": "node scripts/run-with-env.mjs prod pnpm --dir home-web build",
+    "build:extension": "pnpm --dir extension build",
     "dev:admin": "node scripts/run-with-env.mjs dev pnpm --dir admin-web dev",
     "build:admin": "node scripts/run-with-env.mjs prod pnpm --dir admin-web build",
     "check:control-plane": "pnpm --filter @iclaw/control-plane check",

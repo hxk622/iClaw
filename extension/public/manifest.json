@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "iClaw Capture",
+  "version": "0.1.0",
+  "description": "Capture page sources and snippets into iClaw Knowledge Library.",
+  "minimum_chrome_version": "116",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "iClaw Capture"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
