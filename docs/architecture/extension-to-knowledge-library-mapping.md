@@ -1,12 +1,12 @@
-# OpenAlpha Extension -> iClaw 知识库 映射设计
+# iClaw 浏览器插件 -> iClaw 知识库 映射设计
 
 ## 目标
 
-明确浏览器插件在 iClaw 体系中的职责边界，以及插件产生的数据如何进入知识库。
+明确 iClaw 浏览器插件在 iClaw 体系中的职责边界，以及插件产生的数据如何进入知识库。
 
 结论：
 
-> OpenAlpha extension 的定位是浏览器侧 Raw ingest runtime，不是 iClaw 内另一个“思维库产品”。
+> iClaw 浏览器插件的定位是浏览器侧 Raw ingest runtime，不是 iClaw 内另一套独立知识产品。
 
 ## 1. 职责边界
 
@@ -29,7 +29,7 @@
 
 ### 页面级 capture
 
-OpenAlpha：`source`
+插件对象：`source`
 
 映射到 iClaw：
 - `RawMaterial(kind='source')`
@@ -39,7 +39,7 @@ OpenAlpha：`source`
 
 ### 选区级 capture
 
-OpenAlpha：`snippet`
+插件对象：`snippet`
 
 映射到 iClaw：
 - `RawMaterial(kind='snippet')`
@@ -50,7 +50,7 @@ OpenAlpha：`snippet`
 
 ### pick workflow
 
-OpenAlpha：`pick`
+插件动作：`pick`
 
 映射到 iClaw：
 - 素材层工作流，不是独立产品页
@@ -65,12 +65,11 @@ OpenAlpha：`pick`
 
 浏览器插件默认只能自动继承浏览器自身的登录态，不能直接继承 Tauri 桌面端安全存储中的 token。
 
-因此 V1 建议：
+因此正式产品路径中：
 
-- 插件自动登录优先基于浏览器内 iClaw Web 会话
-- 不要求桌面端登录态直接透传到插件
-
-桌面端 -> 插件 的授权桥接能力放到后续版本。
+- 插件自动登录以桌面授权桥为主
+- 不直接继承桌面主 token
+- 浏览器登录只保留给开发 / 自测场景
 
 ## 4. 本地优先原则
 

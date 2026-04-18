@@ -160,19 +160,19 @@ OutputArtifact 是成果层的统一对象。
 - `created_at`
 - `updated_at`
 
-## 6. 映射：OpenAlpha extension -> iClaw RawMaterial
+## 6. 映射：iClaw 浏览器插件 -> iClaw RawMaterial
 
 ### 浏览器页面保存
 
-OpenAlpha `source` -> `RawMaterial(kind='source')`
+插件 `source` -> `RawMaterial(kind='source')`
 
 ### 滑选摘录
 
-OpenAlpha `snippet` -> `RawMaterial(kind='snippet')`
+插件 `snippet` -> `RawMaterial(kind='snippet')`
 
 ### 视频时间戳摘录
 
-OpenAlpha `snippet(snippet_kind='video')` -> `RawMaterial(kind='snippet', timestamp_label=...)`
+插件 `snippet(snippet_kind='video')` -> `RawMaterial(kind='snippet', timestamp_label=...)`
 
 ## 7. V1 存储建议
 
