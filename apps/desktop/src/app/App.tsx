@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { IClawClient, type CreditBalanceData, type DesktopUpdateHint, type MarketStockData } from '@iclaw/sdk';
 import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
@@ -899,7 +900,79 @@ function WorkspaceTabsBar(props: {
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
   onNew: () => void;
+  onRename: (tabId: string, title: string) => void;
+  onColorChange: (tabId: string, color: WorkspaceTabRecord['color']) => void;
+  onCloseOthers: (tabId: string) => void;
+  onCloseToRight: (tabId: string) => void;
 }) {
+  const [menuTabId, setMenuTabId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [portalReady, setPortalReady] = useState(false);
+  const activeTabRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!menuTabId && !renamingTabId) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (activeTabRef.current?.contains(target)) {
+        return;
+      }
+      if (menuRef.current?.contains(target)) {
+        return;
+      }
+      setMenuTabId(null);
+      setRenamingTabId(null);
+      setDraftTitle('');
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      setMenuTabId(null);
+      setRenamingTabId(null);
+      setDraftTitle('');
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [menuTabId, renamingTabId]);
+
+  useEffect(() => {
+    if (!renamingTabId) {
+      return;
+    }
+    renameInputRef.current?.focus();
+    renameInputRef.current?.select();
+  }, [renamingTabId]);
+
+  const handleStartRename = (tabId: string, currentTitle: string) => {
+    setMenuTabId(null);
+    setRenamingTabId(tabId);
+    setDraftTitle(currentTitle);
+  };
+
+  const handleCommitRename = (tabId: string) => {
+    props.onRename(tabId, draftTitle);
+    setRenamingTabId(null);
+    setDraftTitle('');
+  };
+
   return (
     <div
       className="flex h-12 shrink-0 items-end gap-2 overflow-x-auto border-b px-4 pb-2 pt-2"
@@ -912,9 +985,14 @@ function WorkspaceTabsBar(props: {
         const isActive = tab.id === props.activeTabId;
         const colorStyle = WORKSPACE_TAB_COLOR_STYLES[tab.color] || WORKSPACE_TAB_COLOR_STYLES.default;
         const isBusy = props.busyTabIds.has(tab.id);
+        const menuOpen = menuTabId === tab.id;
+        const renaming = renamingTabId === tab.id;
+        const tabIndex = props.tabs.findIndex((item) => item.id === tab.id);
+        const hasTabsToRight = tabIndex >= 0 && tabIndex < props.tabs.length - 1;
         return (
           <div
             key={tab.id}
+            ref={menuOpen || renaming ? activeTabRef : null}
             className="group relative flex h-9 min-w-[148px] max-w-[240px] shrink-0 items-center rounded-t-[14px] border px-3 text-[12px] transition-all duration-[180ms]"
             style={{
               cursor: 'pointer',
@@ -922,13 +1000,30 @@ function WorkspaceTabsBar(props: {
               background: isActive ? colorStyle.activeBg : 'var(--chat-surface-panel-muted)',
               boxShadow: isActive ? 'var(--lobster-shadow-tab)' : 'none',
             }}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              setRenamingTabId(null);
+              setDraftTitle('');
+              const menuWidth = 200;
+              const menuHeight = 250;
+              const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
+              const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
+              setMenuPosition({
+                x: Math.max(12, Math.min(event.clientX, viewportWidth - menuWidth - 12)),
+                y: Math.max(12, Math.min(event.clientY, viewportHeight - menuHeight - 12)),
+              });
+              setMenuTabId(tab.id);
+            }}
+            onDoubleClick={() => handleStartRename(tab.id, tab.title)}
           >
-            <button
-              type="button"
-              className="absolute inset-0 rounded-t-[14px]"
-              onClick={() => props.onSelect(tab.id)}
-              aria-label={`切换到${tab.title}`}
-            />
+            {!renaming ? (
+              <button
+                type="button"
+                className="absolute inset-0 rounded-t-[14px]"
+                onClick={() => props.onSelect(tab.id)}
+                aria-label={`切换到${tab.title}`}
+              />
+            ) : null}
             <span
               aria-hidden="true"
               className="mr-2 h-2 w-2 shrink-0 rounded-full"
@@ -937,7 +1032,30 @@ function WorkspaceTabsBar(props: {
                 boxShadow: isBusy ? `0 0 0 4px color-mix(in srgb, ${colorStyle.accent} 18%, transparent)` : 'none',
               }}
             />
-            <span className="relative z-[1] truncate text-left text-[var(--text-primary)]">{tab.title}</span>
+            {renaming ? (
+              <input
+                ref={renameInputRef}
+                value={draftTitle}
+                onChange={(event) => setDraftTitle(event.target.value)}
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleCommitRename(tab.id);
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setRenamingTabId(null);
+                    setDraftTitle('');
+                  }
+                }}
+                onBlur={() => handleCommitRename(tab.id)}
+                className="relative z-[1] w-full min-w-0 rounded-[10px] border border-[var(--brand-primary)] bg-[var(--bg-card)] px-2 py-1 text-left text-[12px] text-[var(--text-primary)] outline-none"
+                maxLength={48}
+              />
+            ) : (
+              <span className="relative z-[1] truncate text-left text-[var(--text-primary)]">{tab.title}</span>
+            )}
             <button
               type="button"
               className="relative z-[1] ml-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] text-[var(--text-secondary)] transition hover:bg-[var(--surface-panel-subtle-bg)] hover:text-[var(--text-primary)]"
@@ -949,6 +1067,85 @@ function WorkspaceTabsBar(props: {
             >
               ×
             </button>
+            {portalReady && menuOpen
+              ? createPortal(
+                  <div
+                    ref={menuRef}
+                    className="fixed z-[180] min-w-[200px] rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] p-1.5 shadow-[var(--shadow-popover)]"
+                    style={{ left: menuPosition.x, top: menuPosition.y }}
+                    role="menu"
+                    aria-label={`${tab.title} 标签页操作`}
+                  >
+                    <button
+                      type="button"
+                      className="flex w-full items-center rounded-[10px] px-3 py-2 text-left text-[12px] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+                      onClick={() => handleStartRename(tab.id, tab.title)}
+                    >
+                      重命名
+                    </button>
+                    <div className="my-1 h-px bg-[var(--border-default)]" />
+                    <div className="px-3 pb-1 pt-1.5 text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">颜色</div>
+                    <div className="grid grid-cols-7 gap-1.5 px-2 pb-2 pt-1">
+                      {Object.keys(WORKSPACE_TAB_COLOR_STYLES).map((colorKey) => {
+                        const optionColor = colorKey as WorkspaceTabRecord['color'];
+                        const optionStyle = WORKSPACE_TAB_COLOR_STYLES[optionColor];
+                        const selected = tab.color === optionColor;
+                        return (
+                          <button
+                            key={optionColor}
+                            type="button"
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-full border transition-transform hover:scale-[1.08]"
+                            style={{
+                              borderColor: selected ? 'var(--brand-primary)' : 'var(--border-default)',
+                              background: optionStyle.accent,
+                              boxShadow: selected ? '0 0 0 2px color-mix(in srgb, var(--brand-primary) 24%, transparent)' : 'none',
+                            }}
+                            onClick={() => {
+                              props.onColorChange(tab.id, optionColor);
+                              setMenuTabId(null);
+                            }}
+                            aria-label={`切换颜色 ${optionColor}`}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="my-1 h-px bg-[var(--border-default)]" />
+                    <button
+                      type="button"
+                      className="flex w-full items-center rounded-[10px] px-3 py-2 text-left text-[12px] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+                      onClick={() => {
+                        props.onCloseOthers(tab.id);
+                        setMenuTabId(null);
+                      }}
+                      disabled={props.tabs.length <= 1}
+                    >
+                      关闭其他标签页
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center rounded-[10px] px-3 py-2 text-left text-[12px] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+                      onClick={() => {
+                        props.onCloseToRight(tab.id);
+                        setMenuTabId(null);
+                      }}
+                      disabled={!hasTabsToRight}
+                    >
+                      关闭右侧标签页
+                    </button>
+                    <button
+                      type="button"
+                      className="mt-1 flex w-full items-center rounded-[10px] px-3 py-2 text-left text-[12px] text-[var(--state-error)] transition-colors hover:bg-[var(--bg-hover)]"
+                      onClick={() => {
+                        props.onClose(tab.id);
+                        setMenuTabId(null);
+                      }}
+                    >
+                      关闭标签页
+                    </button>
+                  </div>,
+                  document.body,
+                )
+              : null}
           </div>
         );
       })}
@@ -3481,6 +3678,95 @@ function AuthedView({
     [activateWorkspaceTab, ensureChatSurfaceEntry, pushWorkspaceTabVisit, setPrimaryView],
   );
 
+  const handleRenameWorkspaceTab = useCallback((tabId: string, nextTitle: string) => {
+    const normalizedTitle = normalizeOptionalText(nextTitle);
+    setWorkspaceTabs((current) =>
+      current.map((tab) => {
+        if (tab.id !== tabId) {
+          return tab;
+        }
+        const nextRoute = restoreActiveChatRoute(tab.route);
+        return {
+          ...tab,
+          title: normalizedTitle || resolveWorkspaceTabTitle(nextRoute, tab.title),
+          titleSource: normalizedTitle ? 'user' : 'auto',
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+  }, []);
+
+  const handleChangeWorkspaceTabColor = useCallback((tabId: string, color: WorkspaceTabRecord['color']) => {
+    setWorkspaceTabs((current) =>
+      current.map((tab) =>
+        tab.id === tabId
+          ? {
+              ...tab,
+              color,
+              updatedAt: new Date().toISOString(),
+            }
+          : tab,
+      ),
+    );
+  }, []);
+
+  const handleCloseOtherWorkspaceTabs = useCallback(
+    (tabId: string) => {
+      const target = workspaceTabsRef.current.find((tab) => tab.id === tabId);
+      if (!target) {
+        return;
+      }
+      const idsToRemove = workspaceTabsRef.current.filter((tab) => tab.id !== tabId).map((tab) => tab.id);
+      if (idsToRemove.length === 0) {
+        activateWorkspaceTab(tabId);
+        return;
+      }
+      const surfaceKeysToRemove = new Set(
+        workspaceTabsRef.current
+          .filter((tab) => idsToRemove.includes(tab.id))
+          .map((tab) => buildChatSurfaceCacheKey(restoreActiveChatRoute(tab.route))),
+      );
+      setChatSurfaceEntries((current) =>
+        Object.fromEntries(Object.entries(current).filter(([key]) => !surfaceKeysToRemove.has(key))),
+      );
+      setChatSurfaceRuntimeState((current) =>
+        Object.fromEntries(Object.entries(current).filter(([key]) => !surfaceKeysToRemove.has(key))),
+      );
+      workspaceTabVisitHistoryRef.current = [tabId];
+      setWorkspaceTabs([target]);
+      activateWorkspaceTab(tabId);
+    },
+    [activateWorkspaceTab],
+  );
+
+  const handleCloseWorkspaceTabsToRight = useCallback(
+    (tabId: string) => {
+      const currentTabs = workspaceTabsRef.current;
+      const targetIndex = currentTabs.findIndex((tab) => tab.id === tabId);
+      if (targetIndex < 0 || targetIndex >= currentTabs.length - 1) {
+        return;
+      }
+      const tabsToKeep = currentTabs.slice(0, targetIndex + 1);
+      const tabsToRemove = currentTabs.slice(targetIndex + 1);
+      const idsToRemove = new Set(tabsToRemove.map((tab) => tab.id));
+      const surfaceKeysToRemove = new Set(
+        tabsToRemove.map((tab) => buildChatSurfaceCacheKey(restoreActiveChatRoute(tab.route))),
+      );
+      setChatSurfaceEntries((current) =>
+        Object.fromEntries(Object.entries(current).filter(([key]) => !surfaceKeysToRemove.has(key))),
+      );
+      setChatSurfaceRuntimeState((current) =>
+        Object.fromEntries(Object.entries(current).filter(([key]) => !surfaceKeysToRemove.has(key))),
+      );
+      workspaceTabVisitHistoryRef.current = workspaceTabVisitHistoryRef.current.filter((value) => !idsToRemove.has(value));
+      setWorkspaceTabs(tabsToKeep);
+      if (idsToRemove.has(activeWorkspaceTabIdRef.current)) {
+        activateWorkspaceTab(tabId);
+      }
+    },
+    [activateWorkspaceTab],
+  );
+
   useEffect(() => {
     if (!authBootstrapReady) {
       return;
@@ -4566,6 +4852,10 @@ function AuthedView({
               onSelect={activateWorkspaceTab}
               onClose={handleCloseWorkspaceTab}
               onNew={handleStartNewChat}
+              onRename={handleRenameWorkspaceTab}
+              onColorChange={handleChangeWorkspaceTabColor}
+              onCloseOthers={handleCloseOtherWorkspaceTabs}
+              onCloseToRight={handleCloseWorkspaceTabsToRight}
             />
           ) : null}
           <div className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden [contain:layout_paint_style]">
