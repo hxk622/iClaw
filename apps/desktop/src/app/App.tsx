@@ -3854,6 +3854,8 @@ function AuthedView({
   return (
     <div className="relative h-screen overflow-hidden bg-[var(--bg-page)]">
       <CronTaskResultSync
+        client={client}
+        accessToken={accessToken}
         gatewayUrl={GATEWAY_WS_URL}
         gatewayToken={gatewayAuth.token}
         gatewayPassword={gatewayAuth.password}

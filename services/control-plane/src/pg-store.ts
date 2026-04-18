@@ -352,10 +352,24 @@ type MarketStockRow = {
   amount: string | number | null;
   turnover_rate: string | number | null;
   pe_ttm: string | number | null;
+  pb: string | number | null;
   open_price: string | number | null;
+  high_price: string | number | null;
+  low_price: string | number | null;
   prev_close: string | number | null;
+  change_amount: string | number | null;
   total_market_cap: string | number | null;
   circulating_market_cap: string | number | null;
+  quote_source: string | null;
+  quote_snapshot_at: Date | null;
+  quote_trade_date: string | Date | null;
+  quote_is_delayed: boolean;
+  fundamentals_source: string | null;
+  fundamentals_updated_at: Date | null;
+  industry: string | null;
+  region: string | null;
+  main_business: string | null;
+  list_date: string | Date | null;
   strategy_tags: string[] | null;
   metadata_json: Record<string, unknown> | null;
   imported_at: Date;
@@ -839,7 +853,7 @@ function mapUserRow(row: UserRow): UserRecord {
 
 function parseDbNumber(value: string | number | null | undefined): number {
   if (typeof value === 'number') return value;
-  if (typeof value === 'string') return Number.parseInt(value, 10) || 0;
+  if (typeof value === 'string') return Number.parseFloat(value) || 0;
   return 0;
 }
 

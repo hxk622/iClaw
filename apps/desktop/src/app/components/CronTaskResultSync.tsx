@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { IClawClient } from '@iclaw/sdk';
 import {
   inferChatTurnArtifactsFromText,
   readChatTurns,
@@ -7,6 +8,7 @@ import {
   upsertCronTaskTurn,
 } from '@/app/lib/chat-turns';
 import { buildHeuristicFinanceComplianceEnvelope } from '@/app/lib/finance-compliance';
+import { recordFinanceComplianceEvents } from '@/app/lib/finance-compliance-events';
 import { pushAppNotification } from '@/app/lib/task-notifications';
 import {
   markCronRunNotified,
@@ -124,12 +126,16 @@ function resolveTurnStatus(job: CronJob | null, turn: ChatTurnRecord | null) {
 }
 
 export function CronTaskResultSync({
+  client,
+  accessToken,
   gatewayUrl,
   gatewayToken,
   gatewayPassword,
   sessionKey: _sessionKey,
   enabled,
 }: {
+  client: IClawClient;
+  accessToken?: string | null;
   gatewayUrl: string;
   gatewayToken?: string;
   gatewayPassword?: string;
@@ -234,6 +240,35 @@ export function CronTaskResultSync({
           }
           if (job.state?.lastStatus === 'ok') {
             markCronRunNotified(jobId, latestRunTs);
+            if (financeCompliance) {
+              void recordFinanceComplianceEvents({
+                client,
+                accessToken,
+                items: [
+                  {
+                    session_key: turn?.sessionKey ?? `agent:main:cron:${jobId}`,
+                    conversation_id: turn?.conversationId ?? null,
+                    channel: 'cron',
+                    source_surface: 'cron-task-result-sync',
+                    input_classification: financeCompliance.inputClassification,
+                    output_classification: financeCompliance.outputClassification,
+                    risk_level: financeCompliance.riskLevel,
+                    show_disclaimer: financeCompliance.showDisclaimer,
+                    disclaimer_text: financeCompliance.disclaimerText,
+                    degraded: financeCompliance.degraded,
+                    blocked: financeCompliance.blocked,
+                    reasons_json: financeCompliance.reasons,
+                    used_capabilities_json: financeCompliance.usedCapabilities,
+                    used_model: financeCompliance.usedModel,
+                    metadata_json: {
+                      cron_job_id: jobId,
+                      task_name: job.name ?? turn?.title ?? '定时任务',
+                      status: 'ok',
+                    },
+                  },
+                ],
+              }).catch(() => {});
+            }
             pushAppNotification({
               tone: 'success',
               source: 'cron',
@@ -257,6 +292,35 @@ export function CronTaskResultSync({
           }
           if (job.state?.lastStatus === 'error') {
             markCronRunNotified(jobId, latestRunTs);
+            if (financeCompliance) {
+              void recordFinanceComplianceEvents({
+                client,
+                accessToken,
+                items: [
+                  {
+                    session_key: turn?.sessionKey ?? `agent:main:cron:${jobId}`,
+                    conversation_id: turn?.conversationId ?? null,
+                    channel: 'cron',
+                    source_surface: 'cron-task-result-sync',
+                    input_classification: financeCompliance.inputClassification,
+                    output_classification: financeCompliance.outputClassification,
+                    risk_level: financeCompliance.riskLevel,
+                    show_disclaimer: financeCompliance.showDisclaimer,
+                    disclaimer_text: financeCompliance.disclaimerText,
+                    degraded: financeCompliance.degraded,
+                    blocked: financeCompliance.blocked,
+                    reasons_json: financeCompliance.reasons,
+                    used_capabilities_json: financeCompliance.usedCapabilities,
+                    used_model: financeCompliance.usedModel,
+                    metadata_json: {
+                      cron_job_id: jobId,
+                      task_name: job.name ?? turn?.title ?? '定时任务',
+                      status: 'error',
+                    },
+                  },
+                ],
+              }).catch(() => {});
+            }
             pushAppNotification({
               tone: 'error',
               source: 'cron',
@@ -292,7 +356,7 @@ export function CronTaskResultSync({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [enabled, gatewayPassword, gatewayToken, gatewayUrl]);
+  }, [accessToken, client, enabled, gatewayPassword, gatewayToken, gatewayUrl]);
 
   return null;
 }
