@@ -15,6 +15,7 @@
 - `desktop-startup-orchestrator-architecture.md`
 - `desktop-surface-cache-architecture.md`
 - `finance-compliance-architecture.md`
+- `financial-harness-architecture.md`
 - `financial-market-data-architecture.md`
 - `hermes-self-evolution-architecture.md`
 - `knowledge-library-schema-v1.md`
