@@ -729,6 +729,54 @@ test('client performance samples support anonymous and authenticated ingestion',
   assert.equal(storedPerf[0]?.metricName, 'page_load_ms');
 });
 
+test('finance compliance events support ingestion and admin listing', async () => {
+  await withBootstrapRoles({adminEmails: ['finance-admin@example.com']}, async () => {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+    const admin = await service.register({
+      username: 'finance-admin',
+      email: 'finance-admin@example.com',
+      password: 'password123',
+      name: 'Finance Admin',
+    });
+
+    const created = await service.recordFinanceComplianceEvents(null, [
+      {
+        app_name: 'caiclaw',
+        session_key: 'agent:main:cron:test-finance',
+        channel: 'cron',
+        source_surface: 'cron-task-result-sync',
+        input_classification: 'advice_request',
+        output_classification: 'investment_view',
+        risk_level: 'medium',
+        show_disclaimer: true,
+        disclaimer_text: '本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。',
+        degraded: true,
+        blocked: false,
+        reasons_json: ['finance_domain', 'show_disclaimer'],
+        used_capabilities_json: ['a-share-factor-screener'],
+        used_model: 'bailian/qwen3.5-plus',
+        metadata_json: {
+          cron_job_id: 'job-finance-001',
+        },
+      },
+    ]);
+
+    assert.equal(created.items.length, 1);
+    assert.equal(created.items[0]?.channel, 'cron');
+    assert.equal(created.items[0]?.showDisclaimer, true);
+
+    const listed = await service.listAdminFinanceComplianceEvents(admin.tokens.access_token, {
+      app_name: 'caiclaw',
+      channel: 'cron',
+    });
+    assert.equal(listed.items.length, 1);
+    assert.equal(listed.items[0]?.app_name, 'caiclaw');
+    assert.equal(listed.items[0]?.risk_level, 'medium');
+    assert.deepEqual(listed.items[0]?.reasons, ['finance_domain', 'show_disclaimer']);
+  });
+});
+
 test('desktop action policy invariants reject unsafe shell whitelist and elevated reusable grants', async () => {
   await withBootstrapRoles({adminEmails: ['security-admin@example.com']}, async () => {
     const store = new InMemoryControlPlaneStore();
