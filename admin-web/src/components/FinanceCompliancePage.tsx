@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatDateTime } from '../lib/adminFormat';
 import { loadFinanceComplianceEvents } from '../lib/adminApi';
 import type { FinanceComplianceEventRecord } from '../lib/adminTypes';
@@ -38,6 +38,45 @@ export function FinanceCompliancePage() {
       cancelled = true;
     };
   }, [appName, channel, riskLevel]);
+
+  const disclaimerCount = useMemo(
+    () => events.filter((item) => item.showDisclaimer).length,
+    [events],
+  );
+  const degradedCount = useMemo(() => events.filter((item) => item.degraded).length, [events]);
+  const blockedCount = useMemo(() => events.filter((item) => item.blocked).length, [events]);
+  const disclaimerRate = useMemo(() => {
+    if (events.length === 0) {
+      return '—';
+    }
+    return `${Math.round((disclaimerCount / events.length) * 100)}%`;
+  }, [disclaimerCount, events.length]);
+  const eventsByChannel = useMemo(() => {
+    const counts = new Map<string, number>();
+    events.forEach((item) => {
+      counts.set(item.channel, (counts.get(item.channel) || 0) + 1);
+    });
+    return Array.from(counts.entries()).sort((left, right) => right[1] - left[1]);
+  }, [events]);
+  const eventsByOutputClassification = useMemo(() => {
+    const counts = new Map<string, number>();
+    events.forEach((item) => {
+      const key = item.outputClassification || 'unknown';
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return Array.from(counts.entries()).sort((left, right) => right[1] - left[1]);
+  }, [events]);
+  const topReasons = useMemo(() => {
+    const counts = new Map<string, number>();
+    events.forEach((item) => {
+      item.reasons.forEach((reason) => {
+        counts.set(reason, (counts.get(reason) || 0) + 1);
+      });
+    });
+    return Array.from(counts.entries())
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 10);
+  }, [events]);
 
   return (
     <div className="fig-page">
@@ -88,11 +127,77 @@ export function FinanceCompliancePage() {
           </div>
           <div className="fig-meta-cards">
             <div className="fig-meta-card"><span>总事件数</span><strong>{String(events.length)}</strong></div>
-            <div className="fig-meta-card"><span>显示免责声明</span><strong>{String(events.filter((item) => item.showDisclaimer).length)}</strong></div>
-            <div className="fig-meta-card"><span>降级</span><strong>{String(events.filter((item) => item.degraded).length)}</strong></div>
-            <div className="fig-meta-card"><span>拦截</span><strong>{String(events.filter((item) => item.blocked).length)}</strong></div>
+            <div className="fig-meta-card"><span>显示免责声明</span><strong>{String(disclaimerCount)}</strong></div>
+            <div className="fig-meta-card"><span>免责声明命中率</span><strong>{disclaimerRate}</strong></div>
+            <div className="fig-meta-card"><span>降级</span><strong>{String(degradedCount)}</strong></div>
+            <div className="fig-meta-card"><span>拦截</span><strong>{String(blockedCount)}</strong></div>
           </div>
         </section>
+
+        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', marginTop: 20 }}>
+          <section className="fig-card fig-card--subtle">
+            <div className="fig-card__head">
+              <h3>按渠道分布</h3>
+              <span>{String(eventsByChannel.length)} 类</span>
+            </div>
+            <div className="fig-list">
+              {eventsByChannel.length ? (
+                eventsByChannel.map(([entryChannel, count]) => (
+                  <article key={entryChannel} className="fig-list-item">
+                    <div className="fig-list-item__body">
+                      <div className="fig-list-item__title">{entryChannel}</div>
+                      <div className="fig-list-item__meta">{`${count} 条事件`}</div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-state">暂无数据。</div>
+              )}
+            </div>
+          </section>
+
+          <section className="fig-card fig-card--subtle">
+            <div className="fig-card__head">
+              <h3>按输出分类分布</h3>
+              <span>{String(eventsByOutputClassification.length)} 类</span>
+            </div>
+            <div className="fig-list">
+              {eventsByOutputClassification.length ? (
+                eventsByOutputClassification.map(([classification, count]) => (
+                  <article key={classification} className="fig-list-item">
+                    <div className="fig-list-item__body">
+                      <div className="fig-list-item__title">{classification}</div>
+                      <div className="fig-list-item__meta">{`${count} 条事件`}</div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-state">暂无数据。</div>
+              )}
+            </div>
+          </section>
+
+          <section className="fig-card fig-card--subtle">
+            <div className="fig-card__head">
+              <h3>Top 命中规则</h3>
+              <span>{String(topReasons.length)} 条</span>
+            </div>
+            <div className="fig-list">
+              {topReasons.length ? (
+                topReasons.map(([reason, count]) => (
+                  <article key={reason} className="fig-list-item">
+                    <div className="fig-list-item__body">
+                      <div className="fig-list-item__title">{reason}</div>
+                      <div className="fig-list-item__meta">{`${count} 次`}</div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-state">暂无数据。</div>
+              )}
+            </div>
+          </section>
+        </div>
 
         <section className="fig-card fig-card--subtle" style={{ marginTop: 20 }}>
           <div className="fig-card__head">
