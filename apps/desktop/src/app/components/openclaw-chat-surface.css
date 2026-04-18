@@ -2289,11 +2289,28 @@ body {
   --_tool-card-icon: var(--tool-artifact-icon);
   --_tool-card-hover: var(--tool-artifact-hover);
   --_tool-card-action-border: color-mix(in srgb, var(--tool-artifact-icon) 18%, transparent);
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 0 0 1px color-mix(in srgb, var(--tool-artifact-border) 48%, transparent);
 }
 
 .openclaw-chat-surface .chat-tool-card:hover {
   background: var(--_tool-card-hover);
   box-shadow: 0 2px 8px var(--tool-card-shadow);
+}
+
+.openclaw-chat-surface .chat-tool-card[data-iclaw-tool-variant='artifact'][data-iclaw-artifact-active='true'] {
+  background: color-mix(in srgb, var(--brand-primary) 5%, var(--chat-surface-panel));
+  border-color: color-mix(in srgb, var(--brand-primary) 16%, var(--tool-artifact-border));
+  box-shadow:
+    0 8px 24px rgba(15, 23, 42, 0.06),
+    0 0 0 1px color-mix(in srgb, var(--brand-primary) 10%, transparent);
+}
+
+.openclaw-chat-surface .chat-tool-card[data-iclaw-tool-variant='artifact'][data-iclaw-artifact-active='true'] .chat-tool-card__icon {
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
 }
 
 .openclaw-chat-surface .chat-tool-card__header {
@@ -2330,9 +2347,22 @@ body {
   color: var(--_tool-card-icon);
 }
 
+.openclaw-chat-surface .chat-tool-card[data-iclaw-tool-variant='artifact'] .chat-tool-card__icon {
+  width: 32px;
+  height: 32px;
+  margin-top: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tool-artifact-icon) 8%, transparent);
+}
+
 .openclaw-chat-surface .chat-tool-card__icon svg {
   width: 20px;
   height: 20px;
+}
+
+.openclaw-chat-surface .chat-tool-card[data-iclaw-tool-variant='artifact'] .chat-tool-card__icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .openclaw-chat-surface .chat-tool-card[data-iclaw-tool-variant='running'] .chat-tool-card__icon svg {
@@ -2390,6 +2420,14 @@ body {
   color: var(--tool-card-secondary);
   font-size: var(--iclaw-content-supporting-font-size);
   line-height: 18px;
+}
+
+.openclaw-chat-surface .chat-tool-card[data-iclaw-tool-variant='artifact'] .chat-tool-card__detail {
+  margin-top: 2px;
+  color: var(--tool-card-tertiary);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .openclaw-chat-surface .chat-tool-card__action svg {
@@ -2856,6 +2894,7 @@ body {
 
 .iclaw-chat-stage__main {
   flex: 1 1 auto;
+  min-width: 400px;
 }
 
 .iclaw-chat-stage--artifact-open .iclaw-chat-stage__main {
@@ -2865,7 +2904,7 @@ body {
 .iclaw-artifact-preview-pane {
   display: flex;
   flex: 0 0 40%;
-  min-width: 320px;
+  min-width: 480px;
   min-height: 0;
   flex-direction: column;
   border-left: 1px solid var(--chat-surface-panel-border);
@@ -5804,6 +5843,7 @@ body {
 
   .iclaw-chat-stage--artifact-open .iclaw-chat-stage__main {
     flex: 1 1 auto;
+    min-width: 0;
   }
 
   .iclaw-artifact-preview-pane {

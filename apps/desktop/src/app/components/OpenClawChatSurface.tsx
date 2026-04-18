@@ -1053,6 +1053,43 @@ function buildArtifactPreviewTitle(path: string): string {
   return segments.at(-1) ?? normalized;
 }
 
+function buildArtifactPathMatchCandidates(path: string | null | undefined): string[] {
+  if (!path) {
+    return [];
+  }
+
+  const normalized = path.replace(/\\/g, '/').trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const candidates = new Set<string>();
+  candidates.add(normalized);
+  candidates.add(normalized.replace(/^\.\/+/, ''));
+  candidates.add(normalized.replace(/^\/+/, ''));
+
+  const workspaceIndex = normalized.toLowerCase().lastIndexOf('/workspace/');
+  if (workspaceIndex >= 0) {
+    candidates.add(normalized.slice(workspaceIndex + '/workspace/'.length));
+  }
+
+  const segments = normalized.split('/').filter(Boolean);
+  if (segments.length > 0) {
+    candidates.add(segments.at(-1) ?? normalized);
+  }
+
+  return Array.from(candidates).filter(Boolean);
+}
+
+function areArtifactPathsEquivalent(a: string | null | undefined, b: string | null | undefined): boolean {
+  const aCandidates = buildArtifactPathMatchCandidates(a);
+  const bCandidates = new Set(buildArtifactPathMatchCandidates(b));
+  if (aCandidates.length === 0 || bCandidates.size === 0) {
+    return false;
+  }
+  return aCandidates.some((candidate) => bCandidates.has(candidate));
+}
+
 function isLikelyArtifactToolCard(card: HTMLElement): boolean {
   const normalized = buildToolCardSignature(card).toLowerCase();
   if (!normalized) {
@@ -7276,6 +7313,28 @@ export function OpenClawChatSurface({
     host.addEventListener('click', handleCardClickCapture, true);
     return () => host.removeEventListener('click', handleCardClickCapture, true);
   }, [artifactPreview, closeArtifactPreview, openArtifactPreviewFromCard]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) {
+      return;
+    }
+
+    const activePath = artifactPreview?.openPath ?? artifactPreview?.path ?? null;
+    const cards = Array.from(host.querySelectorAll('.chat-tool-card--clickable')).filter(
+      (node): node is HTMLElement => node instanceof HTMLElement && node.dataset.iclawToolCard === 'artifact',
+    );
+
+    cards.forEach((card) => {
+      const cardPath = extractArtifactPathFromCard(card);
+      const isActive = activePath ? areArtifactPathsEquivalent(cardPath, activePath) : false;
+      if (isActive) {
+        card.dataset.iclawArtifactActive = 'true';
+      } else {
+        delete card.dataset.iclawArtifactActive;
+      }
+    });
+  }, [artifactPreview, renderState.chatMessageCount, renderState.groupCount]);
 
   useEffect(() => {
     if (!selectionMenu) {
