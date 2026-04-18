@@ -12,6 +12,7 @@
 - `desktop-auto-update-force-restore-design.md`
 - `desktop-ui-interaction-guidelines.md`
 - `desktop-visual-design-system.md`
+- `finance-compliance-technical-design.md`
 - `figma-mapping.md`
 - `icon-asset-pipeline.md`
 - `marketing-site-shell-design.md`
