@@ -1068,6 +1068,19 @@ struct ExtensionSessionPayload {
     user: ExtensionSessionUser,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct DesktopExtensionSessionResponse {
+    access_token: String,
+    refresh_token: String,
+    expires_in: u64,
+    refresh_expires_in: u64,
+    token_type: String,
+    scope: Vec<String>,
+    audience: String,
+    user: serde_json::Value,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ExtensionBridgeResponse {
@@ -6850,31 +6863,41 @@ fn confirm_extension_grant_dialog(request: &ExtensionSessionRequest) -> bool {
     )
 }
 
-fn build_placeholder_extension_session(grant: &ExtensionGrantRecord) -> ExtensionSessionPayload {
-    let mut access_bytes = [0u8; 24];
-    let mut refresh_bytes = [0u8; 32];
-    OsRng.fill_bytes(&mut access_bytes);
-    OsRng.fill_bytes(&mut refresh_bytes);
-    ExtensionSessionPayload {
-        access_token: base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(access_bytes),
-        refresh_token: base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(refresh_bytes),
-        expires_in: 1800,
-        refresh_expires_in: 604800,
-        token_type: String::from("Bearer"),
-        scope: grant.scope.clone(),
-        audience: String::from("extension"),
-        grant_id: grant.id.clone(),
-        user: ExtensionSessionUser {
-            id: grant.user_id.clone(),
-            name: Some(String::from("iClaw Desktop User")),
-            email: None,
-        },
+fn issue_extension_session_via_control_plane(
+    request: &ExtensionSessionRequest,
+    desktop_access_token: &str,
+) -> Result<DesktopExtensionSessionResponse, String> {
+    let auth_base_url = desktop_auth_base_url()?;
+    let client = build_desktop_auth_client()?;
+    let mut headers = desktop_auth_headers()?;
+    let bearer = HeaderValue::from_str(&format!("Bearer {}", desktop_access_token.trim()))
+        .map_err(|e| format!("failed to encode extension bridge authorization header: {e}"))?;
+    headers.insert(AUTHORIZATION, bearer);
+    let response = client
+        .post(format!("{auth_base_url}/auth/extension/device-grant"))
+        .headers(headers)
+        .json(&json!({
+            "extension_id": request.extension_id,
+            "brand_id": request.brand_id,
+            "device_id": request.device_id,
+            "browser_family": request.browser_family,
+            "browser_profile_id": request.browser_profile_id,
+            "requested_scope": request.requested_scope,
+        }))
+        .send()
+        .map_err(|e| format!("extension device grant request failed: {e}"))?;
+    if !response.status().is_success() {
+        return Err(parse_desktop_error_response(response)?);
     }
+    let envelope = response
+        .json::<ControlPlaneEnvelope<DesktopExtensionSessionResponse>>()
+        .map_err(|e| format!("failed to parse extension device grant response: {e}"))?;
+    Ok(envelope.data)
 }
 
 fn issue_extension_session(app: &AppHandle, request: &ExtensionSessionRequest) -> ExtensionBridgeResponse {
-    match load_auth_tokens() {
-        Ok(Some(_tokens)) => {}
+    let desktop_tokens = match load_auth_tokens() {
+        Ok(Some(tokens)) => tokens,
         Ok(None) => {
             return ExtensionBridgeResponse {
                 ok: false,
@@ -6891,7 +6914,7 @@ fn issue_extension_session(app: &AppHandle, request: &ExtensionSessionRequest) -
                 session: None,
             };
         }
-    }
+    };
 
     let mut store = match read_extension_grant_store(app) {
         Ok(store) => store,
@@ -6945,7 +6968,51 @@ fn issue_extension_session(app: &AppHandle, request: &ExtensionSessionRequest) -
         created
     };
 
-    let session = build_placeholder_extension_session(&grant);
+    let desktop_session = match issue_extension_session_via_control_plane(request, &desktop_tokens.access_token) {
+        Ok(session) => session,
+        Err(error) => {
+            return ExtensionBridgeResponse {
+                ok: false,
+                grant_required: false,
+                error: Some(error),
+                session: None,
+            };
+        }
+    };
+
+    let session = ExtensionSessionPayload {
+        access_token: desktop_session.access_token,
+        refresh_token: desktop_session.refresh_token,
+        expires_in: desktop_session.expires_in,
+        refresh_expires_in: desktop_session.refresh_expires_in,
+        token_type: desktop_session.token_type,
+        scope: if desktop_session.scope.is_empty() {
+            grant.scope.clone()
+        } else {
+            desktop_session.scope
+        },
+        audience: desktop_session.audience,
+        grant_id: grant.id.clone(),
+        user: ExtensionSessionUser {
+            id: desktop_session
+                .user
+                .get("id")
+                .and_then(|value| value.as_str())
+                .unwrap_or("desktop-user")
+                .to_string(),
+            name: desktop_session
+                .user
+                .get("name")
+                .or_else(|| desktop_session.user.get("display_name"))
+                .and_then(|value| value.as_str())
+                .map(|value| value.to_string()),
+            email: desktop_session
+                .user
+                .get("email")
+                .and_then(|value| value.as_str())
+                .map(|value| value.to_string()),
+        },
+    };
     ExtensionBridgeResponse {
         ok: true,
         grant_required: false,

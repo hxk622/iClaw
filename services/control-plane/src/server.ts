@@ -744,6 +744,22 @@ const server = createJsonServer([
     handler: ({headers}: HandlerContext) => service.me(requireBearerToken(headers)),
   },
   {
+    method: 'POST',
+    path: '/auth/extension/device-grant',
+    handler: ({headers, body}: HandlerContext) =>
+      service.issueExtensionDeviceGrant(
+        requireBearerToken(headers),
+        (body || {}) as {
+          extension_id?: string;
+          brand_id?: string;
+          device_id?: string;
+          browser_family?: string;
+          browser_profile_id?: string | null;
+          requested_scope?: string[];
+        },
+      ),
+  },
+  {
     method: 'PUT',
     path: '/auth/profile',
     handler: ({headers, body}: HandlerContext) =>

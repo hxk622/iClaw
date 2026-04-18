@@ -169,6 +169,26 @@ import {syncSkillsFromSource} from './skill-sync.ts';
 import type {ControlPlaneStore} from './store.ts';
 import {generateOpaqueToken, hashOpaqueToken} from './tokens.ts';
 
+type ExtensionDeviceGrantInput = {
+  extension_id?: string;
+  brand_id?: string;
+  device_id?: string;
+  browser_family?: string;
+  browser_profile_id?: string | null;
+  requested_scope?: string[];
+};
+
+type ExtensionSessionView = {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  refresh_expires_in: number;
+  token_type: 'Bearer';
+  scope: string[];
+  audience: 'extension';
+  user: PublicUser;
+};
+
 const SUPPORTED_PAYMENT_PROVIDERS = new Set<PaymentProvider>(['mock', 'wechat_qr', 'alipay_qr']);
 const SUPPORTED_PAYMENT_PROVIDER_SCOPE_TYPES = new Set<PaymentProviderScopeType>(['platform', 'app']);
 const SUPPORTED_PAYMENT_PROVIDER_BINDING_MODES = new Set<PaymentProviderBindingMode>([
@@ -220,6 +240,7 @@ const DESKTOP_ACTION_AUDIT_STAGES = new Set<DesktopActionAuditStage>([
   'execution_started',
   'execution_finished',
 ]);
+const EXTENSION_ALLOWED_SCOPES = new Set(['knowledge.raw.read', 'knowledge.raw.write', 'profile.basic.read', 'knowledge.output.read']);
 const DESKTOP_DIAGNOSTIC_UPLOAD_SOURCE_TYPES = new Set<DesktopDiagnosticUploadSourceType>([
   'manual',
   'auto_error_capture',
@@ -3082,6 +3103,41 @@ export class ControlPlaneService {
   async me(accessToken: string): Promise<PublicUser> {
     const user = await this.getUserForAccessToken(accessToken);
     return toPublicUser(user);
+  }
+
+  async issueExtensionDeviceGrant(accessToken: string, input: ExtensionDeviceGrantInput): Promise<ExtensionSessionView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const extensionId = String(input.extension_id || '').trim();
+    const brandId = String(input.brand_id || '').trim();
+    const deviceId = String(input.device_id || '').trim();
+    const browserFamily = String(input.browser_family || '').trim();
+    if (!extensionId || !brandId || !deviceId || !browserFamily) {
+      throw new HttpError(400, 'BAD_REQUEST', 'extension_id, brand_id, device_id and browser_family are required');
+    }
+
+    const requestedScope = Array.isArray(input.requested_scope)
+      ? input.requested_scope
+          .map((entry) => String(entry || '').trim())
+          .filter(Boolean)
+      : [];
+    const scope = (requestedScope.length > 0 ? requestedScope : ['knowledge.raw.read', 'knowledge.raw.write', 'profile.basic.read'])
+      .filter((entry, index, values) => values.indexOf(entry) === index)
+      .filter((entry) => EXTENSION_ALLOWED_SCOPES.has(entry));
+    if (scope.length === 0) {
+      throw new HttpError(400, 'BAD_REQUEST', 'requested_scope is empty or unsupported');
+    }
+
+    const issued = await this.issueTokens(user.id, 'extension');
+    return {
+      access_token: issued.payload.access_token,
+      refresh_token: issued.payload.refresh_token,
+      expires_in: issued.payload.expires_in,
+      refresh_expires_in: config.refreshTokenTtlSeconds,
+      token_type: 'Bearer',
+      scope,
+      audience: 'extension',
+      user: toPublicUser(user),
+    };
   }
 
   async updateProfile(accessToken: string, input: UpdateProfileInput): Promise<PublicUser> {
