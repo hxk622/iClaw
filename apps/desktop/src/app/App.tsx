@@ -89,12 +89,13 @@ import {
   resetIclawWorkspaceToDefaults,
   saveIclawWorkspaceSection,
 } from './lib/iclaw-settings';
-import { readChatTurns } from './lib/chat-turns';
+import { buildChatTurnTitle, readChatTurns } from './lib/chat-turns';
 import {
   ensureChatConversation,
   findChatConversationBySessionKey,
   linkSessionToConversation,
   readChatConversation,
+  useChatConversations,
   syncChatConversationMetadata,
   type ChatConversationRestoreContext,
   type ChatConversationKind,
@@ -164,6 +165,14 @@ import {
   writePersistedChatRouteSnapshot,
   type PersistedChatRouteSnapshot,
 } from './lib/chat-route-persistence';
+import {
+  createWorkspaceTabRecord,
+  MAX_WORKSPACE_TABS,
+  readPersistedWorkspaceTabsSnapshot,
+  writePersistedWorkspaceTabsSnapshot,
+  type WorkspaceTabRecord,
+  type WorkspaceTabRouteSnapshot,
+} from './lib/workspace-tabs';
 import { isLoopbackHostname, resolveDesktopAuthBaseUrl } from './lib/runtime-endpoints';
 
 declare global {
@@ -385,6 +394,74 @@ type ActiveChatRoute = {
   initialSkillOption: ComposerSkillOption | null;
   initialStockContext: ComposerStockContext | null;
 };
+
+function buildWorkspaceTabRouteSnapshot(route: ActiveChatRoute): WorkspaceTabRouteSnapshot {
+  return {
+    conversationId: route.conversationId,
+    sessionKey: route.sessionKey,
+    initialPrompt: route.initialPrompt,
+    initialPromptKey: route.initialPromptKey,
+    focusedTurnId: route.focusedTurnId,
+    focusedTurnKey: route.focusedTurnKey,
+    initialAgentSlug: route.initialAgentSlug,
+    initialSkillSlug: route.initialSkillSlug,
+    initialSkillOption: route.initialSkillOption,
+    initialStockContext: route.initialStockContext,
+  };
+}
+
+function restoreActiveChatRoute(route: WorkspaceTabRouteSnapshot): ActiveChatRoute {
+  return {
+    conversationId: route.conversationId,
+    sessionKey: route.sessionKey,
+    initialPrompt: route.initialPrompt,
+    initialPromptKey: route.initialPromptKey,
+    focusedTurnId: route.focusedTurnId,
+    focusedTurnKey: route.focusedTurnKey,
+    initialAgentSlug: route.initialAgentSlug,
+    initialSkillSlug: route.initialSkillSlug,
+    initialSkillOption: route.initialSkillOption,
+    initialStockContext: route.initialStockContext,
+  };
+}
+
+function areActiveChatRoutesEqual(left: ActiveChatRoute, right: ActiveChatRoute): boolean {
+  return (
+    left.conversationId === right.conversationId &&
+    left.sessionKey === right.sessionKey &&
+    left.initialPrompt === right.initialPrompt &&
+    left.initialPromptKey === right.initialPromptKey &&
+    left.focusedTurnId === right.focusedTurnId &&
+    left.focusedTurnKey === right.focusedTurnKey &&
+    left.initialAgentSlug === right.initialAgentSlug &&
+    left.initialSkillSlug === right.initialSkillSlug &&
+    JSON.stringify(left.initialSkillOption) === JSON.stringify(right.initialSkillOption) &&
+    JSON.stringify(left.initialStockContext) === JSON.stringify(right.initialStockContext)
+  );
+}
+
+function resolveWorkspaceTabTitle(route: ActiveChatRoute, fallbackTitle?: string | null): string {
+  const conversationTitle = route.conversationId ? readChatConversation(route.conversationId)?.title : null;
+  const normalizedFallback = normalizeOptionalText(fallbackTitle);
+  const promptTitle = route.initialPrompt ? buildChatTurnTitle(route.initialPrompt) : null;
+  return conversationTitle || normalizedFallback || promptTitle || '新对话';
+}
+
+function createChatWorkspaceTab(input: {
+  id: string;
+  route: ActiveChatRoute;
+  title?: string | null;
+  titleSource?: 'auto' | 'user';
+  createdAt?: string;
+}): WorkspaceTabRecord {
+  return createWorkspaceTabRecord({
+    id: input.id,
+    route: buildWorkspaceTabRouteSnapshot(input.route),
+    title: resolveWorkspaceTabTitle(input.route, input.title),
+    titleSource: input.titleSource,
+    createdAt: input.createdAt,
+  });
+}
 
 function normalizeOptionalText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -693,6 +770,29 @@ function resolveInitialChatRoute(): ActiveChatRoute {
   return createConversationBackedDefaultChatRoute();
 }
 
+function resolveInitialWorkspaceTabs(initialRoute: ActiveChatRoute): {
+  tabs: WorkspaceTabRecord[];
+  activeTabId: string;
+} {
+  const persisted = readPersistedWorkspaceTabsSnapshot();
+  if (persisted && persisted.tabs.length > 0 && persisted.activeTabId) {
+    return {
+      tabs: persisted.tabs,
+      activeTabId: persisted.activeTabId,
+    };
+  }
+
+  const bootstrapTabId = `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const bootstrapTab = createChatWorkspaceTab({
+    id: bootstrapTabId,
+    route: initialRoute,
+  });
+  return {
+    tabs: [bootstrapTab],
+    activeTabId: bootstrapTabId,
+  };
+}
+
 type PrimaryView = string;
 type OverlayView = 'settings' | 'account' | 'recharge';
 
@@ -759,6 +859,114 @@ function DeferredSurfaceFallback({ title }: { title: string }) {
 
 function DeferredSurface({ title, children }: { title: string; children: ReactNode }) {
   return <Suspense fallback={<DeferredSurfaceFallback title={title} />}>{children}</Suspense>;
+}
+
+const WORKSPACE_TAB_COLOR_STYLES: Record<string, { accent: string; activeBg: string }> = {
+  default: {
+    accent: 'var(--brand-primary)',
+    activeBg: 'color-mix(in srgb, var(--brand-primary) 16%, var(--bg-elevated))',
+  },
+  gold: {
+    accent: 'var(--brand-primary)',
+    activeBg: 'color-mix(in srgb, var(--brand-primary) 20%, var(--bg-elevated))',
+  },
+  olive: {
+    accent: 'var(--state-success)',
+    activeBg: 'color-mix(in srgb, var(--state-success) 16%, var(--bg-elevated))',
+  },
+  teal: {
+    accent: '#4f8f8b',
+    activeBg: 'color-mix(in srgb, #4f8f8b 16%, var(--bg-elevated))',
+  },
+  slate: {
+    accent: '#6d7786',
+    activeBg: 'color-mix(in srgb, #6d7786 16%, var(--bg-elevated))',
+  },
+  rose: {
+    accent: '#ba6f7b',
+    activeBg: 'color-mix(in srgb, #ba6f7b 16%, var(--bg-elevated))',
+  },
+  charcoal: {
+    accent: '#4d4a46',
+    activeBg: 'color-mix(in srgb, #4d4a46 18%, var(--bg-elevated))',
+  },
+};
+
+function WorkspaceTabsBar(props: {
+  tabs: WorkspaceTabRecord[];
+  activeTabId: string;
+  busyTabIds: Set<string>;
+  onSelect: (tabId: string) => void;
+  onClose: (tabId: string) => void;
+  onNew: () => void;
+}) {
+  return (
+    <div
+      className="flex h-12 shrink-0 items-end gap-2 overflow-x-auto border-b px-4 pb-2 pt-2"
+      style={{
+        borderColor: 'var(--chat-surface-panel-border)',
+        background: 'color-mix(in srgb, var(--chat-surface-header-bg) 92%, transparent)',
+      }}
+    >
+      {props.tabs.map((tab) => {
+        const isActive = tab.id === props.activeTabId;
+        const colorStyle = WORKSPACE_TAB_COLOR_STYLES[tab.color] || WORKSPACE_TAB_COLOR_STYLES.default;
+        const isBusy = props.busyTabIds.has(tab.id);
+        return (
+          <div
+            key={tab.id}
+            className="group relative flex h-9 min-w-[148px] max-w-[240px] shrink-0 items-center rounded-t-[14px] border px-3 text-[12px] transition-all duration-[180ms]"
+            style={{
+              cursor: 'pointer',
+              borderColor: isActive ? 'color-mix(in srgb, var(--border-strong) 78%, transparent)' : 'var(--chat-surface-panel-border)',
+              background: isActive ? colorStyle.activeBg : 'var(--chat-surface-panel-muted)',
+              boxShadow: isActive ? 'var(--lobster-shadow-tab)' : 'none',
+            }}
+          >
+            <button
+              type="button"
+              className="absolute inset-0 rounded-t-[14px]"
+              onClick={() => props.onSelect(tab.id)}
+              aria-label={`切换到${tab.title}`}
+            />
+            <span
+              aria-hidden="true"
+              className="mr-2 h-2 w-2 shrink-0 rounded-full"
+              style={{
+                background: colorStyle.accent,
+                boxShadow: isBusy ? `0 0 0 4px color-mix(in srgb, ${colorStyle.accent} 18%, transparent)` : 'none',
+              }}
+            />
+            <span className="relative z-[1] truncate text-left text-[var(--text-primary)]">{tab.title}</span>
+            <button
+              type="button"
+              className="relative z-[1] ml-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] text-[var(--text-secondary)] transition hover:bg-[var(--surface-panel-subtle-bg)] hover:text-[var(--text-primary)]"
+              onClick={(event) => {
+                event.stopPropagation();
+                props.onClose(tab.id);
+              }}
+              aria-label={`关闭${tab.title}`}
+            >
+              ×
+            </button>
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border text-[18px] text-[var(--text-secondary)] transition hover:bg-[var(--surface-panel-subtle-bg)] hover:text-[var(--text-primary)]"
+        style={{
+          cursor: 'pointer',
+          borderColor: 'var(--chat-surface-panel-border)',
+          background: 'var(--chat-surface-panel-muted)',
+        }}
+        onClick={props.onNew}
+        aria-label="新建聊天标签页"
+      >
+        +
+      </button>
+    </div>
+  );
 }
 
 function buildDesktopUpdateAnnouncement(hint: DesktopUpdateHint): string {
@@ -2549,6 +2757,7 @@ function AuthedView({
   const lastResolvedPrimaryViewRef = useRef<PrimaryView | null>(null);
   const chatRuntimeAuthRef = useRef(authenticated);
   const initialChatRouteRef = useRef<ActiveChatRoute>(resolveInitialChatRoute());
+  const initialWorkspaceTabsRef = useRef(resolveInitialWorkspaceTabs(initialChatRouteRef.current));
   const lastRehydratedChatScopeRef = useRef<string | null>(null);
   const sidebarCollapsedStorageKey = useMemo(
     () => resolveSidebarCollapsedStorageKey(currentUser),
@@ -2564,17 +2773,32 @@ function AuthedView({
     jobId: string;
     token: number;
   } | null>(null);
-  const [activeChatRoute, setActiveChatRoute] = useState<ActiveChatRoute>(() => initialChatRouteRef.current);
+  const [workspaceTabs, setWorkspaceTabs] = useState<WorkspaceTabRecord[]>(() => initialWorkspaceTabsRef.current.tabs);
+  const [activeWorkspaceTabId, setActiveWorkspaceTabId] = useState<string>(() => initialWorkspaceTabsRef.current.activeTabId);
+  const workspaceTabVisitHistoryRef = useRef<string[]>([initialWorkspaceTabsRef.current.activeTabId]);
+  const [activeChatRoute, setActiveChatRoute] = useState<ActiveChatRoute>(() => {
+    const activeTab =
+      initialWorkspaceTabsRef.current.tabs.find((tab) => tab.id === initialWorkspaceTabsRef.current.activeTabId) ||
+      initialWorkspaceTabsRef.current.tabs[0] ||
+      null;
+    return activeTab ? restoreActiveChatRoute(activeTab.route) : initialChatRouteRef.current;
+  });
   const [chatSurfaceEntries, setChatSurfaceEntries] = useState<Record<string, ChatSurfaceEntry>>(() => {
-    const initialRoute = initialChatRouteRef.current;
-    return {
-      [buildChatSurfaceCacheKey(initialRoute)]: {
-        route: initialRoute,
-        version: 0,
-      },
-    };
+    return Object.fromEntries(
+      initialWorkspaceTabsRef.current.tabs.map((tab) => {
+        const route = restoreActiveChatRoute(tab.route);
+        return [
+          buildChatSurfaceCacheKey(route),
+          {
+            route,
+            version: 0,
+          },
+        ];
+      }),
+    );
   });
   const [chatSurfaceRuntimeState, setChatSurfaceRuntimeState] = useState<Record<string, ChatSurfaceRuntimeState>>({});
+  const conversations = useChatConversations();
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
   const appNotifications = useAppNotifications();
@@ -2598,6 +2822,8 @@ function AuthedView({
   } = surfaceCache;
   const activeChatRouteRef = useRef(activeChatRoute);
   const chatSurfaceEntriesRef = useRef(chatSurfaceEntries);
+  const workspaceTabsRef = useRef(workspaceTabs);
+  const activeWorkspaceTabIdRef = useRef(activeWorkspaceTabId);
   const selectedTaskCenterConversationIdRef = useRef(selectedTaskCenterConversationId);
   const enabledMenuKeys = useMemo(
     () => resolveRequiredEnabledMenuKeys(brandShellConfig).filter((key) => key !== 'task-center'),
@@ -2694,6 +2920,18 @@ function AuthedView({
     version: 0,
   };
   const hasAnyBusyChatSurface = Boolean(chatSurfaceRuntimeState[targetChatSurfaceKey]?.busy);
+  const busyWorkspaceTabIds = useMemo(
+    () =>
+      new Set(
+        workspaceTabs
+          .filter((tab) => {
+            const surfaceKey = buildChatSurfaceCacheKey(restoreActiveChatRoute(tab.route));
+            return chatSurfaceRuntimeState[surfaceKey]?.busy;
+          })
+          .map((tab) => tab.id),
+      ),
+    [chatSurfaceRuntimeState, workspaceTabs],
+  );
 
   useEffect(() => {
     if (selectedNotificationId && !selectedNotification) {
@@ -2743,8 +2981,105 @@ function AuthedView({
   }, [chatSurfaceEntries]);
 
   useEffect(() => {
+    workspaceTabsRef.current = workspaceTabs;
+  }, [workspaceTabs]);
+
+  useEffect(() => {
+    activeWorkspaceTabIdRef.current = activeWorkspaceTabId;
+  }, [activeWorkspaceTabId]);
+
+  useEffect(() => {
     selectedTaskCenterConversationIdRef.current = selectedTaskCenterConversationId;
   }, [selectedTaskCenterConversationId]);
+
+  useEffect(() => {
+    if (workspaceTabs.length === 0) {
+      return;
+    }
+    if (workspaceTabs.some((tab) => tab.id === activeWorkspaceTabId)) {
+      return;
+    }
+    setActiveWorkspaceTabId(workspaceTabs[0].id);
+  }, [activeWorkspaceTabId, workspaceTabs]);
+
+  useEffect(() => {
+    const activeTab = workspaceTabs.find((tab) => tab.id === activeWorkspaceTabId) || workspaceTabs[0] || null;
+    if (!activeTab) {
+      return;
+    }
+    const nextRoute = restoreActiveChatRoute(activeTab.route);
+    if (areActiveChatRoutesEqual(activeChatRouteRef.current, nextRoute)) {
+      return;
+    }
+    setActiveChatRoute(nextRoute);
+  }, [activeWorkspaceTabId, workspaceTabs]);
+
+  useEffect(() => {
+    setWorkspaceTabs((current) => {
+      const index = current.findIndex((tab) => tab.id === activeWorkspaceTabIdRef.current);
+      if (index < 0) {
+        return current;
+      }
+      const target = current[index];
+      const nextRoute = buildWorkspaceTabRouteSnapshot(activeChatRoute);
+      const routeChanged = !areActiveChatRoutesEqual(restoreActiveChatRoute(target.route), activeChatRoute);
+      const autoTitle = target.titleSource === 'auto' ? resolveWorkspaceTabTitle(activeChatRoute, target.title) : target.title;
+      if (!routeChanged && autoTitle === target.title) {
+        return current;
+      }
+      const now = new Date().toISOString();
+      const nextTabs = [...current];
+      nextTabs[index] = {
+        ...target,
+        route: nextRoute,
+        title: autoTitle,
+        updatedAt: now,
+        lastVisitedAt: now,
+      };
+      return nextTabs;
+    });
+  }, [activeChatRoute]);
+
+  useEffect(() => {
+    if (workspaceTabs.length === 0) {
+      return;
+    }
+    const activeTabId = workspaceTabs.some((tab) => tab.id === activeWorkspaceTabId) ? activeWorkspaceTabId : workspaceTabs[0]?.id || null;
+    writePersistedWorkspaceTabsSnapshot(
+      activeTabId
+        ? {
+            version: 1,
+            activeTabId,
+            tabs: workspaceTabs,
+          }
+        : null,
+    );
+  }, [activeWorkspaceTabId, workspaceTabs]);
+
+  useEffect(() => {
+    if (conversations.length === 0) {
+      return;
+    }
+    setWorkspaceTabs((current) => {
+      let changed = false;
+      const nextTabs = current.map((tab) => {
+        if (tab.titleSource !== 'auto') {
+          return tab;
+        }
+        const nextTitle = resolveWorkspaceTabTitle(restoreActiveChatRoute(tab.route), tab.title);
+        if (nextTitle === tab.title) {
+          return tab;
+        }
+        changed = true;
+        return {
+          ...tab,
+          title: nextTitle,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      return changed ? nextTabs : current;
+    });
+  }, [conversations]);
 
   useEffect(() => {
     const lastView = lastResolvedPrimaryViewRef.current;
@@ -2897,19 +3232,45 @@ function AuthedView({
     targetChatSurfaceKey,
   ]);
 
-  const openChatRoute = useCallback(
-    (nextRoute: ActiveChatRoute, options?: {forceRemount?: boolean}) => {
-      const nextSurfaceKey = buildChatSurfaceCacheKey(nextRoute);
-      setChatSurfaceEntries((current) => {
-        const existing = current[nextSurfaceKey];
-        return {
-          ...current,
-          [nextSurfaceKey]: {
-            route: nextRoute,
-            version: options?.forceRemount ? (existing?.version ?? 0) + 1 : (existing?.version ?? 0),
-          },
-        };
-      });
+  const pushWorkspaceTabVisit = useCallback((tabId: string) => {
+    const current = workspaceTabVisitHistoryRef.current.filter((value) => value !== tabId);
+    current.push(tabId);
+    workspaceTabVisitHistoryRef.current = current.slice(-32);
+  }, []);
+
+  const ensureChatSurfaceEntry = useCallback((nextRoute: ActiveChatRoute, options?: { forceRemount?: boolean }) => {
+    const nextSurfaceKey = buildChatSurfaceCacheKey(nextRoute);
+    setChatSurfaceEntries((current) => {
+      const existing = current[nextSurfaceKey];
+      return {
+        ...current,
+        [nextSurfaceKey]: {
+          route: nextRoute,
+          version: options?.forceRemount ? (existing?.version ?? 0) + 1 : (existing?.version ?? 0),
+        },
+      };
+    });
+  }, []);
+
+  const activateWorkspaceTab = useCallback(
+    (tabId: string, options?: { forceRemount?: boolean }) => {
+      const target = workspaceTabsRef.current.find((tab) => tab.id === tabId);
+      if (!target) {
+        return;
+      }
+      const nextRoute = restoreActiveChatRoute(target.route);
+      ensureChatSurfaceEntry(nextRoute, options);
+      setWorkspaceTabs((current) =>
+        current.map((tab) =>
+          tab.id === tabId
+            ? {
+                ...tab,
+                lastVisitedAt: new Date().toISOString(),
+              }
+            : tab,
+        ),
+      );
+      setActiveWorkspaceTabId(tabId);
       setActiveChatRoute(
         buildActiveChatRoute({
           sessionKey: nextRoute.sessionKey,
@@ -2925,9 +3286,199 @@ function AuthedView({
           initialStockContext: nextRoute.initialStockContext,
         }),
       );
+      pushWorkspaceTabVisit(tabId);
       setPrimaryView('chat');
     },
-    [setPrimaryView],
+    [ensureChatSurfaceEntry, pushWorkspaceTabVisit, setPrimaryView],
+  );
+
+  const replaceActiveWorkspaceTabRoute = useCallback(
+    (
+      nextRoute: ActiveChatRoute,
+      options?: {
+        forceRemount?: boolean;
+        title?: string | null;
+      },
+    ) => {
+      const targetTabId = activeWorkspaceTabIdRef.current;
+      if (!targetTabId) {
+        return;
+      }
+      ensureChatSurfaceEntry(nextRoute, options);
+      const now = new Date().toISOString();
+      setWorkspaceTabs((current) =>
+        current.map((tab) => {
+          if (tab.id !== targetTabId) {
+            return tab;
+          }
+          return {
+            ...tab,
+            route: buildWorkspaceTabRouteSnapshot(nextRoute),
+            title:
+              tab.titleSource === 'auto'
+                ? resolveWorkspaceTabTitle(nextRoute, options?.title || tab.title)
+                : tab.title,
+            updatedAt: now,
+            lastVisitedAt: now,
+          };
+        }),
+      );
+      setActiveChatRoute(
+        buildActiveChatRoute({
+          sessionKey: nextRoute.sessionKey,
+          conversationId: nextRoute.conversationId,
+          kind: 'general',
+          initialPrompt: nextRoute.initialPrompt,
+          initialPromptKey: nextRoute.initialPromptKey,
+          focusedTurnId: nextRoute.focusedTurnId,
+          focusedTurnKey: nextRoute.focusedTurnKey,
+          initialAgentSlug: nextRoute.initialAgentSlug,
+          initialSkillSlug: nextRoute.initialSkillSlug,
+          initialSkillOption: nextRoute.initialSkillOption,
+          initialStockContext: nextRoute.initialStockContext,
+        }),
+      );
+      pushWorkspaceTabVisit(targetTabId);
+      setPrimaryView('chat');
+    },
+    [ensureChatSurfaceEntry, pushWorkspaceTabVisit, setPrimaryView],
+  );
+
+  const openWorkspaceTabForRoute = useCallback(
+    (
+      nextRoute: ActiveChatRoute,
+      options?: {
+        forceRemount?: boolean;
+        title?: string | null;
+        reuseByConversation?: boolean;
+        reuseBySessionKey?: boolean;
+      },
+    ) => {
+      const existingTab =
+        ((options?.reuseByConversation ?? true) && nextRoute.conversationId
+          ? workspaceTabsRef.current.find((tab) => tab.route.conversationId === nextRoute.conversationId)
+          : null) ||
+        ((options?.reuseBySessionKey ?? true) && !nextRoute.conversationId
+          ? workspaceTabsRef.current.find((tab) => tab.route.sessionKey === nextRoute.sessionKey)
+          : null) ||
+        null;
+
+      if (existingTab) {
+        const now = new Date().toISOString();
+        setWorkspaceTabs((current) =>
+          current.map((tab) => {
+            if (tab.id !== existingTab.id) {
+              return tab;
+            }
+            return {
+              ...tab,
+              route: buildWorkspaceTabRouteSnapshot(nextRoute),
+              title:
+                tab.titleSource === 'auto'
+                  ? resolveWorkspaceTabTitle(nextRoute, options?.title || tab.title)
+                  : tab.title,
+              updatedAt: now,
+              lastVisitedAt: now,
+            };
+          }),
+        );
+        activateWorkspaceTab(existingTab.id, options);
+        return;
+      }
+
+      if (workspaceTabsRef.current.length >= MAX_WORKSPACE_TABS) {
+        activateWorkspaceTab(activeWorkspaceTabIdRef.current || workspaceTabsRef.current[0]?.id || '');
+        return;
+      }
+
+      const nextTabId = `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const nextTab = createChatWorkspaceTab({
+        id: nextTabId,
+        route: nextRoute,
+        title: options?.title,
+      });
+      ensureChatSurfaceEntry(nextRoute, options);
+      setWorkspaceTabs((current) => [...current, nextTab]);
+      setActiveWorkspaceTabId(nextTabId);
+      setActiveChatRoute(
+        buildActiveChatRoute({
+          sessionKey: nextRoute.sessionKey,
+          conversationId: nextRoute.conversationId,
+          kind: 'general',
+          initialPrompt: nextRoute.initialPrompt,
+          initialPromptKey: nextRoute.initialPromptKey,
+          focusedTurnId: nextRoute.focusedTurnId,
+          focusedTurnKey: nextRoute.focusedTurnKey,
+          initialAgentSlug: nextRoute.initialAgentSlug,
+          initialSkillSlug: nextRoute.initialSkillSlug,
+          initialSkillOption: nextRoute.initialSkillOption,
+          initialStockContext: nextRoute.initialStockContext,
+        }),
+      );
+      pushWorkspaceTabVisit(nextTabId);
+      setPrimaryView('chat');
+    },
+    [activateWorkspaceTab, ensureChatSurfaceEntry, pushWorkspaceTabVisit, setPrimaryView],
+  );
+
+  const openChatRoute = useCallback(
+    (nextRoute: ActiveChatRoute, options?: { forceRemount?: boolean }) => {
+      replaceActiveWorkspaceTabRoute(nextRoute, options);
+    },
+    [replaceActiveWorkspaceTabRoute],
+  );
+
+  const handleCloseWorkspaceTab = useCallback(
+    (tabId: string) => {
+      const currentTabs = workspaceTabsRef.current;
+      const target = currentTabs.find((tab) => tab.id === tabId);
+      if (!target) {
+        return;
+      }
+
+      const targetSurfaceKey = buildChatSurfaceCacheKey(restoreActiveChatRoute(target.route));
+      const remainingTabs = currentTabs.filter((tab) => tab.id !== tabId);
+
+      setChatSurfaceEntries((current) =>
+        Object.fromEntries(Object.entries(current).filter(([key]) => key !== targetSurfaceKey)),
+      );
+      setChatSurfaceRuntimeState((current) =>
+        Object.fromEntries(Object.entries(current).filter(([key]) => key !== targetSurfaceKey)),
+      );
+
+      workspaceTabVisitHistoryRef.current = workspaceTabVisitHistoryRef.current.filter((value) => value !== tabId);
+
+      if (remainingTabs.length === 0) {
+        const nextRoute = createConversationBackedDefaultChatRoute(createGeneralChatSessionKey());
+        const nextTab = createChatWorkspaceTab({
+          id: `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+          route: nextRoute,
+        });
+        setWorkspaceTabs([nextTab]);
+        setActiveWorkspaceTabId(nextTab.id);
+        setActiveChatRoute(nextRoute);
+        ensureChatSurfaceEntry(nextRoute);
+        pushWorkspaceTabVisit(nextTab.id);
+        setPrimaryView('chat');
+        return;
+      }
+
+      setWorkspaceTabs(remainingTabs);
+
+      if (activeWorkspaceTabIdRef.current !== tabId) {
+        return;
+      }
+
+      const nextTabId =
+        [...workspaceTabVisitHistoryRef.current].reverse().find((value) => remainingTabs.some((tab) => tab.id === value)) ||
+        remainingTabs[0]?.id ||
+        null;
+      if (!nextTabId) {
+        return;
+      }
+      activateWorkspaceTab(nextTabId);
+    },
+    [activateWorkspaceTab, ensureChatSurfaceEntry, pushWorkspaceTabVisit, setPrimaryView],
   );
 
   useEffect(() => {
@@ -2942,6 +3493,37 @@ function AuthedView({
     const currentRoute = activeChatRouteRef.current;
     if (!canReuseEmptyUnnamedGeneralConversation(currentRoute, BRAND.brandId)) {
       return;
+    }
+
+    const persistedTabs = readPersistedWorkspaceTabsSnapshot();
+    if (persistedTabs && persistedTabs.tabs.length > 0 && persistedTabs.activeTabId) {
+      const nextActiveTab =
+        persistedTabs.tabs.find((tab) => tab.id === persistedTabs.activeTabId) ||
+        persistedTabs.tabs[0] ||
+        null;
+      if (nextActiveTab) {
+        workspaceTabVisitHistoryRef.current = [nextActiveTab.id];
+        setWorkspaceTabs(persistedTabs.tabs);
+        setActiveWorkspaceTabId(nextActiveTab.id);
+        setChatSurfaceEntries(
+          Object.fromEntries(
+            persistedTabs.tabs.map((tab) => {
+              const route = restoreActiveChatRoute(tab.route);
+              const surfaceKey = buildChatSurfaceCacheKey(route);
+              const existing = chatSurfaceEntriesRef.current[surfaceKey];
+              return [
+                surfaceKey,
+                {
+                  route,
+                  version: existing?.version ?? 0,
+                },
+              ];
+            }),
+          ),
+        );
+        setActiveChatRoute(restoreActiveChatRoute(nextActiveTab.route));
+        return;
+      }
     }
 
     const persistedRoute = readPersistedActiveChatRoute();
@@ -3198,7 +3780,7 @@ function AuthedView({
         const conversation =
           (notification.conversationId ? readChatConversation(notification.conversationId) : null) ||
           findChatConversationBySessionKey(sessionKey);
-        openChatRoute(
+        openWorkspaceTabForRoute(
           buildConversationBackedChatRoute({
             sessionKey,
             conversationId: conversation?.id ?? notification.conversationId ?? null,
@@ -3224,7 +3806,7 @@ function AuthedView({
         closeNotificationCenter();
       }
     },
-    [closeNotificationCenter, openChatRoute, setPrimaryView],
+    [closeNotificationCenter, openWorkspaceTabForRoute, setPrimaryView],
   );
 
   const handleNotificationSecondaryAction = useCallback(
@@ -3265,7 +3847,7 @@ function AuthedView({
       return;
     }
     const seed = `${agent.slug}-${Date.now()}`;
-    openChatRoute(buildConversationBackedChatRoute({
+    openWorkspaceTabForRoute(buildConversationBackedChatRoute({
       sessionKey: createScopedChatSessionKey(`lobster-${seed}`),
       kind: 'lobster',
       title: agent.name,
@@ -3284,7 +3866,7 @@ function AuthedView({
       return;
     }
     const seed = `${expert.slug}-${Date.now()}`;
-    openChatRoute(buildConversationBackedChatRoute({
+    openWorkspaceTabForRoute(buildConversationBackedChatRoute({
       sessionKey: createScopedChatSessionKey(`investment-expert-${seed}`),
       kind: 'investment-expert',
       title: expert.name,
@@ -3303,7 +3885,7 @@ function AuthedView({
       return;
     }
     const seed = `stock-${stock.symbol}-${Date.now()}`;
-    openChatRoute(buildConversationBackedChatRoute({
+    openWorkspaceTabForRoute(buildConversationBackedChatRoute({
       sessionKey: createScopedChatSessionKey(seed),
       kind: 'stock-research',
       title: `${stock.company_name} ${stock.symbol}`,
@@ -3328,7 +3910,7 @@ function AuthedView({
       return;
     }
     const seed = `fund-${fund.symbol}-${Date.now()}`;
-    openChatRoute(buildConversationBackedChatRoute({
+    openWorkspaceTabForRoute(buildConversationBackedChatRoute({
       sessionKey: createScopedChatSessionKey(seed),
       kind: 'fund-research',
       title: `${fund.companyName} ${fund.symbol}`,
@@ -3356,7 +3938,7 @@ function AuthedView({
         return;
       }
       const seed = `knowledge-library-${Date.now()}`;
-      openChatRoute(
+      openWorkspaceTabForRoute(
         buildConversationBackedChatRoute({
           sessionKey: createScopedChatSessionKey(seed),
           kind: 'general',
@@ -3371,7 +3953,7 @@ function AuthedView({
       );
       setPrimaryView('chat');
     },
-    [desktopUpdateNewRunBlockedReason, openChatRoute, setPrimaryView],
+    [desktopUpdateNewRunBlockedReason, openWorkspaceTabForRoute, setPrimaryView],
   );
 
   const handleStartNewChat = useCallback(() => {
@@ -3385,8 +3967,11 @@ function AuthedView({
       return;
     }
     const sessionKey = createGeneralChatSessionKey();
-    openChatRoute(createConversationBackedDefaultChatRoute(sessionKey));
-  }, [desktopUpdateNewRunBlockedReason, openChatRoute, setPrimaryView]);
+    openWorkspaceTabForRoute(createConversationBackedDefaultChatRoute(sessionKey), {
+      reuseByConversation: false,
+      reuseBySessionKey: false,
+    });
+  }, [desktopUpdateNewRunBlockedReason, openChatRoute, openWorkspaceTabForRoute, setPrimaryView]);
 
   const handleRotateGeneralChatSession = useCallback((pressure: ChatSessionPressureSnapshot) => {
     setActiveChatRoute((current) => {
@@ -3441,7 +4026,7 @@ function AuthedView({
       return;
     }
 
-    openChatRoute(
+    openWorkspaceTabForRoute(
       buildConversationBackedChatRoute({
         sessionKey: conversation.activeSessionKey,
         conversationId: conversation.id,
@@ -3457,31 +4042,54 @@ function AuthedView({
       }),
       { forceRemount: true },
     );
-  }, [openChatRoute]);
+  }, [openWorkspaceTabForRoute]);
 
   const handleDeleteConversation = useCallback((conversationId: string) => {
     if (selectedTaskCenterConversationIdRef.current === conversationId) {
       setSelectedTaskCenterConversationId(null);
     }
 
+    const deletedTabIds = workspaceTabsRef.current
+      .filter((tab) => tab.route.conversationId === conversationId)
+      .map((tab) => tab.id);
     const deletedSurfaceKeys = Object.entries(chatSurfaceEntriesRef.current)
       .filter(([, entry]) => entry.route.conversationId === conversationId)
       .map(([key]) => key);
-    const deletingActiveConversation = activeChatRouteRef.current.conversationId === conversationId;
-    const nextRoute = deletingActiveConversation
-      ? createConversationBackedDefaultChatRoute(createGeneralChatSessionKey())
-      : null;
-    const nextSurfaceKey = nextRoute ? buildChatSurfaceCacheKey(nextRoute) : null;
+    const deletingActiveConversation =
+      activeChatRouteRef.current.conversationId === conversationId ||
+      deletedTabIds.includes(activeWorkspaceTabIdRef.current);
+
+    const remainingTabs = workspaceTabsRef.current.filter((tab) => !deletedTabIds.includes(tab.id));
+    let nextTab: WorkspaceTabRecord | null = null;
+
+    if (deletingActiveConversation) {
+      const fallbackTabId =
+        [...workspaceTabVisitHistoryRef.current]
+          .reverse()
+          .find((tabId) => !deletedTabIds.includes(tabId) && remainingTabs.some((tab) => tab.id === tabId)) ||
+        remainingTabs[0]?.id ||
+        null;
+      nextTab = fallbackTabId ? remainingTabs.find((tab) => tab.id === fallbackTabId) || null : null;
+      if (!nextTab) {
+        const nextRoute = createConversationBackedDefaultChatRoute(createGeneralChatSessionKey());
+        nextTab = createChatWorkspaceTab({
+          id: `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+          route: nextRoute,
+        });
+      }
+    }
 
     setChatSurfaceEntries((current) => {
       const nextEntries = Object.fromEntries(
         Object.entries(current).filter(([key]) => !deletedSurfaceKeys.includes(key)),
       );
 
-      if (!nextRoute || !nextSurfaceKey) {
+      if (!nextTab) {
         return nextEntries;
       }
 
+      const nextRoute = restoreActiveChatRoute(nextTab.route);
+      const nextSurfaceKey = buildChatSurfaceCacheKey(nextRoute);
       const existing = nextEntries[nextSurfaceKey];
       return {
         ...nextEntries,
@@ -3503,12 +4111,28 @@ function AuthedView({
       )
     );
 
-    if (!nextRoute || !nextSurfaceKey) {
+    workspaceTabVisitHistoryRef.current = workspaceTabVisitHistoryRef.current.filter((tabId) => !deletedTabIds.includes(tabId));
+
+    setWorkspaceTabs((current) => {
+      const filtered = current.filter((tab) => !deletedTabIds.includes(tab.id));
+      if (!nextTab) {
+        return filtered;
+      }
+      if (filtered.some((tab) => tab.id === nextTab.id)) {
+        return filtered;
+      }
+      return [...filtered, nextTab];
+    });
+
+    if (!nextTab) {
       return;
     }
 
+    const nextRoute = restoreActiveChatRoute(nextTab.route);
+    setActiveWorkspaceTabId(nextTab.id);
     setActiveChatRoute(nextRoute);
-  }, []);
+    pushWorkspaceTabVisit(nextTab.id);
+  }, [pushWorkspaceTabVisit]);
 
   const handleStartSkillConversation = (skill: SkillStoreItem) => {
     if (desktopUpdateNewRunBlockedReason) {
@@ -3516,7 +4140,7 @@ function AuthedView({
       return;
     }
     const seed = `skill-${skill.slug}-${Date.now()}`;
-    openChatRoute(buildConversationBackedChatRoute({
+    openWorkspaceTabForRoute(buildConversationBackedChatRoute({
       sessionKey: createScopedChatSessionKey(seed),
       kind: 'skill',
       title: skill.slug,
@@ -3933,7 +4557,18 @@ function AuthedView({
             onNotificationsClick={handleNotificationBellClick}
           />
         )}
-        <div className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden [contain:layout_paint_style]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden [contain:layout_paint_style]">
+          {resolvedShellSnapshot.resolvedPrimaryView === 'chat' ? (
+            <WorkspaceTabsBar
+              tabs={workspaceTabs}
+              activeTabId={activeWorkspaceTabId}
+              busyTabIds={busyWorkspaceTabIds}
+              onSelect={activateWorkspaceTab}
+              onClose={handleCloseWorkspaceTab}
+              onNew={handleStartNewChat}
+            />
+          ) : null}
+          <div className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden [contain:layout_paint_style]">
           {keepChatSurfaceMounted ? (
             <div
               className={buildSurfaceLayerClassName(resolvedShellSnapshot.resolvedPrimaryView === 'chat')}
@@ -4004,6 +4639,7 @@ function AuthedView({
               <ChatBootstrapPlaceholderView />
             </div>
           ) : null}
+          </div>
         </div>
       </div>
       {mountedOverlaySurfaceKeys.map((view) => (
