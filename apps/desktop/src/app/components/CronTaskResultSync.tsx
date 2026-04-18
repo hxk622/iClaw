@@ -7,7 +7,10 @@ import {
   type ChatTurnRecord,
   upsertCronTaskTurn,
 } from '@/app/lib/chat-turns';
-import { buildHeuristicFinanceComplianceEnvelope } from '@/app/lib/finance-compliance';
+import {
+  buildHeuristicFinanceComplianceEnvelope,
+  softenFinanceSummaryForChannel,
+} from '@/app/lib/finance-compliance';
 import { recordFinanceComplianceEvents } from '@/app/lib/finance-compliance-events';
 import type { ResolvedFinanceComplianceConfig } from '@/app/lib/oem-runtime';
 import { pushAppNotification } from '@/app/lib/task-notifications';
@@ -224,6 +227,11 @@ export function CronTaskResultSync({
                   }
                 : null,
             })?.compliance ?? null;
+          const displaySummary = softenFinanceSummaryForChannel({
+            text: summary,
+            channel: 'cron',
+            compliance: financeCompliance,
+          });
 
           upsertCronTaskTurn({
             jobId,
@@ -232,11 +240,11 @@ export function CronTaskResultSync({
               job.payload.kind === 'agentTurn'
                 ? job.payload.message
                 : job.payload.text,
-            summary: trimText(summary, 120),
+            summary: trimText(displaySummary, 120),
             status,
             sessionKey: turn?.sessionKey ?? null,
             error: job.state?.lastError ?? turn?.lastError ?? null,
-            artifacts: inferChatTurnArtifactsFromText(`${job.name ?? turn?.title ?? '定时任务'}\n${summary}`),
+            artifacts: inferChatTurnArtifactsFromText(`${job.name ?? turn?.title ?? '定时任务'}\n${displaySummary}`),
             model: turn?.model ?? null,
             provider: turn?.provider ?? null,
             deliveryStatus: turn?.deliveryStatus ?? job.state?.lastDeliveryStatus ?? null,
@@ -289,7 +297,11 @@ export function CronTaskResultSync({
               tone: 'success',
               source: 'cron',
               title: '定时任务已完成',
-              text: summary,
+              text: softenFinanceSummaryForChannel({
+                text: summary,
+                channel: 'notification',
+                compliance: financeCompliance,
+              }),
               metadata: {
                 taskName: job.name ?? turn?.title ?? '定时任务',
                 routeTarget: 'cron',
@@ -300,7 +312,7 @@ export function CronTaskResultSync({
                 provider: turn?.provider ?? null,
                 nextRunAt: job.state?.nextRunAtMs ?? turn?.nextRunAt ?? null,
                 runAt: job.state?.lastRunAtMs ?? latestRunTs,
-                result: summary,
+                result: displaySummary,
                 financeCompliance,
               },
             });
@@ -341,7 +353,13 @@ export function CronTaskResultSync({
               tone: 'error',
               source: 'cron',
               title: '定时任务执行失败',
-              text: job.state?.lastError?.trim() || summary,
+              text:
+                job.state?.lastError?.trim() ||
+                softenFinanceSummaryForChannel({
+                  text: summary,
+                  channel: 'notification',
+                  compliance: financeCompliance,
+                }),
               metadata: {
                 taskName: job.name ?? turn?.title ?? '定时任务',
                 routeTarget: 'cron',
@@ -352,7 +370,7 @@ export function CronTaskResultSync({
                 provider: turn?.provider ?? null,
                 nextRunAt: job.state?.nextRunAtMs ?? turn?.nextRunAt ?? null,
                 runAt: job.state?.lastRunAtMs ?? latestRunTs,
-                errorReason: job.state?.lastError?.trim() || summary,
+                errorReason: job.state?.lastError?.trim() || displaySummary,
                 financeCompliance,
               },
             });

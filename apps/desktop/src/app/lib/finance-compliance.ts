@@ -322,3 +322,29 @@ export function buildHeuristicFinanceComplianceEnvelope(input: {
     usedModel: input.usedModel,
   });
 }
+
+export function softenFinanceSummaryForChannel(input: {
+  text: string;
+  channel: Extract<FinanceComplianceChannel, 'cron' | 'notification'>;
+  compliance: FinanceComplianceSnapshot | null | undefined;
+}): string {
+  const raw = input.text.trim();
+  if (!raw) {
+    return raw;
+  }
+  if (!input.compliance || input.compliance.outputClassification !== 'actionable_advice') {
+    return raw;
+  }
+
+  const softened = raw
+    .replace(/建议(关注|加仓|减仓|买入|卖出|配置)/g, '可关注')
+    .replace(/(买入|卖出|加仓|减仓|建仓|清仓|止盈|止损)/g, '关注')
+    .replace(/仓位/g, '风险暴露')
+    .replace(/可以考虑/g, '可进一步研究')
+    .replace(/优先/g, '可优先观察');
+
+  if (input.channel === 'notification') {
+    return `已生成金融研究结果，请打开查看详情。`;
+  }
+  return softened;
+}

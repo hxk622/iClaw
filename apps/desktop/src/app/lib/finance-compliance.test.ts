@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildHeuristicFinanceComplianceEnvelope,
   resolveFinanceComplianceEnvelope,
+  softenFinanceSummaryForChannel,
   shouldShowFinanceDisclaimer,
   type FinanceCapabilityPolicy,
   type FinanceOemCompliancePolicy,
@@ -93,4 +94,55 @@ test('buildHeuristicFinanceComplianceEnvelope detects finance advice text', () =
   assert.equal(result?.compliance.domain, 'finance');
   assert.equal(result?.compliance.showDisclaimer, true);
   assert.equal(result?.compliance.outputClassification, 'actionable_advice');
+});
+
+test('softenFinanceSummaryForChannel degrades actionable cron summary', () => {
+  const result = softenFinanceSummaryForChannel({
+    text: '建议关注高股息方向，控制仓位，必要时止盈。',
+    channel: 'cron',
+    compliance: {
+      domain: 'finance',
+      inputClassification: 'advice_request',
+      outputClassification: 'actionable_advice',
+      riskLevel: 'high',
+      showDisclaimer: true,
+      disclaimerText: '本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。',
+      requiresRiskSection: true,
+      blocked: false,
+      degraded: true,
+      reasons: ['finance_domain'],
+      usedCapabilities: [],
+      usedModel: null,
+      sourceAttributionRequired: false,
+      timestampRequired: false,
+    },
+  });
+
+  assert.match(result, /可关注|风险暴露|关注/);
+  assert.doesNotMatch(result, /止盈/);
+});
+
+test('softenFinanceSummaryForChannel replaces notification summary for actionable advice', () => {
+  const result = softenFinanceSummaryForChannel({
+    text: '建议买入并加仓。',
+    channel: 'notification',
+    compliance: {
+      domain: 'finance',
+      inputClassification: 'advice_request',
+      outputClassification: 'actionable_advice',
+      riskLevel: 'high',
+      showDisclaimer: true,
+      disclaimerText: '本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。',
+      requiresRiskSection: true,
+      blocked: false,
+      degraded: true,
+      reasons: ['finance_domain'],
+      usedCapabilities: [],
+      usedModel: null,
+      sourceAttributionRequired: false,
+      timestampRequired: false,
+    },
+  });
+
+  assert.equal(result, '已生成金融研究结果，请打开查看详情。');
 });
