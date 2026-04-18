@@ -439,6 +439,7 @@ export function useDesktopStartupController(
     };
 
     const boot = async () => {
+      let resolvedHealthy = false;
       logStartupEvent('boot_effect_start', {
         runtimeReady,
         runtimeChecking,
@@ -455,6 +456,7 @@ export function useDesktopStartupController(
         blocking: true,
         suppressError: isTauriRuntime,
       });
+      resolvedHealthy = healthyNow;
       logStartupEvent('boot_initial_health_result', { healthyNow });
       if (!cancelled && !healthyNow && isTauriRuntime) {
         setHealthChecking(true);
@@ -487,6 +489,7 @@ export function useDesktopStartupController(
           sidecarHealthy,
           cancelled,
         });
+        resolvedHealthy = sidecarHealthy;
         if (!cancelled && !sidecarHealthy) {
           const portConflictMessage = await resolvePortConflictMessage();
           setHealthy(false);
@@ -495,7 +498,7 @@ export function useDesktopStartupController(
       }
       if (!cancelled) {
         setInitialHealthResolved(true);
-        logStartupEvent('boot_effect_resolved', { healthy: healthyNow });
+        logStartupEvent('boot_effect_resolved', { healthy: resolvedHealthy });
       }
     };
 

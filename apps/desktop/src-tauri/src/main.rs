@@ -1253,10 +1253,7 @@ fn installed_runtime_dir(
 
 fn resource_runtime_dir(app: &AppHandle) -> PathBuf {
     if let Ok(resource_dir) = app.path().resource_dir() {
-        let p = resource_dir.join("resources").join("openclaw-runtime");
-        if p.exists() {
-            return p;
-        }
+        return resource_dir.join("resources").join("openclaw-runtime");
     }
 
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1602,11 +1599,11 @@ set \"PATH={node_dir};%PATH%\"\r\n\
 if \"%OPENCLAW_BUNDLED_PLUGINS_DIR%\"==\"\" set \"OPENCLAW_BUNDLED_PLUGINS_DIR=%RUNTIME_ROOT%\\extensions\"\r\n\
 if exist \"{python_path}\" if \"%UV_PYTHON%\"==\"\" set \"UV_PYTHON={python_path}\"\r\n\
 \"%NODE_BIN%\" \"{cli_path}\" %*\r\n",
-        node_bin = node_path.to_string_lossy(),
-        runtime_root = runtime_root.to_string_lossy(),
-        node_dir = node_dir.to_string_lossy(),
-        python_path = python_path.to_string_lossy(),
-        cli_path = cli_path.to_string_lossy(),
+        node_bin = node_command_safe_path(&node_path),
+        runtime_root = node_command_safe_path(&runtime_root),
+        node_dir = node_command_safe_path(node_dir),
+        python_path = node_command_safe_path(&python_path),
+        cli_path = node_command_safe_path(&cli_path),
     );
 
     #[cfg(not(target_os = "windows"))]
@@ -6453,7 +6450,7 @@ fn start_sidecar(
         "ICLAW_OPENCLAW_RUNTIME_ROOT",
         runtime_root.to_string_lossy().to_string(),
     );
-    command.arg(&cli_path);
+    command.arg(node_command_safe_path(&cli_path));
     command.arg("gateway");
     command.args(&runtime.args_prefix);
     command.args(&args);
@@ -7446,7 +7443,7 @@ fn run_memory_cli(app: &AppHandle, args: &[&str]) -> Result<std::process::Output
 
     let mut command = Command::new(&node_path);
     configure_background_child_process(&mut command);
-    command.arg(&cli_path);
+    command.arg(node_command_safe_path(&cli_path));
     command.args(args);
     configure_memory_runtime_command(&mut command, app)?;
 

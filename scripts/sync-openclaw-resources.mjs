@@ -77,6 +77,8 @@ async function main() {
   await fs.rm(path.join(resourcesDstDir, 'skills'), { recursive: true, force: true });
   if (runtimeBundleMode === 'archive') {
     await fs.rm(path.join(resourcesDstDir, 'openclaw-runtime'), { recursive: true, force: true });
+  } else {
+    await fs.rm(path.join(resourcesDstDir, 'runtime-archives'), { recursive: true, force: true });
   }
   await Promise.all([
     syncDirOrRemove(serversSrcDir, path.join(resourcesDstDir, 'servers')),

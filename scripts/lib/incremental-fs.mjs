@@ -109,16 +109,14 @@ export async function syncDirIncremental(sourcePath, destinationPath) {
 
   const sourceEntries = await fs.readdir(sourcePath, { withFileTypes: true });
   const sourceNames = new Set(sourceEntries.map((entry) => entry.name));
-  await Promise.all(
-    sourceEntries.map((entry) =>
-      syncPathIncremental(path.join(sourcePath, entry.name), path.join(destinationPath, entry.name)),
-    ),
-  );
+  for (const entry of sourceEntries) {
+    await syncPathIncremental(path.join(sourcePath, entry.name), path.join(destinationPath, entry.name));
+  }
 
   const destinationEntries = await fs.readdir(destinationPath, { withFileTypes: true });
-  await Promise.all(
-    destinationEntries
-      .filter((entry) => !sourceNames.has(entry.name))
-      .map((entry) => removePathIfPresent(path.join(destinationPath, entry.name))),
-  );
+  for (const entry of destinationEntries) {
+    if (!sourceNames.has(entry.name)) {
+      await removePathIfPresent(path.join(destinationPath, entry.name));
+    }
+  }
 }

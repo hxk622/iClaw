@@ -1145,6 +1145,67 @@ async function signBundledRuntimeArchiveForMacos({ archivePath, artifactFormat, 
   }
 }
 
+async function signBundledRuntimeDirectoryForMacos({ runtimeRoot, targetTriple, env }) {
+  if (process.platform !== 'darwin' || !targetTriple.includes('apple-darwin')) {
+    return;
+  }
+  const signingIdentity = trimString(env.APPLE_SIGNING_IDENTITY);
+  if (!signingIdentity) {
+    return;
+  }
+
+  const files = await collectRuntimeFiles(runtimeRoot);
+  const signableFiles = [];
+  for (const filePath of files) {
+    if (await isMachOBinary(filePath)) {
+      signableFiles.push(filePath);
+    }
+  }
+
+  process.stdout.write(
+    `[desktop-package] signing bundled runtime directory for notarization: ${signableFiles.length} Mach-O files\n`,
+  );
+
+  for (const filePath of signableFiles) {
+    runChecked(
+      'codesign',
+      ['--force', '--sign', signingIdentity, '--timestamp', '--options', 'runtime', filePath],
+      { env },
+    );
+  }
+
+  const symlinks = await collectRuntimeSymlinks(runtimeRoot);
+  for (const symlinkPath of symlinks) {
+    let realPath = '';
+    try {
+      realPath = await fs.realpath(symlinkPath);
+    } catch {
+      continue;
+    }
+    if (!(await isMachOBinary(realPath))) {
+      continue;
+    }
+    const sourceStats = await fs.stat(realPath);
+    await fs.rm(symlinkPath, { force: true });
+    await fs.copyFile(realPath, symlinkPath);
+    await fs.chmod(symlinkPath, sourceStats.mode);
+    runChecked(
+      'codesign',
+      ['--force', '--sign', signingIdentity, '--timestamp', '--options', 'runtime', symlinkPath],
+      { env },
+    );
+  }
+
+  const bundleRoots = await collectRuntimeBundleRoots(runtimeRoot);
+  for (const bundleRoot of bundleRoots) {
+    runChecked(
+      'codesign',
+      ['--force', '--sign', signingIdentity, '--timestamp', '--options', 'runtime', bundleRoot],
+      { env },
+    );
+  }
+}
+
 async function collectRuntimeDirsByName(rootDir, directoryNames) {
   const matches = [];
   if (!(await pathExists(rootDir))) {
@@ -1901,7 +1962,7 @@ async function prepareBundledRuntime({ env, brandId, brandProfile, channel, targ
   const stagedRuntimeArchiveDir = path.join(packagingPaths.resourcesSourceDir, 'runtime-archives');
   if (await runtimeLayoutLooksComplete(stagedRuntimeDir, targetTriple)) {
     process.stdout.write(
-      `[desktop-package] removing stale expanded runtime before archive staging: ${stagedRuntimeDir}\n`,
+      `[desktop-package] removing stale expanded runtime before runtime staging: ${stagedRuntimeDir}\n`,
     );
     await fs.rm(stagedRuntimeDir, { recursive: true, force: true });
   }
@@ -1944,19 +2005,26 @@ async function prepareBundledRuntime({ env, brandId, brandProfile, channel, targ
   await persistRuntimeArtifactCopy(artifactPath, sharedCachedArtifactPath);
   await fs.rm(stagedRuntimeDir, { recursive: true, force: true });
   await fs.rm(stagedRuntimeArchiveDir, { recursive: true, force: true });
-  await fs.mkdir(stagedRuntimeArchiveDir, { recursive: true });
-  const stagedArchivePath = path.join(stagedRuntimeArchiveDir, path.basename(artifactPath));
-  await fs.rm(stagedArchivePath, { force: true });
-  await fs.copyFile(artifactPath, stagedArchivePath);
-  await signBundledRuntimeArchiveForMacos({
-    archivePath: stagedArchivePath,
+  const extractRoot = path.join(packagingPaths.workspaceRoot, 'runtime-extract', targetTriple || 'host');
+  await fs.rm(extractRoot, { recursive: true, force: true });
+  await extractRuntimeArchive({
+    archivePath: artifactPath,
     artifactFormat,
+    destinationDir: extractRoot,
+  });
+  const extractedRuntimeRoot = await resolveExtractedRuntimeRoot(extractRoot, targetTriple);
+  await fs.mkdir(path.dirname(stagedRuntimeDir), { recursive: true });
+  await fs.cp(extractedRuntimeRoot, stagedRuntimeDir, { recursive: true });
+  await pruneBundledRuntime(stagedRuntimeDir, targetTriple);
+  await writeBundledRuntimeInstallReceipt(stagedRuntimeDir, rawConfig);
+  await signBundledRuntimeDirectoryForMacos({
+    runtimeRoot: stagedRuntimeDir,
     targetTriple,
     env,
   });
 
   process.stdout.write(
-    `[desktop-package] bundled runtime archive prepared for ${targetTriple || 'host'} from ${source}: ${stagedArchivePath}\n`,
+    `[desktop-package] bundled expanded runtime prepared for ${targetTriple || 'host'} from ${source}: ${stagedRuntimeDir}\n`,
   );
 }
 
@@ -2090,7 +2158,7 @@ async function main() {
     ICLAW_USE_PACKAGING_SOURCE_ENV: '1',
     ICLAW_ENV_NAME: channel || process.env.ICLAW_ENV_NAME || process.env.NODE_ENV || '',
     ICLAW_OPENCLAW_RESOURCES_SOURCE_DIR: packagingPaths.resourcesSourceDir,
-    ICLAW_RUNTIME_BUNDLE_MODE: 'archive',
+    ICLAW_RUNTIME_BUNDLE_MODE: trimString(process.env.ICLAW_RUNTIME_BUNDLE_MODE) || 'expanded',
   };
   const tauriBuildEnv = { ...env };
   if (useManualMacosNotarization) {
