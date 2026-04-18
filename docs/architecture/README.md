@@ -17,6 +17,9 @@
 - `finance-compliance-architecture.md`
 - `financial-market-data-architecture.md`
 - `hermes-self-evolution-architecture.md`
+- `knowledge-library-schema-v1.md`
+- `extension-to-knowledge-library-mapping.md`
+- `knowledge-graph-view-v1.md`
 - `native-agent-store-architecture.md`
 - `oem-capability-architecture.md`
 - `openclaw-wrapper-architecture.md`
