@@ -1,0 +1,43 @@
+{
+  "id": "finance-compliance",
+  "name": "Finance Compliance",
+  "description": "Financial compliance classification, envelope metadata, and audit helpers for OEM finance surfaces.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabledApps": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "defaultDisclaimerText": {
+        "type": "string"
+      },
+      "auditEnabled": {
+        "type": "boolean",
+        "default": true
+      },
+      "strictBlocking": {
+        "type": "boolean",
+        "default": false
+      }
+    }
+  },
+  "uiHints": {
+    "enabledApps": {
+      "label": "Enabled Apps",
+      "help": "App names where finance compliance logic should run."
+    },
+    "defaultDisclaimerText": {
+      "label": "Default Disclaimer Text",
+      "help": "Fallback disclaimer text when OEM policy does not provide one."
+    },
+    "auditEnabled": {
+      "label": "Audit Enabled"
+    },
+    "strictBlocking": {
+      "label": "Strict Blocking",
+      "help": "Prefer block over degrade for severe finance policy violations."
+    }
+  }
+}
