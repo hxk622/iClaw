@@ -31,7 +31,7 @@ export type AdminRoute =
   | 'fault-reports';
 
 export type NavItem = {
-  id: AdminRoute | 'payments' | 'fault-center';
+  id: AdminRoute | 'payments' | 'fault-center' | 'audit-center';
   label: string;
   children?: Array<{ id: AdminRoute; label: string }>;
 };

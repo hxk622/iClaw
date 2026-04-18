@@ -107,7 +107,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: '总览' },
   { id: 'brands', label: '品牌管理' },
   { id: 'client-metrics', label: '客户端监控' },
-  { id: 'finance-compliance', label: '金融合规审计' },
   { id: 'agent-center', label: 'Agent中心' },
   { id: 'skill-center', label: '平台级 Skill' },
   { id: 'mcp-center', label: '平台级 MCP' },
@@ -134,8 +133,15 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'payments-orders', label: '订单中心' },
     ],
   },
-  { id: 'audit-log', label: '审计日志' },
-  { id: 'user-action-audit', label: '用户Action审计' },
+  {
+    id: 'audit-center',
+    label: '审计中心',
+    children: [
+      { id: 'audit-log', label: '审计日志' },
+      { id: 'user-action-audit', label: '用户Action审计' },
+      { id: 'finance-compliance', label: '金融合规审计' },
+    ],
+  },
 ];
 
 const BRAND_DETAIL_TABS = [
