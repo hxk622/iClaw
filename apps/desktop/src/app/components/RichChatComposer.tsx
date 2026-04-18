@@ -2563,8 +2563,21 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   disabled={selectorToolbarDisabled}
                   aria-haspopup="dialog"
                   aria-expanded={mentionMenuOpen}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) {
+                      return;
+                    }
+                    event.preventDefault();
+                    if (mentionMenuOpen && mentionMenuSource === 'toolbar') {
+                      closeMentionMenu();
+                      return;
+                    }
+                    openMentionMenu('toolbar');
+                  }}
+                  onClick={(event) => {
+                    if (event.detail !== 0) {
+                      return;
+                    }
                     if (mentionMenuOpen && mentionMenuSource === 'toolbar') {
                       closeMentionMenu();
                       return;
@@ -2610,8 +2623,21 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={skillMenuOpen}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) {
+                      return;
+                    }
+                    event.preventDefault();
+                    if (skillMenuOpen) {
+                      closeSkillMenu();
+                      return;
+                    }
+                    openSkillMenu();
+                  }}
+                  onClick={(event) => {
+                    if (event.detail !== 0) {
+                      return;
+                    }
                     if (skillMenuOpen) {
                       closeSkillMenu();
                       return;
@@ -2747,8 +2773,21 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={modeMenuOpen}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) {
+                      return;
+                    }
+                    event.preventDefault();
+                    if (modeMenuOpen) {
+                      closeModeMenu();
+                      return;
+                    }
+                    openModeMenu();
+                  }}
+                  onClick={(event) => {
+                    if (event.detail !== 0) {
+                      return;
+                    }
                     if (modeMenuOpen) {
                       closeModeMenu();
                       return;
@@ -2868,8 +2907,21 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={marketMenuOpen}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) {
+                      return;
+                    }
+                    event.preventDefault();
+                    if (marketMenuOpen) {
+                      closeMarketMenu();
+                      return;
+                    }
+                    openMarketMenu();
+                  }}
+                  onClick={(event) => {
+                    if (event.detail !== 0) {
+                      return;
+                    }
                     if (marketMenuOpen) {
                       closeMarketMenu();
                       return;
@@ -2989,8 +3041,21 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={stockMenuOpen && stockMenuKind === 'stock'}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) {
+                      return;
+                    }
+                    event.preventDefault();
+                    if (stockMenuOpen && stockMenuSource === 'toolbar' && stockMenuKind === 'stock') {
+                      closeStockMenu();
+                      return;
+                    }
+                    openStockMenu('toolbar', 'stock');
+                  }}
+                  onClick={(event) => {
+                    if (event.detail !== 0) {
+                      return;
+                    }
                     if (stockMenuOpen && stockMenuSource === 'toolbar' && stockMenuKind === 'stock') {
                       closeStockMenu();
                       return;
@@ -3028,8 +3093,21 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={stockMenuOpen && stockMenuKind === 'fund'}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) {
+                      return;
+                    }
+                    event.preventDefault();
+                    if (stockMenuOpen && stockMenuSource === 'toolbar' && stockMenuKind === 'fund') {
+                      closeStockMenu();
+                      return;
+                    }
+                    openStockMenu('toolbar', 'fund');
+                  }}
+                  onClick={(event) => {
+                    if (event.detail !== 0) {
+                      return;
+                    }
                     if (stockMenuOpen && stockMenuSource === 'toolbar' && stockMenuKind === 'fund') {
                       closeStockMenu();
                       return;
@@ -3067,8 +3145,21 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={watchlistMenuOpen}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) {
+                      return;
+                    }
+                    event.preventDefault();
+                    if (watchlistMenuOpen) {
+                      closeWatchlistMenu();
+                      return;
+                    }
+                    openWatchlistMenu();
+                  }}
+                  onClick={(event) => {
+                    if (event.detail !== 0) {
+                      return;
+                    }
                     if (watchlistMenuOpen) {
                       closeWatchlistMenu();
                       return;
@@ -3188,8 +3279,21 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   disabled={selectorToolbarDisabled}
                   aria-haspopup="menu"
                   aria-expanded={outputMenuOpen}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) {
+                      return;
+                    }
+                    event.preventDefault();
+                    if (outputMenuOpen) {
+                      closeOutputMenu();
+                      return;
+                    }
+                    openOutputMenu();
+                  }}
+                  onClick={(event) => {
+                    if (event.detail !== 0) {
+                      return;
+                    }
                     if (outputMenuOpen) {
                       closeOutputMenu();
                       return;
