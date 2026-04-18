@@ -3,6 +3,8 @@ import { syncStockBasics } from './tasks/sync-stock-basics.ts';
 import { syncStockQuotes } from './tasks/sync-stock-quotes.ts';
 import { syncIndustryConcept } from './tasks/sync-industry-concept.ts';
 import { syncFinanceData } from './tasks/sync-finance-data.ts';
+import { syncMarketOverview } from './tasks/sync-market-overview.ts';
+import { syncMarketNews } from './tasks/sync-market-news.ts';
 import { logInfo, logError } from '../logger.ts';
 
 /**
@@ -32,6 +34,32 @@ export function startSyncTasks() {
       logInfo('Stock quotes sync task completed successfully');
     } catch (e) {
       logError('Stock quotes sync task failed', { error: e });
+    }
+  }, {
+    timezone: 'Asia/Shanghai'
+  });
+
+  // 2.1 交易日 9:30-15:00 每 15 分钟生成一次大盘概览和指数快照
+  cron.schedule('*/15 9-15 * * 1-5', async () => {
+    logInfo('Running market overview sync task...');
+    try {
+      await syncMarketOverview();
+      logInfo('Market overview sync task completed successfully');
+    } catch (e) {
+      logError('Market overview sync task failed', { error: e });
+    }
+  }, {
+    timezone: 'Asia/Shanghai'
+  });
+
+  // 2.2 工作日 8:00-22:00 每 10 分钟同步一次财经快讯
+  cron.schedule('*/10 8-22 * * 1-5', async () => {
+    logInfo('Running market news sync task...');
+    try {
+      await syncMarketNews();
+      logInfo('Market news sync task completed successfully');
+    } catch (e) {
+      logError('Market news sync task failed', { error: e });
     }
   }, {
     timezone: 'Asia/Shanghai'

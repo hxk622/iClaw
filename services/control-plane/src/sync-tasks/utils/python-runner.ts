@@ -1,12 +1,23 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 
 function resolvePythonCommand(): string {
   const explicit = process.env.PYTHON_BIN?.trim();
   if (explicit) {
     return explicit;
+  }
+  const repoVenvPython =
+    process.platform === 'win32'
+      ? resolve(repoRoot, '.venv', 'Scripts', 'python.exe')
+      : resolve(repoRoot, '.venv', 'bin', 'python');
+  if (existsSync(repoVenvPython)) {
+    return repoVenvPython;
   }
   return process.platform === 'win32' ? 'python' : 'python3';
 }
