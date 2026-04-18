@@ -149,6 +149,18 @@ export type ResolvedAuthExperienceConfig = {
   agreements: ResolvedAuthAgreementConfig[];
 };
 
+export type ResolvedFinanceComplianceConfig = {
+  enabled: boolean;
+  classificationPolicy: string;
+  disclaimerPolicy: string;
+  disclaimerText: string;
+  blockingPolicy: string;
+  showFor: Array<'market_data' | 'research_summary' | 'investment_view' | 'actionable_advice'>;
+  hideFor: Array<'market_data' | 'research_summary' | 'investment_view' | 'actionable_advice'>;
+  blockFor: Array<'market_info' | 'research_request' | 'advice_request' | 'personalized_request' | 'execution_request'>;
+  degradeFor: Array<'market_info' | 'research_request' | 'advice_request' | 'personalized_request' | 'execution_request'>;
+};
+
 const AUTH_AGREEMENT_ORDER = ['service', 'privacy', 'billing'] as const;
 const AUTH_AGREEMENT_LABELS: Record<string, string> = {
   service: '服务协议',
@@ -262,6 +274,24 @@ function buildDefaultAuthExperiencePreset(brandId: string, displayName: string, 
         content: `${productLabel} 通过积分额度提供模型问答、工具调用与相关增值能力。用户的实际消耗以后端结算记录为准。\n\n1. 不同模型、上下文长度、输出长度、工具调用链路与外部服务成本，可能对应不同计费倍数或额度消耗。\n2. 页面上的预估值用于帮助用户理解大致成本，但不构成最终结算承诺；任务完成后展示的结算结果才是正式扣费依据。\n3. 日免费额度、赠送额度与充值额度可能具有不同的使用顺序、重置周期和有效期，具体以账户显示为准。\n4. 因用户主动发起的正常请求所产生的消耗，原则上不支持撤销；若因平台故障、重复结算或系统异常导致错误扣费，平台会按规则核实处理。\n5. 若用户存在恶意刷量、规避限制、退款滥用、支付异常或其他损害平台利益的行为，${legalEntity} 有权暂停结算、冻结账户或采取进一步风控措施。`,
       },
     ],
+  };
+}
+
+function buildDefaultFinanceCompliancePreset(brandId: string): ResolvedFinanceComplianceConfig | null {
+  const normalizedBrandId = String(brandId || '').trim().toLowerCase();
+  if (normalizedBrandId !== 'caiclaw' && normalizedBrandId !== 'licaiclaw') {
+    return null;
+  }
+  return {
+    enabled: true,
+    classificationPolicy: 'finance_v1',
+    disclaimerPolicy: 'finance_inline_small',
+    disclaimerText: '本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。',
+    blockingPolicy: 'research_only',
+    showFor: ['investment_view', 'actionable_advice'],
+    hideFor: ['market_data'],
+    blockFor: ['execution_request'],
+    degradeFor: ['advice_request', 'personalized_request'],
   };
 }
 
@@ -851,6 +881,50 @@ export function resolveAuthExperienceConfig(
         content: '',
       }),
     ),
+  };
+}
+
+export function resolveFinanceComplianceConfig(
+  config: Record<string, unknown> | null | undefined,
+): ResolvedFinanceComplianceConfig | null {
+  const root = asObject(config);
+  const direct = asObject(root.financeCompliance);
+  const fallback = buildDefaultFinanceCompliancePreset(String(root.brandId || root.brand_id || '').trim());
+  const source = Object.keys(direct).length > 0 ? direct : fallback ? (fallback as unknown as Record<string, unknown>) : {};
+  if (Object.keys(source).length === 0) {
+    return null;
+  }
+
+  const normalizeInputClassifications = (value: unknown) =>
+    asStringArray(value).filter(
+      (entry): entry is ResolvedFinanceComplianceConfig['blockFor'][number] =>
+        entry === 'market_info' ||
+        entry === 'research_request' ||
+        entry === 'advice_request' ||
+        entry === 'personalized_request' ||
+        entry === 'execution_request',
+    );
+  const normalizeOutputClassifications = (value: unknown) =>
+    asStringArray(value).filter(
+      (entry): entry is ResolvedFinanceComplianceConfig['showFor'][number] =>
+        entry === 'market_data' ||
+        entry === 'research_summary' ||
+        entry === 'investment_view' ||
+        entry === 'actionable_advice',
+    );
+
+  return {
+    enabled: source.enabled !== false,
+    classificationPolicy: String(source.classificationPolicy || source.classification_policy || fallback?.classificationPolicy || '').trim() || 'finance_v1',
+    disclaimerPolicy: String(source.disclaimerPolicy || source.disclaimer_policy || fallback?.disclaimerPolicy || '').trim() || 'finance_inline_small',
+    disclaimerText:
+      String(source.disclaimerText || source.disclaimer_text || fallback?.disclaimerText || '').trim() ||
+      '本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。',
+    blockingPolicy: String(source.blockingPolicy || source.blocking_policy || fallback?.blockingPolicy || '').trim() || 'research_only',
+    showFor: normalizeOutputClassifications(source.showFor || source.show_for || fallback?.showFor || []),
+    hideFor: normalizeOutputClassifications(source.hideFor || source.hide_for || fallback?.hideFor || []),
+    blockFor: normalizeInputClassifications(source.blockFor || source.block_for || fallback?.blockFor || []),
+    degradeFor: normalizeInputClassifications(source.degradeFor || source.degrade_for || fallback?.degradeFor || []),
   };
 }
 

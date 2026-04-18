@@ -9,6 +9,7 @@ import {
 } from '@/app/lib/chat-turns';
 import { buildHeuristicFinanceComplianceEnvelope } from '@/app/lib/finance-compliance';
 import { recordFinanceComplianceEvents } from '@/app/lib/finance-compliance-events';
+import type { ResolvedFinanceComplianceConfig } from '@/app/lib/oem-runtime';
 import { pushAppNotification } from '@/app/lib/task-notifications';
 import {
   markCronRunNotified,
@@ -128,6 +129,7 @@ function resolveTurnStatus(job: CronJob | null, turn: ChatTurnRecord | null) {
 export function CronTaskResultSync({
   client,
   accessToken,
+  financeComplianceConfig,
   gatewayUrl,
   gatewayToken,
   gatewayPassword,
@@ -136,6 +138,7 @@ export function CronTaskResultSync({
 }: {
   client: IClawClient;
   accessToken?: string | null;
+  financeComplianceConfig?: ResolvedFinanceComplianceConfig | null;
   gatewayUrl: string;
   gatewayToken?: string;
   gatewayPassword?: string;
@@ -207,6 +210,19 @@ export function CronTaskResultSync({
               prompt: job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text,
               answer: summary,
               usedModel: turn?.model ?? null,
+              oemPolicy: financeComplianceConfig
+                ? {
+                    complianceEnabled: financeComplianceConfig.enabled,
+                    classificationPolicy: financeComplianceConfig.classificationPolicy,
+                    disclaimerPolicy: financeComplianceConfig.disclaimerPolicy,
+                    disclaimerText: financeComplianceConfig.disclaimerText,
+                    blockingPolicy: financeComplianceConfig.blockingPolicy,
+                    showFor: financeComplianceConfig.showFor,
+                    hideFor: financeComplianceConfig.hideFor,
+                    blockFor: financeComplianceConfig.blockFor,
+                    degradeFor: financeComplianceConfig.degradeFor,
+                  }
+                : null,
             })?.compliance ?? null;
 
           upsertCronTaskTurn({
@@ -356,7 +372,7 @@ export function CronTaskResultSync({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [accessToken, client, enabled, gatewayPassword, gatewayToken, gatewayUrl]);
+  }, [accessToken, client, enabled, financeComplianceConfig, gatewayPassword, gatewayToken, gatewayUrl]);
 
   return null;
 }

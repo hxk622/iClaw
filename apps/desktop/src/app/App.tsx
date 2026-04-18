@@ -50,6 +50,7 @@ import {
 import {
   loadBrandRuntimeConfigWithFallback,
   resolveAuthExperienceConfig,
+  resolveFinanceComplianceConfig,
   resolveHeaderConfig,
   resolveInputComposerConfig,
   resolveRequiredEnabledMenuKeys,
@@ -2607,6 +2608,10 @@ function AuthedView({
     [brandShellConfig, enabledMenuKeys],
   );
   const headerConfig = useMemo(() => resolveHeaderConfig(brandShellConfig), [brandShellConfig]);
+  const financeComplianceConfig = useMemo(
+    () => resolveFinanceComplianceConfig(brandShellConfig),
+    [brandShellConfig],
+  );
   const inputComposerConfig = useMemo(() => resolveInputComposerConfig(brandShellConfig), [brandShellConfig]);
   const welcomePageConfig = useMemo(() => resolveWelcomePageConfig(brandShellConfig), [brandShellConfig]);
   const availablePrimaryViews = useMemo(
@@ -3856,6 +3861,7 @@ function AuthedView({
       <CronTaskResultSync
         client={client}
         accessToken={accessToken}
+        financeComplianceConfig={financeComplianceConfig}
         gatewayUrl={GATEWAY_WS_URL}
         gatewayToken={gatewayAuth.token}
         gatewayPassword={gatewayAuth.password}
