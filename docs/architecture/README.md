@@ -14,6 +14,7 @@
 - `desktop-lifecycle-session-architecture.md`
 - `desktop-startup-orchestrator-architecture.md`
 - `desktop-surface-cache-architecture.md`
+- `finance-compliance-architecture.md`
 - `financial-market-data-architecture.md`
 - `hermes-self-evolution-architecture.md`
 - `native-agent-store-architecture.md`

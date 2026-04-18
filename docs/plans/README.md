@@ -8,6 +8,7 @@
 
 - `client-metrics-monitoring-implementation-plan.md`
 - `desktop-command-authorization-implementation-plan.md`
+- `finance-compliance-phase1-implementation-plan.md`
 - `native-agent-store-implementation-plan.md`
 
 ## 使用建议
