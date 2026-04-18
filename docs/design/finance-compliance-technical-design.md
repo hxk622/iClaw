@@ -793,3 +793,377 @@ Audit Log
 - 是否需要把误判样本回流成运营可编辑规则
 - 是否需要在 admin 侧提供“高风险回答审核台”
 - 后续若接入真实销售/交易链路，如何与持牌流程隔离
+
+## 附录 A：需求原文（2026-04-18）
+
+以下内容摘录自本轮需求对话，作为产品与技术设计的直接源头，保留原始表述以便后续回溯。
+
+### 目标定义
+
+你要的不是“给金融 skill 多加一句免责声明”，而是给理财客做一套金融合规控制面。  
+它应该覆盖：
+
+- 能力接入时的合规标注
+- 用户提问前后的风险识别
+- 输出时的免责声明/降级/拦截
+- 定时任务、通知、结果页的一致策略
+- 全链路留痕和可审计
+
+而且要符合仓库边界：
+
+- 尽量改 wrapper / integration 层
+- 不直接改 OpenClaw kernel
+- skill / plugin / model 都走中心化 catalog + OEM binding
+
+### 六个合规面
+
+#### 1. 能力准入合规
+
+新 skill / plugin / MCP 进理财客前，要先回答这些问题：
+
+- 它是纯信息源，还是会生成投资观点
+- 它会不会产出明确买卖建议、仓位建议、收益判断
+- 它是否涉及个性化适配、风险等级匹配
+- 它是否用了受限数据源、实时行情、研报、基金销售内容
+- 它输出的是“研究参考”还是“可执行建议”
+
+产品上对应一个能力分级：
+
+- `data_only`
+- `research_only`
+- `investment_view`
+- `actionable_advice`
+- `execution_linked`
+
+理财客默认只允许前 3 档进来。后两档除非有明确牌照和流程，不开放。
+
+#### 2. 输入侧合规
+
+用户问题不能一视同仁。
+
+要分：
+
+- 市场资讯型
+  - “今天市场怎么样”
+- 研究分析型
+  - “分析一下宁德时代估值”
+- 建议请求型
+  - “现在能买吗”
+- 个性化适配型
+  - “我 50 万怎么配”
+- 执行指令型
+  - “帮我卖掉基金”
+
+不同输入，策略不同：
+
+- 资讯型：正常回答
+- 研究型：正常回答 + 风险框架
+- 建议型：回答降级成研究观点
+- 个性化适配型：要求更多信息，且不能直接替代适当性
+- 执行指令型：默认拒绝或转受监管流程
+
+#### 3. 输出侧合规
+
+不是所有财经回答都需要那行小字，但高风险输出一定要有。
+
+建议分 4 档输出分类：
+
+- `market_data`
+- `research_summary`
+- `investment_view`
+- `actionable_advice`
+
+对应策略：
+
+- `market_data`
+  - 可不显示小字，或只显示弱提示
+- `research_summary`
+  - 显示轻提示
+- `investment_view`
+  - 显示标准小字
+- `actionable_advice`
+  - 显示强提示，必要时降级或拦截
+
+#### 4. 渠道合规
+
+同一句话，出现在不同地方，风险不同。
+
+至少要分开管：
+
+- 聊天主回答
+- 定时任务结果
+- 通知中心摘要
+- 首页卡片 / 专家卡片
+- 营销文案 / push
+- 导出报告 / HTML 报告
+
+聊天里能说的，不代表 push 可以直接发。  
+定时任务晨报里的“观点句”如果被截成通知摘要，风险会更高。
+
+#### 5. 数据与个人信息合规
+
+如果理财客会接：
+
+- 持仓
+- 资产规模
+- 风险偏好
+- 身份信息
+- 交易行为
+
+那就必须把这些当高敏金融数据处理。  
+合规插件要知道哪些字段是敏感字段，并支持：
+
+- 最小必要使用
+- 脱敏展示
+- 审计谁读过
+- 导出/删除
+- 不向无关 plugin 透传
+
+#### 6. 审计与追责合规
+
+最后真正需要的是一条可追溯链路：
+
+- 哪个能力参与了回答
+- 用了哪个模型
+- 用户问题被分到哪种风险类型
+- 最终输出被分到哪种合规等级
+- 是否展示了免责声明
+- 是否触发了降级/拦截
+- 是否进入了定时任务、通知、导出
+
+这套留痕比免责声明本身更重要。
+
+### 产品层方案原文
+
+#### 方案 A：给理财客定义一套“金融合规控制面”
+
+不要把合规散落在 skill 说明里。要做成平台能力。
+
+##### 1. 能力目录里增加合规元数据
+
+已有中心化 catalog，skill 和 mcp/plugin 都有 metadata 扩展位。  
+建议给每个能力加类似字段：
+
+```json
+{
+  "domain": "finance",
+  "compliance_profile": "finance_research",
+  "advice_level": "research_only",
+  "requires_disclaimer": true,
+  "requires_risk_section": true,
+  "forbid_personalized_suitability": true,
+  "forbid_return_promise": true,
+  "allow_notification_summary": false
+}
+```
+
+对理财客来说，这比 tag 更重要。
+
+##### 2. OEM binding 层增加 app-specific 合规策略
+
+同一个 skill 进别的 OEM 可以是普通内容工具，进理财客就要金融合规模式。  
+建议在理财客 binding 上定义：
+
+```json
+{
+  "compliance_enabled": true,
+  "disclaimer_text": "本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。",
+  "disclaimer_mode": "inline_small",
+  "classification_policy": "finance_v1",
+  "blocking_policy": "research_only",
+  "show_for": ["investment_view", "actionable_advice"]
+}
+```
+
+##### 3. 前台产品交互要明确分层
+
+产品上建议加 3 个用户可见机制：
+
+- 研究参考 标签
+- AI生成 标签
+- 风险提示 小字
+
+并且在高风险场景加结构化区块：
+
+- 结论
+- 前提
+- 风险
+- 失效条件
+- 非投资建议提示
+
+##### 4. 定时任务和通知不要直接复用聊天正文
+
+定时晨报、市场日报、推送摘要要走单独策略：
+
+- 可以保留资讯事实
+- 观点句要降级
+- 摘要里自动带小字
+- 禁止把强建议句直接做 notification summary
+
+### 技术层方案原文
+
+#### 结论
+
+推荐做“Hybrid 方案”：
+
+- OpenClaw plugin + hooks
+  - 做前后检查、打标、审计、免责声明注入准备
+- 理财客 wrapper/integration 层
+  - 做真正的展示控制、强拦截、降级、统一渲染
+
+原因：
+
+- 现有 message hooks 是 fire-and-forget
+- 不能 short-circuit 主回复路径
+
+所以：
+
+- 纯 plugin/hook：适合“检测、打标、记录、轻改写”
+- 真正“禁止发出某条高风险回复”：要靠 wrapper/integration 层兜底
+
+#### 插件名建议
+
+`finance-compliance`
+
+#### 插件内部模块
+
+- `policy-registry`
+  - 读取 skill/plugin/model 的合规元数据
+  - 读取理财客 OEM binding 的策略覆盖
+- `input-classifier`
+  - 判断用户输入是资讯、研究、建议、适配、执行哪类
+- `output-classifier`
+  - 判断最终输出是 `market_data` / `research_summary` / `investment_view` / `actionable_advice`
+- `compliance-transformer`
+  - 补充 disclaimer、风险提示、来源提示、时间点提示
+  - 必要时把“建议”降级成“研究观点”
+- `audit-recorder`
+  - 记录分类、命中的规则、展示策略、最终决策
+
+#### 推荐 hooks
+
+- `message:preprocessed`
+  - before input check
+  - before prompt policy attach
+- `agent:bootstrap`
+  - 条件注入金融决策框架
+- `tool_result_persist`
+  - 在 transcript 写入前同步补金融 metadata
+- `message:sent`
+  - 做 after check 与审计
+- `before_compaction` / `after_compaction`
+  - 记录审计摘要，避免压缩丢上下文
+
+#### Compliance Envelope
+
+不要让模型自己决定 disclaimer。  
+让运行时产出一个结构化包：
+
+```json
+{
+  "answer": "正文内容",
+  "compliance": {
+    "domain": "finance",
+    "input_classification": "investment_question",
+    "output_classification": "investment_view",
+    "risk_level": "high",
+    "show_disclaimer": true,
+    "disclaimer_text": "本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。",
+    "requires_risk_section": true,
+    "blocked": false,
+    "degraded": true,
+    "reasons": [
+      "contains_actionable_language",
+      "finance_domain",
+      "research_only_policy"
+    ]
+  }
+}
+```
+
+然后：
+
+- 聊天页渲染小字
+- 定时任务页渲染小字
+- 通知中心渲染小字
+- 导出 HTML 报告自动带 footer
+- 审计系统直接吃这份 envelope
+
+#### 为什么不能只靠 plugin
+
+因为当前 hook 文档和实验设计已经说明：
+
+- message hooks are fire-and-forget
+- cannot short-circuit main reply path
+
+所以如果要求：
+
+- 命中高风险内容时必须不发出去
+- 命中违规建议时必须改写为安全版本
+- 必须统一加 disclaimer，不允许漏
+
+那不能只靠 plugin，必须在理财客 wrapper / integration 层再加一层最终裁决器。
+
+推荐分工：
+
+- plugin
+  - 分类
+  - 打标
+  - 建议处理动作
+  - 落审计日志
+- wrapper/integration
+  - 决定是否展示
+  - 是否替换成降级文案
+  - 是否挂免责声明
+  - 是否阻止进入通知/定时任务摘要
+
+#### 最小可落地版本
+
+##### Phase 1：先做“看得见、查得到”
+
+1. catalog metadata 增加金融合规字段
+2. 理财客 OEM binding 增加 disclaimer policy
+3. plugin 用 `message:preprocessed` 做输入分类
+4. plugin 用 `message:sent` 做输出审计
+5. UI 展示层统一渲染 disclaimer
+
+##### Phase 2：再做“自动降级”
+
+1. 高风险问题自动切换金融决策框架
+2. 输出分类后，如果命中 `actionable_advice`
+   - 自动改成 `investment_view`
+3. 定时任务与通知 summary 独立降级
+
+##### Phase 3：最后做“强拦截”
+
+- 禁止明确买卖建议直出
+- 禁止个性化适当性结论直出
+- 禁止收益承诺类文案发送
+- 对违规输出替换成安全响应
+
+#### 验收标准原文
+
+产品验收：
+
+- 金融类 skill/plugin 接入时必须有合规档位
+- 高风险回答统一显示小字
+- 定时任务、通知、聊天三处策略一致
+- 用户能感知“研究参考”而不是“投资建议”
+
+技术验收：
+
+- 每次回答都能产出合规分类结果
+- 每次高风险回答都能留痕
+- 能回放“为什么这次显示/没显示小字”
+- 不改 OpenClaw kernel 也能跑通主流程
+
+#### 最推荐的落地结论
+
+最优方案不是“只开发一个 plugin”，而是：
+
+`finance-compliance plugin + 理财客 wrapper 合规裁决层`
+
+其中：
+
+- plugin 负责 before / after check、打标、审计、准备 envelope
+- wrapper 负责真正的 UI 展示、统一 disclaimer、通知降级、强拦截
