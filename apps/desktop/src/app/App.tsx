@@ -163,6 +163,7 @@ import {
   writePersistedChatRouteSnapshot,
   type PersistedChatRouteSnapshot,
 } from './lib/chat-route-persistence';
+import { isLoopbackHostname, resolveDesktopAuthBaseUrl } from './lib/runtime-endpoints';
 
 declare global {
   interface Window {
@@ -306,11 +307,6 @@ function resolveSidecarPort(args: string[]): string {
   return '2126';
 }
 
-function isLoopbackHostname(hostname: string): boolean {
-  const normalized = hostname.trim().toLowerCase();
-  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized === '[::1]';
-}
-
 function isLoopbackUrl(url: string): boolean {
   try {
     return isLoopbackHostname(new URL(url).hostname);
@@ -331,8 +327,13 @@ const DEFAULT_API_BASE_URL = LOCAL_API_BASE_URL;
 const CONFIGURED_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || DEFAULT_API_BASE_URL;
 // Desktop builds always talk to the local OpenClaw runtime for health/gateway.
 const API_BASE_URL = IS_TAURI_RUNTIME ? LOCAL_API_BASE_URL : CONFIGURED_API_BASE_URL;
-const AUTH_BASE_URL =
-  (import.meta.env.VITE_AUTH_BASE_URL as string) || BRAND.endpoints.authBaseUrl || LOCAL_AUTH_BASE_URL;
+const AUTH_BASE_URL = resolveDesktopAuthBaseUrl({
+  envAuthBaseUrl: import.meta.env.VITE_AUTH_BASE_URL as string | undefined,
+  brandAuthBaseUrl: BRAND.endpoints.authBaseUrl,
+  localAuthBaseUrl: LOCAL_AUTH_BASE_URL,
+  isTauriRuntime: IS_TAURI_RUNTIME,
+  locationHostname: typeof window !== 'undefined' ? window.location.hostname : null,
+});
 const DEFAULT_GATEWAY_WS_URL = API_BASE_URL.replace(/^http:\/\//, 'ws://').replace(/^https:\/\//, 'wss://');
 const GATEWAY_WS_URL =
   IS_TAURI_RUNTIME
@@ -972,6 +973,9 @@ export default function App() {
           }
 
           setDesktopUpdateHint((current) => {
+            if (!current) {
+              return hint;
+            }
             if (
               resolveDesktopUpdateIdentity(current) === resolveDesktopUpdateIdentity(hint) &&
               current.mandatory === hint.mandatory &&
