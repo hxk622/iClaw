@@ -18,6 +18,7 @@
 - `financial-market-data-architecture.md`
 - `hermes-self-evolution-architecture.md`
 - `knowledge-library-schema-v1.md`
+- `knowledge-library-raw-implementation-v1.md`
 - `extension-to-knowledge-library-mapping.md`
 - `extension-auth-bridge-architecture.md`
 - `extension-session-contracts-v1.md`
