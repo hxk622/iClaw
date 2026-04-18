@@ -1,12 +1,12 @@
 {
   "app": {
-    "appName": "licaiclaw",
+    "appName": "caiclaw",
     "displayName": "理财客",
     "description": null,
     "status": "active",
     "defaultLocale": "zh-CN"
   },
-  "publishedVersion": 18,
+  "publishedVersion": 0,
   "config": {
     "oauth": {
       "google": {
@@ -31,7 +31,7 @@
       }
     },
     "storage": {
-      "namespace": "licaiclaw"
+      "namespace": "caiclaw"
     },
     "website": {
       "kicker": "Official Website",
@@ -138,9 +138,6 @@
           "templateKey": "wealth-premium",
           "siteShell": {
             "header": {
-              "enabled": true,
-              "variant": "finance-header",
-              "sortOrder": 10,
               "props": {
                 "subline": "Official Website",
                 "navItems": [
@@ -163,12 +160,12 @@
                   "label": "下载"
                 }
               },
-              "metadata": {}
+              "enabled": true,
+              "variant": "finance-header",
+              "metadata": {},
+              "sortOrder": 10
             },
             "footer": {
-              "enabled": true,
-              "variant": "finance-legal-footer",
-              "sortOrder": 20,
               "props": {
                 "columns": [
                   {
@@ -198,132 +195,189 @@
                 ],
                 "copyrightText": "© 2026 理财客"
               },
-              "metadata": {}
+              "enabled": true,
+              "variant": "finance-legal-footer",
+              "metadata": {},
+              "sortOrder": 20
             }
           },
           "pages": [
             {
-              "pageKey": "home",
-              "path": "/",
-              "enabled": true,
-              "sortOrder": 10,
               "seo": {
                 "title": "理财客官网",
                 "description": "理财客官网，面向财富管理场景的本地 AI 客户端。"
               },
-              "metadata": {},
+              "path": "/",
               "blocks": [
                 {
-                  "blockKey": "hero.wealth",
-                  "variantKey": "hero.wealth",
-                  "enabled": true,
-                  "sortOrder": 10,
                   "props": {
                     "eyebrow": "Official Website",
                     "titlePre": "把 AI 装进你的财富工作流",
                     "titleMain": "打开就能干活",
                     "description": "理财客面向财富管理场景设计。少一点配置，多一点交付。"
                   },
-                  "metadata": {}
+                  "enabled": true,
+                  "blockKey": "hero.wealth",
+                  "metadata": {},
+                  "sortOrder": 10,
+                  "variantKey": "hero.wealth"
                 },
                 {
-                  "blockKey": "download-grid.finance",
-                  "variantKey": "download-grid.finance",
-                  "enabled": true,
-                  "sortOrder": 20,
                   "props": {
                     "title": "下载理财客"
                   },
-                  "metadata": {}
+                  "enabled": true,
+                  "blockKey": "download-grid.finance",
+                  "metadata": {},
+                  "sortOrder": 20,
+                  "variantKey": "download-grid.finance"
                 }
-              ]
+              ],
+              "enabled": true,
+              "pageKey": "home",
+              "metadata": {},
+              "sortOrder": 10
             },
             {
-              "pageKey": "privacy",
-              "path": "/privacy",
-              "enabled": true,
-              "sortOrder": 20,
               "seo": {
                 "title": "隐私政策",
                 "description": "查看隐私政策"
               },
-              "metadata": {},
+              "path": "/privacy",
               "blocks": [
                 {
-                  "blockKey": "rich-text.legal",
-                  "variantKey": "rich-text.legal",
-                  "enabled": true,
-                  "sortOrder": 10,
                   "props": {
                     "title": "隐私政策",
                     "content": "请在后台维护隐私政策内容。"
                   },
-                  "metadata": {}
+                  "enabled": true,
+                  "blockKey": "rich-text.legal",
+                  "metadata": {},
+                  "sortOrder": 10,
+                  "variantKey": "rich-text.legal"
                 }
-              ]
+              ],
+              "enabled": true,
+              "pageKey": "privacy",
+              "metadata": {},
+              "sortOrder": 20
             },
             {
-              "pageKey": "terms",
-              "path": "/terms",
-              "enabled": true,
-              "sortOrder": 30,
               "seo": {
                 "title": "用户协议",
                 "description": "查看用户协议"
               },
-              "metadata": {},
+              "path": "/terms",
               "blocks": [
                 {
-                  "blockKey": "rich-text.legal",
-                  "variantKey": "rich-text.legal",
-                  "enabled": true,
-                  "sortOrder": 10,
                   "props": {
                     "title": "用户协议",
                     "content": "请在后台维护用户协议内容。"
                   },
-                  "metadata": {}
+                  "enabled": true,
+                  "blockKey": "rich-text.legal",
+                  "metadata": {},
+                  "sortOrder": 10,
+                  "variantKey": "rich-text.legal"
                 }
-              ]
+              ],
+              "enabled": true,
+              "pageKey": "terms",
+              "metadata": {},
+              "sortOrder": 30
             }
           ],
           "metadata": {},
           "marketingSite": {
-            "templateKey": "wealth-premium",
+            "pages": [
+              {
+                "seo": {
+                  "title": "理财客官网",
+                  "description": "理财客官网，面向财富管理场景的本地 AI 客户端。"
+                },
+                "path": "/",
+                "blocks": [
+                  {
+                    "props": {
+                      "eyebrow": "Official Website",
+                      "titlePre": "把 AI 装进你的财富工作流",
+                      "titleMain": "打开就能干活",
+                      "description": "理财客面向财富管理场景设计。少一点配置，多一点交付。"
+                    },
+                    "enabled": true,
+                    "blockKey": "hero.wealth",
+                    "metadata": {},
+                    "sortOrder": 10,
+                    "variantKey": "hero.wealth"
+                  },
+                  {
+                    "props": {
+                      "title": "下载理财客"
+                    },
+                    "enabled": true,
+                    "blockKey": "download-grid.finance",
+                    "metadata": {},
+                    "sortOrder": 20,
+                    "variantKey": "download-grid.finance"
+                  }
+                ],
+                "enabled": true,
+                "pageKey": "home",
+                "metadata": {},
+                "sortOrder": 10
+              },
+              {
+                "seo": {
+                  "title": "隐私政策",
+                  "description": "查看隐私政策"
+                },
+                "path": "/privacy",
+                "blocks": [
+                  {
+                    "props": {
+                      "title": "隐私政策",
+                      "content": "请在后台维护隐私政策内容。"
+                    },
+                    "enabled": true,
+                    "blockKey": "rich-text.legal",
+                    "metadata": {},
+                    "sortOrder": 10,
+                    "variantKey": "rich-text.legal"
+                  }
+                ],
+                "enabled": true,
+                "pageKey": "privacy",
+                "metadata": {},
+                "sortOrder": 20
+              },
+              {
+                "seo": {
+                  "title": "用户协议",
+                  "description": "查看用户协议"
+                },
+                "path": "/terms",
+                "blocks": [
+                  {
+                    "props": {
+                      "title": "用户协议",
+                      "content": "请在后台维护用户协议内容。"
+                    },
+                    "enabled": true,
+                    "blockKey": "rich-text.legal",
+                    "metadata": {},
+                    "sortOrder": 10,
+                    "variantKey": "rich-text.legal"
+                  }
+                ],
+                "enabled": true,
+                "pageKey": "terms",
+                "metadata": {},
+                "sortOrder": 30
+              }
+            ],
             "metadata": {},
             "siteShell": {
-              "header": {
-                "enabled": true,
-                "variant": "finance-header",
-                "sortOrder": 10,
-                "props": {
-                  "subline": "Official Website",
-                  "navItems": [
-                    {
-                      "href": "#capabilities",
-                      "label": "核心能力"
-                    },
-                    {
-                      "href": "#scenes",
-                      "label": "适用场景"
-                    },
-                    {
-                      "href": "#security",
-                      "label": "安全合规"
-                    }
-                  ],
-                  "brandLabel": "理财客",
-                  "primaryCta": {
-                    "href": "#download",
-                    "label": "下载"
-                  }
-                },
-                "metadata": {}
-              },
               "footer": {
-                "enabled": true,
-                "variant": "finance-legal-footer",
-                "sortOrder": 20,
                 "props": {
                   "columns": [
                     {
@@ -353,95 +407,41 @@
                   ],
                   "copyrightText": "© 2026 理财客"
                 },
-                "metadata": {}
+                "enabled": true,
+                "variant": "finance-legal-footer",
+                "metadata": {},
+                "sortOrder": 20
+              },
+              "header": {
+                "props": {
+                  "subline": "Official Website",
+                  "navItems": [
+                    {
+                      "href": "#capabilities",
+                      "label": "核心能力"
+                    },
+                    {
+                      "href": "#scenes",
+                      "label": "适用场景"
+                    },
+                    {
+                      "href": "#security",
+                      "label": "安全合规"
+                    }
+                  ],
+                  "brandLabel": "理财客",
+                  "primaryCta": {
+                    "href": "#download",
+                    "label": "下载"
+                  }
+                },
+                "enabled": true,
+                "variant": "finance-header",
+                "metadata": {},
+                "sortOrder": 10
               }
             },
-            "pages": [
-              {
-                "pageKey": "home",
-                "path": "/",
-                "enabled": true,
-                "sortOrder": 10,
-                "seo": {
-                  "title": "理财客官网",
-                  "description": "理财客官网，面向财富管理场景的本地 AI 客户端。"
-                },
-                "metadata": {},
-                "blocks": [
-                  {
-                    "blockKey": "hero.wealth",
-                    "variantKey": "hero.wealth",
-                    "enabled": true,
-                    "sortOrder": 10,
-                    "props": {
-                      "eyebrow": "Official Website",
-                      "titlePre": "把 AI 装进你的财富工作流",
-                      "titleMain": "打开就能干活",
-                      "description": "理财客面向财富管理场景设计。少一点配置，多一点交付。"
-                    },
-                    "metadata": {}
-                  },
-                  {
-                    "blockKey": "download-grid.finance",
-                    "variantKey": "download-grid.finance",
-                    "enabled": true,
-                    "sortOrder": 20,
-                    "props": {
-                      "title": "下载理财客"
-                    },
-                    "metadata": {}
-                  }
-                ]
-              },
-              {
-                "pageKey": "privacy",
-                "path": "/privacy",
-                "enabled": true,
-                "sortOrder": 20,
-                "seo": {
-                  "title": "隐私政策",
-                  "description": "查看隐私政策"
-                },
-                "metadata": {},
-                "blocks": [
-                  {
-                    "blockKey": "rich-text.legal",
-                    "variantKey": "rich-text.legal",
-                    "enabled": true,
-                    "sortOrder": 10,
-                    "props": {
-                      "title": "隐私政策",
-                      "content": "请在后台维护隐私政策内容。"
-                    },
-                    "metadata": {}
-                  }
-                ]
-              },
-              {
-                "pageKey": "terms",
-                "path": "/terms",
-                "enabled": true,
-                "sortOrder": 30,
-                "seo": {
-                  "title": "用户协议",
-                  "description": "查看用户协议"
-                },
-                "metadata": {},
-                "blocks": [
-                  {
-                    "blockKey": "rich-text.legal",
-                    "variantKey": "rich-text.legal",
-                    "enabled": true,
-                    "sortOrder": 10,
-                    "props": {
-                      "title": "用户协议",
-                      "content": "请在后台维护用户协议内容。"
-                    },
-                    "metadata": {}
-                  }
-                ]
-              }
-            ]
+            "templateKey": "wealth-premium"
           }
         },
         "enabled": true
@@ -487,7 +487,7 @@
       "authBaseUrl": "https://caiclaw.aiyuanxi.com"
     },
     "legalName": "理财客",
-    "authService": "ai.licaiclaw.desktop",
+    "authService": "ai.caiclaw.desktop",
     "productName": "理财客",
     "capabilities": {
       "skill_catalog": {
@@ -654,8 +654,8 @@
       ]
     },
     "controlPlane": {
-      "s3Bucket": "licaiclaw-files",
-      "serviceName": "licaiclaw-control-plane",
+      "s3Bucket": "caiclaw-files",
+      "serviceName": "caiclaw-control-plane",
       "allowedOrigins": [
         "http://127.0.0.1:1520",
         "http://localhost:1520",
@@ -663,7 +663,7 @@
         "http://tauri.localhost",
         "tauri://localhost"
       ],
-      "redisKeyPrefix": "licaiclaw:control-plane"
+      "redisKeyPrefix": "caiclaw:control-plane"
     },
     "distribution": {
       "home": {
@@ -671,11 +671,11 @@
       },
       "downloads": {
         "dev": {
-          "bucket": "licaiclaw-dev",
-          "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
+          "bucket": "caiclaw-dev",
+          "publicBaseUrl": "http://127.0.0.1:9000/caiclaw-dev"
         },
         "prod": {
-          "bucket": "licaiclaw-prod",
+          "bucket": "caiclaw-prod",
           "publicBaseUrl": "https://caiclaw.aiyuanxi.com/downloads"
         }
       },
@@ -686,9 +686,6 @@
       "templateKey": "wealth-premium",
       "siteShell": {
         "header": {
-          "enabled": true,
-          "variant": "finance-header",
-          "sortOrder": 10,
           "props": {
             "subline": "Official Website",
             "navItems": [
@@ -711,12 +708,12 @@
               "label": "下载"
             }
           },
-          "metadata": {}
+          "enabled": true,
+          "variant": "finance-header",
+          "metadata": {},
+          "sortOrder": 10
         },
         "footer": {
-          "enabled": true,
-          "variant": "finance-legal-footer",
-          "sortOrder": 20,
           "props": {
             "columns": [
               {
@@ -746,132 +743,189 @@
             ],
             "copyrightText": "© 2026 理财客"
           },
-          "metadata": {}
+          "enabled": true,
+          "variant": "finance-legal-footer",
+          "metadata": {},
+          "sortOrder": 20
         }
       },
       "pages": [
         {
-          "pageKey": "home",
-          "path": "/",
-          "enabled": true,
-          "sortOrder": 10,
           "seo": {
             "title": "理财客官网",
             "description": "理财客官网，面向财富管理场景的本地 AI 客户端。"
           },
-          "metadata": {},
+          "path": "/",
           "blocks": [
             {
-              "blockKey": "hero.wealth",
-              "variantKey": "hero.wealth",
-              "enabled": true,
-              "sortOrder": 10,
               "props": {
                 "eyebrow": "Official Website",
                 "titlePre": "把 AI 装进你的财富工作流",
                 "titleMain": "打开就能干活",
                 "description": "理财客面向财富管理场景设计。少一点配置，多一点交付。"
               },
-              "metadata": {}
+              "enabled": true,
+              "blockKey": "hero.wealth",
+              "metadata": {},
+              "sortOrder": 10,
+              "variantKey": "hero.wealth"
             },
             {
-              "blockKey": "download-grid.finance",
-              "variantKey": "download-grid.finance",
-              "enabled": true,
-              "sortOrder": 20,
               "props": {
                 "title": "下载理财客"
               },
-              "metadata": {}
+              "enabled": true,
+              "blockKey": "download-grid.finance",
+              "metadata": {},
+              "sortOrder": 20,
+              "variantKey": "download-grid.finance"
             }
-          ]
+          ],
+          "enabled": true,
+          "pageKey": "home",
+          "metadata": {},
+          "sortOrder": 10
         },
         {
-          "pageKey": "privacy",
-          "path": "/privacy",
-          "enabled": true,
-          "sortOrder": 20,
           "seo": {
             "title": "隐私政策",
             "description": "查看隐私政策"
           },
-          "metadata": {},
+          "path": "/privacy",
           "blocks": [
             {
-              "blockKey": "rich-text.legal",
-              "variantKey": "rich-text.legal",
-              "enabled": true,
-              "sortOrder": 10,
               "props": {
                 "title": "隐私政策",
                 "content": "请在后台维护隐私政策内容。"
               },
-              "metadata": {}
+              "enabled": true,
+              "blockKey": "rich-text.legal",
+              "metadata": {},
+              "sortOrder": 10,
+              "variantKey": "rich-text.legal"
             }
-          ]
+          ],
+          "enabled": true,
+          "pageKey": "privacy",
+          "metadata": {},
+          "sortOrder": 20
         },
         {
-          "pageKey": "terms",
-          "path": "/terms",
-          "enabled": true,
-          "sortOrder": 30,
           "seo": {
             "title": "用户协议",
             "description": "查看用户协议"
           },
-          "metadata": {},
+          "path": "/terms",
           "blocks": [
             {
-              "blockKey": "rich-text.legal",
-              "variantKey": "rich-text.legal",
-              "enabled": true,
-              "sortOrder": 10,
               "props": {
                 "title": "用户协议",
                 "content": "请在后台维护用户协议内容。"
               },
-              "metadata": {}
+              "enabled": true,
+              "blockKey": "rich-text.legal",
+              "metadata": {},
+              "sortOrder": 10,
+              "variantKey": "rich-text.legal"
             }
-          ]
+          ],
+          "enabled": true,
+          "pageKey": "terms",
+          "metadata": {},
+          "sortOrder": 30
         }
       ],
       "metadata": {},
       "marketingSite": {
-        "templateKey": "wealth-premium",
+        "pages": [
+          {
+            "seo": {
+              "title": "理财客官网",
+              "description": "理财客官网，面向财富管理场景的本地 AI 客户端。"
+            },
+            "path": "/",
+            "blocks": [
+              {
+                "props": {
+                  "eyebrow": "Official Website",
+                  "titlePre": "把 AI 装进你的财富工作流",
+                  "titleMain": "打开就能干活",
+                  "description": "理财客面向财富管理场景设计。少一点配置，多一点交付。"
+                },
+                "enabled": true,
+                "blockKey": "hero.wealth",
+                "metadata": {},
+                "sortOrder": 10,
+                "variantKey": "hero.wealth"
+              },
+              {
+                "props": {
+                  "title": "下载理财客"
+                },
+                "enabled": true,
+                "blockKey": "download-grid.finance",
+                "metadata": {},
+                "sortOrder": 20,
+                "variantKey": "download-grid.finance"
+              }
+            ],
+            "enabled": true,
+            "pageKey": "home",
+            "metadata": {},
+            "sortOrder": 10
+          },
+          {
+            "seo": {
+              "title": "隐私政策",
+              "description": "查看隐私政策"
+            },
+            "path": "/privacy",
+            "blocks": [
+              {
+                "props": {
+                  "title": "隐私政策",
+                  "content": "请在后台维护隐私政策内容。"
+                },
+                "enabled": true,
+                "blockKey": "rich-text.legal",
+                "metadata": {},
+                "sortOrder": 10,
+                "variantKey": "rich-text.legal"
+              }
+            ],
+            "enabled": true,
+            "pageKey": "privacy",
+            "metadata": {},
+            "sortOrder": 20
+          },
+          {
+            "seo": {
+              "title": "用户协议",
+              "description": "查看用户协议"
+            },
+            "path": "/terms",
+            "blocks": [
+              {
+                "props": {
+                  "title": "用户协议",
+                  "content": "请在后台维护用户协议内容。"
+                },
+                "enabled": true,
+                "blockKey": "rich-text.legal",
+                "metadata": {},
+                "sortOrder": 10,
+                "variantKey": "rich-text.legal"
+              }
+            ],
+            "enabled": true,
+            "pageKey": "terms",
+            "metadata": {},
+            "sortOrder": 30
+          }
+        ],
         "metadata": {},
         "siteShell": {
-          "header": {
-            "enabled": true,
-            "variant": "finance-header",
-            "sortOrder": 10,
-            "props": {
-              "subline": "Official Website",
-              "navItems": [
-                {
-                  "href": "#capabilities",
-                  "label": "核心能力"
-                },
-                {
-                  "href": "#scenes",
-                  "label": "适用场景"
-                },
-                {
-                  "href": "#security",
-                  "label": "安全合规"
-                }
-              ],
-              "brandLabel": "理财客",
-              "primaryCta": {
-                "href": "#download",
-                "label": "下载"
-              }
-            },
-            "metadata": {}
-          },
           "footer": {
-            "enabled": true,
-            "variant": "finance-legal-footer",
-            "sortOrder": 20,
             "props": {
               "columns": [
                 {
@@ -901,117 +955,63 @@
               ],
               "copyrightText": "© 2026 理财客"
             },
-            "metadata": {}
+            "enabled": true,
+            "variant": "finance-legal-footer",
+            "metadata": {},
+            "sortOrder": 20
+          },
+          "header": {
+            "props": {
+              "subline": "Official Website",
+              "navItems": [
+                {
+                  "href": "#capabilities",
+                  "label": "核心能力"
+                },
+                {
+                  "href": "#scenes",
+                  "label": "适用场景"
+                },
+                {
+                  "href": "#security",
+                  "label": "安全合规"
+                }
+              ],
+              "brandLabel": "理财客",
+              "primaryCta": {
+                "href": "#download",
+                "label": "下载"
+              }
+            },
+            "enabled": true,
+            "variant": "finance-header",
+            "metadata": {},
+            "sortOrder": 10
           }
         },
-        "pages": [
-          {
-            "pageKey": "home",
-            "path": "/",
-            "enabled": true,
-            "sortOrder": 10,
-            "seo": {
-              "title": "理财客官网",
-              "description": "理财客官网，面向财富管理场景的本地 AI 客户端。"
-            },
-            "metadata": {},
-            "blocks": [
-              {
-                "blockKey": "hero.wealth",
-                "variantKey": "hero.wealth",
-                "enabled": true,
-                "sortOrder": 10,
-                "props": {
-                  "eyebrow": "Official Website",
-                  "titlePre": "把 AI 装进你的财富工作流",
-                  "titleMain": "打开就能干活",
-                  "description": "理财客面向财富管理场景设计。少一点配置，多一点交付。"
-                },
-                "metadata": {}
-              },
-              {
-                "blockKey": "download-grid.finance",
-                "variantKey": "download-grid.finance",
-                "enabled": true,
-                "sortOrder": 20,
-                "props": {
-                  "title": "下载理财客"
-                },
-                "metadata": {}
-              }
-            ]
-          },
-          {
-            "pageKey": "privacy",
-            "path": "/privacy",
-            "enabled": true,
-            "sortOrder": 20,
-            "seo": {
-              "title": "隐私政策",
-              "description": "查看隐私政策"
-            },
-            "metadata": {},
-            "blocks": [
-              {
-                "blockKey": "rich-text.legal",
-                "variantKey": "rich-text.legal",
-                "enabled": true,
-                "sortOrder": 10,
-                "props": {
-                  "title": "隐私政策",
-                  "content": "请在后台维护隐私政策内容。"
-                },
-                "metadata": {}
-              }
-            ]
-          },
-          {
-            "pageKey": "terms",
-            "path": "/terms",
-            "enabled": true,
-            "sortOrder": 30,
-            "seo": {
-              "title": "用户协议",
-              "description": "查看用户协议"
-            },
-            "metadata": {},
-            "blocks": [
-              {
-                "blockKey": "rich-text.legal",
-                "variantKey": "rich-text.legal",
-                "enabled": true,
-                "sortOrder": 10,
-                "props": {
-                  "title": "用户协议",
-                  "content": "请在后台维护用户协议内容。"
-                },
-                "metadata": {}
-              }
-            ]
-          }
-        ]
+        "templateKey": "wealth-premium"
       }
     },
     "sidebarSubtitle": "",
-    "bundleIdentifier": "ai.licaiclaw.desktop",
+    "bundleIdentifier": "ai.caiclaw.desktop",
     "runtimeDistribution": {
       "dev": {
-        "bucket": "licaiclaw-dev",
-        "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
+        "bucket": "caiclaw-dev",
+        "publicBaseUrl": "http://127.0.0.1:9000/caiclaw-dev"
       },
       "prod": {
-        "bucket": "licaiclaw-prod",
+        "bucket": "caiclaw-prod",
         "publicBaseUrl": "https://caiclaw.aiyuanxi.com"
       },
       "minioPrefix": "runtime"
     },
     "brand_meta": {
-      "brand_id": "licaiclaw",
-      "tenant_key": "licaiclaw",
+      "brand_id": "caiclaw",
+      "tenant_key": "caiclaw",
       "display_name": "理财客",
       "product_name": "理财客",
       "legal_name": "理财客",
-      "storage_namespace": "licaiclaw"
+      "storage_namespace": "caiclaw"
     },
     "assets": {
       "appleTouchIcon": {
@@ -2496,9 +2496,161 @@
         "source_layer": "platform_default"
       }
     ],
+    "model_provider": {
+      "provider_mode": "inherit_platform",
+      "resolved_scope": "platform",
+      "version": 1776403884229,
+      "profile": {
+        "id": "b6d1b82c-1c92-4c95-a9bb-fcd5c8b6c101",
+        "scope_type": "platform",
+        "scope_key": "platform",
+        "provider_key": "bailian",
+        "provider_label": "bailian",
+        "api_protocol": "openai-completions",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "auth_mode": "bearer",
+        "api_key": "sk-af59d819aa424189b48b6aa556e665aa",
+        "logo_preset_key": null,
+        "metadata": {
+          "default_model_ref": "bailian/qwen3.5-plus"
+        },
+        "enabled": true,
+        "sort_order": 100,
+        "created_at": "2026-03-27T15:12:24.644Z",
+        "updated_at": "2026-04-17T05:31:24.229Z"
+      },
+      "models": [
+        {
+          "id": "bbe5c083-6711-496b-a0fa-a1ce82701471",
+          "model_ref": "bailian/qwen3.5-plus",
+          "model_id": "qwen3.5-plus",
+          "label": "qwen3.5-plus",
+          "logo_preset_key": "tongyi",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 100,
+          "metadata": {},
+          "created_at": "2026-04-17T05:31:24.229Z",
+          "updated_at": "2026-04-17T05:31:24.229Z"
+        },
+        {
+          "id": "d2bd5621-31ca-4497-9c00-03a0ddb6df3b",
+          "model_ref": "bailian/qwen3.5-flash",
+          "model_id": "qwen3.5-flash",
+          "label": "qwen3.5-flash",
+          "logo_preset_key": "tongyi",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 101,
+          "metadata": {},
+          "created_at": "2026-04-17T05:31:24.229Z",
+          "updated_at": "2026-04-17T05:31:24.229Z"
+        },
+        {
+          "id": "fba58755-73aa-401a-a63f-393c39061755",
+          "model_ref": "bailian/qwen3-max",
+          "model_id": "qwen3-max",
+          "label": "qwen3-max",
+          "logo_preset_key": "tongyi",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 102,
+          "metadata": {},
+          "created_at": "2026-04-17T05:31:24.229Z",
+          "updated_at": "2026-04-17T05:31:24.229Z"
+        },
+        {
+          "id": "33ee4219-2d83-4a1d-8a71-c09ec5e51ca8",
+          "model_ref": "bailian/deepseek-v3.2",
+          "model_id": "deepseek-v3.2",
+          "label": "deepseek-v3.2",
+          "logo_preset_key": "deepseek",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 103,
+          "metadata": {},
+          "created_at": "2026-04-17T05:31:24.229Z",
+          "updated_at": "2026-04-17T05:31:24.229Z"
+        },
+        {
+          "id": "b0c3ce09-abbd-47e1-bda6-80f7f8c8bd49",
+          "model_ref": "bailian/kimi-k2.5",
+          "model_id": "kimi-k2.5",
+          "label": "kimi-k2.5",
+          "logo_preset_key": "moonshotai-new",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 104,
+          "metadata": {},
+          "created_at": "2026-04-17T05:31:24.229Z",
+          "updated_at": "2026-04-17T05:31:24.229Z"
+        },
+        {
+          "id": "a89cb4dc-a670-4127-aaca-ccde38a3d3fb",
+          "model_ref": "bailian/glm-5",
+          "model_id": "glm-5",
+          "label": "glm-5",
+          "logo_preset_key": "zhipu",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 105,
+          "metadata": {},
+          "created_at": "2026-04-17T05:31:24.229Z",
+          "updated_at": "2026-04-17T05:31:24.229Z"
+        },
+        {
+          "id": "ed0b942d-095c-430f-964a-eea8f2f38fa2",
+          "model_ref": "bailian/MiniMax-M2.5",
+          "model_id": "MiniMax-M2.5",
+          "label": "MiniMax-M2.5",
+          "logo_preset_key": "minimax-color",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 106,
+          "metadata": {},
+          "created_at": "2026-04-17T05:31:24.229Z",
+          "updated_at": "2026-04-17T05:31:24.229Z"
+        }
+      ]
+    },
     "memory_embedding": {
       "resolved_scope": "platform",
-      "version": 1775211268998,
+      "version": 1776403896722,
       "profile": {
         "id": "5eb5cc15-a0e2-46d3-91ef-2f34019f4d02",
         "scope_type": "platform",
@@ -2507,14 +2659,14 @@
         "provider_label": "bailian",
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "auth_mode": "bearer",
-        "api_key": "sk-c644d84390984cd5bcb3f31dd5822906",
+        "api_key": "sk-af59d819aa424189b48b6aa556e665aa",
         "embedding_model": "text-embedding-v4",
         "logo_preset_key": null,
         "auto_recall": true,
         "metadata": {},
         "enabled": true,
         "created_at": "2026-04-03T10:14:28.998Z",
-        "updated_at": "2026-04-03T10:14:28.998Z"
+        "updated_at": "2026-04-17T05:31:36.722Z"
       }
     },
     "resolved_mcp_servers": {
@@ -2638,7 +2790,7 @@
   },
   "syncMeta": {
     "appName": "caiclaw",
-    "syncedAt": "2026-04-16T10:12:00.974Z",
+    "syncedAt": "2026-04-18T08:57:08.748Z",
     "copiedSkillDirs": [
       "A股数据工具包",
       "docx",
@@ -2786,7 +2938,7 @@
       "sec-edgar"
     ],
     "mcpConfigSha256": "0b7ea8e277280a53aeba579707247105e2f185568140aef9210a347df226496f",
-    "resolvedConfigSha256": "7bb9e378652c10cdd2f6cdc893e37e5c42e2a79a4a7b4aabf333f7ae67bf325d",
+    "resolvedConfigSha256": "b7d848265a3940f1fe794281f780f6584ef2b76c19124e0956dc2a887b3d2e3e",
     "skipRuntimeSkillSync": false,
     "bundledOnly": false,
     "incrementalSkillSync": true
