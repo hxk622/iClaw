@@ -11,7 +11,6 @@ fi
 
 : "${ICLAW_NGINX_HOST:=113.44.132.75}"
 : "${ICLAW_NGINX_USER:=root}"
-: "${ICLAW_CONTROL_PLANE_HOST:=39.106.110.149}"
 : "${ICLAW_CONTROL_PLANE_USER:=root}"
 
 : "${ICLAW_ICLAW_DOMAIN:=https://iclaw.aiyuanxi.com}"
@@ -27,6 +26,18 @@ fi
 
 CHROME_CANDIDATE_DEFAULT="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 : "${ICLAW_CHROME_BIN:=${CHROME_CANDIDATE_DEFAULT}}"
+
+resolve_required_control_plane_host() {
+  local host="${ICLAW_CONTROL_PLANE_HOST:-${ICLAW_PROD_APP_HOST:-}}"
+  host="$(printf '%s' "$host" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  if [[ -z "$host" ]]; then
+    echo "Missing required host: set ICLAW_CONTROL_PLANE_HOST or ICLAW_PROD_APP_HOST" >&2
+    exit 1
+  fi
+  printf '%s' "$host"
+}
+
+ICLAW_CONTROL_PLANE_HOST="$(resolve_required_control_plane_host)"
 
 require_env() {
   local key="$1"

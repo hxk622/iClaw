@@ -5,6 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { loadDesktopBrandContext } from './lib/desktop-brand-context.mjs';
+import { isFalsyEnv } from './lib/desktop-release-artifacts.mjs';
 import { spawnSync } from 'node:child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -500,7 +501,7 @@ async function main() {
   tauriConfig.bundle.windows = tauriConfig.bundle.windows || {};
   tauriConfig.bundle.windows.nsis = tauriConfig.bundle.windows.nsis || {};
   const enableNativeUpdater =
-    isTruthyEnv(process.env.ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER) &&
+    !isFalsyEnv(process.env.ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER) &&
     Boolean((process.env.TAURI_SIGNING_PRIVATE_KEY || '').trim());
   tauriConfig.bundle.createUpdaterArtifacts = enableNativeUpdater;
   tauriConfig.bundle.icon = [

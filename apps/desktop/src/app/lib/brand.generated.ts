@@ -61,17 +61,17 @@ export const BRAND = {
     "downloadTitle": "下载理财客"
   },
   "distribution": {
-    "artifactBaseName": "LiCaiClaw"
+    "artifactBaseName": "caiclaw"
   },
   "build": {
-    "version": "1.0.9+202604171540",
+    "version": "1.0.10+202604181535",
     "stamp": {
       "brandId": "caiclaw",
       "productName": "理财客",
       "bundleIdentifier": "ai.caiclaw.desktop",
-      "artifactBaseName": "LiCaiClaw",
-      "buildId": "202604171540",
-      "sourceProfileHash": "9356feb3dcb4eaafb0a8bc99e7332d066d9fba1aedfdd3eeee69851a7705f713"
+      "artifactBaseName": "caiclaw",
+      "buildId": "202604181535",
+      "sourceProfileHash": "79acb4f2928f2e011fe5e65ad74609603afca9cd9a74aeee2c85262e3cc855ad"
     }
   }
 } as const;

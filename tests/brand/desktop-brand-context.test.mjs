@@ -20,7 +20,7 @@ test('desktop brand context resolves shared stamp fields from one source of trut
   assert.equal(context.brandId, 'caiclaw');
   assert.equal(context.productName, '理财客');
   assert.equal(context.bundleIdentifier, 'ai.caiclaw.desktop');
-  assert.equal(context.artifactBaseName, 'LiCaiClaw');
+  assert.equal(context.artifactBaseName, 'caiclaw');
   assert.equal(context.appVersion, rootVersion);
   assert.equal(context.buildId, expectedBuildId);
   assert.equal(context.stamp.brandId, context.brandId);

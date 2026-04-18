@@ -924,7 +924,7 @@
             "serviceName": "licaiclaw-control-plane"
           },
           "distribution": {
-            "artifactBaseName": "LiCaiClaw",
+            "artifactBaseName": "caiclaw",
             "downloads": {
               "dev": {
                 "bucket": "licaiclaw-dev",

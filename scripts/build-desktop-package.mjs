@@ -855,7 +855,7 @@ async function writeTempTauriConfig({ stagePaths }) {
   config.build.beforeBuildCommand = '';
   config.build.frontendDist = '../dist';
   config.bundle = config.bundle || {};
-  if (!isTruthyEnv(process.env.ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER)) {
+  if (/^(0|false|no)$/i.test(trimString(process.env.ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER))) {
     config.bundle.createUpdaterArtifacts = false;
   }
   config.bundle.icon = [

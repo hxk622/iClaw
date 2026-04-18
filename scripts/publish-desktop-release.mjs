@@ -244,8 +244,12 @@ function parseJsonFromCommandOutput(output) {
 }
 
 function resolveRemoteControlPlaneTarget() {
+  const host = trimString(process.env.ICLAW_CONTROL_PLANE_HOST) || trimString(process.env.ICLAW_PROD_APP_HOST);
+  if (!host) {
+    throw new Error('Missing control-plane host. Set ICLAW_CONTROL_PLANE_HOST or ICLAW_PROD_APP_HOST.');
+  }
   return {
-    host: trimString(process.env.ICLAW_CONTROL_PLANE_HOST) || '39.106.110.149',
+    host,
     user: trimString(process.env.ICLAW_CONTROL_PLANE_USER) || 'root',
     path: trimString(process.env.ICLAW_CONTROL_PLANE_PATH) || '/opt/iclaw',
   };

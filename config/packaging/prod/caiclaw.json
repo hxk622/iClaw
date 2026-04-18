@@ -62,7 +62,7 @@
     "downloadTitle": "下载理财客"
   },
   "distribution": {
-    "artifactBaseName": "LiCaiClaw",
+    "artifactBaseName": "caiclaw",
     "downloads": {
       "dev": {
         "bucket": "caiclaw-dev",

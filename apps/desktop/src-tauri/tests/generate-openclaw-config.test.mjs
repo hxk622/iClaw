@@ -33,7 +33,7 @@ function runGenerator(env) {
       ICLAW_DESKTOP_BUNDLE_IDENTIFIER:
         env.ICLAW_DESKTOP_BUNDLE_IDENTIFIER || 'ai.caiclaw.desktop',
       ICLAW_DESKTOP_ARTIFACT_BASE_NAME:
-        env.ICLAW_DESKTOP_ARTIFACT_BASE_NAME || 'LiCaiClaw',
+        env.ICLAW_DESKTOP_ARTIFACT_BASE_NAME || 'caiclaw',
       ICLAW_OPENCLAW_BRAND_STAMP_PATH: brandStampPath,
       ICLAW_OPENCLAW_CONFIG_PATH: configPath,
     },

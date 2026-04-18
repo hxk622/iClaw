@@ -26,6 +26,11 @@ if ! [[ "$KEEP_VERSIONS" =~ ^[0-9]+$ ]] || [[ "$KEEP_VERSIONS" -lt 1 ]]; then
   exit 1
 fi
 
+fail() {
+  echo "$*" >&2
+  exit 1
+}
+
 require_mc_alias() {
   local alias_name="$1"
   if ! mc alias ls | awk 'NF { print $1 }' | grep -Fxq "$alias_name"; then
@@ -35,8 +40,43 @@ require_mc_alias() {
   fi
 }
 
+resolve_required_prod_minio_host() {
+  local host="${ICLAW_MINIO_PROD_HOST:-${ICLAW_PROD_APP_HOST:-${ICLAW_CONTROL_PLANE_HOST:-}}}"
+  host="$(trim_string "$host")"
+  if [[ -z "$host" ]]; then
+    fail "Missing prod MinIO host: set ICLAW_MINIO_PROD_HOST, ICLAW_PROD_APP_HOST, or ICLAW_CONTROL_PLANE_HOST"
+  fi
+  printf '%s\n' "$host"
+}
+
+resolve_prod_minio_url() {
+  if [[ -n "${ICLAW_MINIO_PROD_URL:-}" ]]; then
+    printf '%s\n' "$(trim_string "$ICLAW_MINIO_PROD_URL")"
+    return 0
+  fi
+  printf 'http://%s:9000\n' "$(resolve_required_prod_minio_host)"
+}
+
+ensure_mc_alias_matches() {
+  local alias_name="$1"
+  local expected_url="$2"
+  local access_key="$3"
+  local secret_key="$4"
+  local actual_url=""
+  actual_url="$(mc alias ls "$alias_name" 2>/dev/null | awk -F': ' '/^[[:space:]]*URL[[:space:]]*:/ {print $2}' | head -n1 | tr -d '\r')"
+  actual_url="$(trim_string "$actual_url")"
+  if [[ "$actual_url" == "$expected_url" ]]; then
+    return 0
+  fi
+  if [[ -z "$access_key" || -z "$secret_key" ]]; then
+    fail "mc alias ${alias_name} points to ${actual_url:-<missing>}, expected ${expected_url}, and no credentials were provided to auto-fix it"
+  fi
+  echo "[publish-downloads] updating mc alias ${alias_name}: ${actual_url:-<missing>} -> ${expected_url}"
+  mc alias set "$alias_name" "$expected_url" "$access_key" "$secret_key" >/dev/null
+}
+
 native_updater_enabled() {
-  [[ "${ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER:-}" =~ ^(1|true|TRUE|yes|YES)$ ]]
+  [[ ! "${ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER:-}" =~ ^(0|false|FALSE|no|NO)$ ]]
 }
 
 trim_string() {
@@ -90,6 +130,50 @@ resolve_manifest_version() {
 MANIFEST_VERSION="$(resolve_manifest_version)"
 echo "[publish-downloads] using manifest version: $MANIFEST_VERSION"
 node "$ROOT_DIR/scripts/generate-desktop-release-manifests.mjs" --channel "$ENV_NAME" --version "$MANIFEST_VERSION"
+
+collect_release_artifacts_for_version() {
+  local channel="$1"
+  local release_version="$2"
+  shopt -s nullglob
+  local files=(
+    "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_x64_${channel}.dmg"
+    "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_aarch64_${channel}.dmg"
+    "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_x64_${channel}.exe"
+    "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_aarch64_${channel}.exe"
+  )
+  if native_updater_enabled; then
+    files+=(
+      "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_x64_${channel}.app.tar.gz"
+      "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_x64_${channel}.app.tar.gz.sig"
+      "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_aarch64_${channel}.app.tar.gz"
+      "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_aarch64_${channel}.app.tar.gz.sig"
+      "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_x64_${channel}.nsis.zip"
+      "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_x64_${channel}.nsis.zip.sig"
+      "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_aarch64_${channel}.nsis.zip"
+      "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_aarch64_${channel}.nsis.zip.sig"
+    )
+  fi
+  shopt -u nullglob
+  printf '%s\n' "${files[@]}" | sed '/^$/d'
+}
+
+verify_public_release() {
+  local manifest_url="$1"
+  local expected_version="$2"
+  local manifest_json=""
+  manifest_json="$(curl -fsS "$manifest_url")"
+  local artifact_url=""
+  local release_version=""
+  local artifact_size=""
+  artifact_url="$(printf '%s' "$manifest_json" | node -e "let raw='';process.stdin.on('data',d=>raw+=d);process.stdin.on('end',()=>{const payload=JSON.parse(raw||'{}');process.stdout.write(String(payload?.entry?.artifact_url||''));});")"
+  release_version="$(printf '%s' "$manifest_json" | node -e "let raw='';process.stdin.on('data',d=>raw+=d);process.stdin.on('end',()=>{const payload=JSON.parse(raw||'{}');process.stdout.write(String(payload?.entry?.release_version||payload?.entry?.version||''));});")"
+  artifact_size="$(printf '%s' "$manifest_json" | node -e "let raw='';process.stdin.on('data',d=>raw+=d);process.stdin.on('end',()=>{const payload=JSON.parse(raw||'{}');process.stdout.write(String(payload?.entry?.artifact_size||''));});")"
+  [[ "$release_version" == "$expected_version" ]] || fail "Public manifest version mismatch: expected ${expected_version}, got ${release_version:-<empty>}"
+  [[ -n "$artifact_url" ]] || fail "Public manifest is missing artifact_url: $manifest_url"
+  curl -I -fsS "$artifact_url" >/dev/null
+  echo "[publish-downloads] verified public manifest: $manifest_url"
+  echo "[publish-downloads] verified public artifact: $artifact_url (${artifact_size:-unknown} bytes)"
+}
 
 local_prune() {
   local channel="$1"
@@ -328,7 +412,10 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
   : "${ICLAW_MINIO_PROD_ALIAS:=remoteprod}"
   : "${ICLAW_MINIO_PROD_BUCKET:=$PROD_BUCKET_DEFAULT}"
   : "${ICLAW_MINIO_PROD_PREFIX:=$(resolve_upload_prefix "$PROD_PUBLIC_BASE_URL")}"
+  : "${ICLAW_MINIO_PROD_ACCESS_KEY:=${S3_ACCESS_KEY:-}}"
+  : "${ICLAW_MINIO_PROD_SECRET_KEY:=${S3_SECRET_KEY:-}}"
   require_mc_alias "$ICLAW_MINIO_PROD_ALIAS"
+  ensure_mc_alias_matches "$ICLAW_MINIO_PROD_ALIAS" "$(resolve_prod_minio_url)" "$ICLAW_MINIO_PROD_ACCESS_KEY" "$ICLAW_MINIO_PROD_SECRET_KEY"
 
   prune_all_local
 
@@ -337,38 +424,24 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
   if [[ -n "$ICLAW_MINIO_PROD_PREFIX" ]]; then
     prod_upload_target="$prod_upload_target/$ICLAW_MINIO_PROD_PREFIX"
   fi
-  prod_files=()
-  shopt -s nullglob
-  prod_files=(
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.dmg
-    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.exe
-  )
-  prod_updater_files=()
-  if native_updater_enabled; then
-    prod_updater_files=(
-      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz
-      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz.sig
-      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.nsis.zip
-      "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.nsis.zip.sig
-    )
-  fi
-  shopt -u nullglob
+  mapfile -t prod_files < <(collect_release_artifacts_for_version "prod" "$MANIFEST_VERSION")
   if [[ ${#prod_files[@]} -eq 0 ]]; then
-    echo "No prod desktop installers found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
-    exit 1
+    fail "No prod desktop installers found for brand artifact prefix ${ARTIFACT_BASE_NAME} and version ${MANIFEST_VERSION}"
   fi
   shopt -s nullglob
-  prod_manifests=("$RELEASE_DIR"/latest-prod*.json)
+  prod_manifests=(
+    "$RELEASE_DIR/latest-prod.json"
+    "$RELEASE_DIR/latest-prod-mac-aarch64.json"
+    "$RELEASE_DIR/latest-prod-mac-x64.json"
+    "$RELEASE_DIR/latest-prod-windows-aarch64.json"
+    "$RELEASE_DIR/latest-prod-windows-x64.json"
+  )
   shopt -u nullglob
   if [[ ${#prod_manifests[@]} -eq 0 ]]; then
-    echo "No prod desktop release manifests found under: $RELEASE_DIR" >&2
-    exit 1
+    fail "No prod desktop release manifests found under: $RELEASE_DIR"
   fi
   prod_uploads=()
   prod_uploads+=("${prod_files[@]}")
-  if [[ ${#prod_updater_files[@]} -gt 0 ]]; then
-    prod_uploads+=("${prod_updater_files[@]}")
-  fi
   prod_uploads+=("${prod_manifests[@]}")
   for file_path in "${prod_uploads[@]}"; do
     upload_target_file "$file_path" "$prod_upload_target"
@@ -381,6 +454,10 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
     done
   done
   remove_legacy_root_objects "$ICLAW_MINIO_PROD_ALIAS" "$ICLAW_MINIO_PROD_BUCKET" "$ICLAW_MINIO_PROD_PREFIX" prod
+
+  if [[ -n "$PROD_PUBLIC_BASE_URL" ]]; then
+    verify_public_release "${PROD_PUBLIC_BASE_URL%/}/windows/x64/latest-prod-windows-x64.json" "$MANIFEST_VERSION"
+  fi
 
   echo "Uploaded to prod minio: $prod_upload_target"
 elif [[ "$ENV_NAME" == "test" ]]; then

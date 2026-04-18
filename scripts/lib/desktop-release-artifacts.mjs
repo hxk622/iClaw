@@ -15,8 +15,12 @@ export function isTruthyEnv(value) {
   return /^(1|true|yes)$/i.test(trimString(value));
 }
 
+export function isFalsyEnv(value) {
+  return /^(0|false|no)$/i.test(trimString(value));
+}
+
 export function nativeUpdaterExpected(env = process.env) {
-  return isTruthyEnv(env.ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER);
+  return !isFalsyEnv(env.ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER);
 }
 
 function escapeRegExp(value) {

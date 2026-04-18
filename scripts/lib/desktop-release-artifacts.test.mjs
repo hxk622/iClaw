@@ -10,12 +10,14 @@ import {
 
 const windowsX64Target = supportedDesktopReleaseTargets.find((target) => target.platform === 'windows' && target.arch === 'x64');
 
-test('nativeUpdaterExpected follows ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER truthy values', () => {
+test('nativeUpdaterExpected defaults to enabled and only disables on explicit falsy values', () => {
   assert.equal(nativeUpdaterExpected({ ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER: '1' }), true);
   assert.equal(nativeUpdaterExpected({ ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER: 'true' }), true);
   assert.equal(nativeUpdaterExpected({ ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER: 'yes' }), true);
   assert.equal(nativeUpdaterExpected({ ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER: '0' }), false);
-  assert.equal(nativeUpdaterExpected({}), false);
+  assert.equal(nativeUpdaterExpected({ ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER: 'false' }), false);
+  assert.equal(nativeUpdaterExpected({ ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER: 'no' }), false);
+  assert.equal(nativeUpdaterExpected({}), true);
 });
 
 test('resolveDesktopReleaseTargetArtifacts returns complete signed updater paths when both files exist', () => {

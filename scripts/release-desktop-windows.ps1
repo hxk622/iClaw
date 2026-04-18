@@ -326,9 +326,9 @@ function Get-ArchLabel {
 
 function Test-NativeUpdaterEnabled {
   if (-not $env:ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER) {
-    return $false
+    return $true
   }
-  return $env:ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER.Trim().ToLowerInvariant() -in @('1', 'true', 'yes')
+  return $env:ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER.Trim().ToLowerInvariant() -notin @('0', 'false', 'no')
 }
 
 function Should-SkipUnsupportedTargetFailure {

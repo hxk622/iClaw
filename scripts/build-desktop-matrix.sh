@@ -157,11 +157,11 @@ find_first_matching_file() {
 
 native_updater_enabled() {
   case "${ICLAW_DESKTOP_ENABLE_NATIVE_UPDATER:-}" in
-    1|true|TRUE|yes|YES)
-      return 0
+    0|false|FALSE|no|NO)
+      return 1
       ;;
     *)
-      return 1
+      return 0
       ;;
   esac
 }

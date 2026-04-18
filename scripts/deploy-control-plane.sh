@@ -9,12 +9,23 @@ if [[ "$MODE" != "prod" ]]; then
   exit 1
 fi
 
-: "${ICLAW_CONTROL_PLANE_HOST:=39.106.110.149}"
 : "${ICLAW_CONTROL_PLANE_USER:=root}"
 : "${ICLAW_CONTROL_PLANE_PATH:=/opt/iclaw}"
 : "${ICLAW_CONTROL_PLANE_PM2_APP:=iclaw-control-plane}"
 : "${ICLAW_CONTROL_PLANE_INSTALL_DEPS:=1}"
 : "${ICLAW_CONTROL_PLANE_HEALTH_TIMEOUT_SECONDS:=90}"
+
+resolve_required_control_plane_host() {
+  local host="${ICLAW_CONTROL_PLANE_HOST:-${ICLAW_PROD_APP_HOST:-}}"
+  host="$(printf '%s' "$host" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  if [[ -z "$host" ]]; then
+    echo "Missing required host: set ICLAW_CONTROL_PLANE_HOST or ICLAW_PROD_APP_HOST" >&2
+    exit 1
+  fi
+  printf '%s' "$host"
+}
+
+ICLAW_CONTROL_PLANE_HOST="$(resolve_required_control_plane_host)"
 
 REMOTE="${ICLAW_CONTROL_PLANE_USER}@${ICLAW_CONTROL_PLANE_HOST}"
 LOCAL_PROD_ENV_FILE="${ROOT_DIR}/.env.prod"
