@@ -55,6 +55,16 @@ create table if not exists stock_finance (
   primary key (stock_code, report_year, report_quarter)
 );
 
+alter table if exists stock_finance add column if not exists report_year integer;
+alter table if exists stock_finance add column if not exists report_quarter integer;
+alter table if exists stock_finance add column if not exists revenue numeric(20, 2) default 0;
+alter table if exists stock_finance add column if not exists net_profit numeric(20, 2) default 0;
+alter table if exists stock_finance add column if not exists roe numeric(10, 2) default 0;
+alter table if exists stock_finance add column if not exists gross_margin numeric(10, 2) default 0;
+alter table if exists stock_finance add column if not exists debt_ratio numeric(10, 2) default 0;
+alter table if exists stock_finance add column if not exists eps numeric(10, 2) default 0;
+alter table if exists stock_finance add column if not exists updated_at timestamptz default current_timestamp;
+
 create index if not exists idx_stock_finance_report on stock_finance(report_year, report_quarter);
 create index if not exists idx_stock_finance_roe on stock_finance(roe desc);
 
