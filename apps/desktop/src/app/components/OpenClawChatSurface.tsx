@@ -9860,16 +9860,34 @@ export function OpenClawChatSurface({
                   <div className="iclaw-artifact-preview-pane__meta">
                     <div className="iclaw-artifact-preview-pane__title">{artifactPreview.title}</div>
                     <div className="iclaw-artifact-preview-pane__path">{artifactPreview.path}</div>
+                    {artifactPreview.actionError ? (
+                      <div className="iclaw-artifact-preview-pane__action-error">{artifactPreview.actionError}</div>
+                    ) : null}
                   </div>
-                  <button
-                    type="button"
-                    className="iclaw-artifact-preview-pane__close"
-                    aria-label="关闭制品预览"
-                    title="关闭制品预览"
-                    onClick={closeArtifactPreview}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                  <div className="iclaw-artifact-preview-pane__actions">
+                    {artifactPreview.openPath && artifactPreview.actionLabel ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="iclaw-artifact-preview-pane__open-button"
+                        leadingIcon={<FileText className="h-4 w-4" />}
+                        onClick={() => {
+                          void handleOpenArtifactSourceFile(artifactPreview.openPath);
+                        }}
+                      >
+                        {artifactPreview.actionLabel}
+                      </Button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="iclaw-artifact-preview-pane__close"
+                      aria-label="关闭制品预览"
+                      title="关闭制品预览"
+                      onClick={closeArtifactPreview}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
                 <div className="iclaw-artifact-preview-pane__body">
                   {artifactPreview.loading ? (
@@ -9882,24 +9900,6 @@ export function OpenClawChatSurface({
                       compact
                       title="右侧分屏暂时没有拿到真实内容"
                       description={artifactPreview.error}
-                      action={
-                        artifactPreview.openPath && artifactPreview.actionLabel ? (
-                          <div className="flex flex-col items-start gap-3">
-                            <Button
-                              size="sm"
-                              leadingIcon={<FileText className="h-4 w-4" />}
-                              onClick={() => {
-                                void handleOpenArtifactSourceFile(artifactPreview.openPath);
-                              }}
-                            >
-                              {artifactPreview.actionLabel}
-                            </Button>
-                            {artifactPreview.actionError ? (
-                              <div className="text-[12px] text-[var(--text-secondary)]">{artifactPreview.actionError}</div>
-                            ) : null}
-                          </div>
-                        ) : undefined
-                      }
                     />
                   ) : artifactPreview.kind === 'pdf' ? (
                     <iframe
@@ -9919,24 +9919,6 @@ export function OpenClawChatSurface({
                       compact
                       title="当前文件暂不支持内嵌预览"
                       description="这类 Office 制品先走系统默认应用打开，右侧 pane 保留文件元信息和打开入口。"
-                      action={
-                        artifactPreview.openPath && artifactPreview.actionLabel ? (
-                          <div className="flex flex-col items-start gap-3">
-                            <Button
-                              size="sm"
-                              leadingIcon={<FileText className="h-4 w-4" />}
-                              onClick={() => {
-                                void handleOpenArtifactSourceFile(artifactPreview.openPath);
-                              }}
-                            >
-                              {artifactPreview.actionLabel}
-                            </Button>
-                            {artifactPreview.actionError ? (
-                              <div className="text-[12px] text-[var(--text-secondary)]">{artifactPreview.actionError}</div>
-                            ) : null}
-                          </div>
-                        ) : undefined
-                      }
                     />
                   ) : artifactPreview.kind === 'markdown' && artifactPreviewMarkup ? (
                     <div

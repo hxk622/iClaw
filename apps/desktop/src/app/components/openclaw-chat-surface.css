@@ -2892,6 +2892,13 @@ body {
   min-width: 0;
 }
 
+.iclaw-artifact-preview-pane__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .iclaw-artifact-preview-pane__title {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2909,6 +2916,17 @@ body {
   color: var(--text-secondary);
   font-family: var(--mono);
   font-size: 11px;
+}
+
+.iclaw-artifact-preview-pane__action-error {
+  margin-top: 6px;
+  color: color-mix(in srgb, var(--status-danger-text) 88%, var(--text-secondary));
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.iclaw-artifact-preview-pane__open-button {
+  max-width: min(100%, 220px);
 }
 
 .iclaw-artifact-preview-pane__close {
