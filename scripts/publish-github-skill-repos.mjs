@@ -89,7 +89,7 @@ function parseArgs(argv) {
   const repoUrls = [];
   let envName = 'all';
   let tempRoot = defaultTempRoot;
-  let remoteHost = process.env.ICLAW_CONTROL_PLANE_HOST || '115.191.6.179';
+  let remoteHost = process.env.ICLAW_CONTROL_PLANE_HOST || '39.106.110.149';
   let remoteUser = process.env.ICLAW_CONTROL_PLANE_USER || 'root';
   let remotePath = process.env.ICLAW_CONTROL_PLANE_PATH || '/opt/iclaw';
   let keepArtifacts = false;

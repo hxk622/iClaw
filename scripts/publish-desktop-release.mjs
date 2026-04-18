@@ -245,7 +245,7 @@ function parseJsonFromCommandOutput(output) {
 
 function resolveRemoteControlPlaneTarget() {
   return {
-    host: trimString(process.env.ICLAW_CONTROL_PLANE_HOST) || '115.191.6.179',
+    host: trimString(process.env.ICLAW_CONTROL_PLANE_HOST) || '39.106.110.149',
     user: trimString(process.env.ICLAW_CONTROL_PLANE_USER) || 'root',
     path: trimString(process.env.ICLAW_CONTROL_PLANE_PATH) || '/opt/iclaw',
   };

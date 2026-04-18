@@ -10,7 +10,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 : "${ICLAW_SOURCE_MINIO_SECRET_KEY:=}"
 
 : "${ICLAW_PROD_MINIO_ALIAS:=prodsync}"
-: "${ICLAW_PROD_MINIO_URL:=http://115.191.6.179:9000}"
+: "${ICLAW_PROD_MINIO_URL:=http://39.106.110.149:9000}"
 : "${ICLAW_PROD_MINIO_ACCESS_KEY:=openalpha}"
 : "${ICLAW_PROD_MINIO_SECRET_KEY:=}"
 : "${ICLAW_MINIO_BUCKET_BASELINE:=${ROOT_DIR}/services/control-plane/baselines/platform-db.snapshot.json}"

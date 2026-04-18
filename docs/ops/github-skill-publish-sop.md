@@ -48,7 +48,7 @@ node scripts/publish-github-skill-repos.mjs --env all
 
 默认 prod 目标：
 
-- host: `115.191.6.179`
+- host: `39.106.110.149`
 - user: `root`
 - path: `/opt/iclaw`
 

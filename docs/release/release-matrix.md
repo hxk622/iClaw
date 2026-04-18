@@ -98,7 +98,7 @@ bash scripts/build-desktop-matrix.sh
 ## 下载站部署
 
 - dev：本地 Vite（home）+ 远端源 MinIO（`47.93.231.197`）
-- prod：Nginx（`113.44.132.75`）+ 火山 MinIO（`115.191.6.179`）
+- prod：Nginx（`113.44.132.75`）+ 阿里云 Prod 主机（`39.106.110.149`）
 
 ## 下载路径约定
 
@@ -164,6 +164,6 @@ bash scripts/publish-downloads.sh prod
 
 - 默认 PostgreSQL / MinIO 源环境：`47.93.231.197`
 - 前端 / Nginx / DNS 落点：`113.44.132.75`
-- 后端 / control-plane / PM2：`115.191.6.179`
+- 后端 / control-plane / PM2：`39.106.110.149`
 - 详细清单见：
   - [prod-infra-inventory.md](../ops/prod-infra-inventory.md)

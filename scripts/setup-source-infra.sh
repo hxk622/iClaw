@@ -61,7 +61,8 @@ Wants=network-online.target
 User=root
 Group=root
 EnvironmentFile=/etc/default/minio
-ExecStart=/usr/local/bin/minio server ${MINIO_VOLUMES} ${MINIO_OPTS}
+# Use a shell so MINIO_OPTS is expanded into multiple CLI arguments.
+ExecStart=/bin/bash -lc '/usr/local/bin/minio server ${MINIO_VOLUMES} ${MINIO_OPTS}'
 Restart=always
 LimitNOFILE=65536
 

@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 : "${ICLAW_SOURCE_HOST:=47.93.231.197}"
 : "${ICLAW_SOURCE_USER:=root}"
-: "${ICLAW_PROD_HOST:=115.191.6.179}"
+: "${ICLAW_PROD_HOST:=39.106.110.149}"
 : "${ICLAW_PROD_USER:=root}"
 : "${ICLAW_SOURCE_DB_URL:=postgresql://iclaw_app:change_me@127.0.0.1:5432/iclaw_control}"
 : "${ICLAW_PROD_DB_URL:=postgresql://iclaw_app:change_me@127.0.0.1:5432/iclaw_control_prod}"

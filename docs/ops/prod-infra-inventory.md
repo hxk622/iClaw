@@ -1,6 +1,6 @@
 # Prod Infra Inventory
 
-更新时间：2026-03-26
+更新时间：2026-04-18
 
 ## 主机角色
 
@@ -17,21 +17,32 @@
   - 用途：
     - 官网 / 下载页静态资源
     - Nginx 对外入口
-- 后端 / control-plane / PM2
-  - Host: `115.191.6.179`
+- 新 prod 后端 / control-plane / PM2 / 本地状态服务
+  - Host: `39.106.110.149`
   - User: `root`
   - Repo path: `/opt/iclaw`
   - PM2 process: `iclaw-control-plane`
   - 用途：
     - `services/control-plane`
-    - PostgreSQL / Redis 相关后端运行环境
-    - 火山 MinIO
+    - PostgreSQL / Redis / MinIO 运行环境
+    - 阿里云 prod 恢复目标机
   - MinIO:
-    - Endpoint: `http://115.191.6.179:9000`
-    - Bucket: `licaiclaw-prod`
-    - 当前远端 `mc` 默认 alias：`local`
-    - 下载页实际发布目录：`licaiclaw-prod/downloads/`
-    - `https://caiclaw.aiyuanxi.com/downloads/<file>` 对应桶内 `downloads/<file>`
+    - Endpoint: `http://39.106.110.149:9000`
+    - 目标 bucket:
+      - `iclaw-prod`
+      - `licaiclaw-prod`
+      - `iclaw-files`
+      - `licaiclaw-files`
+      - `iclaw-user-assets`
+- 旧 prod 后端 / 火山云
+  - Host: `115.191.6.179`
+  - User: `root`
+  - 当前状态：
+    - 2026-04-18 审计时，SSH `22` 端口超时
+    - 从 `113.44.132.75` 到 `115.191.6.179:2130` / `:9000` 的 `curl` 均超时
+    - 华为云 Nginx 仍指向该主机，因此公网 `health` / `downloads` 当前处于不可用风险
+  - 用途：
+    - 仅作为历史目标记录，不再作为默认 prod 发布目标
 
 ## 约束
 
@@ -41,6 +52,11 @@
 - 当前开发机不再默认承载 PostgreSQL / MinIO
 - 当前开发机上的 PostgreSQL / MinIO 默认关闭，并取消开机自动重启
 - 以后需要把本地数据推到线上时，默认 source 为 `47.93.231.197`
+- 2026-04-18 起，prod 脚本默认目标应切到 `39.106.110.149`
+- 当前确认的数据来源分层：
+  - PostgreSQL / OEM system state / 品牌资产桶：`47.93.231.197`
+  - 公网入口：`113.44.132.75`
+  - 旧 prod 下载/runtime 桶：历史上位于 `115.191.6.179`，若无法恢复需从本地 `dist/releases` / runtime artifact 重新发布
 
 ## 常用校验
 

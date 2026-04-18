@@ -9,7 +9,7 @@ if [[ "$MODE" != "prod" ]]; then
   exit 1
 fi
 
-: "${ICLAW_CONTROL_PLANE_HOST:=115.191.6.179}"
+: "${ICLAW_CONTROL_PLANE_HOST:=39.106.110.149}"
 : "${ICLAW_CONTROL_PLANE_USER:=root}"
 : "${ICLAW_CONTROL_PLANE_PATH:=/opt/iclaw}"
 : "${ICLAW_CONTROL_PLANE_PM2_APP:=iclaw-control-plane}"

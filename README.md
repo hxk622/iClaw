@@ -33,7 +33,7 @@ See `docs/` for product decisions and contracts.
 
 默认源环境说明：
 
-- PostgreSQL / MinIO 的默认 source host 为 `39.106.74.65`
+- PostgreSQL / MinIO 的默认 source host 为 `47.93.231.197`
 - 当前开发机不再作为默认 PostgreSQL / MinIO 源头
 - 本机 PostgreSQL / MinIO 默认关闭，不依赖开机自启
 
