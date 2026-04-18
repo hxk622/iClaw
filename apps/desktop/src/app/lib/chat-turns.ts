@@ -383,6 +383,19 @@ export function markChatTurnFailed(input: FinishChatTurnInput): void {
   );
 }
 
+export function setChatTurnFinanceCompliance(id: string, financeCompliance: FinanceComplianceSnapshot | null): void {
+  updateTurnList((turns) =>
+    turns.map((turn) =>
+      turn.id === id
+        ? {
+            ...turn,
+            financeCompliance: normalizeFinanceCompliance(financeCompliance),
+          }
+        : turn,
+    ),
+  );
+}
+
 export function setChatTurnPinned(id: string, pinned: boolean): void {
   updateTurnList((turns) =>
     turns.map((turn) =>

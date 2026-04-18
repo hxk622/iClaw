@@ -93,8 +93,11 @@ import {
   markChatTurnCompleted,
   markChatTurnFailed,
   readChatTurns,
+  setChatTurnFinanceCompliance,
   startChatTurn,
 } from '../lib/chat-turns';
+import { buildHeuristicFinanceComplianceEnvelope } from '../lib/finance-compliance';
+import { recordFinanceComplianceEvents } from '../lib/finance-compliance-events';
 import {
   findChatConversationBySessionKey,
   readChatConversation,
@@ -565,6 +568,12 @@ type ActiveChatTurnRun = {
   turnId: string;
   baselineError: string | null;
   failureMessage: string | null;
+  runId: string | null;
+  startedAt: number;
+  prompt: string;
+  sessionKey: string;
+  conversationId: string | null;
+  usedModel: string | null;
 };
 
 type AssistantBillingState = 'charged' | 'pending' | 'missing';
@@ -7482,6 +7491,21 @@ export function OpenClawChatSurface({
     }
 
     const artifacts = collectLatestArtifactKinds(hostRef.current);
+    const app = appRef.current;
+    const assistantText =
+      app && Array.isArray(app.chatMessages)
+        ? extractChatMessageGroupText(findAssistantGroupForRun(app.chatMessages, activeRun.runId, activeRun.startedAt))
+        : '';
+    const finalAnswer = assistantText || activeRun.prompt;
+    const financeCompliance =
+      buildHeuristicFinanceComplianceEnvelope({
+        appName,
+        channel: 'chat',
+        title: null,
+        prompt: activeRun.prompt,
+        answer: finalAnswer,
+        usedModel: activeRun.usedModel,
+      })?.compliance ?? null;
     if (activeRun.failureMessage) {
       markChatTurnFailed({
         id: activeRun.turnId,
@@ -7494,9 +7518,40 @@ export function OpenClawChatSurface({
         artifacts,
       });
     }
+    if (financeCompliance) {
+      setChatTurnFinanceCompliance(activeRun.turnId, financeCompliance);
+      if (creditClient) {
+        void recordFinanceComplianceEvents({
+          client: creditClient,
+          accessToken: creditToken,
+          items: [
+            {
+              session_key: activeRun.sessionKey,
+              conversation_id: activeRun.conversationId,
+              channel: 'chat',
+              source_surface: 'openclaw-chat-surface',
+              input_classification: financeCompliance.inputClassification,
+              output_classification: financeCompliance.outputClassification,
+              risk_level: financeCompliance.riskLevel,
+              show_disclaimer: financeCompliance.showDisclaimer,
+              disclaimer_text: financeCompliance.disclaimerText,
+              degraded: financeCompliance.degraded,
+              blocked: financeCompliance.blocked,
+              reasons_json: financeCompliance.reasons,
+              used_capabilities_json: financeCompliance.usedCapabilities,
+              used_model: financeCompliance.usedModel,
+              metadata_json: {
+                turn_id: activeRun.turnId,
+                status: activeRun.failureMessage ? 'failed' : 'completed',
+              },
+            },
+          ],
+        }).catch(() => {});
+      }
+    }
 
     activeChatTurnRunRef.current = null;
-  }, []);
+  }, [appName, collectLatestArtifactKinds, creditClient, creditToken]);
 
   const attemptPendingUsageSettlement = useCallback(async (): Promise<boolean> => {
     const app = appRef.current;
@@ -8126,6 +8181,12 @@ export function OpenClawChatSurface({
       turnId: turn.id,
       baselineError: status.lastError,
       failureMessage: null,
+      runId: null,
+      startedAt: Date.now(),
+      prompt: payload.prompt,
+      sessionKey: runtimeSessionKey,
+      conversationId: turn.conversationId,
+      usedModel: selectedModelId,
     };
 
     const shouldAugmentWithMemory = !normalizedPrompt.startsWith('/');
@@ -8141,6 +8202,13 @@ export function OpenClawChatSurface({
 
       runId = createDesktopRunId();
       const startedAt = Date.now();
+      if (activeChatTurnRunRef.current?.turnId === turn.id) {
+        activeChatTurnRunRef.current = {
+          ...activeChatTurnRunRef.current,
+          runId,
+          startedAt,
+        };
+      }
       stageOutgoingChatMessage({
         app,
         prompt: normalizedPrompt,
