@@ -1,4 +1,4 @@
-import { loadOemRuntimeSnapshot, saveOemRuntimeSnapshot } from './tauri-runtime-config';
+import { loadOemRuntimeSnapshot, saveOemRuntimeSnapshot } from './tauri-runtime-config.ts';
 
 export type BrandRuntimeConfig = {
   brandId: string;
@@ -657,7 +657,7 @@ export function resolveRequiredEnabledMenuKeys(config: Record<string, unknown> |
   if (!resolved || resolved.length === 0) {
     return [...DEFAULT_ENABLED_MENU_KEYS];
   }
-  return normalizeMenuKeys([...resolved, 'knowledge-library']);
+  return normalizeMenuKeys(resolved);
 }
 
 export function resolveMenuDisplayNames(config: Record<string, unknown> | null | undefined): Record<string, string> | null {
