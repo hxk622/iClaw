@@ -115,7 +115,10 @@ import {
   startChatTurn,
   useChatTurns,
 } from '../lib/chat-turns';
-import { buildHeuristicFinanceComplianceEnvelope } from '../lib/finance-compliance';
+import {
+  buildHeuristicFinanceComplianceEnvelope,
+  resolveEffectiveFinanceComplianceSnapshot,
+} from '../lib/finance-compliance';
 import { recordFinanceComplianceEvents } from '../lib/finance-compliance-events';
 import {
   findChatConversationBySessionKey,
@@ -7810,7 +7813,7 @@ export function OpenClawChatSurface({
       assistantGroup ? extractChatMessageGroupText(assistantGroup) : '';
     const finalAnswer = assistantText || activeRun.prompt;
     const messageFinanceCompliance = extractChatMessageGroupFinanceCompliance(assistantGroup);
-    const financeCompliance =
+    const explicitFinanceCompliance =
       (messageFinanceCompliance as typeof activeRun extends never ? never : Record<string, unknown> | null)
         ? ({
             domain: 'finance',
@@ -7854,14 +7857,19 @@ export function OpenClawChatSurface({
             sourceAttributionRequired: messageFinanceCompliance?.sourceAttributionRequired === true,
             timestampRequired: messageFinanceCompliance?.timestampRequired === true,
           })
-        : buildHeuristicFinanceComplianceEnvelope({
-            appName,
-            channel: 'chat',
-            title: null,
-            prompt: activeRun.prompt,
-            answer: finalAnswer,
-            usedModel: activeRun.usedModel,
-          })?.compliance ?? null;
+        : null;
+    const heuristicFinanceCompliance = buildHeuristicFinanceComplianceEnvelope({
+      appName,
+      channel: 'chat',
+      title: null,
+      prompt: activeRun.prompt,
+      answer: finalAnswer,
+      usedModel: activeRun.usedModel,
+    });
+    const financeCompliance = resolveEffectiveFinanceComplianceSnapshot({
+      snapshot: explicitFinanceCompliance,
+      heuristic: heuristicFinanceCompliance,
+    });
     if (activeRun.failureMessage) {
       markChatTurnFailed({
         id: activeRun.turnId,

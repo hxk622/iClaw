@@ -204,6 +204,24 @@ export function resolveFinanceDisclaimerFromSnapshot(
   return snapshot.disclaimerText || DEFAULT_DISCLAIMER_TEXT;
 }
 
+export function resolveEffectiveFinanceComplianceSnapshot(input: {
+  snapshot?: FinanceComplianceSnapshot | null;
+  heuristic?: ResolveFinanceComplianceResult | null;
+}): FinanceComplianceSnapshot | null {
+  if (hasExplicitFinanceComplianceSnapshot(input.snapshot)) {
+    return input.snapshot;
+  }
+  return input.heuristic?.compliance ?? null;
+}
+
+export function resolveEffectiveFinanceDisclaimer(input: {
+  snapshot?: FinanceComplianceSnapshot | null;
+  heuristic?: ResolveFinanceComplianceResult | null;
+}): string | null {
+  const effective = resolveEffectiveFinanceComplianceSnapshot(input);
+  return resolveFinanceDisclaimerFromSnapshot(effective);
+}
+
 export function resolveFinanceComplianceEnvelope(
   input: ResolveFinanceComplianceInput,
 ): ResolveFinanceComplianceResult {

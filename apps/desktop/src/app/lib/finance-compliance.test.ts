@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import {
   buildHeuristicFinanceComplianceEnvelope,
   hasExplicitFinanceComplianceSnapshot,
+  resolveEffectiveFinanceComplianceSnapshot,
+  resolveEffectiveFinanceDisclaimer,
   resolveFinanceDisclaimerFromSnapshot,
   resolveFinanceComplianceEnvelope,
   softenFinanceSummaryForChannel,
@@ -169,4 +171,33 @@ test('explicit finance compliance snapshot suppresses heuristic fallback when di
 
   assert.equal(hasExplicitFinanceComplianceSnapshot(snapshot), true);
   assert.equal(resolveFinanceDisclaimerFromSnapshot(snapshot), null);
+});
+
+test('resolveEffectiveFinanceComplianceSnapshot prefers explicit snapshot over heuristic', () => {
+  const snapshot = {
+    domain: 'finance' as const,
+    inputClassification: 'market_info' as const,
+    outputClassification: 'market_data' as const,
+    riskLevel: 'low' as const,
+    showDisclaimer: false,
+    disclaimerText: null,
+    requiresRiskSection: false,
+    blocked: false,
+    degraded: false,
+    reasons: ['explicit'],
+    usedCapabilities: [],
+    usedModel: null,
+    sourceAttributionRequired: false,
+    timestampRequired: false,
+  };
+  const heuristic = buildHeuristicFinanceComplianceEnvelope({
+    appName: 'licaiclaw',
+    channel: 'chat',
+    prompt: '帮我看看股票能买吗',
+    answer: '建议买入并控制仓位。',
+  });
+
+  const effective = resolveEffectiveFinanceComplianceSnapshot({ snapshot, heuristic });
+  assert.deepEqual(effective, snapshot);
+  assert.equal(resolveEffectiveFinanceDisclaimer({ snapshot, heuristic }), null);
 });
