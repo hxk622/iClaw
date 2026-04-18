@@ -1698,6 +1698,67 @@ fn runtime_skills_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(openclaw_workspace_dir(app)?.join("skills"))
 }
 
+fn runtime_skills_manifest_matches_snapshot(
+    app: &AppHandle,
+    snapshot: &OemRuntimeSnapshot,
+) -> Result<bool, String> {
+    let expected_skill_slugs = runtime_skill_bindings_from_snapshot(snapshot)
+        .into_iter()
+        .map(|(slug, _)| slug)
+        .collect::<Vec<_>>();
+    Ok(load_skill_manifest_value(&runtime_skills_manifest_path(app)?)?
+        .as_ref()
+        .map(|manifest| skill_manifest_matches_snapshot(manifest, snapshot, &expected_skill_slugs))
+        .unwrap_or(false))
+}
+
+fn runtime_skills_dir_has_user_overlay(
+    app: &AppHandle,
+    snapshot: &OemRuntimeSnapshot,
+) -> Result<bool, String> {
+    let skills_root = runtime_skills_dir(app)?;
+    if !skills_root.exists() {
+        return Ok(false);
+    }
+    let manifest = load_skill_manifest_value(&runtime_skills_manifest_path(app)?)?
+        .unwrap_or_else(|| json!({ "skills": [] }));
+    let expected_dirs = manifest_skill_dirs(&manifest);
+    let entries = fs::read_dir(&skills_root).map_err(|e| {
+        format!(
+            "failed to scan runtime skills dir {}: {e}",
+            skills_root.to_string_lossy()
+        )
+    })?;
+    let mut actual_skill_dirs = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("failed to read runtime skill dir entry: {e}"))?;
+        let path = entry.path();
+        let metadata = entry.metadata().map_err(|e| {
+            format!(
+                "failed to read runtime skill metadata {}: {e}",
+                path.to_string_lossy()
+            )
+        })?;
+        if !metadata.is_dir() || !path.join("SKILL.md").exists() {
+            continue;
+        }
+        let Some(dir_name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        actual_skill_dirs.push(dir_name.to_string());
+        if !expected_dirs.iter().any(|expected| expected == dir_name) {
+            return Ok(true);
+        }
+    }
+    if actual_skill_dirs.is_empty() {
+        return Ok(false);
+    }
+    if !runtime_skills_manifest_matches_snapshot(app, snapshot)? {
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 fn resource_bundled_skills_dir(app: &AppHandle) -> PathBuf {
     if let Ok(resource_dir) = app.path().resource_dir() {
         let p = resource_dir.join("resources").join("bundled-skills");
@@ -2029,6 +2090,32 @@ fn packaged_runtime_skills_root(app: &AppHandle) -> PathBuf {
         .join("resources")
         .join("baseline")
         .join("skills")
+}
+
+fn packaged_runtime_skills_available_for_snapshot(
+    app: &AppHandle,
+    snapshot: &OemRuntimeSnapshot,
+) -> Result<bool, String> {
+    let Some(manifest) = load_packaged_runtime_skill_baseline_manifest(app)? else {
+        return Ok(false);
+    };
+    Ok(
+        packaged_runtime_skill_baseline_matches_snapshot(&manifest, snapshot)
+            && packaged_runtime_skills_root(app).exists(),
+    )
+}
+
+fn effective_runtime_skills_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let Some(snapshot) = load_oem_runtime_snapshot_internal(app)? else {
+        return runtime_skills_dir(app);
+    };
+    if !packaged_runtime_skills_available_for_snapshot(app, &snapshot)? {
+        return runtime_skills_dir(app);
+    }
+    if runtime_skills_dir_has_user_overlay(app, &snapshot)? {
+        return runtime_skills_dir(app);
+    }
+    Ok(packaged_runtime_skills_root(app))
 }
 
 fn packaged_runtime_skills_manifest_path(app: &AppHandle) -> PathBuf {
@@ -2569,7 +2656,6 @@ fn packaged_runtime_skill_baseline_matches_snapshot(
     snapshot: &OemRuntimeSnapshot,
 ) -> bool {
     manifest.brand_id.trim() == snapshot.brand_id.trim()
-        && manifest.published_version == snapshot.published_version
         && manifest.skill_slugs
             == runtime_skill_bindings_from_snapshot(snapshot)
                 .into_iter()
@@ -2596,69 +2682,10 @@ fn activate_packaged_runtime_skill_baseline(
     let workspace_dir = openclaw_workspace_dir(app)?;
     fs::create_dir_all(&workspace_dir)
         .map_err(|e| format!("failed to create openclaw workspace dir: {e}"))?;
-    let skills_root = runtime_skills_dir(app)?;
-    if skills_root.exists() {
-        fs::remove_dir_all(&skills_root).map_err(|e| {
-            format!(
-                "failed to clear existing runtime skills dir {}: {e}",
-                skills_root.to_string_lossy()
-            )
-        })?;
-    }
-    fs::create_dir_all(&skills_root).map_err(|e| {
-        format!(
-            "failed to create runtime skills dir {}: {e}",
-            skills_root.to_string_lossy()
-        )
-    })?;
-    let mut copied_skill_dirs = Vec::new();
-    let entries = fs::read_dir(&packaged_root).map_err(|e| {
-        format!(
-            "failed to scan packaged runtime skills dir {}: {e}",
-            packaged_root.to_string_lossy()
-        )
-    })?;
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("failed to read packaged skill dir entry: {e}"))?;
-        let source_path = entry.path();
-        let metadata = entry.metadata().map_err(|e| {
-            format!(
-                "failed to read packaged skill metadata {}: {e}",
-                source_path.to_string_lossy()
-            )
-        })?;
-        if !metadata.is_dir() || !source_path.join("SKILL.md").exists() {
-            continue;
-        }
-        if !skill_supports_current_platform(&source_path)? {
-            append_desktop_bootstrap_log(
-                app,
-                &format!(
-                    "runtime skills: skip packaged unsupported skill dir={} platform={}",
-                    source_path
-                        .file_name()
-                        .and_then(|value| value.to_str())
-                        .unwrap_or("unknown"),
-                    current_openclaw_skill_platform()
-                ),
-            );
-            continue;
-        }
-        let dir_name = source_path
-            .file_name()
-            .and_then(|value| value.to_str())
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| {
-                format!(
-                    "failed to resolve packaged skill dir name from {}",
-                    source_path.to_string_lossy()
-                )
-            })?;
-        let target_path = skills_root.join(&dir_name);
-        copy_dir_recursive(&source_path, &target_path)?;
-        copied_skill_dirs.push(dir_name);
-    }
+    let copied_skill_dirs = runtime_skill_bindings_from_snapshot(snapshot)
+        .into_iter()
+        .map(|(slug, _)| slug)
+        .collect::<Vec<_>>();
     let bundled_manifest = json!({
         "version": "0.1.0",
         "preset": snapshot.brand_id,
@@ -2708,7 +2735,6 @@ fn packaged_runtime_mcp_baseline_matches_snapshot(
     snapshot: &OemRuntimeSnapshot,
 ) -> bool {
     manifest.brand_id.trim() == snapshot.brand_id.trim()
-        && manifest.published_version == snapshot.published_version
         && manifest.mcp_keys
             == runtime_mcp_bindings_from_snapshot(snapshot)
                 .into_iter()
@@ -3412,7 +3438,7 @@ fn github_zipball_url(repo_url: &str) -> Result<String, String> {
 fn load_bundled_skills_catalog_internal(
     app: &AppHandle,
 ) -> Result<Vec<BundledSkillCatalogItem>, String> {
-    let skills_dir = runtime_skills_dir(app)?;
+    let skills_dir = effective_runtime_skills_dir(app)?;
     let skills_dir = if skills_dir.exists() {
         skills_dir
     } else {
@@ -6006,6 +6032,38 @@ fn sync_current_brand_runtime_snapshot(app: &AppHandle) -> Result<bool, String> 
     sync_oem_runtime_snapshot(app.clone(), resolve_desktop_auth_base_url(), brand_id)
 }
 
+fn refresh_current_brand_runtime_snapshot_in_background(app: AppHandle, reason: &'static str) {
+    thread::spawn(move || match sync_current_brand_runtime_snapshot(&app) {
+        Ok(changed) => append_desktop_bootstrap_log(
+            &app,
+            &format!("runtime snapshot background refresh reason={reason} changed={changed}"),
+        ),
+        Err(error) => append_desktop_bootstrap_log(
+            &app,
+            &format!("runtime snapshot background refresh warning reason={reason} error={error}"),
+        ),
+    });
+}
+
+fn should_block_on_runtime_snapshot_sync(app: &AppHandle) -> bool {
+    !matches!(load_oem_runtime_snapshot_internal(app), Ok(Some(_)))
+}
+
+fn should_block_on_runtime_dependency_sync(app: &AppHandle) -> Result<bool, String> {
+    let Some(snapshot) = load_oem_runtime_snapshot_internal(app)? else {
+        return Ok(true);
+    };
+    let packaged_skills_ready = packaged_runtime_skills_available_for_snapshot(app, &snapshot)?;
+    let packaged_mcp_ready = runtime_mcp_cache_is_fresh(app, &snapshot)?
+        || load_packaged_runtime_mcp_baseline_manifest(app)?
+            .map(|manifest| {
+                packaged_runtime_mcp_baseline_matches_snapshot(&manifest, &snapshot)
+                    && packaged_runtime_mcp_root(app).join("mcp.json").exists()
+            })
+            .unwrap_or(false);
+    Ok(!(packaged_skills_ready && packaged_mcp_ready))
+}
+
 fn ensure_current_brand_runtime_skills(app: &AppHandle, context: &str) -> Result<bool, String> {
     match sync_current_brand_runtime_skills(app, &resolve_desktop_auth_base_url()) {
         Ok(changed) => Ok(changed),
@@ -6355,12 +6413,20 @@ fn start_sidecar(
 
     let runtime = resolve_runtime_command(&app)?;
     let phase_snapshot_sync_begin = Instant::now();
-    if let Err(error) = sync_current_brand_runtime_snapshot(&app) {
-        eprintln!("failed to sync OEM runtime snapshot before sidecar start: {error}");
+    if should_block_on_runtime_snapshot_sync(&app) {
+        if let Err(error) = sync_current_brand_runtime_snapshot(&app) {
+            eprintln!("failed to sync OEM runtime snapshot before sidecar start: {error}");
+            append_desktop_bootstrap_log(
+                &app,
+                &format!("start_sidecar: snapshot sync warning {error}"),
+            );
+        }
+    } else {
         append_desktop_bootstrap_log(
             &app,
-            &format!("start_sidecar: snapshot sync warning {error}"),
+            "start_sidecar: snapshot sync skipped; using cached snapshot",
         );
+        refresh_current_brand_runtime_snapshot_in_background(app.clone(), "sidecar start");
     }
     append_desktop_bootstrap_log(
         &app,
@@ -6398,15 +6464,41 @@ fn start_sidecar(
     append_desktop_bootstrap_log(&app, "start_sidecar: gateway token ready");
     ensure_openclaw_workspace_seed(&app)?;
     append_desktop_bootstrap_log(&app, "start_sidecar: workspace seed ready");
-    let (mcp_changed, skills_changed) =
-        ensure_current_brand_runtime_dependencies(&app, "sidecar start")?;
-    append_desktop_bootstrap_log(
-        &app,
-        &format!(
-            "start_sidecar: runtime dependencies ready mcp_changed={} skills_changed={}",
-            mcp_changed, skills_changed
-        ),
-    );
+    if should_block_on_runtime_dependency_sync(&app)? {
+        let (mcp_changed, skills_changed) =
+            ensure_current_brand_runtime_dependencies(&app, "sidecar start")?;
+        append_desktop_bootstrap_log(
+            &app,
+            &format!(
+                "start_sidecar: runtime dependencies ready mcp_changed={} skills_changed={}",
+                mcp_changed, skills_changed
+            ),
+        );
+    } else {
+        append_desktop_bootstrap_log(
+            &app,
+            "start_sidecar: runtime dependency sync skipped; packaged baseline/cache is ready",
+        );
+        let app_clone = app.clone();
+        thread::spawn(move || {
+            match ensure_current_brand_runtime_dependencies(&app_clone, "sidecar background refresh")
+            {
+                Ok((mcp_changed, skills_changed)) => append_desktop_bootstrap_log(
+                    &app_clone,
+                    &format!(
+                        "start_sidecar: background runtime dependency refresh mcp_changed={} skills_changed={}",
+                        mcp_changed, skills_changed
+                    ),
+                ),
+                Err(error) => append_desktop_bootstrap_log(
+                    &app_clone,
+                    &format!(
+                        "start_sidecar: background runtime dependency refresh warning {error}"
+                    ),
+                ),
+            }
+        });
+    }
     append_desktop_bootstrap_log(
         &app,
         &format!(
@@ -6426,7 +6518,7 @@ fn start_sidecar(
     );
     let config = load_runtime_config_internal(&app)?;
     let paths = ensure_runtime_dirs(&app)?;
-    let skills_dir = runtime_skills_dir(&app)?;
+    let skills_dir = effective_runtime_skills_dir(&app)?;
     let mcp_config = prepare_runtime_mcp_config(&app, &paths.cache_dir)?;
     append_desktop_bootstrap_log(
         &app,
@@ -7456,23 +7548,36 @@ fn write_desktop_memory_runtime_status_cache(
 }
 
 fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> Result<(), String> {
-    if let Err(error) = sync_current_brand_runtime_snapshot(app) {
-        eprintln!("failed to sync OEM runtime snapshot before memory runtime command: {error}");
+    if should_block_on_runtime_snapshot_sync(app) {
+        if let Err(error) = sync_current_brand_runtime_snapshot(app) {
+            eprintln!("failed to sync OEM runtime snapshot before memory runtime command: {error}");
+            append_desktop_bootstrap_log(
+                app,
+                &format!("memory_runtime_command: snapshot sync warning {error}"),
+            );
+        }
+    } else {
         append_desktop_bootstrap_log(
             app,
-            &format!("memory_runtime_command: snapshot sync warning {error}"),
+            "memory_runtime_command: snapshot sync skipped; using cached snapshot",
+        );
+        refresh_current_brand_runtime_snapshot_in_background(
+            app.clone(),
+            "memory runtime command",
         );
     }
     let runtime = resolve_runtime_command(app)?;
     let gateway_token = load_or_create_gateway_token(app)?;
     ensure_openclaw_workspace_seed(app)?;
-    ensure_current_brand_runtime_mcps(app, "memory runtime command")?;
-    ensure_current_brand_runtime_skills(app, "memory runtime command")?;
+    if should_block_on_runtime_dependency_sync(app)? {
+        ensure_current_brand_runtime_mcps(app, "memory runtime command")?;
+        ensure_current_brand_runtime_skills(app, "memory runtime command")?;
+    }
     let openclaw_state_dir = openclaw_state_dir(app)?;
     let openclaw_config_path = ensure_openclaw_runtime_config(app, &gateway_token)?;
     let config = load_runtime_config_internal(app)?;
     let paths = ensure_runtime_dirs(app)?;
-    let skills_dir = runtime_skills_dir(app)?;
+    let skills_dir = effective_runtime_skills_dir(app)?;
     let mcp_config = prepare_runtime_mcp_config(app, &paths.cache_dir)?;
     let extra_ca_certs = resource_extra_ca_certs_path(app);
 
@@ -7836,6 +7941,9 @@ fn ensure_openclaw_workspace_seed(app: &AppHandle) -> Result<(), String> {
 }
 
 fn seed_bundled_skills_into_workspace(app: &AppHandle) -> Result<(), String> {
+    if packaged_runtime_skills_root(app).exists() {
+        return Ok(());
+    }
     let bundled_manifest_path = resource_bundled_skills_manifest_path(app);
     let Some(bundled_manifest) = load_skill_manifest_value(&bundled_manifest_path)? else {
         return Ok(());
@@ -7859,42 +7967,12 @@ fn seed_bundled_skills_into_workspace(app: &AppHandle) -> Result<(), String> {
 
     let runtime_skills_manifest_path = runtime_skills_manifest_path(app)?;
     let existing_manifest = load_skill_manifest_value(&runtime_skills_manifest_path)?;
-    let existing_skill_dirs = existing_manifest
-        .as_ref()
-        .map(manifest_skill_dirs)
-        .unwrap_or_default();
     let manifests_match = existing_manifest
         .as_ref()
         .map(|value| value == &bundled_manifest)
         .unwrap_or(false);
-    let all_skills_present = bundled_skill_dirs
-        .iter()
-        .all(|dir_name| runtime_skills_dir.join(dir_name).join("SKILL.md").exists());
-
-    if manifests_match && all_skills_present {
+    if manifests_match {
         return Ok(());
-    }
-
-    for stale_dir in existing_skill_dirs {
-        if bundled_skill_dirs.contains(&stale_dir) {
-            continue;
-        }
-        let target_path = runtime_skills_dir.join(&stale_dir);
-        if target_path.exists() {
-            let _ = fs::remove_dir_all(target_path);
-        }
-    }
-
-    for dir_name in &bundled_skill_dirs {
-        let source_path = bundled_skills_dir.join(dir_name);
-        if !source_path.exists() {
-            continue;
-        }
-        let target_path = runtime_skills_dir.join(dir_name);
-        if target_path.exists() {
-            let _ = fs::remove_dir_all(&target_path);
-        }
-        copy_dir_recursive(&source_path, &target_path)?;
     }
 
     write_locked_json_file(&runtime_skills_manifest_path, &bundled_manifest)?;
@@ -8626,27 +8704,53 @@ fn apply_initial_window_layout(app: &AppHandle) {
         return;
     };
 
-    if let Ok(Some(snapshot)) = load_desktop_window_state(app) {
-        let _ = window.set_size(PhysicalSize::new(snapshot.width, snapshot.height));
-        let _ = window.set_position(PhysicalPosition::new(
-            snapshot.position_x,
-            snapshot.position_y,
-        ));
-        return;
-    }
-
     let Ok(Some(monitor)) = window.current_monitor() else {
         return;
     };
 
-    let monitor_size = monitor.size();
-    let monitor_position = monitor.position();
-    let target_width = ((monitor_size.width as f64) * 1.0).round() as u32;
-    let target_height = ((monitor_size.height as f64) * 1.0).round() as u32;
-    let width = target_width.max(980);
-    let height = target_height.max(680);
-    let pos_x = monitor_position.x + ((monitor_size.width.saturating_sub(width)) / 2) as i32;
-    let pos_y = monitor_position.y + ((monitor_size.height.saturating_sub(height)) / 2) as i32;
+    let work_area = monitor.work_area();
+    let work_area_width = work_area.size.width.max(1);
+    let work_area_height = work_area.size.height.max(1);
+    let min_width = 980u32.min(work_area_width);
+    let min_height = 680u32.min(work_area_height);
+
+    let clamp_window_layout = |width: u32, height: u32, position_x: i32, position_y: i32| {
+        let clamped_width = width.max(min_width).min(work_area_width);
+        let clamped_height = height.max(min_height).min(work_area_height);
+        let max_x =
+            work_area.position.x + work_area_width.saturating_sub(clamped_width) as i32;
+        let max_y =
+            work_area.position.y + work_area_height.saturating_sub(clamped_height) as i32;
+        let clamped_x = position_x.clamp(work_area.position.x, max_x);
+        let clamped_y = position_y.clamp(work_area.position.y, max_y);
+        (clamped_width, clamped_height, clamped_x, clamped_y)
+    };
+
+    if let Ok(Some(snapshot)) = load_desktop_window_state(app) {
+        let (width, height, pos_x, pos_y) = clamp_window_layout(
+            snapshot.width,
+            snapshot.height,
+            snapshot.position_x,
+            snapshot.position_y,
+        );
+        let _ = window.set_size(PhysicalSize::new(width, height));
+        let _ = window.set_position(PhysicalPosition::new(pos_x, pos_y));
+        persist_desktop_webview_window_state(&window);
+        return;
+    }
+
+    let edge_gap_x = ((work_area_width as f64) * 0.03).round() as u32;
+    let edge_gap_y = ((work_area_height as f64) * 0.04).round() as u32;
+    let safe_gap_x = edge_gap_x.clamp(16, 48);
+    let safe_gap_y = edge_gap_y.clamp(16, 56);
+    let target_width = work_area_width.saturating_sub(safe_gap_x.saturating_mul(2));
+    let target_height = work_area_height.saturating_sub(safe_gap_y.saturating_mul(2));
+    let centered_x =
+        work_area.position.x + ((work_area_width.saturating_sub(target_width)) / 2) as i32;
+    let centered_y =
+        work_area.position.y + ((work_area_height.saturating_sub(target_height)) / 2) as i32;
+    let (width, height, pos_x, pos_y) =
+        clamp_window_layout(target_width, target_height, centered_x, centered_y);
 
     let _ = window.set_size(PhysicalSize::new(width, height));
     let _ = window.set_position(PhysicalPosition::new(pos_x, pos_y));

@@ -261,6 +261,8 @@ async function canReuseCurrentRuntimeSync(params: {
   if (String(syncMeta.resolvedConfigSha256 || '').trim() !== params.expectedResolvedConfigSha256) return false;
 
   const skillsManifest = await readJsonFileIfExists(resolve(params.runtimeSkillsRoot, 'skills-manifest.json'));
+  if (Number(skillsManifest?.publishedVersion || 0) !== params.expectedPublishedVersion) return false;
+  if (String(skillsManifest?.brandId || '').trim().toLowerCase() !== params.appName) return false;
   const skillEntries = Array.isArray(skillsManifest?.entries) ? skillsManifest!.entries : [];
   const actualSkillSlugs = skillEntries
     .map((entry) => String(asObject(entry).slug || '').trim())
@@ -270,10 +272,22 @@ async function canReuseCurrentRuntimeSync(params: {
 
   if (params.packagedSkillBaselineDir) {
     if (!(await pathExists(resolve(params.packagedSkillBaselineDir, 'skills-manifest.json')))) return false;
+    const packagedSkillManifest = await readJsonFileIfExists(resolve(params.packagedSkillBaselineDir, 'skills-manifest.json'));
+    if (Number(packagedSkillManifest?.publishedVersion || 0) !== params.expectedPublishedVersion) return false;
+    const packagedSkillSlugs = asArray(packagedSkillManifest?.skillSlugs)
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+    if (!stringArrayEquals(packagedSkillSlugs, params.expectedSkillSlugs)) return false;
   }
   if (params.packagedMcpBaselineDir) {
     if (!(await pathExists(resolve(params.packagedMcpBaselineDir, 'mcp-manifest.json')))) return false;
     if (!(await pathExists(resolve(params.packagedMcpBaselineDir, 'mcp.json')))) return false;
+    const packagedMcpManifest = await readJsonFileIfExists(resolve(params.packagedMcpBaselineDir, 'mcp-manifest.json'));
+    if (Number(packagedMcpManifest?.publishedVersion || 0) !== params.expectedPublishedVersion) return false;
+    const packagedMcpKeys = asArray(packagedMcpManifest?.mcpKeys)
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+    if (!stringArrayEquals(packagedMcpKeys, params.expectedMcpKeys)) return false;
   }
 
   return true;
