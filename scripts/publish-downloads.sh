@@ -134,15 +134,14 @@ node "$ROOT_DIR/scripts/generate-desktop-release-manifests.mjs" --channel "$ENV_
 collect_release_artifacts_for_version() {
   local channel="$1"
   local release_version="$2"
-  shopt -s nullglob
-  local files=(
+  local candidates=(
     "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_x64_${channel}.dmg"
     "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_aarch64_${channel}.dmg"
     "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_x64_${channel}.exe"
     "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_aarch64_${channel}.exe"
   )
   if native_updater_enabled; then
-    files+=(
+    candidates+=(
       "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_x64_${channel}.app.tar.gz"
       "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_x64_${channel}.app.tar.gz.sig"
       "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_aarch64_${channel}.app.tar.gz"
@@ -153,8 +152,12 @@ collect_release_artifacts_for_version() {
       "$RELEASE_DIR/${ARTIFACT_BASE_NAME}_${release_version}_aarch64_${channel}.nsis.zip.sig"
     )
   fi
-  shopt -u nullglob
-  printf '%s\n' "${files[@]}" | sed '/^$/d'
+  local file_path=""
+  for file_path in "${candidates[@]}"; do
+    if [[ -f "$file_path" ]]; then
+      printf '%s\n' "$file_path"
+    fi
+  done
 }
 
 verify_public_release() {
@@ -173,6 +176,15 @@ verify_public_release() {
   curl -I -fsS "$artifact_url" >/dev/null
   echo "[publish-downloads] verified public manifest: $manifest_url"
   echo "[publish-downloads] verified public artifact: $artifact_url (${artifact_size:-unknown} bytes)"
+}
+
+collect_existing_files() {
+  local file_path=""
+  for file_path in "$@"; do
+    if [[ -f "$file_path" ]]; then
+      printf '%s\n' "$file_path"
+    fi
+  done
 }
 
 local_prune() {
@@ -428,15 +440,13 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
   if [[ ${#prod_files[@]} -eq 0 ]]; then
     fail "No prod desktop installers found for brand artifact prefix ${ARTIFACT_BASE_NAME} and version ${MANIFEST_VERSION}"
   fi
-  shopt -s nullglob
-  prod_manifests=(
-    "$RELEASE_DIR/latest-prod.json"
-    "$RELEASE_DIR/latest-prod-mac-aarch64.json"
-    "$RELEASE_DIR/latest-prod-mac-x64.json"
-    "$RELEASE_DIR/latest-prod-windows-aarch64.json"
-    "$RELEASE_DIR/latest-prod-windows-x64.json"
+  mapfile -t prod_manifests < <(collect_existing_files \
+    "$RELEASE_DIR/latest-prod.json" \
+    "$RELEASE_DIR/latest-prod-mac-aarch64.json" \
+    "$RELEASE_DIR/latest-prod-mac-x64.json" \
+    "$RELEASE_DIR/latest-prod-windows-aarch64.json" \
+    "$RELEASE_DIR/latest-prod-windows-x64.json" \
   )
-  shopt -u nullglob
   if [[ ${#prod_manifests[@]} -eq 0 ]]; then
     fail "No prod desktop release manifests found under: $RELEASE_DIR"
   fi
