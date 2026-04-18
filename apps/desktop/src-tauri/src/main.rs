@@ -15,8 +15,8 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs::{self, File};
-use std::io::{Cursor, Read, Write};
-use std::net::TcpListener;
+use std::io::{BufRead, BufReader, Cursor, Read, Write};
+use std::net::{TcpListener, TcpStream};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 #[cfg(windows)]
@@ -35,7 +35,7 @@ use tauri_plugin_updater::UpdaterExt;
 use zip::write::SimpleFileOptions;
 use zip::ZipArchive;
 
-use rfd::FileDialog;
+use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 
 struct SidecarState {
     child: Mutex<Option<Child>>,
@@ -72,6 +72,8 @@ const DESKTOP_GATEWAY_ALLOWED_ORIGINS: &str =
 const DESKTOP_UPDATER_PUBLIC_KEY: Option<&str> = option_env!("TAURI_UPDATER_PUBLIC_KEY");
 const MEMORY_RUNTIME_STATUS_TIMEOUT_MS: u64 = 2500;
 const MEMORY_RUNTIME_STATUS_CACHE_TTL_MS: u64 = 60_000;
+const EXTENSION_BRIDGE_HOST: &str = "127.0.0.1";
+const EXTENSION_BRIDGE_PORT: u16 = 1537;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -1003,6 +1005,76 @@ struct RuntimePaths {
 struct StoredAuthTokens {
     access_token: String,
     refresh_token: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionGrantRecord {
+    id: String,
+    user_id: String,
+    extension_id: String,
+    brand_id: String,
+    device_id: String,
+    browser_family: String,
+    browser_profile_id: Option<String>,
+    scope: Vec<String>,
+    status: String,
+    granted_at: String,
+    last_used_at: Option<String>,
+    revoked_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionGrantStore {
+    version: u8,
+    updated_at: String,
+    items: Vec<ExtensionGrantRecord>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionSessionRequest {
+    extension_id: String,
+    brand_id: String,
+    device_id: String,
+    browser_family: String,
+    browser_profile_id: Option<String>,
+    requested_scope: Vec<String>,
+    challenge: String,
+    nonce: String,
+    version: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionSessionUser {
+    id: String,
+    name: Option<String>,
+    email: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionSessionPayload {
+    access_token: String,
+    refresh_token: String,
+    expires_in: u64,
+    refresh_expires_in: u64,
+    token_type: String,
+    scope: Vec<String>,
+    audience: String,
+    grant_id: String,
+    user: ExtensionSessionUser,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionBridgeResponse {
+    ok: bool,
+    grant_required: bool,
+    error: Option<String>,
+    session: Option<ExtensionSessionPayload>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -6699,6 +6771,314 @@ fn load_auth_tokens() -> Result<Option<StoredAuthTokens>, String> {
     }))
 }
 
+fn extension_grants_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app_data_base_dir(app)?.join("extension");
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("failed to create extension data dir {}: {e}", dir.to_string_lossy()))?;
+    Ok(dir.join("extension-grants.json"))
+}
+
+fn current_iso_timestamp() -> String {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_secs();
+    format!("{now}")
+}
+
+fn generate_extension_grant_id() -> String {
+    let mut bytes = [0u8; 16];
+    OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+}
+
+fn read_extension_grant_store(app: &AppHandle) -> Result<ExtensionGrantStore, String> {
+    let path = extension_grants_path(app)?;
+    if !path.exists() {
+        return Ok(ExtensionGrantStore {
+            version: 1,
+            updated_at: current_iso_timestamp(),
+            items: Vec::new(),
+        });
+    }
+
+    let raw = fs::read_to_string(&path)
+        .map_err(|e| format!("failed to read extension grants {}: {e}", path.to_string_lossy()))?;
+    let parsed = serde_json::from_str::<ExtensionGrantStore>(&raw)
+        .map_err(|e| format!("failed to parse extension grants {}: {e}", path.to_string_lossy()))?;
+    Ok(parsed)
+}
+
+fn write_extension_grant_store(app: &AppHandle, store: &ExtensionGrantStore) -> Result<(), String> {
+    let path = extension_grants_path(app)?;
+    let payload = serde_json::to_string_pretty(store)
+        .map_err(|e| format!("failed to serialize extension grants: {e}"))?;
+    fs::write(&path, payload)
+        .map_err(|e| format!("failed to write extension grants {}: {e}", path.to_string_lossy()))?;
+    Ok(())
+}
+
+fn find_active_extension_grant(
+    store: &ExtensionGrantStore,
+    request: &ExtensionSessionRequest,
+) -> Option<ExtensionGrantRecord> {
+    store.items.iter().find(|item| {
+        item.status == "active"
+            && item.extension_id == request.extension_id
+            && item.brand_id == request.brand_id
+            && item.device_id == request.device_id
+            && item.browser_family == request.browser_family
+            && item.browser_profile_id == request.browser_profile_id
+    }).cloned()
+}
+
+fn confirm_extension_grant_dialog(request: &ExtensionSessionRequest) -> bool {
+    let description = format!(
+        "允许 iClaw 浏览器插件接入当前桌面账号？\n\n插件：{}\n浏览器：{}\n设备：{}\n\n本次只会记住授权关系，不会把桌面主 token 暴露给插件。",
+        request.extension_id,
+        request.browser_family,
+        request.device_id
+    );
+    matches!(
+        MessageDialog::new()
+            .set_title("允许浏览器插件接入 iClaw")
+            .set_description(&description)
+            .set_level(MessageLevel::Info)
+            .set_buttons(MessageButtons::YesNo)
+            .show(),
+        MessageDialogResult::Yes
+    )
+}
+
+fn build_placeholder_extension_session(grant: &ExtensionGrantRecord) -> ExtensionSessionPayload {
+    let mut access_bytes = [0u8; 24];
+    let mut refresh_bytes = [0u8; 32];
+    OsRng.fill_bytes(&mut access_bytes);
+    OsRng.fill_bytes(&mut refresh_bytes);
+    ExtensionSessionPayload {
+        access_token: base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(access_bytes),
+        refresh_token: base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(refresh_bytes),
+        expires_in: 1800,
+        refresh_expires_in: 604800,
+        token_type: String::from("Bearer"),
+        scope: grant.scope.clone(),
+        audience: String::from("extension"),
+        grant_id: grant.id.clone(),
+        user: ExtensionSessionUser {
+            id: grant.user_id.clone(),
+            name: Some(String::from("iClaw Desktop User")),
+            email: None,
+        },
+    }
+}
+
+fn issue_extension_session(app: &AppHandle, request: &ExtensionSessionRequest) -> ExtensionBridgeResponse {
+    match load_auth_tokens() {
+        Ok(Some(_tokens)) => {}
+        Ok(None) => {
+            return ExtensionBridgeResponse {
+                ok: false,
+                grant_required: false,
+                error: Some(String::from("DESKTOP_NOT_LOGGED_IN")),
+                session: None,
+            };
+        }
+        Err(_error) => {
+            return ExtensionBridgeResponse {
+                ok: false,
+                grant_required: false,
+                error: Some(String::from("DESKTOP_NOT_LOGGED_IN")),
+                session: None,
+            };
+        }
+    }
+
+    let mut store = match read_extension_grant_store(app) {
+        Ok(store) => store,
+        Err(_error) => {
+            return ExtensionBridgeResponse {
+                ok: false,
+                grant_required: false,
+                error: Some(String::from("INTERNAL_ERROR")),
+                session: None,
+            };
+        }
+    };
+
+    let grant = if let Some(existing) = find_active_extension_grant(&store, request) {
+        existing
+    } else {
+        if !confirm_extension_grant_dialog(request) {
+            return ExtensionBridgeResponse {
+                ok: false,
+                grant_required: true,
+                error: Some(String::from("GRANT_CONFIRMATION_REQUIRED")),
+                session: None,
+            };
+        }
+
+        let created = ExtensionGrantRecord {
+            id: generate_extension_grant_id(),
+            user_id: String::from("desktop-user"),
+            extension_id: request.extension_id.clone(),
+            brand_id: request.brand_id.clone(),
+            device_id: request.device_id.clone(),
+            browser_family: request.browser_family.clone(),
+            browser_profile_id: request.browser_profile_id.clone(),
+            scope: if request.requested_scope.is_empty() {
+                vec![
+                    String::from("knowledge.raw.read"),
+                    String::from("knowledge.raw.write"),
+                    String::from("profile.basic.read"),
+                ]
+            } else {
+                request.requested_scope.clone()
+            },
+            status: String::from("active"),
+            granted_at: current_iso_timestamp(),
+            last_used_at: Some(current_iso_timestamp()),
+            revoked_at: None,
+        };
+        store.updated_at = current_iso_timestamp();
+        store.items.push(created.clone());
+        let _ = write_extension_grant_store(app, &store);
+        created
+    };
+
+    let session = build_placeholder_extension_session(&grant);
+    ExtensionBridgeResponse {
+        ok: true,
+        grant_required: false,
+        error: None,
+        session: Some(session),
+    }
+}
+
+fn write_extension_http_response(
+    stream: &mut TcpStream,
+    status: &str,
+    payload: &ExtensionBridgeResponse,
+) -> Result<(), String> {
+    let body = serde_json::to_string(payload).map_err(|e| format!("failed to serialize extension bridge response: {e}"))?;
+    let response = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: application/json; charset=utf-8\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: content-type\r\nAccess-Control-Allow-Methods: POST, OPTIONS\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        body.as_bytes().len(),
+        body
+    );
+    stream
+        .write_all(response.as_bytes())
+        .map_err(|e| format!("failed to write extension bridge response: {e}"))?;
+    stream.flush().map_err(|e| format!("failed to flush extension bridge response: {e}"))?;
+    Ok(())
+}
+
+fn handle_extension_bridge_connection(app: AppHandle, mut stream: TcpStream) -> Result<(), String> {
+    let mut reader = BufReader::new(
+        stream
+            .try_clone()
+            .map_err(|e| format!("failed to clone extension bridge stream: {e}"))?,
+    );
+    let mut request_line = String::new();
+    reader
+        .read_line(&mut request_line)
+        .map_err(|e| format!("failed to read extension bridge request line: {e}"))?;
+    let request_line = request_line.trim().to_string();
+    if request_line.is_empty() {
+        return Ok(());
+    }
+
+    let mut content_length = 0usize;
+    loop {
+        let mut line = String::new();
+        reader
+            .read_line(&mut line)
+            .map_err(|e| format!("failed to read extension bridge header: {e}"))?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            break;
+        }
+        if let Some(value) = trimmed.strip_prefix("Content-Length:") {
+            content_length = value.trim().parse::<usize>().unwrap_or(0);
+        } else if let Some(value) = trimmed.strip_prefix("content-length:") {
+            content_length = value.trim().parse::<usize>().unwrap_or(0);
+        }
+    }
+
+    if request_line.starts_with("OPTIONS ") {
+        let payload = ExtensionBridgeResponse {
+            ok: true,
+            grant_required: false,
+            error: None,
+            session: None,
+        };
+        return write_extension_http_response(&mut stream, "204 No Content", &payload);
+    }
+
+    if !request_line.starts_with("POST /v1/extension/session ") {
+        let payload = ExtensionBridgeResponse {
+            ok: false,
+            grant_required: false,
+            error: Some(String::from("NOT_FOUND")),
+            session: None,
+        };
+        return write_extension_http_response(&mut stream, "404 Not Found", &payload);
+    }
+
+    let mut body = vec![0u8; content_length];
+    if content_length > 0 {
+        reader
+            .read_exact(&mut body)
+            .map_err(|e| format!("failed to read extension bridge body: {e}"))?;
+    }
+    let request = serde_json::from_slice::<ExtensionSessionRequest>(&body).unwrap_or_default();
+    let payload = issue_extension_session(&app, &request);
+    write_extension_http_response(&mut stream, "200 OK", &payload)?;
+    Ok(())
+}
+
+fn start_extension_bridge(app: AppHandle) {
+    thread::spawn(move || {
+        let listener = match TcpListener::bind((EXTENSION_BRIDGE_HOST, EXTENSION_BRIDGE_PORT)) {
+            Ok(listener) => listener,
+            Err(error) => {
+                append_desktop_bootstrap_log(
+                    &app,
+                    &format!(
+                        "extension-bridge: failed to bind {}:{} -> {error}",
+                        EXTENSION_BRIDGE_HOST, EXTENSION_BRIDGE_PORT
+                    ),
+                );
+                return;
+            }
+        };
+
+        append_desktop_bootstrap_log(
+            &app,
+            &format!(
+                "extension-bridge: listening on http://{}:{}",
+                EXTENSION_BRIDGE_HOST, EXTENSION_BRIDGE_PORT
+            ),
+        );
+
+        for stream in listener.incoming() {
+            match stream {
+                Ok(stream) => {
+                    let app_handle = app.clone();
+                    thread::spawn(move || {
+                        let _ = handle_extension_bridge_connection(app_handle, stream);
+                    });
+                }
+                Err(error) => {
+                    append_desktop_bootstrap_log(
+                        &app,
+                        &format!("extension-bridge: incoming connection error -> {error}"),
+                    );
+                }
+            }
+        }
+    });
+}
+
 #[tauri::command]
 fn clear_auth_tokens() -> Result<bool, String> {
     let access = Entry::new(AUTH_SERVICE, AUTH_ACCESS_KEY).map_err(|e| e.to_string())?;
@@ -8844,6 +9224,7 @@ fn main() {
         .setup(|app| {
             apply_initial_window_layout(app.handle());
             build_system_tray(app.handle())?;
+            start_extension_bridge(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| match event {
