@@ -11,7 +11,7 @@ import type { GraphifyDocumentViewModel, OntologyDocument } from './ontology-typ
 import type { OutputArtifact } from './output-types';
 
 export type KnowledgeLibraryTab = 'materials' | 'graph' | 'artifacts';
-export type GraphViewMode = 'page' | 'graph';
+export type GraphViewMode = 'page' | 'graph' | 'graphify';
 
 export type KnowledgeLibraryItem = {
   id: string;

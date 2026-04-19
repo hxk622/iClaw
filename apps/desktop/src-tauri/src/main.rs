@@ -4412,6 +4412,28 @@ fn detect_graphify_command() -> Option<(&'static str, Vec<&'static str>)> {
     None
 }
 
+fn resolve_graphify_output_path(path: &str, app: &AppHandle) -> Result<PathBuf, String> {
+    let candidate = PathBuf::from(path.trim());
+    let resolved = if candidate.is_absolute() {
+        candidate
+    } else {
+        graphify_jobs_root_dir(app)?.join(candidate)
+    };
+    let canonical = resolved.canonicalize().map_err(|e| {
+        format!(
+            "failed to resolve graphify output path {}: {e}",
+            resolved.to_string_lossy()
+        )
+    })?;
+    let allowed_root = graphify_jobs_root_dir(app)?.canonicalize().map_err(|e| {
+        format!("failed to resolve graphify jobs root for security check: {e}")
+    })?;
+    if !canonical.starts_with(&allowed_root) {
+        return Err(String::from("graphify output path escapes allowed root"));
+    }
+    Ok(canonical)
+}
+
 fn runtime_download_configured(config: &RuntimeBootstrapConfig) -> bool {
     clean_optional(config.artifact_url.clone()).is_some()
 }
@@ -9367,6 +9389,47 @@ fn run_graphify_compile(
 }
 
 #[tauri::command]
+fn read_graphify_output_text(app: AppHandle, path: String) -> Result<String, String> {
+    let resolved = resolve_graphify_output_path(&path, &app)?;
+    fs::read_to_string(&resolved)
+        .map_err(|e| format!("failed to read graphify output file {}: {e}", resolved.to_string_lossy()))
+}
+
+#[tauri::command]
+fn open_graphify_output_file(app: AppHandle, path: String) -> Result<bool, String> {
+    let resolved_path = resolve_graphify_output_path(&path, &app)?;
+    let resolved_path_string = resolved_path.to_string_lossy().to_string();
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut cmd = Command::new("open");
+        cmd.arg(&resolved_path_string);
+        cmd
+    };
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut cmd = Command::new("cmd");
+        cmd.args(["/C", "start", "", &resolved_path_string]);
+        configure_background_child_process(&mut cmd);
+        cmd
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut cmd = Command::new("xdg-open");
+        cmd.arg(&resolved_path_string);
+        cmd
+    };
+
+    command.stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .spawn()
+        .map_err(|e| format!("failed to open graphify output file: {e}"))?;
+    Ok(true)
+}
+
+#[tauri::command]
 fn resolve_workspace_artifact_path(
     app: AppHandle,
     path: String,
@@ -9822,6 +9885,8 @@ fn main() {
             read_workspace_artifact_base64,
             open_workspace_artifact,
             run_graphify_compile,
+            read_graphify_output_text,
+            open_graphify_output_file,
             check_desktop_update,
             download_and_install_desktop_update,
             download_and_launch_desktop_installer,

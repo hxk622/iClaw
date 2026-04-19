@@ -30,6 +30,7 @@ import {
   parseOutputArtifactSourceSurface,
 } from './output-types';
 import { openWorkspaceArtifact } from '@/app/lib/tauri-artifact-preview';
+import { openGraphifyOutputFile, readGraphifyOutputText } from '@/app/lib/tauri-graphify-output';
 import type { RawMaterial } from './types';
 import {
   extractChatFeedbackFromContainer,
@@ -47,6 +48,7 @@ import {
   importBrowserCaptureBatchIntoKnowledgeFlywheel,
   importBrowserCaptureIntoKnowledgeFlywheel,
 } from './flywheel-service';
+import { useGraphCompilerJobs } from './graph-compiler-jobs';
 
 export function KnowledgeLibraryView({
   title,
@@ -110,6 +112,10 @@ export function KnowledgeLibraryView({
   const [feedbackBusy, setFeedbackBusy] = useState<'raw' | 'claim' | 'memo' | null>(null);
   const [outputArtifactActionMessage, setOutputArtifactActionMessage] = useState<string | null>(null);
   const [openingArtifactRefPath, setOpeningArtifactRefPath] = useState<string | null>(null);
+  const [graphifyHtmlContent, setGraphifyHtmlContent] = useState<string | null>(null);
+  const [graphifyHtmlLoading, setGraphifyHtmlLoading] = useState(false);
+  const [graphifyHtmlError, setGraphifyHtmlError] = useState<string | null>(null);
+  const graphCompilerJobs = useGraphCompilerJobs(ontologyRefreshKey + outputRefreshKey + materialsRefreshKey);
 
   const {
     items: rawMaterials,
@@ -192,6 +198,22 @@ export function KnowledgeLibraryView({
     () => parseOutputArtifactFinanceCompliance(selectedOutputArtifact?.metadata || null),
     [selectedOutputArtifact],
   );
+  const selectedOntologyGraphifyHtmlPath = useMemo(
+    () => selectedOntologyDocument?.metadata?.graphify_html_path || null,
+    [selectedOntologyDocument],
+  );
+  const selectedOntologyGraphifyBackend = useMemo(
+    () => selectedOntologyDocument?.metadata?.compiler_backend || null,
+    [selectedOntologyDocument],
+  );
+  const selectedOntologyLatestJob = useMemo(() => {
+    if (!selectedOntologyDocument) {
+      return null;
+    }
+    return (
+      graphCompilerJobs.find((job) => job.ontologyDocumentIds.includes(selectedOntologyDocument.id)) ?? null
+    );
+  }, [graphCompilerJobs, selectedOntologyDocument]);
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -334,7 +356,9 @@ export function KnowledgeLibraryView({
     setOpeningArtifactRefPath(path);
     setOutputArtifactActionMessage(null);
     try {
-      const opened = await openWorkspaceArtifact(path);
+      const opened = path.includes('graphify-jobs')
+        ? await openGraphifyOutputFile(path)
+        : await openWorkspaceArtifact(path);
       if (!opened) {
         setOutputArtifactActionMessage('来源文件没有成功打开，请检查本地默认应用。');
       }
@@ -349,6 +373,47 @@ export function KnowledgeLibraryView({
     setOutputArtifactActionMessage(null);
     setOpeningArtifactRefPath(null);
   }, [selectedOutputArtifact?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (activeTab !== 'graph' || graphViewMode !== 'graphify') {
+      setGraphifyHtmlContent(null);
+      setGraphifyHtmlError(null);
+      setGraphifyHtmlLoading(false);
+      return;
+    }
+    if (!selectedOntologyGraphifyHtmlPath) {
+      setGraphifyHtmlContent(null);
+      setGraphifyHtmlError('当前图谱还没有 graphify HTML 产物。');
+      setGraphifyHtmlLoading(false);
+      return;
+    }
+    setGraphifyHtmlLoading(true);
+    setGraphifyHtmlError(null);
+    void readGraphifyOutputText(selectedOntologyGraphifyHtmlPath)
+      .then((content) => {
+        if (cancelled) return;
+        if (!content) {
+          setGraphifyHtmlContent(null);
+          setGraphifyHtmlError('没有读取到 graphify HTML 内容。');
+          return;
+        }
+        setGraphifyHtmlContent(content);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setGraphifyHtmlContent(null);
+        setGraphifyHtmlError(error instanceof Error ? error.message : '读取 graphify HTML 失败。');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setGraphifyHtmlLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, graphViewMode, selectedOntologyGraphifyHtmlPath]);
 
   const handleRefresh = async () => {
     if (activeTab === 'materials') {
@@ -648,11 +713,12 @@ export function KnowledgeLibraryView({
                         {([
                           ['page', '页面视图'],
                           ['graph', '关系图谱视图'],
+                          ['graphify', 'Graphify 原生视图'],
                         ] as const).map(([mode, label]) => (
                           <button
                             key={mode}
                             type="button"
-                            onClick={() => setGraphViewMode(mode)}
+                            onClick={() => setGraphViewMode(mode as GraphViewMode)}
                             className={cn(
                               'rounded-full px-3 py-1.5 text-[12px] transition',
                               graphViewMode === mode
@@ -671,6 +737,27 @@ export function KnowledgeLibraryView({
                       ) : (
                         <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
                           当前本体图谱还没有可渲染的节点与关系。
+                        </div>
+                      )
+                    ) : activeTab === 'graph' && graphViewMode === 'graphify' ? (
+                      graphifyHtmlLoading ? (
+                        <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
+                          正在加载 graphify 原生视图...
+                        </div>
+                      ) : graphifyHtmlError ? (
+                        <div className="rounded-[16px] border border-[rgba(180,83,9,0.16)] bg-[rgba(180,83,9,0.08)] px-4 py-4 text-[13px] leading-7 text-[#92400E] dark:border-[rgba(251,191,36,0.18)] dark:bg-[rgba(251,191,36,0.08)] dark:text-[#FDE68A]">
+                          {graphifyHtmlError}
+                        </div>
+                      ) : graphifyHtmlContent ? (
+                        <iframe
+                          title={selectedOntologyDocument?.title || 'Graphify Graph'}
+                          className="h-[480px] w-full rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-white dark:border-[rgba(255,255,255,0.08)]"
+                          sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
+                          srcDoc={graphifyHtmlContent}
+                        />
+                      ) : (
+                        <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
+                          当前图谱没有可显示的 graphify HTML。
                         </div>
                       )
                     ) : activeTab === 'materials' ? (
@@ -873,9 +960,32 @@ export function KnowledgeLibraryView({
                             ? '加入图谱 / 继续提炼'
                             : activeTab === 'graph'
                               ? '加入对话上下文 / 查看来源'
-                              : '继续二创 / 反哺图谱'}
+                            : '继续二创 / 反哺图谱'}
                         </div>
                       </div>
+                      {activeTab === 'graph' ? (
+                        <>
+                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">编译后端</div>
+                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                              {selectedOntologyGraphifyBackend || 'local-fallback'}
+                            </div>
+                          </div>
+                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">最近编译任务</div>
+                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                              {selectedOntologyLatestJob
+                                ? `${selectedOntologyLatestJob.status} · ${selectedOntologyLatestJob.backend}`
+                                : '暂无任务记录'}
+                            </div>
+                            {selectedOntologyLatestJob?.error ? (
+                              <div className="mt-2 text-[12px] leading-6 text-[#B45309] dark:text-[#EBCB8B]">
+                                {selectedOntologyLatestJob.error}
+                              </div>
+                            ) : null}
+                          </div>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 </div>

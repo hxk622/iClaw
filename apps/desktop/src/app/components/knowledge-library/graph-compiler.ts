@@ -8,6 +8,7 @@ import type { CreateOutputArtifactInput, OutputArtifact } from './output-types.t
 import { upsertOutputArtifact } from './output-storage.ts';
 import type { RawMaterial } from './types.ts';
 import { runGraphifyCompile, type GraphifyCorpusItem } from '../../lib/tauri-graphify.ts';
+import { finishGraphCompilerJob, startGraphCompilerJob } from './graph-compiler-jobs.ts';
 
 export type GraphCompilerBackend = 'local-fallback' | 'graphify-v3';
 export type GraphCompilerTrigger = 'raw_ingest' | 'output_feedback';
@@ -114,51 +115,84 @@ export async function runLocalGraphCompilerJob(input: GraphCompilerJobInput): Pr
 }
 
 export async function runGraphCompilerJob(input: GraphCompilerJobInput): Promise<GraphCompilerJobResult> {
-  const fallback = await runLocalGraphCompilerJob(input);
-  const graphifyResult = await runGraphifyCompile({
-    corpusLabel: input.trigger,
-    items: buildGraphifyCorpusItems(input),
-    update: input.trigger === 'output_feedback',
-    noViz: false,
-  }).catch(() => null);
+  const job = startGraphCompilerJob({
+    trigger: input.trigger,
+    backend: 'graphify-v3',
+    sourceRawIds: input.rawMaterials?.map((item) => item.id),
+    sourceOutputIds: input.outputArtifacts?.map((item) => item.id),
+  });
+  try {
+    const fallback = await runLocalGraphCompilerJob(input);
+    const graphifyResult = await runGraphifyCompile({
+      corpusLabel: input.trigger,
+      items: buildGraphifyCorpusItems(input),
+      update: input.trigger === 'output_feedback',
+      noViz: false,
+    }).catch(() => null);
 
-  if (!graphifyResult || !graphifyResult.available || graphifyResult.error) {
-    return fallback;
-  }
+    if (!graphifyResult || !graphifyResult.available || graphifyResult.error) {
+      finishGraphCompilerJob(job.id, {
+        status: 'fallback',
+        backend: 'local-fallback',
+        ontologyDocumentIds: fallback.documents.map((document) => document.id),
+        error: graphifyResult?.error || null,
+      });
+      return fallback;
+    }
 
-  const importedDocuments = importGraphifyDocuments(input, graphifyResult);
-  const importedReportArtifacts =
-    importedDocuments.length > 0 && graphifyResult.reportText
-      ? importedDocuments.map((document) =>
-          buildGraphifyReportOutputArtifact({
-            trigger: input.trigger,
-            reportText: graphifyResult.reportText || '',
-            reportPath: graphifyResult.reportPath,
-            htmlPath: graphifyResult.htmlPath,
-            graphJsonPath: graphifyResult.graphJsonPath,
-            corpusDir: graphifyResult.corpusDir,
-            outputDir: graphifyResult.outputDir,
-            ontologyDocument: document,
-            rawMaterials: input.rawMaterials,
-            outputArtifacts: input.outputArtifacts,
-          }),
-        )
-      : [];
-  if (importedDocuments.length > 0) {
+    const importedDocuments = importGraphifyDocuments(input, graphifyResult);
+    const importedReportArtifacts =
+      importedDocuments.length > 0 && graphifyResult.reportText
+        ? importedDocuments.map((document) =>
+            buildGraphifyReportOutputArtifact({
+              trigger: input.trigger,
+              reportText: graphifyResult.reportText || '',
+              reportPath: graphifyResult.reportPath,
+              htmlPath: graphifyResult.htmlPath,
+              graphJsonPath: graphifyResult.graphJsonPath,
+              corpusDir: graphifyResult.corpusDir,
+              outputDir: graphifyResult.outputDir,
+              ontologyDocument: document,
+              rawMaterials: input.rawMaterials,
+              outputArtifacts: input.outputArtifacts,
+            }),
+          )
+        : [];
+    if (importedDocuments.length > 0) {
+      finishGraphCompilerJob(job.id, {
+        status: 'succeeded',
+        backend: 'graphify-v3',
+        ontologyDocumentIds: importedDocuments.map((document) => document.id),
+      });
+      return {
+        backend: 'graphify-v3',
+        trigger: input.trigger,
+        documents: importedDocuments,
+        outputArtifacts: importedReportArtifacts,
+      };
+    }
+
+    const metadataDocuments = applyGraphifyMetadata(fallback.documents, graphifyResult);
+    finishGraphCompilerJob(job.id, {
+      status: 'succeeded',
+      backend: 'graphify-v3',
+      ontologyDocumentIds: metadataDocuments.map((document) => document.id),
+    });
     return {
       backend: 'graphify-v3',
       trigger: input.trigger,
-      documents: importedDocuments,
-      outputArtifacts: importedReportArtifacts,
+      documents: metadataDocuments,
+      outputArtifacts: [],
     };
+  } catch (error) {
+    finishGraphCompilerJob(job.id, {
+      status: 'failed',
+      backend: 'local-fallback',
+      ontologyDocumentIds: [],
+      error: error instanceof Error ? error.message : 'graph compiler failed',
+    });
+    throw error;
   }
-
-  return {
-    backend: 'graphify-v3',
-    trigger: input.trigger,
-    documents: applyGraphifyMetadata(fallback.documents, graphifyResult),
-    outputArtifacts: [],
-  };
 }
 
 export async function syncRawMaterialsIntoOntology(rawMaterials: RawMaterial[]): Promise<OntologyDocument[]> {
