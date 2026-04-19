@@ -1,6 +1,7 @@
 import { upsertOntologyDocument } from './ontology-storage.ts';
 import { compileRawToOntology } from './ontology-pipeline.ts';
 import { buildOntologyDocumentsFromOutputArtifacts } from './output-ontology-pipeline.ts';
+import { importGraphifyGraphToOntologyDocument } from './graphify-importer.ts';
 import type { OntologyDocument } from './ontology-types.ts';
 import type { OutputArtifact } from './output-types.ts';
 import type { RawMaterial } from './types.ts';
@@ -72,6 +73,30 @@ function applyGraphifyMetadata(
   }));
 }
 
+function importGraphifyDocuments(
+  input: GraphCompilerJobInput,
+  graphifyResult: NonNullable<Awaited<ReturnType<typeof runGraphifyCompile>>>,
+): OntologyDocument[] {
+  if (!graphifyResult.graphJsonText) {
+    return [];
+  }
+  return [
+    importGraphifyGraphToOntologyDocument({
+      graphJsonText: graphifyResult.graphJsonText,
+      trigger: input.trigger,
+      rawMaterials: input.rawMaterials,
+      outputArtifacts: input.outputArtifacts,
+      graphifyMetadata: {
+        corpusDir: graphifyResult.corpusDir,
+        outputDir: graphifyResult.outputDir,
+        graphJsonPath: graphifyResult.graphJsonPath,
+        reportPath: graphifyResult.reportPath,
+        htmlPath: graphifyResult.htmlPath,
+      },
+    }),
+  ];
+}
+
 export async function runLocalGraphCompilerJob(input: GraphCompilerJobInput): Promise<GraphCompilerJobResult> {
   const rawMaterials = Array.isArray(input.rawMaterials) ? input.rawMaterials : [];
   const outputArtifacts = Array.isArray(input.outputArtifacts) ? input.outputArtifacts : [];
@@ -95,6 +120,15 @@ export async function runGraphCompilerJob(input: GraphCompilerJobInput): Promise
 
   if (!graphifyResult || !graphifyResult.available || graphifyResult.error) {
     return fallback;
+  }
+
+  const importedDocuments = importGraphifyDocuments(input, graphifyResult);
+  if (importedDocuments.length > 0) {
+    return {
+      backend: 'graphify-v3',
+      trigger: input.trigger,
+      documents: importedDocuments,
+    };
   }
 
   return {

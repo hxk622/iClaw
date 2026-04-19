@@ -260,7 +260,9 @@ struct GraphifyCompileResultPayload {
     corpus_dir: String,
     output_dir: Option<String>,
     graph_json_path: Option<String>,
+    graph_json_text: Option<String>,
     report_path: Option<String>,
+    report_text: Option<String>,
     html_path: Option<String>,
     stdout: Option<String>,
     stderr: Option<String>,
@@ -9256,7 +9258,9 @@ fn run_graphify_compile(
             corpus_dir: corpus_dir.to_string_lossy().to_string(),
             output_dir: None,
             graph_json_path: None,
+            graph_json_text: None,
             report_path: None,
+            report_text: None,
             html_path: None,
             stdout: None,
             stderr: None,
@@ -9282,7 +9286,9 @@ fn run_graphify_compile(
             corpus_dir: corpus_dir.to_string_lossy().to_string(),
             output_dir: None,
             graph_json_path: None,
+            graph_json_text: None,
             report_path: None,
+            report_text: None,
             html_path: None,
             stdout: None,
             stderr: None,
@@ -9316,6 +9322,14 @@ fn run_graphify_compile(
     let graph_json_path = output_dir.join("graph.json");
     let report_path = output_dir.join("GRAPH_REPORT.md");
     let html_path = output_dir.join("graph.html");
+    let graph_json_text = graph_json_path
+        .exists()
+        .then(|| fs::read_to_string(&graph_json_path).ok())
+        .flatten();
+    let report_text = report_path
+        .exists()
+        .then(|| fs::read_to_string(&report_path).ok())
+        .flatten();
 
     let available = output.status.success() && output_dir.exists();
     let error = if available {
@@ -9340,9 +9354,11 @@ fn run_graphify_compile(
         graph_json_path: graph_json_path
             .exists()
             .then(|| graph_json_path.to_string_lossy().to_string()),
+        graph_json_text,
         report_path: report_path
             .exists()
             .then(|| report_path.to_string_lossy().to_string()),
+        report_text,
         html_path: html_path.exists().then(|| html_path.to_string_lossy().to_string()),
         stdout,
         stderr,

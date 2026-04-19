@@ -23,7 +23,9 @@ export type GraphifyCompileResult = {
   corpusDir: string;
   outputDir: string | null;
   graphJsonPath: string | null;
+  graphJsonText: string | null;
   reportPath: string | null;
+  reportText: string | null;
   htmlPath: string | null;
   stdout: string | null;
   stderr: string | null;
