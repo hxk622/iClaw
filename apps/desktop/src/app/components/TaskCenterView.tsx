@@ -23,7 +23,7 @@ import {
   formatChatTurnRelativeTime,
   useChatTurns,
 } from '@/app/lib/chat-turns';
-import { resolveSurfaceFinanceCompliance } from '@/app/lib/finance-compliance-surface';
+import { resolveConversationFinanceDisclaimer as projectConversationFinanceDisclaimer } from '@/app/lib/finance-compliance-projection';
 
 type ConversationFilter = 'all' | ChatTurnRecord['status'];
 
@@ -616,15 +616,7 @@ function mapConversationToViewModel(params: {
 }
 
 function resolveConversationFinanceDisclaimer(turn: ChatTurnRecord): string | null {
-  return resolveSurfaceFinanceCompliance({
-    appName: 'licaiclaw',
-    channel: turn.source === 'cron' ? 'cron' : 'chat',
-    snapshot: turn.financeCompliance,
-    title: turn.title,
-    prompt: turn.prompt,
-    answer: turn.summary,
-    usedModel: turn.model || null,
-  }).disclaimerText;
+  return projectConversationFinanceDisclaimer(turn);
 }
 
 function buildStatusMessage(turn: ChatTurnRecord, resultTypes: string[]): string {

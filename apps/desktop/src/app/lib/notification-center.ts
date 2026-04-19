@@ -4,7 +4,7 @@ import type {
   AppNotificationSource,
   AppNotificationTone,
 } from '@/app/lib/task-notifications';
-import { resolveSurfaceFinanceCompliance } from '@/app/lib/finance-compliance-surface';
+import { resolveNotificationFinanceDisclaimer } from '@/app/lib/finance-compliance-projection';
 
 export type NotificationCenterCategory = 'all' | 'scheduled' | 'chat' | 'system';
 export type NotificationCenterTimeGroup = 'today' | 'yesterday' | 'earlier';
@@ -166,15 +166,7 @@ export function buildNotificationCenterItems(records: AppNotificationRecord[]): 
       provider: record.metadata?.provider || undefined,
       result: resolveResult(record),
       errorReason: resolveErrorReason(record),
-      financeDisclaimer:
-        resolveSurfaceFinanceCompliance({
-          snapshot: record.metadata?.financeCompliance ?? null,
-          appName: 'licaiclaw',
-          channel: record.source === 'cron' ? 'cron' : record.source === 'chat' ? 'chat' : 'notification',
-          title: record.metadata?.taskName || record.title,
-          answer: resolveResult(record) || record.text,
-          usedModel: record.metadata?.model || null,
-        }).disclaimerText || undefined,
+      financeDisclaimer: resolveNotificationFinanceDisclaimer(record) || undefined,
     },
   }));
 }
