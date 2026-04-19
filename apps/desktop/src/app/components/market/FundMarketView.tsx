@@ -1,5 +1,5 @@
 import {useDeferredValue, useEffect, useMemo, useState} from 'react';
-import type {IClawClient, MarketFundData} from '@iclaw/sdk';
+import type {IClawClient, MarketFundData, MarketNewsItemData} from '@iclaw/sdk';
 import {
   ArrowRight,
   BarChart3,
@@ -22,6 +22,7 @@ import {PageContent, PageHeader, PageSurface} from '@/app/components/ui/PageLayo
 import {cn} from '@/app/lib/cn';
 import { resolveFundAllocationSnapshot } from '@/app/lib/fund-allocation-display';
 import { resolveFundPriceLabel, resolveFundPrimaryPrice } from '@/app/lib/fund-market-display';
+import { filterRelevantFundNews, resolveFundNewsKeywords } from '@/app/lib/fund-market-news';
 import {INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE} from '@/app/lib/ui-interactions';
 import {InstrumentIdentityBadge, WorkspaceFilterPill, WorkspaceMetricGrid, WorkspaceSearchControls, WorkspaceSectionCard} from './MarketWorkspaceShared';
 
@@ -110,6 +111,13 @@ function formatDate(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString('zh-CN');
+}
+
+function formatNewsTime(value: string | null | undefined): string {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function formatDataSource(value: string | null | undefined): string {
@@ -485,11 +493,13 @@ function ThemeSpotlights({
 function FundDrawer({
   fund,
   detailLoading,
+  relatedNews,
   onClose,
   onStartResearch,
 }: {
   fund: FundItem | null;
   detailLoading: boolean;
+  relatedNews: MarketNewsItemData[];
   onClose: () => void;
   onStartResearch?: (fund: FundMarketResearchTarget) => void;
 }) {
@@ -614,6 +624,29 @@ function FundDrawer({
               建议重点核验：{fund.aiFocus}、费率是否具备同类优势、近一年收益是否主要来自风格暴露还是管理能力，以及当前回撤是否仍在可接受范围。
             </div>
           </section>
+
+          <section className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4">
+            <div className="flex items-center gap-2">
+              <Globe2 className="h-4 w-4 text-[var(--brand-primary)]" />
+              <div className="text-[14px] font-semibold text-[var(--text-primary)]">市场快讯</div>
+            </div>
+            <div className="mt-3 space-y-3">
+              {relatedNews.length > 0 ? (
+                relatedNews.map((item) => (
+                  <div key={item.news_id} className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-3 dark:bg-[rgba(255,255,255,0.02)]">
+                    <div className="text-[13px] font-semibold leading-6 text-[var(--text-primary)]">{item.title}</div>
+                    <div className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">{item.summary || '暂无摘要。'}</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-muted)]">
+                      <span>{item.source}</span>
+                      <span>{formatNewsTime(item.published_at)}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-[13px] leading-6 text-[var(--text-secondary)]">当前还没有匹配到相关新闻，后续会继续按主题和跟踪标的补全。</div>
+              )}
+            </div>
+          </section>
         </div>
 
         <div className="border-t border-[var(--border-default)] px-6 py-4">
@@ -678,6 +711,7 @@ export function FundMarketView({
   const [selectedFundId, setSelectedFundId] = useState<string | null>(null);
   const [selectedFund, setSelectedFund] = useState<FundItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [selectedFundNews, setSelectedFundNews] = useState<MarketNewsItemData[]>([]);
   const deferredQuery = useDeferredValue(query.trim());
 
   useEffect(() => {
@@ -756,6 +790,35 @@ export function FundMarketView({
       cancelled = true;
     };
   }, [client, selectedFundId]);
+
+  useEffect(() => {
+    if (!selectedFund) {
+      setSelectedFundNews([]);
+      return;
+    }
+    let cancelled = false;
+    const keywords = resolveFundNewsKeywords({
+      companyName: selectedFund.companyName,
+      trackingTarget: selectedFund.tracking_target,
+      themeKey: selectedFund.theme_key,
+      strategyTags: selectedFund.strategy_tags,
+    });
+
+    void client
+      .listMarketNews({ marketScope: 'cn', limit: 30, offset: 0 })
+      .then((items) => {
+        if (!cancelled) {
+          setSelectedFundNews(filterRelevantFundNews(items, keywords, 5));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedFundNews([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client, selectedFund]);
 
   const watchlistFunds = useMemo(() => allFunds.filter((fund) => fund.watchlisted).slice(0, 4), [allFunds]);
   const themeFunds = useMemo(() => resolveThemeFunds(allFunds), [allFunds]);
@@ -925,9 +988,11 @@ export function FundMarketView({
       <FundDrawer
         fund={selectedFund}
         detailLoading={detailLoading}
+        relatedNews={selectedFundNews}
         onClose={() => {
           setSelectedFundId(null);
           setSelectedFund(null);
+          setSelectedFundNews([]);
         }}
         onStartResearch={onStartResearch}
       />
