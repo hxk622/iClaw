@@ -29,6 +29,7 @@ import {
   parseOutputArtifactLineage,
   parseOutputArtifactSourceSurface,
 } from './output-types';
+import { openWorkspaceArtifact } from '@/app/lib/tauri-artifact-preview';
 import {
   extractChatFeedbackFromContainer,
   saveChatFeedbackAsMemo,
@@ -104,6 +105,8 @@ export function KnowledgeLibraryView({
   const [ontologyRefreshKey, setOntologyRefreshKey] = useState(0);
   const [outputRefreshKey, setOutputRefreshKey] = useState(0);
   const [feedbackBusy, setFeedbackBusy] = useState<'raw' | 'claim' | 'memo' | null>(null);
+  const [outputArtifactActionMessage, setOutputArtifactActionMessage] = useState<string | null>(null);
+  const [openingArtifactRefPath, setOpeningArtifactRefPath] = useState<string | null>(null);
 
   const {
     items: rawMaterials,
@@ -326,6 +329,29 @@ export function KnowledgeLibraryView({
       title: selectedOutputArtifact.title,
     });
   };
+
+  const handleOpenArtifactRef = async (path: string | null | undefined) => {
+    if (!path) {
+      return;
+    }
+    setOpeningArtifactRefPath(path);
+    setOutputArtifactActionMessage(null);
+    try {
+      const opened = await openWorkspaceArtifact(path);
+      if (!opened) {
+        setOutputArtifactActionMessage('来源文件没有成功打开，请检查本地默认应用。');
+      }
+    } catch {
+      setOutputArtifactActionMessage('打开来源文件失败。');
+    } finally {
+      setOpeningArtifactRefPath((current) => (current === path ? null : current));
+    }
+  };
+
+  useEffect(() => {
+    setOutputArtifactActionMessage(null);
+    setOpeningArtifactRefPath(null);
+  }, [selectedOutputArtifact?.id]);
 
   const handleRefresh = async () => {
     if (activeTab === 'materials') {
@@ -730,6 +756,49 @@ export function KnowledgeLibraryView({
                                 回到来源对话
                               </Button>
                             </div>
+                            {selectedOutputLineage.artifact_refs.length > 0 ? (
+                              <div className="mt-4 space-y-2">
+                                <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源文件</div>
+                                {selectedOutputLineage.artifact_refs.map((artifactRef, index) => (
+                                  <div
+                                    key={`${artifactRef.kind}:${artifactRef.path || artifactRef.title || index}`}
+                                    className="rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-[13px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">
+                                          {artifactRef.title || artifactRef.kind}
+                                        </div>
+                                        <div className="mt-1 text-[12px] text-[#64748B] dark:text-[#94A3B8]">
+                                          {artifactRef.kind}
+                                          {artifactRef.previewKind ? ` · ${artifactRef.previewKind}` : ''}
+                                        </div>
+                                        {artifactRef.path ? (
+                                          <div className="mt-1 break-all text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                            {artifactRef.path}
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        disabled={!artifactRef.path || openingArtifactRefPath === artifactRef.path}
+                                        onClick={() => {
+                                          void handleOpenArtifactRef(artifactRef.path);
+                                        }}
+                                      >
+                                        {openingArtifactRefPath === artifactRef.path ? '打开中' : '打开文件'}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                                {outputArtifactActionMessage ? (
+                                  <div className="text-[12px] text-[#B45309] dark:text-[#EBCB8B]">
+                                    {outputArtifactActionMessage}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
                         {selectedOutputFinanceCompliance ? (
