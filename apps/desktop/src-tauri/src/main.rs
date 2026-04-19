@@ -35,7 +35,7 @@ use tauri_plugin_updater::UpdaterExt;
 use zip::write::SimpleFileOptions;
 use zip::ZipArchive;
 
-use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
+use rfd::FileDialog;
 
 struct SidecarState {
     child: Mutex<Option<Child>>,
@@ -48,6 +48,10 @@ struct DesktopUpdateState {
 
 struct DesktopLifecycleState {
     allow_exit: Mutex<bool>,
+}
+
+struct ExtensionBridgeState {
+    pending: Mutex<BTreeMap<String, mpsc::Sender<bool>>>,
 }
 
 const AUTH_SERVICE: &str = env!("ICLAW_AUTH_SERVICE");
@@ -1094,6 +1098,15 @@ struct ExtensionBridgeResponse {
     grant_required: bool,
     error: Option<String>,
     session: Option<ExtensionSessionPayload>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionGrantRequestEventPayload {
+    request_id: String,
+    extension_id: String,
+    browser_family: String,
+    device_id: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -6851,22 +6864,63 @@ fn find_active_extension_grant(
     }).cloned()
 }
 
-fn confirm_extension_grant_dialog(request: &ExtensionSessionRequest) -> bool {
-    let description = format!(
-        "允许 iClaw 浏览器插件接入当前桌面账号？\n\n插件：{}\n浏览器：{}\n设备：{}\n\n本次只会记住授权关系，不会把桌面主 token 暴露给插件。",
-        request.extension_id,
-        request.browser_family,
-        request.device_id
-    );
-    matches!(
-        MessageDialog::new()
-            .set_title("允许浏览器插件接入 iClaw")
-            .set_description(&description)
-            .set_level(MessageLevel::Info)
-            .set_buttons(MessageButtons::YesNo)
-            .show(),
-        MessageDialogResult::Yes
-    )
+fn generate_extension_grant_request_id() -> String {
+    let mut bytes = [0u8; 12];
+    OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+}
+
+fn wait_for_extension_grant_confirmation(app: &AppHandle, request: &ExtensionSessionRequest) -> bool {
+    let request_id = generate_extension_grant_request_id();
+    let (tx, rx) = mpsc::channel::<bool>();
+    if let Ok(mut pending) = app.state::<ExtensionBridgeState>().pending.lock() {
+        pending.insert(request_id.clone(), tx);
+    } else {
+        return false;
+    }
+
+    let payload = ExtensionGrantRequestEventPayload {
+        request_id: request_id.clone(),
+        extension_id: request.extension_id.clone(),
+        browser_family: request.browser_family.clone(),
+        device_id: request.device_id.clone(),
+    };
+    let _ = app.emit("extension-bridge-grant-request", payload);
+
+    let decision = rx.recv_timeout(Duration::from_secs(120)).unwrap_or(false);
+    if let Ok(mut pending) = app.state::<ExtensionBridgeState>().pending.lock() {
+        pending.remove(&request_id);
+    }
+    decision
+}
+
+#[tauri::command]
+fn resolve_extension_bridge_grant_request(
+    app: AppHandle,
+    state: State<'_, ExtensionBridgeState>,
+    request_id: String,
+    allow: bool,
+) -> Result<bool, String> {
+    let normalized = request_id.trim().to_string();
+    if normalized.is_empty() {
+        return Err(String::from("request_id is required"));
+    }
+    let sender = state
+        .pending
+        .lock()
+        .map_err(|_| String::from("failed to access extension bridge pending map"))?
+        .remove(&normalized);
+    if let Some(sender) = sender {
+        sender
+            .send(allow)
+            .map_err(|_| String::from("failed to deliver extension grant decision"))?;
+        append_desktop_bootstrap_log(
+            &app,
+            &format!("extension-bridge: resolved grant request {} allow={allow}", normalized),
+        );
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 fn issue_extension_session_via_control_plane(
@@ -6960,7 +7014,7 @@ fn issue_extension_session(app: &AppHandle, request: &ExtensionSessionRequest) -
     let grant = if let Some(existing) = find_active_extension_grant(&store, request) {
         existing
     } else {
-        if !confirm_extension_grant_dialog(request) {
+        if !wait_for_extension_grant_confirmation(app, request) {
             return ExtensionBridgeResponse {
                 ok: false,
                 grant_required: true,
@@ -9357,6 +9411,9 @@ fn main() {
         .manage(SidecarState {
             child: Mutex::new(None),
         })
+        .manage(ExtensionBridgeState {
+            pending: Mutex::new(BTreeMap::new()),
+        })
         .manage(DesktopLifecycleState {
             allow_exit: Mutex::new(false),
         })
@@ -9414,6 +9471,7 @@ fn main() {
             desktop_login,
             desktop_me,
             desktop_refresh,
+            resolve_extension_bridge_grant_request,
             sync_oem_runtime_snapshot,
             install_runtime,
             diagnose_runtime,

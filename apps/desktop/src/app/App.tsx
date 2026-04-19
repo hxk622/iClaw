@@ -43,6 +43,11 @@ import {
   loadStartupDiagnostics,
   syncPortalProviderAuth,
 } from './lib/tauri-runtime-config';
+import {
+  listenExtensionGrantRequests,
+  resolveExtensionGrantRequest,
+  type ExtensionGrantRequestPayload,
+} from './lib/tauri-extension-bridge';
 import { useDesktopStartupController } from './lib/use-desktop-startup-controller';
 import {
   ensureDesktopRuntimeReadyForChatRecovery,
@@ -61,6 +66,7 @@ import {
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
 import { FaultReportModal } from './components/FaultReportModal';
+import { DesktopExtensionGrantModal } from './components/DesktopExtensionGrantModal';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { GlobalExceptionDialog, type GlobalExceptionState } from './components/GlobalExceptionDialog';
 import { submitAutoDiagnosticUpload } from './lib/fault-report';
@@ -979,7 +985,7 @@ function WorkspaceTabsBar(props: {
 
   return (
     <div
-      className="flex h-12 shrink-0 items-end gap-2 overflow-x-auto border-b px-4 pb-2 pt-2"
+      className="flex h-12 shrink-0 items-center gap-2 overflow-x-auto border-b px-4 py-2"
       style={{
         borderColor: 'var(--chat-surface-panel-border)',
         background: 'color-mix(in srgb, var(--chat-surface-header-bg) 92%, transparent)',
@@ -997,20 +1003,50 @@ function WorkspaceTabsBar(props: {
           <div
             key={tab.id}
             ref={menuOpen || renaming ? activeTabRef : null}
-            className="group relative flex h-9 min-w-[148px] max-w-[240px] shrink-0 items-center rounded-t-[14px] border px-3 text-[12px] transition-all duration-[180ms]"
+            className="group relative flex h-[31px] w-[176px] min-w-[96px] max-w-[240px] shrink-0 items-center rounded-[13px] border px-[10px] pr-[24px] text-[12px] font-medium transition-all duration-[180ms]"
+            data-testid="workspace-tab-item"
+            data-workspace-tab-id={tab.id}
+            data-workspace-tab-active={isActive ? 'true' : 'false'}
+            data-workspace-tab-color={tab.color}
+            data-workspace-tab-title={tab.title}
+            role="tab"
+            tabIndex={renaming ? -1 : 0}
+            aria-selected={isActive}
             style={{
               cursor: 'pointer',
-              borderColor: isActive ? 'color-mix(in srgb, var(--border-strong) 78%, transparent)' : 'var(--chat-surface-panel-border)',
-              background: isActive ? colorStyle.activeBg : 'var(--chat-surface-panel-muted)',
+              borderColor: isActive
+                ? 'color-mix(in srgb, var(--border-strong) 82%, transparent)'
+                : 'color-mix(in srgb, var(--chat-surface-panel-border) 92%, transparent)',
+              background: isActive
+                ? colorStyle.activeBg
+                : 'color-mix(in srgb, var(--chat-surface-panel-muted) 92%, var(--bg-elevated))',
               boxShadow:
                 dragOverTabId === tab.id
                   ? `0 0 0 2px color-mix(in srgb, ${colorStyle.accent} 24%, transparent), var(--lobster-shadow-tab)`
                   : isActive
-                    ? 'var(--lobster-shadow-tab)'
-                    : 'none',
+                    ? `0 0 0 1.5px color-mix(in srgb, ${colorStyle.accent} 36%, transparent), var(--lobster-shadow-tab)`
+                    : '0 1px 2px rgb(18 15 11 / 0.05)',
               opacity: draggingTabId === tab.id ? 0.54 : 1,
+              transform: isActive ? 'scale(1.03)' : 'scale(1)',
+              filter: isActive ? 'brightness(1.06) saturate(1.03)' : 'none',
+              zIndex: isActive || menuOpen ? 2 : 1,
             }}
             draggable={!renaming}
+            onClick={() => {
+              if (renaming) {
+                return;
+              }
+              props.onSelect(tab.id);
+            }}
+            onKeyDown={(event) => {
+              if (renaming) {
+                return;
+              }
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                props.onSelect(tab.id);
+              }
+            }}
             onContextMenu={(event) => {
               event.preventDefault();
               setRenamingTabId(null);
@@ -1071,14 +1107,6 @@ function WorkspaceTabsBar(props: {
               setDragOverTabId(null);
             }}
           >
-            {!renaming ? (
-              <button
-                type="button"
-                className="absolute inset-0 rounded-t-[14px]"
-                onClick={() => props.onSelect(tab.id)}
-                aria-label={`切换到${tab.title}`}
-              />
-            ) : null}
             <span
               aria-hidden="true"
               className="mr-2 h-2 w-2 shrink-0 rounded-full"
@@ -1091,6 +1119,8 @@ function WorkspaceTabsBar(props: {
               <input
                 ref={renameInputRef}
                 value={draftTitle}
+                data-testid="workspace-tab-rename-input"
+                data-workspace-tab-id={tab.id}
                 onChange={(event) => setDraftTitle(event.target.value)}
                 onClick={(event) => event.stopPropagation()}
                 onKeyDown={(event) => {
@@ -1113,12 +1143,17 @@ function WorkspaceTabsBar(props: {
             )}
             <button
               type="button"
-              className="relative z-[1] ml-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] text-[var(--text-secondary)] transition hover:bg-[var(--surface-panel-subtle-bg)] hover:text-[var(--text-primary)]"
+              className="relative z-[1] absolute right-[6px] inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[6px] text-[11px] text-[var(--text-secondary)] opacity-0 transition hover:bg-[color-mix(in_srgb,var(--text-primary)_14%,transparent)] hover:text-[var(--text-primary)] group-hover:opacity-100"
+              data-testid="workspace-tab-close"
+              data-workspace-tab-id={tab.id}
               onClick={(event) => {
                 event.stopPropagation();
                 props.onClose(tab.id);
               }}
               aria-label={`关闭${tab.title}`}
+              style={{
+                opacity: isActive ? 0.85 : undefined,
+              }}
             >
               ×
             </button>
@@ -1133,6 +1168,8 @@ function WorkspaceTabsBar(props: {
                   >
                     <button
                       type="button"
+                      data-testid="workspace-tab-menu-rename"
+                      data-workspace-tab-id={tab.id}
                       className="flex w-full items-center rounded-[10px] px-3 py-2 text-left text-[12px] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
                       onClick={() => handleStartRename(tab.id, tab.title)}
                     >
@@ -1149,6 +1186,9 @@ function WorkspaceTabsBar(props: {
                           <button
                             key={optionColor}
                             type="button"
+                            data-testid="workspace-tab-menu-color"
+                            data-workspace-tab-id={tab.id}
+                            data-workspace-tab-color-option={optionColor}
                             className="inline-flex h-6 w-6 items-center justify-center rounded-full border transition-transform hover:scale-[1.08]"
                             style={{
                               borderColor: selected ? 'var(--brand-primary)' : 'var(--border-default)',
@@ -1167,6 +1207,8 @@ function WorkspaceTabsBar(props: {
                     <div className="my-1 h-px bg-[var(--border-default)]" />
                     <button
                       type="button"
+                      data-testid="workspace-tab-menu-close-others"
+                      data-workspace-tab-id={tab.id}
                       className="flex w-full items-center rounded-[10px] px-3 py-2 text-left text-[12px] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
                       onClick={() => {
                         props.onCloseOthers(tab.id);
@@ -1178,6 +1220,8 @@ function WorkspaceTabsBar(props: {
                     </button>
                     <button
                       type="button"
+                      data-testid="workspace-tab-menu-close-right"
+                      data-workspace-tab-id={tab.id}
                       className="flex w-full items-center rounded-[10px] px-3 py-2 text-left text-[12px] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
                       onClick={() => {
                         props.onCloseToRight(tab.id);
@@ -1189,6 +1233,8 @@ function WorkspaceTabsBar(props: {
                     </button>
                     <button
                       type="button"
+                      data-testid="workspace-tab-menu-close"
+                      data-workspace-tab-id={tab.id}
                       className="mt-1 flex w-full items-center rounded-[10px] px-3 py-2 text-left text-[12px] text-[var(--state-error)] transition-colors hover:bg-[var(--bg-hover)]"
                       onClick={() => {
                         props.onClose(tab.id);
@@ -1206,11 +1252,12 @@ function WorkspaceTabsBar(props: {
       })}
       <button
         type="button"
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border text-[18px] text-[var(--text-secondary)] transition hover:bg-[var(--surface-panel-subtle-bg)] hover:text-[var(--text-primary)]"
+        className="inline-flex h-[31px] w-[31px] shrink-0 items-center justify-center rounded-[13px] border text-[18px] text-[var(--text-secondary)] transition hover:scale-[1.03] hover:bg-[var(--surface-panel-subtle-bg)] hover:text-[var(--text-primary)]"
+        data-testid="workspace-tab-new"
         style={{
           cursor: 'pointer',
           borderColor: 'var(--chat-surface-panel-border)',
-          background: 'var(--chat-surface-panel-muted)',
+          background: 'color-mix(in srgb, var(--chat-surface-panel-muted) 92%, var(--bg-elevated))',
         }}
         onClick={props.onNew}
         aria-label="新建聊天标签页"
@@ -1505,6 +1552,7 @@ export default function App() {
   const [chatSurfaceBusy, setChatSurfaceBusy] = useState(false);
   const [installerFaultReportOpen, setInstallerFaultReportOpen] = useState(false);
   const [globalException, setGlobalException] = useState<GlobalExceptionState | null>(null);
+  const [extensionGrantRequest, setExtensionGrantRequest] = useState<ExtensionGrantRequestPayload | null>(null);
   const lastAutoDiagnosticFingerprintRef = useRef('');
   const launchStartTrackedRef = useRef(false);
   const launchSuccessTrackedRef = useRef(false);
@@ -1529,6 +1577,48 @@ export default function App() {
     }
     applyChatPersistenceUserScope(currentUser);
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!IS_TAURI_RUNTIME) {
+      return;
+    }
+    let disposed = false;
+    let cleanup = () => {};
+    void listenExtensionGrantRequests((payload) => {
+      if (disposed) return;
+      setExtensionGrantRequest(payload);
+    }).then((unlisten) => {
+      if (disposed) {
+        unlisten();
+        return;
+      }
+      cleanup = unlisten;
+    });
+    return () => {
+      disposed = true;
+      cleanup();
+    };
+  }, [IS_TAURI_RUNTIME]);
+
+  const handleAllowExtensionGrant = useCallback(() => {
+    if (!extensionGrantRequest) return;
+    void resolveExtensionGrantRequest({
+      requestId: extensionGrantRequest.requestId,
+      allow: true,
+    }).finally(() => {
+      setExtensionGrantRequest(null);
+    });
+  }, [extensionGrantRequest]);
+
+  const handleDenyExtensionGrant = useCallback(() => {
+    if (!extensionGrantRequest) return;
+    void resolveExtensionGrantRequest({
+      requestId: extensionGrantRequest.requestId,
+      allow: false,
+    }).finally(() => {
+      setExtensionGrantRequest(null);
+    });
+  }, [extensionGrantRequest]);
 
   useEffect(() => {
     writePersistedWorkspaceScene({primaryView});
@@ -2907,6 +2997,14 @@ export default function App() {
             onSocialLogin={handleSocialLogin}
           />
         ) : null}
+        <DesktopExtensionGrantModal
+          open={Boolean(extensionGrantRequest)}
+          extensionId={extensionGrantRequest?.extensionId || 'iClaw Browser Extension'}
+          browserFamily={extensionGrantRequest?.browserFamily || 'Chrome'}
+          deviceId={extensionGrantRequest?.deviceId || '当前桌面设备'}
+          onAllow={handleAllowExtensionGrant}
+          onDeny={handleDenyExtensionGrant}
+        />
       </div>
     </SettingsProvider>
   );
