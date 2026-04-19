@@ -253,56 +253,6 @@ export function resolveEffectiveFinanceDisclaimer(input: {
   return resolveFinanceDisclaimerFromSnapshot(effective);
 }
 
-export function resolveDisplayFinanceDisclaimer(input: {
-  snapshot?: FinanceComplianceSnapshot | null;
-  appName: string;
-  channel: FinanceComplianceChannel;
-  title?: string | null;
-  prompt?: string | null;
-  answer: string;
-  usedModel?: string | null;
-  oemPolicy?: FinanceOemCompliancePolicy | null;
-}): string | null {
-  const heuristic = buildHeuristicFinanceComplianceEnvelope({
-    appName: input.appName,
-    channel: input.channel,
-    title: input.title,
-    prompt: input.prompt,
-    answer: input.answer,
-    usedModel: input.usedModel,
-    oemPolicy: input.oemPolicy,
-  });
-  return resolveEffectiveFinanceDisclaimer({
-    snapshot: input.snapshot,
-    heuristic,
-  });
-}
-
-export function resolveDisplayFinanceComplianceSnapshot(input: {
-  snapshot?: FinanceComplianceSnapshot | null;
-  appName: string;
-  channel: FinanceComplianceChannel;
-  title?: string | null;
-  prompt?: string | null;
-  answer: string;
-  usedModel?: string | null;
-  oemPolicy?: FinanceOemCompliancePolicy | null;
-}): FinanceComplianceSnapshot | null {
-  const heuristic = buildHeuristicFinanceComplianceEnvelope({
-    appName: input.appName,
-    channel: input.channel,
-    title: input.title,
-    prompt: input.prompt,
-    answer: input.answer,
-    usedModel: input.usedModel,
-    oemPolicy: input.oemPolicy,
-  });
-  return resolveEffectiveFinanceComplianceSnapshot({
-    snapshot: input.snapshot,
-    heuristic,
-  });
-}
-
 export function resolveFinanceComplianceEnvelope(
   input: ResolveFinanceComplianceInput,
 ): ResolveFinanceComplianceResult {
@@ -437,6 +387,54 @@ export function buildHeuristicFinanceComplianceEnvelope(input: {
     oemPolicy: input.oemPolicy || DEFAULT_FINANCE_OEM_POLICY,
     usedCapabilities: input.usedCapabilities,
     usedModel: input.usedModel,
+  });
+}
+
+export function resolveDisplayFinanceComplianceSnapshot(input: {
+  snapshot?: FinanceComplianceSnapshot | null;
+  appName: string;
+  channel: FinanceComplianceChannel;
+  title?: string | null;
+  prompt?: string | null;
+  answer: string;
+  usedModel?: string | null;
+  oemPolicy?: FinanceOemCompliancePolicy | null;
+}): FinanceComplianceSnapshot | null {
+  return resolveEffectiveFinanceComplianceSnapshot({
+    snapshot: input.snapshot,
+    heuristic: buildHeuristicFinanceComplianceEnvelope({
+      appName: input.appName,
+      channel: input.channel,
+      title: input.title,
+      prompt: input.prompt,
+      answer: input.answer,
+      usedModel: input.usedModel,
+      oemPolicy: input.oemPolicy,
+    }),
+  });
+}
+
+export function resolveDisplayFinanceDisclaimer(input: {
+  snapshot?: FinanceComplianceSnapshot | null;
+  appName: string;
+  channel: FinanceComplianceChannel;
+  title?: string | null;
+  prompt?: string | null;
+  answer: string;
+  usedModel?: string | null;
+  oemPolicy?: FinanceOemCompliancePolicy | null;
+}): string | null {
+  return resolveEffectiveFinanceDisclaimer({
+    snapshot: input.snapshot,
+    heuristic: buildHeuristicFinanceComplianceEnvelope({
+      appName: input.appName,
+      channel: input.channel,
+      title: input.title,
+      prompt: input.prompt,
+      answer: input.answer,
+      usedModel: input.usedModel,
+      oemPolicy: input.oemPolicy,
+    }),
   });
 }
 
