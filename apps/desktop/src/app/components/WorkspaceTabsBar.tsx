@@ -3,34 +3,41 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { WorkspaceTabRecord, WorkspaceTabRuntimeStatus } from '@/app/lib/workspace-tabs';
 
-const WORKSPACE_TAB_COLOR_STYLES: Record<string, { accent: string; activeBg: string }> = {
+const WORKSPACE_TAB_COLOR_STYLES: Record<string, { accent: string; activeBg: string; swatch: string }> = {
   default: {
     accent: 'var(--brand-primary)',
     activeBg: 'color-mix(in srgb, var(--brand-primary) 16%, var(--bg-elevated))',
+    swatch: '#b79a66',
   },
   gold: {
     accent: 'var(--brand-primary)',
     activeBg: 'color-mix(in srgb, var(--brand-primary) 20%, var(--bg-elevated))',
+    swatch: '#c4a76f',
   },
   olive: {
     accent: 'var(--state-success)',
     activeBg: 'color-mix(in srgb, var(--state-success) 16%, var(--bg-elevated))',
+    swatch: '#7ea184',
   },
   teal: {
     accent: '#4f8f8b',
     activeBg: 'color-mix(in srgb, #4f8f8b 16%, var(--bg-elevated))',
+    swatch: '#5da5a0',
   },
   slate: {
     accent: '#6d7786',
     activeBg: 'color-mix(in srgb, #6d7786 16%, var(--bg-elevated))',
+    swatch: '#7e8ba0',
   },
   rose: {
     accent: '#ba6f7b',
     activeBg: 'color-mix(in srgb, #ba6f7b 16%, var(--bg-elevated))',
+    swatch: '#ca7e8c',
   },
   charcoal: {
     accent: '#4d4a46',
     activeBg: 'color-mix(in srgb, #4d4a46 18%, var(--bg-elevated))',
+    swatch: '#615b56',
   },
 };
 
@@ -345,7 +352,7 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
                     </button>
                     <div className="my-1 h-px bg-[var(--border-default)]" />
                     <div className="px-3 pb-1 pt-1.5 text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">颜色</div>
-                    <div className="grid grid-cols-7 gap-2 px-2 pb-2 pt-1">
+                    <div className="grid grid-cols-7 gap-1.5 px-2 pb-2 pt-1">
                       {Object.keys(WORKSPACE_TAB_COLOR_STYLES).map((colorKey) => {
                         const optionColor = colorKey as WorkspaceTabRecord['color'];
                         const optionStyle = WORKSPACE_TAB_COLOR_STYLES[optionColor];
@@ -357,15 +364,15 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
                             data-testid="workspace-tab-menu-color"
                             data-workspace-tab-id={tab.id}
                             data-workspace-tab-color-option={optionColor}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border transition-transform hover:scale-[1.06]"
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-full border transition-transform hover:scale-[1.05]"
                             style={{
                               borderColor: selected
-                                ? 'color-mix(in srgb, var(--brand-primary) 72%, white)'
-                                : 'color-mix(in srgb, var(--border-default) 92%, transparent)',
-                              backgroundColor: optionStyle.accent,
+                                ? 'rgba(245, 239, 228, 0.92)'
+                                : 'rgba(255, 255, 255, 0.14)',
+                              backgroundColor: optionStyle.swatch,
                               boxShadow: selected
-                                ? '0 0 0 2px var(--bg-elevated), 0 0 0 4px color-mix(in srgb, var(--brand-primary) 52%, transparent)'
-                                : 'inset 0 0 0 1px color-mix(in srgb, black 10%, transparent)',
+                                ? `0 0 0 2px rgba(37, 33, 29, 0.96), 0 0 0 4px ${optionStyle.swatch}`
+                                : 'none',
                             }}
                             onClick={() => {
                               props.onColorChange(tab.id, optionColor);
