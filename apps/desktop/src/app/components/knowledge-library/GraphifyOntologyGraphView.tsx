@@ -50,10 +50,14 @@ export function GraphifyOntologyGraphView({
   graph,
   className = '',
   height = 360,
+  selectedNodeId = null,
+  onSelectNode,
 }: {
   graph: GraphifyDocumentViewModel;
   className?: string;
   height?: number;
+  selectedNodeId?: string | null;
+  onSelectNode?: (input: { id: string; label: string; type: string }) => void;
 }) {
   const width = 720;
   const nodes = useMemo(() => buildNodePositions(graph, width, height), [graph, height]);
@@ -95,24 +99,38 @@ export function GraphifyOntologyGraphView({
       {nodes.map((node, index) => {
         const size = Math.max(34, node.size + 12);
         const isCenter = index === 0;
+        const isSelected = selectedNodeId === node.id;
         return (
           <div
             key={node.id}
-            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border text-center shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
+            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border text-center shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition"
             style={{
               left: `${(node.x / width) * 100}%`,
               top: `${(node.y / height) * 100}%`,
               width: `${size}px`,
               minHeight: `${size}px`,
               padding: isCenter ? '12px 14px' : '10px 12px',
-              borderColor: isCenter ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.18)',
+              borderColor: isSelected
+                ? '#D4A574'
+                : isCenter
+                  ? 'rgba(255,255,255,0.35)'
+                  : 'rgba(255,255,255,0.18)',
               background: node.color,
               color: isCenter ? '#111827' : '#0F172A',
               fontWeight: isCenter ? 700 : 600,
               fontSize: isCenter ? '12px' : '11px',
               lineHeight: 1.35,
+              boxShadow: isSelected ? '0 0 0 3px rgba(212,165,116,0.18), 0 10px 24px rgba(15,23,42,0.18)' : undefined,
+              cursor: onSelectNode ? 'pointer' : 'default',
             }}
             title={`${node.type} · ${node.label}`}
+            onClick={() => {
+              onSelectNode?.({
+                id: node.id,
+                label: node.label,
+                type: node.type,
+              });
+            }}
           >
             {node.label}
           </div>

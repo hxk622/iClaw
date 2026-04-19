@@ -51,6 +51,7 @@ import {
   importBrowserCaptureIntoKnowledgeFlywheel,
 } from './flywheel-service';
 import { useGraphCompilerJobs } from './graph-compiler-jobs';
+import { classifyGraphQueryIntent } from './graph-query-intent';
 
 export function KnowledgeLibraryView({
   title,
@@ -122,6 +123,7 @@ export function KnowledgeLibraryView({
   const [graphifyQueryLoading, setGraphifyQueryLoading] = useState(false);
   const [graphifyQueryResult, setGraphifyQueryResult] = useState<string | null>(null);
   const [graphifyQueryError, setGraphifyQueryError] = useState<string | null>(null);
+  const [selectedGraphNode, setSelectedGraphNode] = useState<{ id: string; label: string; type: string } | null>(null);
   const [embeddedChatSeedPrompt, setEmbeddedChatSeedPrompt] = useState<string | null>(null);
   const [embeddedChatSeedPromptKey, setEmbeddedChatSeedPromptKey] = useState<string | null>(null);
   const [embeddedAutoGraphQueryEnabled, setEmbeddedAutoGraphQueryEnabled] = useState(true);
@@ -447,6 +449,7 @@ export function KnowledgeLibraryView({
     setGraphifyQueryError(null);
     setGraphifyQueryText('');
     setGraphifyQueryUseDfs(false);
+    setSelectedGraphNode(null);
   }, [selectedOntologyDocument?.id]);
 
   const handleRefresh = async () => {
@@ -588,15 +591,19 @@ export function KnowledgeLibraryView({
     if (!selectedOntologyGraphifyGraphPath || !graphifyQueryText.trim()) {
       return;
     }
+    const intent = classifyGraphQueryIntent({
+      question: graphifyQueryText.trim(),
+      selectedNodeLabel: selectedGraphNode?.label || null,
+    });
     setGraphifyQueryLoading(true);
     setGraphifyQueryError(null);
     setGraphifyQueryResult(null);
     try {
       const result = await runGraphifyQuery({
         graphPath: selectedOntologyGraphifyGraphPath,
-        question: graphifyQueryText.trim(),
-        useDfs: graphifyQueryUseDfs,
-        budget: 1600,
+        question: intent.rewrittenQuestion,
+        useDfs: graphifyQueryUseDfs || intent.useDfs,
+        budget: intent.budget,
       });
       if (!result) {
         setGraphifyQueryError('当前环境不支持 graphify 查询。');
@@ -838,7 +845,11 @@ export function KnowledgeLibraryView({
                     ) : null}
                     {activeTab === 'graph' && graphViewMode === 'graph' ? (
                       effectiveSelectedItem.ontologyGraphView ? (
-                        <GraphifyOntologyGraphView graph={effectiveSelectedItem.ontologyGraphView} />
+                        <GraphifyOntologyGraphView
+                          graph={effectiveSelectedItem.ontologyGraphView}
+                          selectedNodeId={selectedGraphNode?.id || null}
+                          onSelectNode={setSelectedGraphNode}
+                        />
                       ) : (
                         <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
                           当前本体图谱还没有可渲染的节点与关系。
@@ -1121,10 +1132,15 @@ export function KnowledgeLibraryView({
                           ) : null}
                           <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
                             <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">Graphify 图查询</div>
+                            {selectedGraphNode ? (
+                              <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full border border-[rgba(212,165,116,0.28)] bg-[rgba(212,165,116,0.10)] px-3 py-1 text-[11px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                <span className="truncate">当前节点：{selectedGraphNode.label}</span>
+                              </div>
+                            ) : null}
                             <textarea
                               value={graphifyQueryText}
                               onChange={(event) => setGraphifyQueryText(event.target.value)}
-                              placeholder="例如：什么连接资本开支和现金流？"
+                              placeholder={selectedGraphNode ? `围绕「${selectedGraphNode.label}」继续提问...` : '例如：什么连接资本开支和现金流？'}
                               className="mt-3 min-h-[88px] w-full resize-none rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white px-3 py-3 text-[12px] text-[#1E293B] outline-none transition placeholder:text-[#64748B] focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3] dark:placeholder:text-[#94A3B8]"
                             />
                             <label className="mt-3 flex items-center gap-2 text-[12px] text-[#64748B] dark:text-[#94A3B8]">
@@ -1266,6 +1282,7 @@ export function KnowledgeLibraryView({
             selectedItem={effectiveSelectedItem}
             activeTab={activeTab}
             autoGraphQueryEnabled={embeddedAutoGraphQueryEnabled && activeTab === 'graph'}
+            selectedGraphNodeLabel={selectedGraphNode?.label || null}
             initialPrompt={embeddedChatSeedPrompt}
             initialPromptKey={embeddedChatSeedPromptKey}
             gatewayUrl={gatewayUrl}

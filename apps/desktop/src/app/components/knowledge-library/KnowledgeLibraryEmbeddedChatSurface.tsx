@@ -9,11 +9,13 @@ import { resolveKnowledgeLibraryItemSourceContext } from './chat-feedback';
 import { buildKnowledgeLibraryGraphQueryPrompt } from './chat-context';
 import { runGraphifyQuery } from '@/app/lib/tauri-graphify';
 import type { ComposerSendPayload } from '../RichChatComposer';
+import { classifyGraphQueryIntent } from './graph-query-intent';
 
 type KnowledgeLibraryEmbeddedChatSurfaceProps = {
   selectedItem: KnowledgeLibraryItem | null;
   activeTab: KnowledgeLibraryTab;
   autoGraphQueryEnabled?: boolean;
+  selectedGraphNodeLabel?: string | null;
   initialPrompt?: string | null;
   initialPromptKey?: string | null;
   gatewayUrl: string;
@@ -45,6 +47,7 @@ export const KnowledgeLibraryEmbeddedChatSurface = forwardRef<HTMLDivElement, Kn
       selectedItem,
       activeTab,
       autoGraphQueryEnabled = false,
+      selectedGraphNodeLabel = null,
       initialPrompt = null,
       initialPromptKey = null,
       gatewayUrl,
@@ -74,11 +77,18 @@ export const KnowledgeLibraryEmbeddedChatSurface = forwardRef<HTMLDivElement, Kn
         if (!graphPath || !question) {
           return payload;
         }
+        const intent = classifyGraphQueryIntent({
+          question,
+          selectedNodeLabel: selectedGraphNodeLabel,
+        });
+        if (!intent.shouldUseGraph) {
+          return payload;
+        }
         const result = await runGraphifyQuery({
           graphPath,
-          question,
-          useDfs: false,
-          budget: 1600,
+          question: intent.rewrittenQuestion,
+          useDfs: intent.useDfs,
+          budget: intent.budget,
         });
         if (!result?.available || result.error || !result.stdout?.trim()) {
           return payload;
@@ -93,7 +103,7 @@ export const KnowledgeLibraryEmbeddedChatSurface = forwardRef<HTMLDivElement, Kn
           }),
         };
       },
-      [activeTab, autoGraphQueryEnabled, selectedItem],
+      [activeTab, autoGraphQueryEnabled, selectedGraphNodeLabel, selectedItem],
     );
 
     return (
