@@ -50,6 +50,14 @@ export type WorkspaceTabsSnapshot = {
   recentlyClosedTabIds?: string[];
 };
 
+export type WorkspaceTabRuntimeStatus = {
+  busy: boolean;
+  hasPendingBilling: boolean;
+  hasUnsavedDraft: boolean;
+  recovering: boolean;
+  ready: boolean;
+};
+
 function resolveWorkspaceTabsStorageKey(): string {
   return buildChatScopedStorageKey(ACTIVE_WORKSPACE_TABS_STORAGE_KEY);
 }

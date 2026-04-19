@@ -3780,6 +3780,8 @@ function AuthedView({
         const previous = current[surfaceKey] ?? {
           busy: false,
           hasPendingBilling: false,
+          hasUnsavedDraft: false,
+          recovering: false,
           ready: false,
         };
         const next = {
@@ -3789,6 +3791,8 @@ function AuthedView({
         if (
           previous.busy === next.busy &&
           previous.hasPendingBilling === next.hasPendingBilling &&
+          previous.hasUnsavedDraft === next.hasUnsavedDraft &&
+          previous.recovering === next.recovering &&
           previous.ready === next.ready
         ) {
           return current;
