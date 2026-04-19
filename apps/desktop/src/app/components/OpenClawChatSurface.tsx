@@ -102,6 +102,12 @@ import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '../
 import { loadSkillStoreCatalog, subscribeSkillStoreEvents } from '@/app/lib/skill-store';
 import { buildMemoryContextPrompt, pickRelevantMemories } from '@/app/lib/memory-recall';
 import {
+  clearAssistantFinanceCard,
+  ensureAssistantFinanceCard,
+  extractChatMessageGroupFinanceCompliance,
+  extractMessageFinanceCompliance,
+} from '@/app/lib/finance-compliance-chat-decoration';
+import {
   isInvestmentExpertAgent,
   loadLobsterAgents,
   subscribeLobsterStoreEvents,
@@ -2756,25 +2762,6 @@ function extractMessageText(message: unknown): string {
     .trim();
 }
 
-function extractMessageFinanceCompliance(message: unknown): Record<string, unknown> | null {
-  if (!message || typeof message !== 'object' || Array.isArray(message)) {
-    return null;
-  }
-  const raw = message as Record<string, unknown>;
-  const metadata =
-    raw.metadata && typeof raw.metadata === 'object' && !Array.isArray(raw.metadata)
-      ? (raw.metadata as Record<string, unknown>)
-      : null;
-  const financeCompliance =
-    metadata?.financeCompliance && typeof metadata.financeCompliance === 'object' && !Array.isArray(metadata.financeCompliance)
-      ? (metadata.financeCompliance as Record<string, unknown>)
-      : null;
-  if (!financeCompliance || financeCompliance.domain !== 'finance') {
-    return null;
-  }
-  return financeCompliance;
-}
-
 function extractChatMessageGroupText(group: ChatMessageGroup | null): string {
   if (!group) {
     return '';
@@ -2785,19 +2772,6 @@ function extractChatMessageGroupText(group: ChatMessageGroup | null): string {
     .filter(Boolean)
     .join('\n\n')
     .trim();
-}
-
-function extractChatMessageGroupFinanceCompliance(group: ChatMessageGroup | null): Record<string, unknown> | null {
-  if (!group) {
-    return null;
-  }
-  for (let index = group.messages.length - 1; index >= 0; index -= 1) {
-    const candidate = extractMessageFinanceCompliance(group.messages[index]);
-    if (candidate) {
-      return candidate;
-    }
-  }
-  return null;
 }
 
 const INTERNAL_MEMORY_FLUSH_MARKERS = [
@@ -9511,6 +9485,9 @@ export function OpenClawChatSurface({
         appRef.current,
         status.busy,
       );
+      const assistantFinanceMetas = collectAssistantMessageGroups(chatMessages).map((assistantGroup) =>
+        extractChatMessageGroupFinanceCompliance(assistantGroup),
+      );
       const terminalAssistantPromptMap = buildTerminalAssistantPromptMap(chatMessages);
       const groups = Array.from(host.querySelectorAll<HTMLElement>('.chat-group'));
       const assistantGroupCount = groups.filter((group) => group.classList.contains('assistant')).length;
@@ -9585,6 +9562,8 @@ export function OpenClawChatSurface({
             domFallbackFooterMetas[domFallbackAssistantIndex] ??
             null;
           const shouldShowFooter = isTerminalAssistantTurnGroup(groups, groupIndex) && !status.busy;
+          const matchingFinanceCompliance = assistantFinanceMetas[assistantIndex] ?? null;
+          ensureAssistantFinanceCard(group, matchingFinanceCompliance || {}, extractChatGroupText(group));
           if (shouldShowFooter) {
             ensureAssistantFooter(group, footerMeta, terminalAssistantPromptMap.get(assistantIndex) ?? '');
           } else {
