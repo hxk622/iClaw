@@ -88,6 +88,7 @@ import type {
   AdminClientPerfSampleView,
   AdminFinanceComplianceEventView,
   AdminFinanceComplianceSummaryView,
+  AdminSyncTaskSchedulerStatusView,
   AdminSyncTaskRunTriggerView,
   AdminSyncTaskRunView,
   FinanceComplianceChannel,
@@ -5321,6 +5322,53 @@ export class ControlPlaneService {
       trigger_type: 'manual',
       status: result.status,
     };
+  }
+
+  async getAdminSyncTaskSchedulerStatus(accessToken: string): Promise<AdminSyncTaskSchedulerStatusView> {
+    await this.requireAdminUser(accessToken);
+    if (!config.dataSyncServiceBaseUrl) {
+      return {
+        configured: false,
+        base_url: null,
+        reachable: false,
+        internal_auth_enabled: false,
+        scheduler_enabled: false,
+        service_status: 'not_configured',
+        task_count: 0,
+        error_message: null,
+      };
+    }
+    try {
+      const response = await fetch(`${config.dataSyncServiceBaseUrl.replace(/\/+$/, '')}/health`, {
+        method: 'GET',
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        success?: boolean;
+        data?: Record<string, unknown>;
+      };
+      const data = payload?.data && typeof payload.data === 'object' ? payload.data : {};
+      return {
+        configured: true,
+        base_url: config.dataSyncServiceBaseUrl,
+        reachable: response.ok && payload.success !== false,
+        internal_auth_enabled: Boolean(data.internal_auth_enabled),
+        scheduler_enabled: Boolean(data.scheduler_enabled),
+        service_status: response.ok && payload.success !== false ? 'ok' : 'unreachable',
+        task_count: Array.isArray(data.tasks) ? data.tasks.length : 0,
+        error_message: response.ok ? null : `http ${response.status}`,
+      };
+    } catch (error) {
+      return {
+        configured: true,
+        base_url: config.dataSyncServiceBaseUrl,
+        reachable: false,
+        internal_auth_enabled: Boolean(config.dataSyncServiceInternalToken),
+        scheduler_enabled: false,
+        service_status: 'unreachable',
+        task_count: 0,
+        error_message: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   async getAdminFinanceComplianceSummary(

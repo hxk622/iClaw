@@ -833,6 +833,17 @@ export type SyncTaskRunTriggerResult = {
   status: 'running' | 'success' | 'failed' | 'skipped';
 };
 
+export type SyncTaskSchedulerStatus = {
+  configured: boolean;
+  baseUrl: string | null;
+  reachable: boolean;
+  internalAuthEnabled: boolean;
+  schedulerEnabled: boolean;
+  serviceStatus: 'ok' | 'unreachable' | 'not_configured';
+  taskCount: number;
+  errorMessage: string | null;
+};
+
 export type BrandDetailData = {
   brand: {
     brandId: string;

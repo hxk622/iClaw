@@ -6,6 +6,7 @@ import type {
   ClientPerfSampleRecord,
   FinanceComplianceEventRecord,
   FinanceComplianceSummaryData,
+  SyncTaskSchedulerStatus,
   SyncTaskRunRecord,
   SyncTaskRunTriggerResult,
   DesktopFaultReportDetailRecord,
@@ -1549,6 +1550,21 @@ export async function triggerSyncTask(taskId: string): Promise<SyncTaskRunTrigge
     taskId: stringValue(root.task_id || root.taskId),
     triggerType: 'manual',
     status: (stringValue(root.status) || 'running') as SyncTaskRunTriggerResult['status'],
+  };
+}
+
+export async function loadSyncTaskSchedulerStatus(): Promise<SyncTaskSchedulerStatus> {
+  const data = await apiFetch('/admin/sync-tasks/status', { method: 'GET' });
+  const root = asObject(data);
+  return {
+    configured: Boolean(root.configured),
+    baseUrl: stringValue(root.base_url || root.baseUrl) || null,
+    reachable: Boolean(root.reachable),
+    internalAuthEnabled: Boolean(root.internal_auth_enabled ?? root.internalAuthEnabled),
+    schedulerEnabled: Boolean(root.scheduler_enabled ?? root.schedulerEnabled),
+    serviceStatus: (stringValue(root.service_status || root.serviceStatus) || 'not_configured') as SyncTaskSchedulerStatus['serviceStatus'],
+    taskCount: numberValue(root.task_count ?? root.taskCount),
+    errorMessage: stringValue(root.error_message || root.errorMessage) || null,
   };
 }
 

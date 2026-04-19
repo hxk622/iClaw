@@ -1009,6 +1009,17 @@ export type AdminSyncTaskRunTriggerView = {
   status: 'running' | 'success' | 'failed' | 'skipped';
 };
 
+export type AdminSyncTaskSchedulerStatusView = {
+  configured: boolean;
+  base_url: string | null;
+  reachable: boolean;
+  internal_auth_enabled: boolean;
+  scheduler_enabled: boolean;
+  service_status: 'ok' | 'unreachable' | 'not_configured';
+  task_count: number;
+  error_message: string | null;
+};
+
 export type AdminDesktopUpdateEventView = AdminClientMetricEventView & {
   rollout_id: string | null;
   update_identity: string;

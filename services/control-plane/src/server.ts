@@ -2365,6 +2365,12 @@ const server = createJsonServer([
       }),
   },
   {
+    method: 'GET',
+    path: '/admin/sync-tasks/status',
+    handler: ({headers}: HandlerContext) =>
+      service.getAdminSyncTaskSchedulerStatus(requireBearerToken(headers)),
+  },
+  {
     method: 'POST',
     path: '/admin/sync-tasks/run',
     handler: ({headers, body}: HandlerContext) =>

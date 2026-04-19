@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { formatDateTime } from '../lib/adminFormat';
-import { loadSyncTaskRuns, triggerSyncTask } from '../lib/adminApi';
-import type { SyncTaskRunRecord } from '../lib/adminTypes';
+import { loadSyncTaskRuns, loadSyncTaskSchedulerStatus, triggerSyncTask } from '../lib/adminApi';
+import type { SyncTaskRunRecord, SyncTaskSchedulerStatus } from '../lib/adminTypes';
 import { adminFilterControlStyle, AdminFilterStack, AdminSearchRow, AdminSelectorRow } from './AdminFilterLayout';
 
 const TASK_OPTIONS = [
@@ -32,6 +32,7 @@ export function SyncTaskRunsPage() {
   const [status, setStatus] = useState('');
   const [triggerType, setTriggerType] = useState('');
   const [runs, setRuns] = useState<SyncTaskRunRecord[]>([]);
+  const [schedulerStatus, setSchedulerStatus] = useState<SyncTaskSchedulerStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [runningTaskId, setRunningTaskId] = useState('');
@@ -42,13 +43,17 @@ export function SyncTaskRunsPage() {
     setLoading(true);
     setError('');
     try {
-      const next = await loadSyncTaskRuns({
-        taskId,
-        status,
-        triggerType,
-        limit: 100,
-      });
+      const [next, nextStatus] = await Promise.all([
+        loadSyncTaskRuns({
+          taskId,
+          status,
+          triggerType,
+          limit: 100,
+        }),
+        loadSyncTaskSchedulerStatus(),
+      ]);
       setRuns(next);
+      setSchedulerStatus(nextStatus);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '同步任务执行记录加载失败');
     } finally {
@@ -155,6 +160,31 @@ export function SyncTaskRunsPage() {
             <div className="fig-meta-card"><span>运行中</span><strong>{String(runningCount)}</strong></div>
             <div className="fig-meta-card"><span>失败</span><strong>{String(failedCount)}</strong></div>
           </div>
+        </section>
+
+        <section className="fig-card fig-card--subtle" style={{ marginTop: 20 }}>
+          <div className="fig-card__head">
+            <h3>Scheduler 状态</h3>
+            <span>{schedulerStatus?.serviceStatus || 'unknown'}</span>
+          </div>
+          {schedulerStatus ? (
+            <div className="fig-meta-cards">
+              <div className="fig-meta-card"><span>已配置</span><strong>{schedulerStatus.configured ? '是' : '否'}</strong></div>
+              <div className="fig-meta-card"><span>可达</span><strong>{schedulerStatus.reachable ? '是' : '否'}</strong></div>
+              <div className="fig-meta-card"><span>调度已启用</span><strong>{schedulerStatus.schedulerEnabled ? '是' : '否'}</strong></div>
+              <div className="fig-meta-card"><span>任务数</span><strong>{String(schedulerStatus.taskCount)}</strong></div>
+              <div className="fig-meta-card"><span>内部鉴权</span><strong>{schedulerStatus.internalAuthEnabled ? '是' : '否'}</strong></div>
+              <div className="fig-meta-card"><span>Base URL</span><strong>{schedulerStatus.baseUrl || '—'}</strong></div>
+              {schedulerStatus.errorMessage ? (
+                <div className="fig-meta-card" style={{ gridColumn: '1 / -1' }}>
+                  <span>错误</span>
+                  <strong>{schedulerStatus.errorMessage}</strong>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="empty-state">暂无 scheduler 状态。</div>
+          )}
         </section>
 
         <section className="fig-card fig-card--subtle" style={{ marginTop: 20 }}>

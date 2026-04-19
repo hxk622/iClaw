@@ -549,6 +549,20 @@ const ARTIFACT_CARD_KEYWORDS = [
   '幻灯片',
   '文档',
 ];
+const NON_OUTPUT_TOOL_CARD_TITLES = [
+  'read',
+  'open',
+  'find',
+  'grep',
+  'search',
+  'list',
+  'ls',
+  'cat',
+  'exec',
+  'fetch',
+];
+const ARTIFACT_OUTPUT_CUE_PATTERN =
+  /(artifact|report|memo|brief|briefing|slides|slide|deck|presentation|document|markdown|html|pdf|ppt|pptx|docx|xlsx|csv|tsv|write|wrote|written|save|saved|create|created|generate|generated|export|exported|render|rendered|produced|output|输出|产出|生成|导出|写入|保存|报告|研报|简报|备忘录|文档|成果)/i;
 const ARTIFACT_PATH_PATTERN = new RegExp(
   `([^\\s|)\\]}]+?\\.(?:${ARTIFACT_CARD_EXTENSIONS.join('|')}))`,
   'ig',
@@ -1007,6 +1021,13 @@ function buildToolCardSignature(card: HTMLElement): string {
   return parts.join(' | ');
 }
 
+function extractToolCardTitle(card: HTMLElement): string {
+  return (
+    card.querySelector('.chat-tool-card__title')?.textContent?.replace(/\s+/g, ' ').trim().toLowerCase() ??
+    ''
+  );
+}
+
 function sanitizeArtifactPathCandidate(value: string | null | undefined): string | null {
   if (!value) {
     return null;
@@ -1176,6 +1197,11 @@ function resolveArtifactOpenVerb(extension: string | null): string {
 }
 
 function isLikelyArtifactToolCard(card: HTMLElement): boolean {
+  const title = extractToolCardTitle(card);
+  if (title && NON_OUTPUT_TOOL_CARD_TITLES.includes(title)) {
+    return false;
+  }
+
   const normalized = buildToolCardSignature(card).toLowerCase();
   if (!normalized) {
     return false;
@@ -1184,7 +1210,7 @@ function isLikelyArtifactToolCard(card: HTMLElement): boolean {
   const hasArtifactPath = ARTIFACT_CARD_EXTENSIONS.some((extension) =>
     normalized.includes(`.${extension}`),
   );
-  if (hasArtifactPath) {
+  if (hasArtifactPath && ARTIFACT_OUTPUT_CUE_PATTERN.test(normalized)) {
     return true;
   }
 
@@ -1203,7 +1229,6 @@ function findLatestArtifactToolCard(host: HTMLElement): HTMLElement | null {
         return candidate;
       }
     }
-    return null;
   }
   return null;
 }
@@ -7998,14 +8023,16 @@ export function OpenClawChatSurface({
               messageFinanceCompliance?.inputClassification === 'research_request' ||
               messageFinanceCompliance?.inputClassification === 'advice_request' ||
               messageFinanceCompliance?.inputClassification === 'personalized_request' ||
-              messageFinanceCompliance?.inputClassification === 'execution_request'
+              messageFinanceCompliance?.inputClassification === 'execution_request' ||
+              messageFinanceCompliance?.inputClassification === 'unknown'
                 ? messageFinanceCompliance.inputClassification
                 : null,
             outputClassification:
               messageFinanceCompliance?.outputClassification === 'market_data' ||
               messageFinanceCompliance?.outputClassification === 'research_summary' ||
               messageFinanceCompliance?.outputClassification === 'investment_view' ||
-              messageFinanceCompliance?.outputClassification === 'actionable_advice'
+              messageFinanceCompliance?.outputClassification === 'actionable_advice' ||
+              messageFinanceCompliance?.outputClassification === 'unknown'
                 ? messageFinanceCompliance.outputClassification
                 : null,
             riskLevel:
@@ -8023,6 +8050,22 @@ export function OpenClawChatSurface({
             reasons: Array.isArray(messageFinanceCompliance?.reasons)
               ? messageFinanceCompliance.reasons.filter((item): item is string => typeof item === 'string')
               : [],
+            matchedRules: Array.isArray(messageFinanceCompliance?.matchedRules)
+              ? messageFinanceCompliance.matchedRules.filter((item): item is string => typeof item === 'string')
+              : [],
+            confidence:
+              messageFinanceCompliance?.confidence === 'low' || messageFinanceCompliance?.confidence === 'high'
+                ? messageFinanceCompliance.confidence
+                : 'medium',
+            classifierVersion:
+              typeof messageFinanceCompliance?.classifierVersion === 'string' &&
+              messageFinanceCompliance.classifierVersion.trim()
+                ? messageFinanceCompliance.classifierVersion.trim()
+                : 'finance_v1',
+            decisionSource:
+              messageFinanceCompliance?.decisionSource === 'plugin' || messageFinanceCompliance?.decisionSource === 'server'
+                ? messageFinanceCompliance.decisionSource
+                : 'plugin',
             usedCapabilities: Array.isArray(messageFinanceCompliance?.usedCapabilities)
               ? messageFinanceCompliance.usedCapabilities.filter((item): item is string => typeof item === 'string')
               : [],
@@ -9168,8 +9211,7 @@ export function OpenClawChatSurface({
     };
   }, [focusedTurnId, focusedTurnKey, renderState.groupCount, renderState.chatMessageCount, surfaceVisible]);
 
-  const allowWelcomeForCurrentRoute =
-    !conversationId || shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId);
+  const allowWelcomeForCurrentRoute = shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId);
   const preferBrandWelcomeForRoute = allowWelcomeForCurrentRoute;
 
   const showWelcomePage = shouldShowOpenClawWelcomePage({
@@ -9202,7 +9244,7 @@ export function OpenClawChatSurface({
     activeArtifactPromotionToken && artifactPromotionState.artifactToken === activeArtifactPromotionToken
       ? artifactPromotionState.message
       : null;
-  const artifactWorkbenchVisible = hasArtifactWorkbench || Boolean(artifactPreview);
+  const artifactWorkbenchVisible = Boolean(artifactPreview);
 
   const handlePromoteArtifactToKnowledgeLibrary = useCallback(async () => {
     if (!artifactPreview) {
@@ -10073,7 +10115,7 @@ export function OpenClawChatSurface({
                   ref={hostRef}
                   aria-hidden={showWelcomePage ? 'true' : undefined}
                   className={`openclaw-chat-surface min-h-0 flex-1 overflow-hidden ${
-                    showWelcomePage || allowImmediateEmptySessionUi ? 'pointer-events-none opacity-0' : ''
+                    showWelcomePage ? 'pointer-events-none opacity-0' : ''
                   }`}
                 />
 
