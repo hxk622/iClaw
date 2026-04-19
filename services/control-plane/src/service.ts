@@ -1204,7 +1204,10 @@ function buildAdminFinanceComplianceSummary(
   const byChannel = new Map<FinanceComplianceChannel, number>();
   const byOutputClassification = new Map<string, number>();
   const byReason = new Map<string, number>();
-  const byDay = new Map<string, { total: number; disclaimer: number; degraded: number; blocked: number }>();
+  const byDecisionSource = new Map<string, number>();
+  const byConfidence = new Map<string, number>();
+  const byMatchedRule = new Map<string, number>();
+  const byDay = new Map<string, { total: number; disclaimer: number; degraded: number; blocked: number; unknownOutput: number }>();
 
   let disclaimerCount = 0;
   let degradedCount = 0;
@@ -1216,8 +1219,13 @@ function buildAdminFinanceComplianceSummary(
     byChannel.set(item.channel, (byChannel.get(item.channel) || 0) + 1);
     const outputKey = item.outputClassification || 'unknown';
     byOutputClassification.set(outputKey, (byOutputClassification.get(outputKey) || 0) + 1);
+    byDecisionSource.set(item.decisionSource || 'heuristic_fallback', (byDecisionSource.get(item.decisionSource || 'heuristic_fallback') || 0) + 1);
+    byConfidence.set(item.confidence || 'low', (byConfidence.get(item.confidence || 'low') || 0) + 1);
     item.reasons.forEach((reason) => {
       byReason.set(reason, (byReason.get(reason) || 0) + 1);
+    });
+    item.matchedRules.forEach((rule) => {
+      byMatchedRule.set(rule, (byMatchedRule.get(rule) || 0) + 1);
     });
 
     if (item.showDisclaimer) {
@@ -1238,11 +1246,12 @@ function buildAdminFinanceComplianceSummary(
 
     const dateKey = String(item.createdAt || '').slice(0, 10);
     if (dateKey) {
-      const current = byDay.get(dateKey) || { total: 0, disclaimer: 0, degraded: 0, blocked: 0 };
+      const current = byDay.get(dateKey) || { total: 0, disclaimer: 0, degraded: 0, blocked: 0, unknownOutput: 0 };
       current.total += 1;
       if (item.showDisclaimer) current.disclaimer += 1;
       if (item.degraded) current.degraded += 1;
       if (item.blocked) current.blocked += 1;
+      if (item.outputClassification === 'unknown' || item.outputClassification == null) current.unknownOutput += 1;
       byDay.set(dateKey, current);
     }
   });
@@ -1264,7 +1273,23 @@ function buildAdminFinanceComplianceSummary(
         output_classification: output_classification as FinanceComplianceEventRecord['outputClassification'] | 'unknown',
         count,
       })),
+    by_decision_source: Array.from(byDecisionSource.entries())
+      .sort((left, right) => right[1] - left[1])
+      .map(([decision_source, count]) => ({
+        decision_source: decision_source as FinanceComplianceEventRecord['decisionSource'],
+        count,
+      })),
+    by_confidence: Array.from(byConfidence.entries())
+      .sort((left, right) => right[1] - left[1])
+      .map(([confidence, count]) => ({
+        confidence: confidence as FinanceComplianceEventRecord['confidence'],
+        count,
+      })),
     top_reasons: Array.from(byReason.entries())
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 10)
+      .map(([reason, count]) => ({ reason, count })),
+    top_matched_rules: Array.from(byMatchedRule.entries())
       .sort((left, right) => right[1] - left[1])
       .slice(0, 10)
       .map(([reason, count]) => ({ reason, count })),
@@ -1276,6 +1301,7 @@ function buildAdminFinanceComplianceSummary(
         disclaimer_count: value.disclaimer,
         degraded_count: value.degraded,
         blocked_count: value.blocked,
+        unknown_output_count: value.unknownOutput,
       })),
   };
 }

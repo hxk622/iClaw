@@ -781,7 +781,19 @@ export type FinanceComplianceSummaryData = {
     outputClassification: 'market_data' | 'research_summary' | 'investment_view' | 'actionable_advice' | 'unknown';
     count: number;
   }>;
+  byDecisionSource: Array<{
+    decisionSource: 'plugin' | 'server' | 'heuristic_fallback';
+    count: number;
+  }>;
+  byConfidence: Array<{
+    confidence: 'low' | 'medium' | 'high';
+    count: number;
+  }>;
   topReasons: Array<{
+    reason: string;
+    count: number;
+  }>;
+  topMatchedRules: Array<{
     reason: string;
     count: number;
   }>;
@@ -791,6 +803,7 @@ export type FinanceComplianceSummaryData = {
     disclaimerCount: number;
     degradedCount: number;
     blockedCount: number;
+    unknownOutputCount: number;
   }>;
 };
 

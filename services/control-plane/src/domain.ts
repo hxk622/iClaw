@@ -928,12 +928,23 @@ export type AdminFinanceComplianceReasonSummaryView = {
   count: number;
 };
 
+export type AdminFinanceComplianceDecisionSourceSummaryView = {
+  decision_source: FinanceComplianceDecisionSource;
+  count: number;
+};
+
+export type AdminFinanceComplianceConfidenceSummaryView = {
+  confidence: FinanceComplianceConfidence;
+  count: number;
+};
+
 export type AdminFinanceComplianceDailySummaryView = {
   date: string;
   total: number;
   disclaimer_count: number;
   degraded_count: number;
   blocked_count: number;
+  unknown_output_count: number;
 };
 
 export type AdminFinanceComplianceSummaryView = {
@@ -946,7 +957,10 @@ export type AdminFinanceComplianceSummaryView = {
   unknown_output_count: number;
   by_channel: AdminFinanceComplianceChannelSummaryView[];
   by_output_classification: AdminFinanceComplianceOutputSummaryView[];
+  by_decision_source: AdminFinanceComplianceDecisionSourceSummaryView[];
+  by_confidence: AdminFinanceComplianceConfidenceSummaryView[];
   top_reasons: AdminFinanceComplianceReasonSummaryView[];
+  top_matched_rules: AdminFinanceComplianceReasonSummaryView[];
   by_day: AdminFinanceComplianceDailySummaryView[];
 };
 

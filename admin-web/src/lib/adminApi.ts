@@ -1467,7 +1467,19 @@ export async function loadFinanceComplianceSummary(input: {
       outputClassification: (stringValue(item.output_classification) || 'unknown') as FinanceComplianceSummaryData['byOutputClassification'][number]['outputClassification'],
       count: numberValue(item.count),
     })),
+    byDecisionSource: toArray<Record<string, unknown>>(root.by_decision_source).map((item) => ({
+      decisionSource: (stringValue(item.decision_source) || 'heuristic_fallback') as FinanceComplianceSummaryData['byDecisionSource'][number]['decisionSource'],
+      count: numberValue(item.count),
+    })),
+    byConfidence: toArray<Record<string, unknown>>(root.by_confidence).map((item) => ({
+      confidence: (stringValue(item.confidence) || 'medium') as FinanceComplianceSummaryData['byConfidence'][number]['confidence'],
+      count: numberValue(item.count),
+    })),
     topReasons: toArray<Record<string, unknown>>(root.top_reasons).map((item) => ({
+      reason: stringValue(item.reason),
+      count: numberValue(item.count),
+    })),
+    topMatchedRules: toArray<Record<string, unknown>>(root.top_matched_rules).map((item) => ({
       reason: stringValue(item.reason),
       count: numberValue(item.count),
     })),
@@ -1477,6 +1489,7 @@ export async function loadFinanceComplianceSummary(input: {
       disclaimerCount: numberValue(item.disclaimer_count),
       degradedCount: numberValue(item.degraded_count),
       blockedCount: numberValue(item.blocked_count),
+      unknownOutputCount: numberValue(item.unknown_output_count),
     })),
   };
 }

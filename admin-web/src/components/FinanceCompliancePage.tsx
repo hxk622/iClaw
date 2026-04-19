@@ -58,8 +58,15 @@ export function FinanceCompliancePage() {
   const unknownOutputCount = summary?.unknownOutputCount ?? 0;
   const eventsByChannel = summary?.byChannel ?? [];
   const eventsByOutputClassification = summary?.byOutputClassification ?? [];
+  const eventsByDecisionSource = summary?.byDecisionSource ?? [];
+  const eventsByConfidence = summary?.byConfidence ?? [];
   const topReasons = summary?.topReasons ?? [];
+  const topMatchedRules = summary?.topMatchedRules ?? [];
   const byDay = summary?.byDay ?? [];
+  const heuristicFallbackEvents = useMemo(
+    () => events.filter((item) => item.decisionSource === 'heuristic_fallback').slice(0, 50),
+    [events],
+  );
   const maxDailyTotal = useMemo(
     () => byDay.reduce((current, item) => Math.max(current, item.total), 0),
     [byDay],
@@ -127,7 +134,7 @@ export function FinanceCompliancePage() {
           </div>
         </section>
 
-        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', marginTop: 20 }}>
+        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', marginTop: 20 }}>
           <section className="fig-card fig-card--subtle">
             <div className="fig-card__head">
               <h3>按渠道分布</h3>
@@ -190,6 +197,71 @@ export function FinanceCompliancePage() {
               )}
             </div>
           </section>
+
+          <section className="fig-card fig-card--subtle">
+            <div className="fig-card__head">
+              <h3>decision source 分布</h3>
+              <span>{String(eventsByDecisionSource.length)} 类</span>
+            </div>
+            <div className="fig-list">
+              {eventsByDecisionSource.length ? (
+                eventsByDecisionSource.map((item) => (
+                  <article key={item.decisionSource} className="fig-list-item">
+                    <div className="fig-list-item__body">
+                      <div className="fig-list-item__title">{item.decisionSource}</div>
+                      <div className="fig-list-item__meta">{`${item.count} 条事件`}</div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-state">暂无数据。</div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 20 }}>
+          <section className="fig-card fig-card--subtle">
+            <div className="fig-card__head">
+              <h3>confidence 分布</h3>
+              <span>{String(eventsByConfidence.length)} 档</span>
+            </div>
+            <div className="fig-list">
+              {eventsByConfidence.length ? (
+                eventsByConfidence.map((item) => (
+                  <article key={item.confidence} className="fig-list-item">
+                    <div className="fig-list-item__body">
+                      <div className="fig-list-item__title">{item.confidence}</div>
+                      <div className="fig-list-item__meta">{`${item.count} 条事件`}</div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-state">暂无数据。</div>
+              )}
+            </div>
+          </section>
+
+          <section className="fig-card fig-card--subtle">
+            <div className="fig-card__head">
+              <h3>Top matched rules</h3>
+              <span>{String(topMatchedRules.length)} 条</span>
+            </div>
+            <div className="fig-list">
+              {topMatchedRules.length ? (
+                topMatchedRules.map((item) => (
+                  <article key={item.reason} className="fig-list-item">
+                    <div className="fig-list-item__body">
+                      <div className="fig-list-item__title">{item.reason}</div>
+                      <div className="fig-list-item__meta">{`${item.count} 次`}</div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-state">暂无数据。</div>
+              )}
+            </div>
+          </section>
         </div>
 
         <section className="fig-card fig-card--subtle" style={{ marginTop: 20 }}>
@@ -231,7 +303,7 @@ export function FinanceCompliancePage() {
                       <div className="fig-list-item__meta">{`${item.total} 条`}</div>
                     </div>
                     <div className="fig-list-item__meta">
-                      {`免责声明 ${item.disclaimerCount} · 降级 ${item.degradedCount} · 拦截 ${item.blockedCount}`}
+                      {`免责声明 ${item.disclaimerCount} · 降级 ${item.degradedCount} · 拦截 ${item.blockedCount} · unknown ${item.unknownOutputCount}`}
                     </div>
                   </div>
                 </article>
@@ -365,6 +437,34 @@ export function FinanceCompliancePage() {
             )}
           </section>
         </div>
+
+        <section className="fig-card fig-card--subtle" style={{ marginTop: 20 }}>
+          <div className="fig-card__head">
+            <h3>heuristic fallback 列表</h3>
+            <span>{String(heuristicFallbackEvents.length)} 条</span>
+          </div>
+          <div className="fig-list">
+            {heuristicFallbackEvents.length ? (
+              heuristicFallbackEvents.map((item) => (
+                <article key={item.id} className="fig-list-item">
+                  <div className="fig-list-item__body">
+                    <div className="fig-list-item__title">
+                      {item.channel} · {item.outputClassification || 'unknown'} · {item.confidence}
+                    </div>
+                    <div className="fig-list-item__meta">
+                      {`${formatDateTime(item.createdAt)} · ${item.appName} · ${item.sessionKey}`}
+                    </div>
+                    <div className="fig-list-item__meta">
+                      {item.reasons.length ? item.reasons.join(' | ') : '无 reasons'}
+                    </div>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="empty-state">暂无 heuristic fallback 事件。</div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );
