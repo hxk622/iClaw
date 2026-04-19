@@ -88,6 +88,7 @@ import type {
   AdminClientPerfSampleView,
   AdminFinanceComplianceEventView,
   AdminFinanceComplianceSummaryView,
+  AdminSyncTaskRunTriggerView,
   AdminSyncTaskRunView,
   FinanceComplianceChannel,
   FinanceComplianceEventRecord,
@@ -169,6 +170,8 @@ import {logWarn} from './logger.ts';
 import {loadOAuthUserProfile} from './oauth.ts';
 import {hashPassword, verifyPassword} from './passwords.ts';
 import {syncSkillsFromSource} from './skill-sync.ts';
+import { executeRegisteredSyncTask } from './sync-tasks/runner.ts';
+import { MARKET_SYNC_TASKS } from './sync-tasks/task-registry.ts';
 import type {ControlPlaneStore} from './store.ts';
 import {generateOpaqueToken, hashOpaqueToken} from './tokens.ts';
 
@@ -5200,6 +5203,27 @@ export class ControlPlaneService {
       limit: input.limit,
     });
     return {items: items.map(toAdminSyncTaskRunView)};
+  }
+
+  async runAdminSyncTask(
+    accessToken: string,
+    taskIdInput: string,
+  ): Promise<AdminSyncTaskRunTriggerView> {
+    await this.requireAdminUser(accessToken);
+    const taskId = taskIdInput.trim();
+    if (!taskId) {
+      throw new HttpError(400, 'BAD_REQUEST', 'task_id is required');
+    }
+    const task = MARKET_SYNC_TASKS.find((item) => item.id === taskId);
+    if (!task) {
+      throw new HttpError(404, 'NOT_FOUND', 'sync task not found');
+    }
+    const result = await executeRegisteredSyncTask(task, 'manual');
+    return {
+      run_id: result.runId,
+      task_id: task.id,
+      trigger_type: 'manual',
+    };
   }
 
   async getAdminFinanceComplianceSummary(

@@ -974,6 +974,12 @@ export type AdminSyncTaskRunView = {
   updated_at: string;
 };
 
+export type AdminSyncTaskRunTriggerView = {
+  run_id: string;
+  task_id: string;
+  trigger_type: 'manual';
+};
+
 export type AdminDesktopUpdateEventView = AdminClientMetricEventView & {
   rollout_id: string | null;
   update_identity: string;

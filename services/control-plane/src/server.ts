@@ -2373,6 +2373,15 @@ const server = createJsonServer([
   },
   {
     method: 'POST',
+    path: '/admin/sync-tasks/run',
+    handler: ({headers, body}: HandlerContext) =>
+      service.runAdminSyncTask(
+        requireBearerToken(headers),
+        (((body || {}) as {task_id?: string}).task_id || '').trim(),
+      ),
+  },
+  {
+    method: 'POST',
     path: '/portal/client-metrics/events',
     handler: ({headers, body}: HandlerContext) =>
       service.recordClientMetricEvents(

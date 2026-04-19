@@ -5,7 +5,7 @@ import type { SyncTaskDefinition } from './task-registry.ts';
 export async function executeRegisteredSyncTask(
   task: SyncTaskDefinition,
   trigger: SyncTaskRunTrigger,
-): Promise<void> {
+): Promise<{runId: string}> {
   const runId = await createSyncTaskRun({
     taskId: task.id,
     taskLabel: task.label,
@@ -32,6 +32,7 @@ export async function executeRegisteredSyncTask(
       syncCount: result.syncCount ?? null,
       dataSource: result.dataSource ?? null,
     });
+    return {runId};
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await markSyncTaskRunFailed(runId, message);
