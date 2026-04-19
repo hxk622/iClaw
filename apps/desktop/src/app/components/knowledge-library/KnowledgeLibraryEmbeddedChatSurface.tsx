@@ -10,6 +10,8 @@ import { resolveKnowledgeLibraryItemSourceContext } from './chat-feedback';
 type KnowledgeLibraryEmbeddedChatSurfaceProps = {
   selectedItem: KnowledgeLibraryItem | null;
   activeTab: KnowledgeLibraryTab;
+  initialPrompt?: string | null;
+  initialPromptKey?: string | null;
   gatewayUrl: string;
   gatewayToken?: string;
   gatewayPassword?: string;
@@ -38,6 +40,8 @@ export const KnowledgeLibraryEmbeddedChatSurface = forwardRef<HTMLDivElement, Kn
     {
       selectedItem,
       activeTab,
+      initialPrompt = null,
+      initialPromptKey = null,
       gatewayUrl,
       gatewayToken,
       gatewayPassword,
@@ -67,8 +71,8 @@ export const KnowledgeLibraryEmbeddedChatSurface = forwardRef<HTMLDivElement, Kn
           appName={appName}
           conversationId={null}
           sessionKey={createScopedChatSessionKey(sessionSeed)}
-          initialPrompt={null}
-          initialPromptKey={null}
+          initialPrompt={initialPrompt}
+          initialPromptKey={initialPromptKey}
           focusedTurnId={null}
           focusedTurnKey={null}
           initialAgentSlug={null}

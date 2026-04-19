@@ -122,6 +122,8 @@ export function KnowledgeLibraryView({
   const [graphifyQueryLoading, setGraphifyQueryLoading] = useState(false);
   const [graphifyQueryResult, setGraphifyQueryResult] = useState<string | null>(null);
   const [graphifyQueryError, setGraphifyQueryError] = useState<string | null>(null);
+  const [embeddedChatSeedPrompt, setEmbeddedChatSeedPrompt] = useState<string | null>(null);
+  const [embeddedChatSeedPromptKey, setEmbeddedChatSeedPromptKey] = useState<string | null>(null);
   const graphCompilerJobs = useGraphCompilerJobs(ontologyRefreshKey + outputRefreshKey + materialsRefreshKey);
 
   const {
@@ -347,6 +349,15 @@ export function KnowledgeLibraryView({
         item: effectiveSelectedItem,
       }),
     });
+  };
+
+  const handleInjectPromptIntoEmbeddedChat = (prompt: string) => {
+    const normalized = prompt.trim();
+    if (!normalized) {
+      return;
+    }
+    setEmbeddedChatSeedPrompt(normalized);
+    setEmbeddedChatSeedPromptKey(`knowledge-library-seed:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`);
   };
 
   const handleOpenSourceTurn = () => {
@@ -615,6 +626,32 @@ export function KnowledgeLibraryView({
         queryResult: graphifyQueryResult,
       }),
     });
+  };
+
+  const handleInjectCurrentContextIntoEmbeddedChat = () => {
+    if (!effectiveSelectedItem) {
+      return;
+    }
+    handleInjectPromptIntoEmbeddedChat(
+      buildKnowledgeLibraryContextPrompt({
+        tab: activeTab,
+        item: effectiveSelectedItem,
+      }),
+    );
+  };
+
+  const handleInjectGraphifyQueryIntoEmbeddedChat = () => {
+    if (!effectiveSelectedItem || !graphifyQueryResult || !graphifyQueryText.trim()) {
+      return;
+    }
+    handleInjectPromptIntoEmbeddedChat(
+      buildKnowledgeLibraryGraphQueryPrompt({
+        tab: activeTab,
+        item: effectiveSelectedItem,
+        question: graphifyQueryText.trim(),
+        queryResult: graphifyQueryResult,
+      }),
+    );
   };
 
   return (
@@ -917,6 +954,13 @@ export function KnowledgeLibraryView({
                               >
                                 回到来源对话
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={handleInjectCurrentContextIntoEmbeddedChat}
+                              >
+                                送到右侧对话
+                              </Button>
                             </div>
                             {selectedOutputLineage.artifact_refs.length > 0 ? (
                               <div className="mt-4 space-y-2">
@@ -1108,6 +1152,14 @@ export function KnowledgeLibraryView({
                               >
                                 在主对话中继续
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={handleInjectGraphifyQueryIntoEmbeddedChat}
+                                disabled={!graphifyQueryResult}
+                              >
+                                送到右侧对话
+                              </Button>
                             </div>
                             {graphifyQueryError ? (
                               <div className="mt-3 text-[12px] leading-6 text-[#B45309] dark:text-[#EBCB8B]">
@@ -1179,6 +1231,13 @@ export function KnowledgeLibraryView({
                   >
                     在主对话中打开
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleInjectCurrentContextIntoEmbeddedChat}
+                    className="inline-flex h-8 items-center justify-center rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-3 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                  >
+                    注入右侧对话
+                  </button>
                 </>
               ) : null}
             </div>
@@ -1187,6 +1246,8 @@ export function KnowledgeLibraryView({
             ref={embeddedChatRef}
             selectedItem={effectiveSelectedItem}
             activeTab={activeTab}
+            initialPrompt={embeddedChatSeedPrompt}
+            initialPromptKey={embeddedChatSeedPromptKey}
             gatewayUrl={gatewayUrl}
             gatewayToken={gatewayToken}
             gatewayPassword={gatewayPassword}
