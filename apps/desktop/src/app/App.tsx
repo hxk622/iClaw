@@ -1004,7 +1004,7 @@ function WorkspaceTabsBar(props: {
           <div
             key={tab.id}
             ref={menuOpen || renaming ? activeTabRef : null}
-            className="group relative flex h-[31px] w-[176px] min-w-[96px] max-w-[240px] shrink-0 items-center rounded-[13px] border px-[10px] pr-[24px] text-[12px] font-medium transition-all duration-[180ms]"
+            className="group relative grid h-[31px] w-[176px] min-w-[96px] max-w-[240px] shrink-0 grid-cols-[18px_minmax(0,1fr)_18px] items-center gap-1 rounded-[13px] border px-[10px] text-[12px] font-medium transition-all duration-[180ms]"
             data-testid="workspace-tab-item"
             data-workspace-tab-id={tab.id}
             data-workspace-tab-active={isActive ? 'true' : 'false'}
@@ -1110,7 +1110,7 @@ function WorkspaceTabsBar(props: {
           >
             <span
               aria-hidden="true"
-              className="mr-2 h-2 w-2 shrink-0 rounded-full"
+              className="h-2 w-2 shrink-0 place-self-center rounded-full"
               style={{
                 background: colorStyle.accent,
                 boxShadow: isBusy ? `0 0 0 4px color-mix(in srgb, ${colorStyle.accent} 18%, transparent)` : 'none',
@@ -1136,15 +1136,15 @@ function WorkspaceTabsBar(props: {
                   }
                 }}
                 onBlur={() => handleCommitRename(tab.id)}
-                className="relative z-[1] w-full min-w-0 rounded-[10px] border border-[var(--brand-primary)] bg-[var(--bg-card)] px-2 py-1 text-left text-[12px] text-[var(--text-primary)] outline-none"
+                className="relative z-[1] w-full min-w-0 rounded-[10px] border border-[var(--brand-primary)] bg-[var(--bg-card)] px-2 py-1 text-center text-[12px] text-[var(--text-primary)] outline-none"
                 maxLength={48}
               />
             ) : (
-              <span className="relative z-[1] truncate text-left text-[var(--text-primary)]">{tab.title}</span>
+              <span className="relative z-[1] min-w-0 truncate text-center text-[var(--text-primary)]">{tab.title}</span>
             )}
             <button
               type="button"
-              className="relative z-[1] absolute right-[6px] inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[6px] text-[11px] text-[var(--text-secondary)] opacity-0 transition hover:bg-[color-mix(in_srgb,var(--text-primary)_14%,transparent)] hover:text-[var(--text-primary)] group-hover:opacity-100"
+              className="relative z-[1] inline-flex h-4 w-4 shrink-0 place-self-center items-center justify-center rounded-[6px] text-[11px] text-[var(--text-secondary)] opacity-0 transition hover:bg-[color-mix(in_srgb,var(--text-primary)_14%,transparent)] hover:text-[var(--text-primary)] group-hover:opacity-100"
               data-testid="workspace-tab-close"
               data-workspace-tab-id={tab.id}
               onClick={(event) => {
