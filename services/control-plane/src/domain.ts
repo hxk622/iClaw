@@ -901,6 +901,41 @@ export type AdminFinanceComplianceEventView = {
   created_at: string;
 };
 
+export type AdminFinanceComplianceChannelSummaryView = {
+  channel: FinanceComplianceChannel;
+  count: number;
+};
+
+export type AdminFinanceComplianceOutputSummaryView = {
+  output_classification: FinanceOutputClassification | 'unknown';
+  count: number;
+};
+
+export type AdminFinanceComplianceReasonSummaryView = {
+  reason: string;
+  count: number;
+};
+
+export type AdminFinanceComplianceDailySummaryView = {
+  date: string;
+  total: number;
+  disclaimer_count: number;
+  degraded_count: number;
+  blocked_count: number;
+};
+
+export type AdminFinanceComplianceSummaryView = {
+  total_events: number;
+  disclaimer_count: number;
+  degraded_count: number;
+  blocked_count: number;
+  disclaimer_rate: number;
+  by_channel: AdminFinanceComplianceChannelSummaryView[];
+  by_output_classification: AdminFinanceComplianceOutputSummaryView[];
+  top_reasons: AdminFinanceComplianceReasonSummaryView[];
+  by_day: AdminFinanceComplianceDailySummaryView[];
+};
+
 export type AdminDesktopUpdateEventView = AdminClientMetricEventView & {
   rollout_id: string | null;
   update_identity: string;

@@ -2335,6 +2335,19 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/admin/finance-compliance/summary',
+    handler: ({headers, url}: HandlerContext) =>
+      service.getAdminFinanceComplianceSummary(requireBearerToken(headers), {
+        app_name: url.searchParams.get('app_name'),
+        session_key: url.searchParams.get('session_key'),
+        channel: url.searchParams.get('channel'),
+        input_classification: url.searchParams.get('input_classification'),
+        output_classification: url.searchParams.get('output_classification'),
+        risk_level: url.searchParams.get('risk_level'),
+      }),
+  },
+  {
+    method: 'GET',
     path: '/admin/finance-compliance/events',
     handler: ({headers, url}: HandlerContext) =>
       service.listAdminFinanceComplianceEvents(requireBearerToken(headers), {

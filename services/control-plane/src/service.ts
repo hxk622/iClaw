@@ -87,6 +87,7 @@ import type {
   ClientPerfSampleRecord,
   AdminClientPerfSampleView,
   AdminFinanceComplianceEventView,
+  AdminFinanceComplianceSummaryView,
   FinanceComplianceChannel,
   FinanceComplianceEventRecord,
   FinanceComplianceRiskLevel,
@@ -1149,6 +1150,78 @@ function toAdminFinanceComplianceEventView(record: FinanceComplianceEventRecord)
     used_model: record.usedModel,
     metadata: record.metadata,
     created_at: record.createdAt,
+  };
+}
+
+function buildAdminFinanceComplianceSummary(
+  items: FinanceComplianceEventRecord[],
+): AdminFinanceComplianceSummaryView {
+  const byChannel = new Map<FinanceComplianceChannel, number>();
+  const byOutputClassification = new Map<string, number>();
+  const byReason = new Map<string, number>();
+  const byDay = new Map<string, { total: number; disclaimer: number; degraded: number; blocked: number }>();
+
+  let disclaimerCount = 0;
+  let degradedCount = 0;
+  let blockedCount = 0;
+
+  items.forEach((item) => {
+    byChannel.set(item.channel, (byChannel.get(item.channel) || 0) + 1);
+    const outputKey = item.outputClassification || 'unknown';
+    byOutputClassification.set(outputKey, (byOutputClassification.get(outputKey) || 0) + 1);
+    item.reasons.forEach((reason) => {
+      byReason.set(reason, (byReason.get(reason) || 0) + 1);
+    });
+
+    if (item.showDisclaimer) {
+      disclaimerCount += 1;
+    }
+    if (item.degraded) {
+      degradedCount += 1;
+    }
+    if (item.blocked) {
+      blockedCount += 1;
+    }
+
+    const dateKey = String(item.createdAt || '').slice(0, 10);
+    if (dateKey) {
+      const current = byDay.get(dateKey) || { total: 0, disclaimer: 0, degraded: 0, blocked: 0 };
+      current.total += 1;
+      if (item.showDisclaimer) current.disclaimer += 1;
+      if (item.degraded) current.degraded += 1;
+      if (item.blocked) current.blocked += 1;
+      byDay.set(dateKey, current);
+    }
+  });
+
+  return {
+    total_events: items.length,
+    disclaimer_count: disclaimerCount,
+    degraded_count: degradedCount,
+    blocked_count: blockedCount,
+    disclaimer_rate: items.length > 0 ? Math.round((disclaimerCount / items.length) * 1000) / 10 : 0,
+    by_channel: Array.from(byChannel.entries())
+      .sort((left, right) => right[1] - left[1])
+      .map(([channel, count]) => ({ channel, count })),
+    by_output_classification: Array.from(byOutputClassification.entries())
+      .sort((left, right) => right[1] - left[1])
+      .map(([output_classification, count]) => ({
+        output_classification: output_classification as FinanceComplianceEventRecord['outputClassification'] | 'unknown',
+        count,
+      })),
+    top_reasons: Array.from(byReason.entries())
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 10)
+      .map(([reason, count]) => ({ reason, count })),
+    by_day: Array.from(byDay.entries())
+      .sort((left, right) => left[0].localeCompare(right[0]))
+      .map(([date, value]) => ({
+        date,
+        total: value.total,
+        disclaimer_count: value.disclaimer,
+        degraded_count: value.degraded,
+        blocked_count: value.blocked,
+      })),
   };
 }
 
@@ -5074,6 +5147,30 @@ export class ControlPlaneService {
       limit: input.limit,
     });
     return {items: items.map(toAdminFinanceComplianceEventView)};
+  }
+
+  async getAdminFinanceComplianceSummary(
+    accessToken: string,
+    input: {
+      app_name?: string | null;
+      session_key?: string | null;
+      channel?: string | null;
+      input_classification?: string | null;
+      output_classification?: string | null;
+      risk_level?: string | null;
+    } = {},
+  ): Promise<AdminFinanceComplianceSummaryView> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listFinanceComplianceEvents({
+      appName: input.app_name || null,
+      sessionKey: input.session_key || null,
+      channel: input.channel || null,
+      inputClassification: input.input_classification || null,
+      outputClassification: input.output_classification || null,
+      riskLevel: input.risk_level || null,
+      limit: 5000,
+    });
+    return buildAdminFinanceComplianceSummary(items);
   }
 
   async getWorkspaceBackup(accessToken: string): Promise<WorkspaceBackupView | null> {

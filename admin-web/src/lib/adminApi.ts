@@ -5,6 +5,7 @@ import type {
   ClientMetricEventRecord,
   ClientPerfSampleRecord,
   FinanceComplianceEventRecord,
+  FinanceComplianceSummaryData,
   DesktopFaultReportDetailRecord,
   DesktopFaultReportSummaryRecord,
   OverviewData,
@@ -1425,6 +1426,51 @@ export async function loadFinanceComplianceEvents(input: {
     metadata: asObject(item.metadata),
     createdAt: stringValue(item.created_at || item.createdAt),
   }));
+}
+
+export async function loadFinanceComplianceSummary(input: {
+  appName?: string;
+  sessionKey?: string;
+  channel?: string;
+  inputClassification?: string;
+  outputClassification?: string;
+  riskLevel?: string;
+} = {}): Promise<FinanceComplianceSummaryData> {
+  const params = new URLSearchParams();
+  if (input.appName?.trim()) params.set('app_name', input.appName.trim());
+  if (input.sessionKey?.trim()) params.set('session_key', input.sessionKey.trim());
+  if (input.channel?.trim()) params.set('channel', input.channel.trim());
+  if (input.inputClassification?.trim()) params.set('input_classification', input.inputClassification.trim());
+  if (input.outputClassification?.trim()) params.set('output_classification', input.outputClassification.trim());
+  if (input.riskLevel?.trim()) params.set('risk_level', input.riskLevel.trim());
+  const data = await apiFetch(`/admin/finance-compliance/summary?${params.toString()}`, { method: 'GET' });
+  const root = asObject(data);
+  return {
+    totalEvents: numberValue(root.total_events),
+    disclaimerCount: numberValue(root.disclaimer_count),
+    degradedCount: numberValue(root.degraded_count),
+    blockedCount: numberValue(root.blocked_count),
+    disclaimerRate: numberValue(root.disclaimer_rate),
+    byChannel: toArray<Record<string, unknown>>(root.by_channel).map((item) => ({
+      channel: (stringValue(item.channel) || 'chat') as FinanceComplianceSummaryData['byChannel'][number]['channel'],
+      count: numberValue(item.count),
+    })),
+    byOutputClassification: toArray<Record<string, unknown>>(root.by_output_classification).map((item) => ({
+      outputClassification: (stringValue(item.output_classification) || 'unknown') as FinanceComplianceSummaryData['byOutputClassification'][number]['outputClassification'],
+      count: numberValue(item.count),
+    })),
+    topReasons: toArray<Record<string, unknown>>(root.top_reasons).map((item) => ({
+      reason: stringValue(item.reason),
+      count: numberValue(item.count),
+    })),
+    byDay: toArray<Record<string, unknown>>(root.by_day).map((item) => ({
+      date: stringValue(item.date),
+      total: numberValue(item.total),
+      disclaimerCount: numberValue(item.disclaimer_count),
+      degradedCount: numberValue(item.degraded_count),
+      blockedCount: numberValue(item.blocked_count),
+    })),
+  };
 }
 
 export async function loadClientPerfSamples(input: {

@@ -774,6 +774,17 @@ test('finance compliance events support ingestion and admin listing', async () =
     assert.equal(listed.items[0]?.app_name, 'caiclaw');
     assert.equal(listed.items[0]?.risk_level, 'medium');
     assert.deepEqual(listed.items[0]?.reasons, ['finance_domain', 'show_disclaimer']);
+
+    const summary = await service.getAdminFinanceComplianceSummary(admin.tokens.access_token, {
+      app_name: 'caiclaw',
+    });
+    assert.equal(summary.total_events, 1);
+    assert.equal(summary.disclaimer_count, 1);
+    assert.equal(summary.degraded_count, 1);
+    assert.equal(summary.blocked_count, 0);
+    assert.equal(summary.by_channel[0]?.channel, 'cron');
+    assert.equal(summary.by_output_classification[0]?.output_classification, 'investment_view');
+    assert.equal(summary.top_reasons[0]?.reason, 'finance_domain');
   });
 });
 

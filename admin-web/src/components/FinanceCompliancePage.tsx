@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatDateTime } from '../lib/adminFormat';
-import { loadFinanceComplianceEvents } from '../lib/adminApi';
-import type { FinanceComplianceEventRecord } from '../lib/adminTypes';
+import { loadFinanceComplianceEvents, loadFinanceComplianceSummary } from '../lib/adminApi';
+import type { FinanceComplianceEventRecord, FinanceComplianceSummaryData } from '../lib/adminTypes';
 import { adminFilterControlStyle, AdminFilterStack, AdminSearchRow, AdminSelectorRow } from './AdminFilterLayout';
 
 export function FinanceCompliancePage() {
@@ -10,6 +10,7 @@ export function FinanceCompliancePage() {
   const [riskLevel, setRiskLevel] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [events, setEvents] = useState<FinanceComplianceEventRecord[]>([]);
+  const [summary, setSummary] = useState<FinanceComplianceSummaryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -17,15 +18,23 @@ export function FinanceCompliancePage() {
     let cancelled = false;
     setLoading(true);
     setError('');
-    loadFinanceComplianceEvents({
-      appName,
-      channel,
-      riskLevel,
-      limit: 200,
-    })
-      .then((nextEvents) => {
+    Promise.all([
+      loadFinanceComplianceEvents({
+        appName,
+        channel,
+        riskLevel,
+        limit: 200,
+      }),
+      loadFinanceComplianceSummary({
+        appName,
+        channel,
+        riskLevel,
+      }),
+    ])
+      .then(([nextEvents, nextSummary]) => {
         if (cancelled) return;
         setEvents(nextEvents);
+        setSummary(nextSummary);
         setSelectedId((current) => (current && nextEvents.some((item) => item.id === current) ? current : nextEvents[0]?.id || ''));
       })
       .catch((loadError) => {
@@ -41,44 +50,13 @@ export function FinanceCompliancePage() {
     };
   }, [appName, channel, riskLevel]);
 
-  const disclaimerCount = useMemo(
-    () => events.filter((item) => item.showDisclaimer).length,
-    [events],
-  );
-  const degradedCount = useMemo(() => events.filter((item) => item.degraded).length, [events]);
-  const blockedCount = useMemo(() => events.filter((item) => item.blocked).length, [events]);
-  const disclaimerRate = useMemo(() => {
-    if (events.length === 0) {
-      return '—';
-    }
-    return `${Math.round((disclaimerCount / events.length) * 100)}%`;
-  }, [disclaimerCount, events.length]);
-  const eventsByChannel = useMemo(() => {
-    const counts = new Map<string, number>();
-    events.forEach((item) => {
-      counts.set(item.channel, (counts.get(item.channel) || 0) + 1);
-    });
-    return Array.from(counts.entries()).sort((left, right) => right[1] - left[1]);
-  }, [events]);
-  const eventsByOutputClassification = useMemo(() => {
-    const counts = new Map<string, number>();
-    events.forEach((item) => {
-      const key = item.outputClassification || 'unknown';
-      counts.set(key, (counts.get(key) || 0) + 1);
-    });
-    return Array.from(counts.entries()).sort((left, right) => right[1] - left[1]);
-  }, [events]);
-  const topReasons = useMemo(() => {
-    const counts = new Map<string, number>();
-    events.forEach((item) => {
-      item.reasons.forEach((reason) => {
-        counts.set(reason, (counts.get(reason) || 0) + 1);
-      });
-    });
-    return Array.from(counts.entries())
-      .sort((left, right) => right[1] - left[1])
-      .slice(0, 10);
-  }, [events]);
+  const disclaimerCount = summary?.disclaimerCount ?? 0;
+  const degradedCount = summary?.degradedCount ?? 0;
+  const blockedCount = summary?.blockedCount ?? 0;
+  const disclaimerRate = summary ? `${summary.disclaimerRate}%` : '—';
+  const eventsByChannel = summary?.byChannel ?? [];
+  const eventsByOutputClassification = summary?.byOutputClassification ?? [];
+  const topReasons = summary?.topReasons ?? [];
   const selectedEvent = useMemo(
     () => events.find((item) => item.id === selectedId) || events[0] || null,
     [events, selectedId],

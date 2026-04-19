@@ -760,6 +760,33 @@ export type FinanceComplianceEventRecord = {
   createdAt: string;
 };
 
+export type FinanceComplianceSummaryData = {
+  totalEvents: number;
+  disclaimerCount: number;
+  degradedCount: number;
+  blockedCount: number;
+  disclaimerRate: number;
+  byChannel: Array<{
+    channel: 'chat' | 'cron' | 'notification' | 'report';
+    count: number;
+  }>;
+  byOutputClassification: Array<{
+    outputClassification: 'market_data' | 'research_summary' | 'investment_view' | 'actionable_advice' | 'unknown';
+    count: number;
+  }>;
+  topReasons: Array<{
+    reason: string;
+    count: number;
+  }>;
+  byDay: Array<{
+    date: string;
+    total: number;
+    disclaimerCount: number;
+    degradedCount: number;
+    blockedCount: number;
+  }>;
+};
+
 export type BrandDetailData = {
   brand: {
     brandId: string;
