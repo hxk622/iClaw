@@ -1,6 +1,7 @@
 const TOGGLE_MESSAGE_TYPE = 'ICLAW_EXTENSION_TOGGLE_PANEL';
 const REQUEST_DESKTOP_SESSION_MESSAGE_TYPE = 'ICLAW_EXTENSION_REQUEST_DESKTOP_SESSION';
 const REFRESH_DESKTOP_SESSION_MESSAGE_TYPE = 'ICLAW_EXTENSION_REFRESH_DESKTOP_SESSION';
+const IMPORT_RAW_MESSAGE_TYPE = 'ICLAW_EXTENSION_IMPORT_RAW';
 const BRIDGE_BASE = 'http://127.0.0.1:1537';
 const SESSION_TIMEOUT_MS = 1800;
 
@@ -43,6 +44,10 @@ async function refreshDesktopSession(payload) {
   return requestBridgeJson('/v1/extension/refresh', payload);
 }
 
+async function importKnowledgeRaw(payload) {
+  return requestBridgeJson('/v1/knowledge/raw/import', payload);
+}
+
 async function requestBridgeJson(path, payload) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SESSION_TIMEOUT_MS);
@@ -74,6 +79,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message?.type === REFRESH_DESKTOP_SESSION_MESSAGE_TYPE) {
     refreshDesktopSession(message.payload)
+      .then((result) => sendResponse(result || { ok: false, error: 'UNKNOWN_ERROR' }))
+      .catch(() => sendResponse({ ok: false, error: 'UNKNOWN_ERROR' }));
+    return true;
+  }
+  if (message?.type === IMPORT_RAW_MESSAGE_TYPE) {
+    importKnowledgeRaw(message.payload)
       .then((result) => sendResponse(result || { ok: false, error: 'UNKNOWN_ERROR' }))
       .catch(() => sendResponse({ ok: false, error: 'UNKNOWN_ERROR' }));
     return true;

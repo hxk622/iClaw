@@ -3,7 +3,7 @@
   const TOGGLE_MESSAGE_TYPE = 'ICLAW_EXTENSION_TOGGLE_PANEL';
   const REQUEST_DESKTOP_SESSION_MESSAGE_TYPE = 'ICLAW_EXTENSION_REQUEST_DESKTOP_SESSION';
   const REFRESH_DESKTOP_SESSION_MESSAGE_TYPE = 'ICLAW_EXTENSION_REFRESH_DESKTOP_SESSION';
-  const IMPORT_MESSAGE_TYPE = 'iclaw-knowledge-library-import-raw';
+  const IMPORT_RAW_MESSAGE_TYPE = 'ICLAW_EXTENSION_IMPORT_RAW';
   const AUTH_STORAGE_KEY = 'iclaw_extension_auth_state_v1';
   const EXTENSION_ID = 'iclaw-browser-extension';
   const BRAND_ID = 'iclaw';
@@ -93,15 +93,26 @@
     return text.slice(0, 360);
   }
 
-  function postRawImport(payload) {
-    window.postMessage(
-      {
-        type: IMPORT_MESSAGE_TYPE,
-        payload,
-        source: 'iclaw-extension',
-      },
-      '*',
-    );
+  async function sendRawImport(payload) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(
+          {
+            type: IMPORT_RAW_MESSAGE_TYPE,
+            payload,
+          },
+          (response) => {
+            if (chrome.runtime?.lastError) {
+              resolve({ ok: false, error: 'DESKTOP_APP_NOT_READY' });
+              return;
+            }
+            resolve(response || { ok: false, error: 'UNKNOWN_ERROR' });
+          },
+        );
+      } catch {
+        resolve({ ok: false, error: 'UNKNOWN_ERROR' });
+      }
+    });
   }
 
   function buildSourcePayload() {
@@ -722,16 +733,16 @@
     const connectBtn = shadow.getElementById('connectBtn');
     const retryBtn = shadow.getElementById('retryBtn');
 
-    savePageBtn?.addEventListener('click', () => {
+    savePageBtn?.addEventListener('click', async () => {
       if (!isCaptureReady()) {
         if (status) status.textContent = '请先连接桌面端并完成授权';
         return;
       }
-      postRawImport(buildSourcePayload());
-      if (status) status.textContent = '已发送页面素材到 iClaw';
+      const result = await sendRawImport(buildSourcePayload());
+      if (status) status.textContent = result?.ok ? '已发送页面素材到 iClaw' : '发送失败，请稍后重试';
     });
 
-    saveSnippetBtn?.addEventListener('click', () => {
+    saveSnippetBtn?.addEventListener('click', async () => {
       if (!isCaptureReady()) {
         if (status) status.textContent = '请先连接桌面端并完成授权';
         return;
@@ -741,8 +752,8 @@
         if (status) status.textContent = '请先在页面中选择一段文字';
         return;
       }
-      postRawImport(payload);
-      if (status) status.textContent = '已发送摘录到 iClaw';
+      const result = await sendRawImport(payload);
+      if (status) status.textContent = result?.ok ? '已发送摘录到 iClaw' : '发送失败，请稍后重试';
     });
 
     connectBtn?.addEventListener('click', () => {

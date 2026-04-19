@@ -1109,6 +1109,12 @@ struct ExtensionGrantRequestEventPayload {
     device_id: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct DesktopRawImportBridgeResponse {
+    imported: bool,
+}
+
 #[derive(Serialize, Deserialize)]
 struct DesktopAuthTokens {
     access_token: String,
@@ -7216,6 +7222,24 @@ fn handle_extension_bridge_connection(app: AppHandle, mut stream: TcpStream) -> 
                 },
             };
             return write_extension_http_response(&mut stream, "200 OK", &payload);
+        }
+        if request_line.starts_with("POST /v1/knowledge/raw/import ") {
+            let mut body = vec![0u8; content_length];
+            if content_length > 0 {
+                reader
+                    .read_exact(&mut body)
+                    .map_err(|e| format!("failed to read raw import body: {e}"))?;
+            }
+            let payload =
+                serde_json::from_slice::<serde_json::Value>(&body).unwrap_or_else(|_| serde_json::Value::Null);
+            let _ = app.emit("knowledge-library-raw-import", payload);
+            let response = ExtensionBridgeResponse {
+                ok: true,
+                grant_required: false,
+                error: None,
+                session: None,
+            };
+            return write_extension_http_response(&mut stream, "200 OK", &response);
         }
 
         let payload = ExtensionBridgeResponse {

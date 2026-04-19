@@ -17,7 +17,7 @@ export const DEFAULT_GENERAL_PREFERENCES: GeneralPreferences = {
   language: 'zh',
   layoutPreset: 'standard',
   messageAlignment: 'sided',
-  toolCardTone: 'default',
+  toolCardTone: 'neutral-slate',
 };
 
 export function resolveAppLocale(language: GeneralLanguage): 'zh-CN' | 'en-US' {
