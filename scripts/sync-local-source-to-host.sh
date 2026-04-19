@@ -39,7 +39,7 @@ echo "[source-sync] mirroring MinIO buckets"
 mc alias set "${ICLAW_LOCAL_MINIO_ALIAS}" "${ICLAW_LOCAL_MINIO_URL}" "${ICLAW_LOCAL_MINIO_ACCESS_KEY}" "${ICLAW_LOCAL_MINIO_SECRET_KEY}" >/dev/null
 mc alias set "${ICLAW_TARGET_MINIO_ALIAS}" "${ICLAW_TARGET_MINIO_URL}" "${ICLAW_TARGET_MINIO_ACCESS_KEY}" "${ICLAW_TARGET_MINIO_SECRET_KEY}" >/dev/null
 
-for bucket in iclaw-files iclaw-user-assets licaiclaw-files licaiclaw-prod openalpha-files; do
+for bucket in iclaw-files iclaw-user-assets licaiclaw-files licaiclaw-prod caiclaw-prod openalpha-files; do
   if mc ls "${ICLAW_LOCAL_MINIO_ALIAS}/${bucket}" >/dev/null 2>&1; then
     mc mb --ignore-existing "${ICLAW_TARGET_MINIO_ALIAS}/${bucket}" >/dev/null
     mc mirror --overwrite "${ICLAW_LOCAL_MINIO_ALIAS}/${bucket}" "${ICLAW_TARGET_MINIO_ALIAS}/${bucket}"

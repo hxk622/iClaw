@@ -931,7 +931,7 @@
                 "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
               },
               "prod": {
-                "bucket": "licaiclaw-prod",
+                "bucket": "caiclaw-prod",
                 "publicBaseUrl": "https://caiclaw.aiyuanxi.com/downloads"
               }
             },
@@ -961,7 +961,7 @@
             },
             "minioPrefix": "runtime",
             "prod": {
-              "bucket": "licaiclaw-prod",
+              "bucket": "caiclaw-prod",
               "publicBaseUrl": "https://caiclaw.aiyuanxi.com"
             }
           },
