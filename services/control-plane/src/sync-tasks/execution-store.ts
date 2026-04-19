@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { createPgPool } from '../pg-connection.ts';
 import { config } from '../config.ts';
+import type { SyncTaskExecutionResult, SyncTaskRunTrigger } from '../../../../packages/market-sync-core/src/types.ts';
 
 let poolInstance: any = null;
 function getPool() {
@@ -10,13 +11,6 @@ function getPool() {
   }
   return poolInstance;
 }
-
-export type SyncTaskRunTrigger = 'manual' | 'schedule' | 'warmup';
-export type SyncTaskExecutionResult = {
-  syncCount?: number | null;
-  dataSource?: string | null;
-  metadata?: Record<string, unknown>;
-};
 
 const DEFAULT_LEASE_DURATION_MS = 15 * 60 * 1000;
 

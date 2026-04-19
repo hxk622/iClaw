@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { logError, logInfo } from '../logger.ts';
+import type { SyncTaskDefinition, SyncTaskRunTrigger } from '../../../../packages/market-sync-core/src/types.ts';
 import {
   acquireSyncTaskLease,
   createSyncTaskRun,
@@ -8,9 +9,7 @@ import {
   markSyncTaskRunSkipped,
   markSyncTaskRunSucceeded,
   releaseSyncTaskLease,
-  type SyncTaskRunTrigger,
 } from './execution-store.ts';
-import type { SyncTaskDefinition } from './task-registry.ts';
 
 export async function executeRegisteredSyncTask(
   task: SyncTaskDefinition,
