@@ -189,6 +189,7 @@ import {
   closeOtherWorkspaceTabs,
   closeWorkspaceTabsToRight,
   createWorkspaceTabRecord,
+  findReusableWorkspaceTab,
   MAX_WORKSPACE_TABS,
   renameWorkspaceTab,
   readPersistedWorkspaceTabsSnapshot,
@@ -3434,14 +3435,11 @@ function AuthedView({
         reuseBySessionKey?: boolean;
       },
     ) => {
-      const existingTab =
-        ((options?.reuseByConversation ?? true) && nextRoute.conversationId
-          ? workspaceTabsRef.current.find((tab) => tab.route.conversationId === nextRoute.conversationId)
-          : null) ||
-        ((options?.reuseBySessionKey ?? true) && !nextRoute.conversationId
-          ? workspaceTabsRef.current.find((tab) => tab.route.sessionKey === nextRoute.sessionKey)
-          : null) ||
-        null;
+      const existingTab = findReusableWorkspaceTab(
+        workspaceTabsRef.current,
+        buildWorkspaceTabRouteSnapshot(nextRoute),
+        options,
+      );
 
       if (existingTab) {
         const now = new Date().toISOString();

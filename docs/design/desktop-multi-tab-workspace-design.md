@@ -288,6 +288,13 @@ tab 不是 conversation 的别名，但 route 是 tab 的业务真值。
 - 同一个 conversation 原则上只允许一个打开的 tab
 - 但 tab 的标题、颜色、排序由用户单独控制
 
+当前产品决策进一步明确为：
+
+- `conversationId : tab = 1 : 1`
+- 不支持同一个 `conversationId` 打开多个聊天 tab
+- 如果用户从历史列表、通知、任务中心或其他入口再次打开同一 conversation，系统只激活已有 tab，不重复创建
+- 只有在尚未绑定 `conversationId` 的草稿 / 新对话阶段，才允许出现多个聊天 tab
+
 这样可以避免：
 
 - 同一 conversation 被反复打开成多个几乎相同的标签页

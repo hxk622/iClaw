@@ -58,6 +58,11 @@ export type WorkspaceTabRuntimeStatus = {
   ready: boolean;
 };
 
+export type WorkspaceTabReuseOptions = {
+  reuseByConversation?: boolean;
+  reuseBySessionKey?: boolean;
+};
+
 function resolveWorkspaceTabsStorageKey(): string {
   return buildChatScopedStorageKey(ACTIVE_WORKSPACE_TABS_STORAGE_KEY);
 }
@@ -242,6 +247,25 @@ export function readPersistedWorkspaceTabsSnapshot(): WorkspaceTabsSnapshot | nu
 
 export function writePersistedWorkspaceTabsSnapshot(snapshot: WorkspaceTabsSnapshot | null): void {
   writeCacheJson(resolveWorkspaceTabsStorageKey(), snapshot);
+}
+
+export function findReusableWorkspaceTab(
+  tabs: WorkspaceTabRecord[],
+  route: WorkspaceTabRouteSnapshot,
+  options?: WorkspaceTabReuseOptions,
+): WorkspaceTabRecord | null {
+  const reuseByConversation = options?.reuseByConversation ?? true;
+  const reuseBySessionKey = options?.reuseBySessionKey ?? true;
+
+  if (reuseByConversation && route.conversationId) {
+    return tabs.find((tab) => tab.route.conversationId === route.conversationId) ?? null;
+  }
+
+  if (reuseBySessionKey && !route.conversationId) {
+    return tabs.find((tab) => tab.route.sessionKey === route.sessionKey) ?? null;
+  }
+
+  return null;
 }
 
 export function reorderWorkspaceTabs(

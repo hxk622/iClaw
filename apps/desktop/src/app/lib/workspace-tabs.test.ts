@@ -7,6 +7,7 @@ import {
   closeWorkspaceTabsToRight,
   ACTIVE_WORKSPACE_TABS_STORAGE_KEY,
   createWorkspaceTabRecord,
+  findReusableWorkspaceTab,
   readPersistedWorkspaceTabsSnapshot,
   renameWorkspaceTab,
   reorderWorkspaceTabs,
@@ -134,6 +135,133 @@ test('readPersistedWorkspaceTabsSnapshot returns null for malformed route record
   assert.ok(snapshot);
   assert.equal(snapshot.tabs.length, 0);
   assert.equal(snapshot.activeTabId, null);
+});
+
+test('findReusableWorkspaceTab reuses existing tab for the same conversation id', () => {
+  const tabA = createWorkspaceTabRecord({
+    id: 'tab-a',
+    title: 'A',
+    route: {
+      conversationId: 'conv-a',
+      sessionKey: 'agent:main:a',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const tabB = createWorkspaceTabRecord({
+    id: 'tab-b',
+    title: 'B',
+    route: {
+      conversationId: 'conv-b',
+      sessionKey: 'agent:main:b',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+
+  const existing = findReusableWorkspaceTab(
+    [tabA, tabB],
+    {
+      conversationId: 'conv-b',
+      sessionKey: 'agent:main:another',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  );
+
+  assert.equal(existing?.id, 'tab-b');
+});
+
+test('findReusableWorkspaceTab falls back to session key only for draft routes without conversation id', () => {
+  const tab = createWorkspaceTabRecord({
+    id: 'tab-a',
+    title: 'Draft',
+    route: {
+      conversationId: null,
+      sessionKey: 'agent:main:draft-a',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+
+  const existing = findReusableWorkspaceTab(
+    [tab],
+    {
+      conversationId: null,
+      sessionKey: 'agent:main:draft-a',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  );
+
+  assert.equal(existing?.id, 'tab-a');
+});
+
+test('findReusableWorkspaceTab does not reuse by session key when route already has conversation id', () => {
+  const tab = createWorkspaceTabRecord({
+    id: 'tab-a',
+    title: 'A',
+    route: {
+      conversationId: 'conv-a',
+      sessionKey: 'agent:main:shared',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+
+  const existing = findReusableWorkspaceTab(
+    [tab],
+    {
+      conversationId: 'conv-b',
+      sessionKey: 'agent:main:shared',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  );
+
+  assert.equal(existing, null);
 });
 
 test('reorderWorkspaceTabs moves the dragged tab before the drop target', () => {
