@@ -181,6 +181,7 @@ import {
   reorderWorkspaceTabs,
   writePersistedWorkspaceTabsSnapshot,
   type WorkspaceTabRecord,
+  type WorkspaceTabRuntimeStatus,
   type WorkspaceTabRouteSnapshot,
 } from './lib/workspace-tabs';
 import { isLoopbackHostname, resolveDesktopAuthBaseUrl } from './lib/runtime-endpoints';
@@ -815,6 +816,8 @@ type ChatSurfaceEntry = {
 type ChatSurfaceRuntimeState = {
   busy: boolean;
   hasPendingBilling: boolean;
+  hasUnsavedDraft: boolean;
+  recovering: boolean;
   ready: boolean;
 };
 
@@ -2928,17 +2931,26 @@ function AuthedView({
     version: 0,
   };
   const hasAnyBusyChatSurface = Boolean(chatSurfaceRuntimeState[targetChatSurfaceKey]?.busy);
-  const busyWorkspaceTabIds = useMemo(
+  const workspaceTabRuntimeById = useMemo<Record<string, WorkspaceTabRuntimeStatus>>(
     () =>
-      new Set(
-        workspaceTabs
-          .filter((tab) => {
-            const surfaceKey = buildChatSurfaceCacheKey(restoreActiveChatRoute(tab.route));
-            return chatSurfaceRuntimeState[surfaceKey]?.busy;
-          })
-          .map((tab) => tab.id),
+      Object.fromEntries(
+        workspaceTabs.map((tab) => {
+          const surfaceKey = buildChatSurfaceCacheKey(restoreActiveChatRoute(tab.route));
+          const runtime = chatSurfaceRuntimeState[surfaceKey];
+          const surfaceRecord = surfaceCache.state.records[`chat:${surfaceKey}`];
+          return [
+            tab.id,
+            {
+              busy: runtime?.busy ?? surfaceRecord?.busy ?? false,
+              hasPendingBilling: runtime?.hasPendingBilling ?? surfaceRecord?.hasPendingBilling ?? false,
+              hasUnsavedDraft: runtime?.hasUnsavedDraft ?? surfaceRecord?.hasUnsavedDraft ?? false,
+              recovering: runtime?.recovering ?? false,
+              ready: runtime?.ready ?? false,
+            },
+          ];
+        }),
       ),
-    [chatSurfaceRuntimeState, workspaceTabs],
+    [chatSurfaceRuntimeState, surfaceCache.state.records, workspaceTabs],
   );
 
   useEffect(() => {
@@ -3141,12 +3153,16 @@ function AuthedView({
       const next = {
         busy: previous?.busy ?? false,
         hasPendingBilling: previous?.hasPendingBilling ?? false,
+        hasUnsavedDraft: previous?.hasUnsavedDraft ?? false,
+        recovering: previous?.recovering ?? false,
         ready: false,
       };
       if (
         previous &&
         previous.busy === next.busy &&
         previous.hasPendingBilling === next.hasPendingBilling &&
+        previous.hasUnsavedDraft === next.hasUnsavedDraft &&
+        previous.recovering === next.recovering &&
         previous.ready === next.ready
       ) {
         return current;
@@ -3785,6 +3801,7 @@ function AuthedView({
       updateSurfaceFlags('chat', surfaceKey, {
         ...(patch.busy === undefined ? {} : {busy: patch.busy}),
         ...(patch.hasPendingBilling === undefined ? {} : {hasPendingBilling: patch.hasPendingBilling}),
+        ...(patch.hasUnsavedDraft === undefined ? {} : {hasUnsavedDraft: patch.hasUnsavedDraft}),
       });
     },
     [updateSurfaceFlags],
@@ -4665,7 +4682,7 @@ function AuthedView({
             <WorkspaceTabsBar
               tabs={workspaceTabs}
               activeTabId={activeWorkspaceTabId}
-              busyTabIds={busyWorkspaceTabIds}
+              runtimeByTabId={workspaceTabRuntimeById}
               onSelect={activateWorkspaceTab}
               onClose={handleCloseWorkspaceTab}
               onNew={handleStartNewChat}

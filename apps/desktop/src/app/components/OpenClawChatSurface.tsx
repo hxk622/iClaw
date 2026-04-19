@@ -337,6 +337,8 @@ type OpenClawChatSurfaceProps = {
     patch: {
       busy?: boolean;
       hasPendingBilling?: boolean;
+      hasUnsavedDraft?: boolean;
+      recovering?: boolean;
       ready?: boolean;
     },
   ) => void;
@@ -4722,7 +4724,13 @@ export function OpenClawChatSurface({
       if (!runtimeStateKey) {
         return;
       }
-      onRuntimeStateChange?.(runtimeStateKey, {busy: false});
+      onRuntimeStateChange?.(runtimeStateKey, {
+        busy: false,
+        hasPendingBilling: false,
+        hasUnsavedDraft: false,
+        recovering: false,
+        ready: false,
+      });
     };
   }, [onRuntimeStateChange, runtimeStateKey]);
 
@@ -4745,13 +4753,13 @@ export function OpenClawChatSurface({
   }, [globalPendingSettlementCount, onRuntimeStateChange, runtimeStateKey]);
 
   useEffect(() => {
-    return () => {
-      if (!runtimeStateKey) {
-        return;
-      }
-      onRuntimeStateChange?.(runtimeStateKey, {hasPendingBilling: false});
-    };
-  }, [onRuntimeStateChange, runtimeStateKey]);
+    if (!runtimeStateKey) {
+      return;
+    }
+    onRuntimeStateChange?.(runtimeStateKey, {
+      hasUnsavedDraft: Boolean(composerDraft?.hasContent),
+    });
+  }, [composerDraft?.hasContent, onRuntimeStateChange, runtimeStateKey]);
 
   useEffect(() => {
     queuedMessagesRef.current = queuedMessages;
@@ -7638,6 +7646,15 @@ export function OpenClawChatSurface({
     }
     onRuntimeStateChange?.(runtimeStateKey, {ready: surfaceReadyForReveal});
   }, [onRuntimeStateChange, runtimeStateKey, surfaceReadyForReveal]);
+
+  useEffect(() => {
+    if (!runtimeStateKey) {
+      return;
+    }
+    onRuntimeStateChange?.(runtimeStateKey, {
+      recovering: surfaceVisible && (surfaceReactivating || !surfaceReadyForReveal),
+    });
+  }, [onRuntimeStateChange, runtimeStateKey, surfaceReadyForReveal, surfaceReactivating, surfaceVisible]);
 
   useEffect(() => {
     const wasVisible = previousSurfaceVisibleRef.current;

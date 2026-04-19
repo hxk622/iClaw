@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 
-import type { WorkspaceTabRecord } from '@/app/lib/workspace-tabs';
+import type { WorkspaceTabRecord, WorkspaceTabRuntimeStatus } from '@/app/lib/workspace-tabs';
 
 const WORKSPACE_TAB_COLOR_STYLES: Record<string, { accent: string; activeBg: string }> = {
   default: {
@@ -37,7 +37,7 @@ const WORKSPACE_TAB_COLOR_STYLES: Record<string, { accent: string; activeBg: str
 type WorkspaceTabsBarProps = {
   tabs: WorkspaceTabRecord[];
   activeTabId: string;
-  busyTabIds: Set<string>;
+  runtimeByTabId: Record<string, WorkspaceTabRuntimeStatus>;
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
   onNew: () => void;
@@ -130,11 +130,20 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
       {props.tabs.map((tab) => {
         const isActive = tab.id === props.activeTabId;
         const colorStyle = WORKSPACE_TAB_COLOR_STYLES[tab.color] || WORKSPACE_TAB_COLOR_STYLES.default;
-        const isBusy = props.busyTabIds.has(tab.id);
+        const runtime = props.runtimeByTabId[tab.id] ?? {
+          busy: false,
+          hasPendingBilling: false,
+          hasUnsavedDraft: false,
+          recovering: false,
+          ready: false,
+        };
+        const isBusy = runtime.busy;
         const menuOpen = menuTabId === tab.id;
         const renaming = renamingTabId === tab.id;
         const tabIndex = props.tabs.findIndex((item) => item.id === tab.id);
         const hasTabsToRight = tabIndex >= 0 && tabIndex < props.tabs.length - 1;
+        const showDraft = runtime.hasUnsavedDraft && !runtime.busy;
+        const showRecovering = runtime.recovering && !runtime.busy;
         return (
           <div
             key={tab.id}
@@ -247,8 +256,15 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
               aria-hidden="true"
               className="h-2 w-2 shrink-0 place-self-center rounded-full"
               style={{
-                background: colorStyle.accent,
-                boxShadow: isBusy ? `0 0 0 4px color-mix(in srgb, ${colorStyle.accent} 18%, transparent)` : 'none',
+                background: showRecovering ? 'transparent' : showDraft ? 'var(--state-warn)' : colorStyle.accent,
+                border: showRecovering ? `1.5px solid ${colorStyle.accent}` : undefined,
+                boxShadow: isBusy
+                  ? `0 0 0 4px color-mix(in srgb, ${colorStyle.accent} 18%, transparent)`
+                  : showDraft
+                    ? '0 0 0 4px color-mix(in srgb, var(--state-warn) 18%, transparent)'
+                    : showRecovering
+                      ? `0 0 0 4px color-mix(in srgb, ${colorStyle.accent} 14%, transparent)`
+                      : 'none',
               }}
             />
             {renaming ? (
