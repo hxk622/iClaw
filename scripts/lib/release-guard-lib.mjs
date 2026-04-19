@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 import { loadBrandProfile, resolveBrandId } from './brand-profile.mjs';
+import { inspectBrandAssetPolicy } from './brand-asset-policy.mjs';
 import { readOpenclawSourceVersion, resolveOpenclawSourceDir } from './openclaw-source.mjs';
 import {
   buildBundleRoot,
@@ -604,6 +605,21 @@ export async function collectIconChain(context) {
     faviconCornerAlpha,
     warnings,
     advisories,
+  });
+}
+
+export async function collectBrandAssetContract(context) {
+  const assetPolicy = inspectBrandAssetPolicy(context.profile);
+  const status = assetPolicy.errors.length > 0 ? 'fail' : 'pass';
+  const summary =
+    assetPolicy.errors.length > 0
+      ? 'Brand asset contract failed'
+      : 'Brand asset contract is explicit';
+  return toCheckResult(status, summary, {
+    assets: assetPolicy.assets,
+    selections: assetPolicy.selections,
+    advisories: assetPolicy.advisories,
+    errors: assetPolicy.errors,
   });
 }
 

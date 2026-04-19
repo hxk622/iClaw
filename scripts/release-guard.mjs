@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import {
+  collectBrandAssetContract,
   collectBundleVerification,
   collectIconChain,
   collectInstallMetrics,
@@ -107,6 +108,7 @@ async function main() {
   const checks = {
     openclaw_drift: await collectOpenclawDrift(context),
     oem_consistency: await collectOemConsistency(context),
+    brand_asset_contract: await collectBrandAssetContract(context),
     bundle_verification: await collectBundleVerification(context),
     smoke_test: await collectSmokeTestPlan(context),
     runtime_cache: await collectRuntimeCache(context),

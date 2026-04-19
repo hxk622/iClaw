@@ -4,6 +4,7 @@ import process from 'node:process';
 import {spawnSync} from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { normalizeEnvName, resolveConfiguredAppName, resolveSelectedEnvName } from './app-env.mjs';
+import { assertBrandAssetPolicy } from './brand-asset-policy.mjs';
 import { loadPackagingProfile } from './packaging-profile.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -107,10 +108,12 @@ export async function loadBrandProfile(options = {}) {
   const brandDir = cacheRootFor(rootDir, brandId);
   const brandConfigPath = path.join(brandDir, 'profile.json');
   const profile = JSON.parse(await fsp.readFile(brandConfigPath, 'utf8'));
+  const assetPolicy = assertBrandAssetPolicy(profile);
   return {
     rootDir,
     brandDir,
     brandConfigPath,
     profile,
+    assetPolicy,
   };
 }

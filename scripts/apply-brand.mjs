@@ -5,6 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { loadDesktopBrandContext, pruneDesktopBrandStages } from './lib/desktop-brand-context.mjs';
+import { inspectBrandAssetPolicy } from './lib/brand-asset-policy.mjs';
 import { isFalsyEnv } from './lib/desktop-release-artifacts.mjs';
 import { spawnSync } from 'node:child_process';
 
@@ -412,19 +413,14 @@ async function main() {
   const windowsInstallerIcon = brand.assets.windowsInstallerIcon
     ? resolveBrandPath(brandDir, brand.assets.windowsInstallerIcon)
     : path.join(tauriIconsDir || '', 'icon.ico');
-  const homeLogo = brand.assets.homeLogo
-    ? resolveBrandPath(brandDir, brand.assets.homeLogo)
-    : resolveBrandPath(brandDir, brand.assets.faviconPng);
-  const logoMaster = brand.assets.logoMaster
-    ? resolveBrandPath(brandDir, brand.assets.logoMaster)
-    : homeLogo;
-  const assistantAvatar = brand.assets.assistantAvatar
-    ? resolveBrandPath(brandDir, brand.assets.assistantAvatar)
-    : brand.assets.logoMaster
-      ? resolveBrandPath(brandDir, brand.assets.logoMaster)
-      : tauriIconsDir
-        ? path.join(tauriIconsDir, 'icon.png')
-        : faviconPng;
+  const assetPolicy = inspectBrandAssetPolicy(brand);
+  for (const advisory of assetPolicy.advisories) {
+    process.stdout.write(`[brand][asset-policy][${brand.brandId}] ${advisory}\n`);
+  }
+  const homeLogo = resolveBrandPath(brandDir, assetPolicy.selections.homeLogo.path);
+  const logoMaster = resolveBrandPath(brandDir, assetPolicy.selections.logoMaster.path);
+  const assistantAvatar = resolveBrandPath(brandDir, assetPolicy.selections.assistantAvatar.path);
+  const brandMark = resolveBrandPath(brandDir, assetPolicy.selections.brandMark.path);
   const homeHeroArt = brand.assets.homeHeroArt ? resolveBrandPath(brandDir, brand.assets.homeHeroArt) : null;
   const homeHeroLayer1 = brand.assets.homeHeroLayer1 ? resolveBrandPath(brandDir, brand.assets.homeHeroLayer1) : null;
   const homeHeroLayer2 = brand.assets.homeHeroLayer2 ? resolveBrandPath(brandDir, brand.assets.homeHeroLayer2) : null;
@@ -451,8 +447,8 @@ async function main() {
   const assistantAvatarFileName = await copyBrowserAsset(assistantAvatar, outputBrandDir, 'assistant-avatar');
   await copyFile(faviconIco, path.join(outputPublicDir, 'favicon.ico'));
   await copyFile(faviconPng, path.join(outputPublicDir, 'favicon.png'));
-  await copyFirstExistingFile([tauriIconPng, faviconPng], path.join(outputBrandDir, 'brand-mark.png'));
-  await copyFirstExistingFile([tauriIconPng, faviconPng], path.join(outputPublicDir, 'brand-mark.png'));
+  await copyFile(brandMark, path.join(outputBrandDir, 'brand-mark.png'));
+  await copyFile(brandMark, path.join(outputPublicDir, 'brand-mark.png'));
   await copyFile(appleTouchIcon, path.join(outputPublicDir, 'apple-touch-icon.png'));
   await copyFile(installerHero, legacyInstallerAssetPath);
   await ensureTauriIcons({

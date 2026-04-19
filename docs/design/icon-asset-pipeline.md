@@ -7,9 +7,11 @@ Unify desktop icon generation so macOS Dock, Windows taskbar/start menu, install
 ## Rules
 
 - `logoMaster` is the only source image for desktop app icon generation.
+- `logoMaster` must not be reused as a fallback for chat assistant avatars or in-product brand marks.
 - `logoMaster` must be a transparent PNG.
 - Do not use JPG as `logoMaster`.
 - `homeLogo` and marketing assets can use JPG/WebP if needed, but desktop icon generation must not depend on them.
+- `assistantAvatar`, `faviconPng`, and `homeLogo` are explicit surface-owned assets; see `docs/design/brand-surface-asset-contract.md`.
 - `tauri-icons/icon.png`, `icon.icns`, and `icon.ico` are generated artifacts, not hand-edited source-of-truth assets.
 
 ## Generation flow

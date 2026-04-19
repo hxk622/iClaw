@@ -3,6 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { normalizeEnvName, resolveConfiguredAppName, resolveSelectedEnvName } from './app-env.mjs';
+import { assertBrandAssetPolicy } from './brand-asset-policy.mjs';
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -34,11 +35,13 @@ export async function loadPackagingProfile(options = {}) {
   const brandId = resolvePackagingBrandId(rootDir, options.brandId);
   const filePath = packagingProfilePath(rootDir, envName, brandId);
   const profile = JSON.parse(await fsp.readFile(filePath, 'utf8'));
+  const assetPolicy = assertBrandAssetPolicy(profile);
   return {
     rootDir,
     envName,
     brandId,
     filePath,
     profile,
+    assetPolicy,
   };
 }
