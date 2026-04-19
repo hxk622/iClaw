@@ -20,6 +20,8 @@ fi
 : "${ICLAW_CROSS_BACKUP_PG_SCHEMA:=app}"
 : "${ICLAW_CROSS_BACKUP_PG_LABEL:=control-plane}"
 : "${ICLAW_CROSS_BACKUP_PG_BUCKET:=iclaw-cross-backup-postgres}"
+: "${ICLAW_CROSS_BACKUP_PG_PREFIX:=${ICLAW_CROSS_BACKUP_NODE_NAME}/current}"
+: "${ICLAW_CROSS_BACKUP_PG_OBJECT_NAME:=${ICLAW_CROSS_BACKUP_NODE_NAME}-${ICLAW_CROSS_BACKUP_PG_LABEL}.dump}"
 : "${ICLAW_CROSS_BACKUP_S3_ENABLED:=1}"
 : "${ICLAW_CROSS_BACKUP_S3_BUCKETS:=}"
 : "${ICLAW_CROSS_BACKUP_S3_SOURCE_ALIAS:=iclawcrosssrc}"
@@ -32,11 +34,12 @@ fi
 : "${ICLAW_CROSS_BACKUP_S3_TARGET_SECRET_KEY:=}"
 : "${ICLAW_CROSS_BACKUP_S3_BACKUP_BUCKET_PREFIX:=iclaw-cross-backup}"
 : "${ICLAW_CROSS_BACKUP_MANIFEST_BUCKET:=iclaw-cross-backup-manifests}"
-: "${ICLAW_CROSS_BACKUP_ENABLE_VERSIONING:=1}"
-: "${ICLAW_CROSS_BACKUP_S3_MIRROR_REMOVE:=${ICLAW_CROSS_BACKUP_ENABLE_VERSIONING}}"
+: "${ICLAW_CROSS_BACKUP_MANIFEST_PREFIX:=${ICLAW_CROSS_BACKUP_NODE_NAME}}"
+: "${ICLAW_CROSS_BACKUP_MANIFEST_OBJECT_NAME:=latest.txt}"
+: "${ICLAW_CROSS_BACKUP_ENABLE_VERSIONING:=0}"
+: "${ICLAW_CROSS_BACKUP_S3_MIRROR_REMOVE:=1}"
 
 RUN_TIMESTAMP_UTC="$(date -u +%Y%m%dT%H%M%SZ)"
-RUN_DATE_PREFIX="$(date -u +%Y/%m/%d)"
 RUN_DIR=""
 POSTGRES_OBJECT_PATH=""
 POSTGRES_CHECKSUM=""
@@ -115,6 +118,8 @@ ensure_target_bucket() {
   mc mb --ignore-existing "${ICLAW_CROSS_BACKUP_S3_TARGET_ALIAS}/${bucket_name}" >/dev/null
   if [[ "${ICLAW_CROSS_BACKUP_ENABLE_VERSIONING}" == "1" ]]; then
     mc version enable "${ICLAW_CROSS_BACKUP_S3_TARGET_ALIAS}/${bucket_name}" >/dev/null 2>&1 || true
+  else
+    mc version suspend "${ICLAW_CROSS_BACKUP_S3_TARGET_ALIAS}/${bucket_name}" >/dev/null 2>&1 || true
   fi
 }
 
@@ -143,11 +148,11 @@ init_source_alias() {
 backup_postgres() {
   require_command pg_dump
   require_value ICLAW_CROSS_BACKUP_PG_URL
+  require_value ICLAW_CROSS_BACKUP_PG_OBJECT_NAME
 
-  local dump_name="${ICLAW_CROSS_BACKUP_NODE_NAME}-${ICLAW_CROSS_BACKUP_PG_LABEL}-${RUN_TIMESTAMP_UTC}.dump"
+  local dump_name="${ICLAW_CROSS_BACKUP_PG_OBJECT_NAME}"
   local dump_path="${RUN_DIR}/${dump_name}"
   local checksum_path="${dump_path}.sha256"
-  local pg_prefix="${ICLAW_CROSS_BACKUP_NODE_NAME}/${RUN_DATE_PREFIX}"
 
   log "dumping PostgreSQL (${ICLAW_CROSS_BACKUP_PG_LABEL})"
   if [[ -n "${ICLAW_CROSS_BACKUP_PG_SCHEMA}" ]]; then
@@ -161,11 +166,11 @@ backup_postgres() {
 
   ensure_target_bucket "${ICLAW_CROSS_BACKUP_PG_BUCKET}"
   mc cp "${dump_path}" \
-    "${ICLAW_CROSS_BACKUP_S3_TARGET_ALIAS}/${ICLAW_CROSS_BACKUP_PG_BUCKET}/${pg_prefix}/${dump_name}"
+    "${ICLAW_CROSS_BACKUP_S3_TARGET_ALIAS}/${ICLAW_CROSS_BACKUP_PG_BUCKET}/${ICLAW_CROSS_BACKUP_PG_PREFIX}/${dump_name}"
   mc cp "${checksum_path}" \
-    "${ICLAW_CROSS_BACKUP_S3_TARGET_ALIAS}/${ICLAW_CROSS_BACKUP_PG_BUCKET}/${pg_prefix}/${dump_name}.sha256"
+    "${ICLAW_CROSS_BACKUP_S3_TARGET_ALIAS}/${ICLAW_CROSS_BACKUP_PG_BUCKET}/${ICLAW_CROSS_BACKUP_PG_PREFIX}/${dump_name}.sha256"
 
-  POSTGRES_OBJECT_PATH="${ICLAW_CROSS_BACKUP_PG_BUCKET}/${pg_prefix}/${dump_name}"
+  POSTGRES_OBJECT_PATH="${ICLAW_CROSS_BACKUP_PG_BUCKET}/${ICLAW_CROSS_BACKUP_PG_PREFIX}/${dump_name}"
   log "postgres uploaded to ${POSTGRES_OBJECT_PATH}"
 }
 
@@ -201,7 +206,7 @@ backup_s3_buckets() {
 }
 
 upload_manifest() {
-  local manifest_path="${RUN_DIR}/${ICLAW_CROSS_BACKUP_NODE_NAME}-${RUN_TIMESTAMP_UTC}.txt"
+  local manifest_path="${RUN_DIR}/${ICLAW_CROSS_BACKUP_MANIFEST_OBJECT_NAME}"
   local mapping=""
 
   ensure_target_bucket "${ICLAW_CROSS_BACKUP_MANIFEST_BUCKET}"
@@ -223,7 +228,7 @@ upload_manifest() {
 
   mc cp \
     "${manifest_path}" \
-    "${ICLAW_CROSS_BACKUP_S3_TARGET_ALIAS}/${ICLAW_CROSS_BACKUP_MANIFEST_BUCKET}/${ICLAW_CROSS_BACKUP_NODE_NAME}/${RUN_TIMESTAMP_UTC}.txt"
+    "${ICLAW_CROSS_BACKUP_S3_TARGET_ALIAS}/${ICLAW_CROSS_BACKUP_MANIFEST_BUCKET}/${ICLAW_CROSS_BACKUP_MANIFEST_PREFIX}/${ICLAW_CROSS_BACKUP_MANIFEST_OBJECT_NAME}"
 }
 
 main() {

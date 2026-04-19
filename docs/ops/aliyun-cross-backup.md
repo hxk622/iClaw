@@ -10,9 +10,9 @@
 
 这里做的是备份，不是双向 restore / 同步生产数据：
 
-- PostgreSQL：每天生成 `pg_dump -Fc`，上传到对端 MinIO 的备份 bucket
-- S3 / MinIO：每天把业务 bucket 镜像到对端专用 backup bucket
-- backup bucket 默认开启 versioning，避免 `mc mirror --remove` 造成历史版本不可恢复
+- PostgreSQL：每天生成 `pg_dump -Fc`，覆盖写入对端 MinIO 的固定备份对象
+- S3 / MinIO：每天把业务 bucket 覆盖镜像到对端专用 backup bucket
+- 默认只保留“当前最新一份”，不保留按日期滚动历史
 
 ## 文件
 
@@ -35,6 +35,8 @@
 - `ICLAW_CROSS_BACKUP_NODE_NAME`
 - `ICLAW_CROSS_BACKUP_PG_URL`
 - `ICLAW_CROSS_BACKUP_PG_SCHEMA`
+- `ICLAW_CROSS_BACKUP_PG_PREFIX`
+- `ICLAW_CROSS_BACKUP_PG_OBJECT_NAME`
 - `ICLAW_CROSS_BACKUP_S3_SOURCE_ENDPOINT`
 - `ICLAW_CROSS_BACKUP_S3_SOURCE_ACCESS_KEY`
 - `ICLAW_CROSS_BACKUP_S3_SOURCE_SECRET_KEY`
@@ -42,6 +44,8 @@
 - `ICLAW_CROSS_BACKUP_S3_TARGET_ENDPOINT`
 - `ICLAW_CROSS_BACKUP_S3_TARGET_ACCESS_KEY`
 - `ICLAW_CROSS_BACKUP_S3_TARGET_SECRET_KEY`
+- `ICLAW_CROSS_BACKUP_MANIFEST_PREFIX`
+- `ICLAW_CROSS_BACKUP_MANIFEST_OBJECT_NAME`
 
 ## Aliyun 实例建议值
 
@@ -140,32 +144,32 @@ bash scripts/install-cross-backup.sh ./cross-backup.aliyun-prod.env root@39.106.
 
 ### PostgreSQL 备份落点
 
-PostgreSQL dump 不落本地长期目录，长期保存在对端 MinIO：
+PostgreSQL dump 不落本地长期目录，长期保存在对端 MinIO 的固定对象路径，每次执行覆盖上一份：
 
 - dump：
-  - `iclaw-cross-backup-postgres/<node>/<yyyy>/<mm>/<dd>/<node>-control-plane-<UTC时间戳>.dump`
+  - `iclaw-cross-backup-postgres/<node>/current/<node>-control-plane.dump`
 - checksum：
-  - `iclaw-cross-backup-postgres/<node>/<yyyy>/<mm>/<dd>/<node>-control-plane-<UTC时间戳>.dump.sha256`
+  - `iclaw-cross-backup-postgres/<node>/current/<node>-control-plane.dump.sha256`
 
 当前两台机器对应关系：
 
 - `39.106.110.149` 生成的 PostgreSQL 备份写到 `47.93.231.197:9000`
-  - `iclaw-cross-backup-postgres/aliyun-prod/<yyyy>/<mm>/<dd>/...`
+  - `iclaw-cross-backup-postgres/aliyun-prod/current/aliyun-prod-control-plane.dump`
 - `47.93.231.197` 生成的 PostgreSQL 备份写到 `39.106.110.149:9000`
-  - `iclaw-cross-backup-postgres/aliyun-dev/<yyyy>/<mm>/<dd>/...`
+  - `iclaw-cross-backup-postgres/aliyun-dev/current/aliyun-dev-control-plane.dump`
 
 ### Manifest 落点
 
-每次执行都会在对端 MinIO 写一份 manifest：
+每次执行都会在对端 MinIO 覆盖写一份 manifest：
 
-- `iclaw-cross-backup-manifests/<node>/<UTC时间戳>.txt`
+- `iclaw-cross-backup-manifests/<node>/latest.txt`
 
 当前两台机器对应关系：
 
 - `39.106.110.149 -> 47.93.231.197`
-  - `iclaw-cross-backup-manifests/aliyun-prod/<UTC时间戳>.txt`
+  - `iclaw-cross-backup-manifests/aliyun-prod/latest.txt`
 - `47.93.231.197 -> 39.106.110.149`
-  - `iclaw-cross-backup-manifests/aliyun-dev/<UTC时间戳>.txt`
+  - `iclaw-cross-backup-manifests/aliyun-dev/latest.txt`
 
 ### S3 / MinIO 备份落点
 
@@ -181,6 +185,8 @@ PostgreSQL dump 不落本地长期目录，长期保存在对端 MinIO：
 因此对象的长期落点格式是：
 
 - `iclaw-cross-backup-<node>-<source-bucket>/data/<原始对象路径>`
+
+这里的 `data/` 始终表示“当前最新镜像”，通过 `mc mirror --overwrite --remove` 覆盖同步，不保留时间分层。
 
 ### 当前线上实际 bucket 映射
 
@@ -256,22 +262,23 @@ ssh root@47.93.231.197 'tail -n 100 /var/log/iclaw-cross-backup.log'
 
 查看对端 MinIO 上是否出现：
 
-- `iclaw-cross-backup-postgres/<node>/<yyyy>/<mm>/<dd>/*.dump`
-- `iclaw-cross-backup-manifests/<node>/*.txt`
+- `iclaw-cross-backup-postgres/<node>/current/*.dump`
+- `iclaw-cross-backup-manifests/<node>/latest.txt`
 - `iclaw-cross-backup-<node>-<bucket>/data/*`
 
 ## 保留策略
 
-当前脚本默认依赖 backup bucket 的 versioning 来保存对象历史，不主动删旧版本。
+当前策略是“单份覆盖式同步”：
 
-如果后续要限制历史占用，推荐在对端 MinIO 上单独给以下 bucket 配 ILM：
+- PostgreSQL：固定对象覆盖
+- manifest：固定对象覆盖
+- S3 / MinIO：固定 bucket 的 `data/` 目录覆盖镜像
+- 默认关闭 backup bucket versioning，避免对象版本持续膨胀
 
-- `iclaw-cross-backup-postgres`
-- `iclaw-cross-backup-manifests`
-- `iclaw-cross-backup-<node>-<bucket>`
+如果历史上已经跑过旧版“按日期归档”或开过 versioning，旧对象不会被这次脚本自动清掉；那部分需要单独做一次性清理。
 
 ## 风险提示
 
 - 这是“跨机灾备副本”，不是第三份异地副本；任一侧的 MinIO 自身损坏仍然会影响作为 backup target 的那一侧
-- `ICLAW_CROSS_BACKUP_S3_MIRROR_REMOVE=1` 时，必须保留 bucket versioning；否则删除源对象会让 backup bucket 也跟着删
+- `ICLAW_CROSS_BACKUP_S3_MIRROR_REMOVE=1` 时，对端 backup bucket 会被同步成“当前源 bucket 的精确副本”；被源端删除的对象会在下一次同步时从 backup bucket 删除
 - 如果 bucket 特别大，首次 mirror 会比较慢，建议先手工跑一次再依赖 cron
