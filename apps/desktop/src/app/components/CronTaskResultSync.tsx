@@ -265,6 +265,10 @@ export function CronTaskResultSync({
                     degraded: financeCompliance.degraded,
                     blocked: financeCompliance.blocked,
                     reasons_json: financeCompliance.reasons,
+                    matched_rules_json: financeCompliance.matchedRules,
+                    confidence: financeCompliance.confidence,
+                    classifier_version: financeCompliance.classifierVersion,
+                    decision_source: financeCompliance.decisionSource,
                     used_capabilities_json: financeCompliance.usedCapabilities,
                     used_model: financeCompliance.usedModel,
                     metadata_json: {
@@ -321,6 +325,10 @@ export function CronTaskResultSync({
                     degraded: financeCompliance.degraded,
                     blocked: financeCompliance.blocked,
                     reasons_json: financeCompliance.reasons,
+                    matched_rules_json: financeCompliance.matchedRules,
+                    confidence: financeCompliance.confidence,
+                    classifier_version: financeCompliance.classifierVersion,
+                    decision_source: financeCompliance.decisionSource,
                     used_capabilities_json: financeCompliance.usedCapabilities,
                     used_model: financeCompliance.usedModel,
                     metadata_json: {

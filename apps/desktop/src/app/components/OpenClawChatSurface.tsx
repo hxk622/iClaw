@@ -351,6 +351,7 @@ type OpenClawChatSurfaceProps = {
   >;
   surfaceVisible?: boolean;
   sendBlockedReason?: string | null;
+  transformSendPayload?: (payload: ComposerSendPayload) => Promise<ComposerSendPayload> | ComposerSendPayload;
   outputPromotionSourceContext?: {
     rawMaterialIds?: string[];
     ontologyIds?: string[];
@@ -4694,6 +4695,7 @@ export function OpenClawChatSurface({
   ensureRuntimeReadyForRecovery,
   surfaceVisible = true,
   sendBlockedReason = null,
+  transformSendPayload,
   outputPromotionSourceContext = null,
 }: OpenClawChatSurfaceProps) {
   const normalizedSnapshotSessionKey = canonicalizeChatSessionKey(sessionKey);
@@ -8080,6 +8082,10 @@ export function OpenClawChatSurface({
               degraded: financeCompliance.degraded,
               blocked: financeCompliance.blocked,
               reasons_json: financeCompliance.reasons,
+              matched_rules_json: financeCompliance.matchedRules,
+              confidence: financeCompliance.confidence,
+              classifier_version: financeCompliance.classifierVersion,
+              decision_source: financeCompliance.decisionSource,
               used_capabilities_json: financeCompliance.usedCapabilities,
               used_model: financeCompliance.usedModel,
               metadata_json: {
@@ -8950,6 +8956,14 @@ export function OpenClawChatSurface({
   }, [effectiveSendBlockedReason, flushQueuedMessages, queuedMessages.length, status.busy, status.connected]);
 
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
+    let nextPayload = payload;
+    if (transformSendPayload) {
+      try {
+        nextPayload = await transformSendPayload(payload);
+      } catch (error) {
+        console.error('[desktop] transformSendPayload failed', error);
+      }
+    }
     if (!shellAuthenticated) {
       onRequireAuth?.('login');
       return false;
@@ -8960,7 +8974,7 @@ export function OpenClawChatSurface({
       if (optimisticEmptySessionActive) {
         setOptimisticEmptySessionActive(false);
       }
-      enqueueQueuedMessage(payload);
+      enqueueQueuedMessage(nextPayload);
       app?.connect();
       return true;
     }
@@ -8968,13 +8982,13 @@ export function OpenClawChatSurface({
       if (optimisticEmptySessionActive) {
         setOptimisticEmptySessionActive(false);
       }
-      enqueueQueuedMessage(payload);
+      enqueueQueuedMessage(nextPayload);
       return true;
     }
     if (optimisticEmptySessionActive) {
       setOptimisticEmptySessionActive(false);
     }
-    return (await sendQueuedOrImmediateMessage(payload)) === 'sent';
+    return (await sendQueuedOrImmediateMessage(nextPayload)) === 'sent';
   }, [
     allowDisconnectedComposerQueue,
     effectiveGatewaySessionKey,
@@ -8986,6 +9000,7 @@ export function OpenClawChatSurface({
     shellAuthenticated,
     status.busy,
     status.connected,
+    transformSendPayload,
   ]);
 
   const handleAbort = useCallback(async () => {

@@ -57,6 +57,10 @@ test('parseOutputArtifactFinanceCompliance reads finance compliance snapshot', (
       blocked: false,
       degraded: true,
       reasons: ['finance_domain'],
+      matchedRules: ['finance_domain'],
+      confidence: 'medium',
+      classifierVersion: 'finance_v1',
+      decisionSource: 'server',
       usedCapabilities: ['research'],
       usedModel: 'qwen',
       sourceAttributionRequired: true,
@@ -70,4 +74,7 @@ test('parseOutputArtifactFinanceCompliance reads finance compliance snapshot', (
   assert.equal(result?.degraded, true);
   assert.equal(result?.showDisclaimer, true);
   assert.deepEqual(result?.reasons, ['finance_domain']);
+  assert.deepEqual(result?.matchedRules, ['finance_domain']);
+  assert.equal(result?.confidence, 'medium');
+  assert.equal(result?.decisionSource, 'server');
 });

@@ -53,6 +53,10 @@ test('buildOutputArtifactFromChatTurn preserves turn lineage and finance complia
       blocked: false,
       degraded: true,
       reasons: ['finance_domain', 'research_only_policy'],
+      matchedRules: ['research_only_policy'],
+      confidence: 'medium',
+      classifierVersion: 'finance_v1',
+      decisionSource: 'server',
       usedCapabilities: ['a-share-research'],
       usedModel: 'bailian/qwen3.5-plus',
       sourceAttributionRequired: true,
@@ -78,6 +82,9 @@ test('buildOutputArtifactFromChatTurn preserves turn lineage and finance complia
   assert.deepEqual(lineage.source_ontology_ids, ['graph_1']);
   assert.equal(compliance.riskLevel, 'medium');
   assert.equal(compliance.degraded, true);
+  assert.deepEqual(compliance.matchedRules, ['research_only_policy']);
+  assert.equal(compliance.confidence, 'medium');
+  assert.equal(compliance.decisionSource, 'server');
 });
 
 test('buildChatOutputArtifactDedupeKey stays stable per turn id', () => {

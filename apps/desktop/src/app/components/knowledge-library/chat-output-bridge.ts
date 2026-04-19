@@ -141,6 +141,7 @@ export function buildOutputArtifactFromChatTurn(input: BuildChatOutputArtifactIn
     ? {
         ...input.financeCompliance,
         reasons: uniqueStrings(input.financeCompliance.reasons, 120),
+        matchedRules: uniqueStrings(input.financeCompliance.matchedRules, 120),
         usedCapabilities: uniqueStrings(input.financeCompliance.usedCapabilities, 120),
       }
     : null;
