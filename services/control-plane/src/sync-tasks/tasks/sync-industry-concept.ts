@@ -34,10 +34,15 @@ interface FetchResult {
   concept_relations: ConceptRelation[];
 }
 
+type SyncTaskExecutionResult = {
+  syncCount: number;
+  dataSource: string;
+};
+
 /**
  * 同步个股行业和概念关联
  */
-export async function syncIndustryConcept() {
+export async function syncIndustryConcept(): Promise<SyncTaskExecutionResult> {
   const scriptPath = path.join(__dirname, '../python-scripts/fetch_industry_concept.py');
   const pool = getPool();
   const taskId = await logTaskStart('sync_industry_concept');
@@ -110,6 +115,10 @@ export async function syncIndustryConcept() {
       await client.query('COMMIT');
       logInfo(`Successfully synced ${industryCount} industry relations, ${conceptCount} concept relations`);
       await logTaskSuccess(taskId, syncCount, dataSource);
+      return {
+        syncCount,
+        dataSource,
+      };
 
     } catch (e) {
       await client.query('ROLLBACK');

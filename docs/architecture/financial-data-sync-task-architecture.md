@@ -130,6 +130,7 @@
 Task Registry
   -> Scheduler Layer
      -> Task Runner
+        -> Execution Store
         -> Source Connectors
            -> Canonical Tables / Snapshot Tables
               -> Surface APIs
@@ -267,6 +268,39 @@ TypeScript 任务负责：
 - 新增任务不需要修改大量入口逻辑
 - 后续可以直接做“按分类启停”“按任务手动执行”“生成任务文档”
 
+当前仓库已落地：
+
+- `task-registry.ts`
+- `run-sync-task.ts --list / --task`
+
+## 6.1 执行记录层
+
+建议把“任务执行”从具体任务本身抽出来，统一写入执行记录。
+
+当前仓库已落地：
+
+- `sync_task_runs` 表
+- `execution-store.ts`
+- `runner.ts`
+
+执行记录至少应包含：
+
+- `run_id`
+- `task_id`
+- `task_label`
+- `category`
+- `trigger_type`
+- `schedule`
+- `status`
+- `started_at`
+- `finished_at`
+- `duration_ms`
+- `sync_count`
+- `data_source`
+- `error_message`
+
+这样 cron、warmup、手工触发就能共用一套 execution log，而不是只在各任务内部零散写日志。
+
 ## 7. Freshness 设计
 
 不同任务的 freshness 不能靠约定俗成。
@@ -317,6 +351,11 @@ TypeScript 任务负责：
 - `sync:market-overview`
 - `sync:market-news`
 - 以及建议统一的 `run-sync-task.ts`
+
+当前已经可用：
+
+- `pnpm --filter @iclaw/control-plane sync:task -- --list`
+- `pnpm --filter @iclaw/control-plane sync:task -- --task market-news`
 
 这条方向也应该继续保留，并统一成标准模式。
 

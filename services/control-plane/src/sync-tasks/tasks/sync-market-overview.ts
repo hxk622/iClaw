@@ -29,7 +29,12 @@ interface MarketIndexSnapshotInput {
   metadata: Record<string, unknown>;
 }
 
-export async function syncMarketOverview() {
+type SyncTaskExecutionResult = {
+  syncCount: number;
+  dataSource: string;
+};
+
+export async function syncMarketOverview(): Promise<SyncTaskExecutionResult> {
   const scriptPath = path.join(__dirname, '../python-scripts/fetch_market_indices.py');
   const pool = getPool();
   const taskId = await logTaskStart('sync_market_overview');
@@ -205,6 +210,10 @@ export async function syncMarketOverview() {
       syncCount = indices.length + topSectors.length + 1;
       logInfo(`Successfully synced market overview snapshot with ${indices.length} indices`);
       await logTaskSuccess(taskId, syncCount, dataSource);
+      return {
+        syncCount,
+        dataSource,
+      };
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;

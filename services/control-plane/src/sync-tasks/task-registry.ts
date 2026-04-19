@@ -4,6 +4,7 @@ import { syncMarketNews } from './tasks/sync-market-news.ts';
 import { syncMarketOverview } from './tasks/sync-market-overview.ts';
 import { syncStockBasics } from './tasks/sync-stock-basics.ts';
 import { syncStockQuotes } from './tasks/sync-stock-quotes.ts';
+import type { SyncTaskExecutionResult } from './execution-store.ts';
 
 export type SyncTaskCategory = 'snapshot' | 'reference' | 'fact' | 'enrich';
 
@@ -14,7 +15,7 @@ export type SyncTaskDefinition = {
   schedule: string;
   timezone: string;
   warmupOnStartup: boolean;
-  run: () => Promise<void>;
+  run: () => Promise<SyncTaskExecutionResult | void>;
 };
 
 export const MARKET_SYNC_TASKS: SyncTaskDefinition[] = [

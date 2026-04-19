@@ -1,6 +1,7 @@
 import { config } from '../src/config.ts';
 import { ensureControlPlaneSchema } from '../src/pg-store.ts';
 import { MARKET_SYNC_TASKS } from '../src/sync-tasks/task-registry.ts';
+import { executeRegisteredSyncTask } from '../src/sync-tasks/runner.ts';
 
 function readArg(flag: string): string | null {
   const index = process.argv.indexOf(flag);
@@ -44,7 +45,7 @@ async function main() {
   }
 
   await ensureControlPlaneSchema(config.databaseUrl);
-  await task.run();
+  await executeRegisteredSyncTask(task, 'manual');
 }
 
 main().catch((error) => {

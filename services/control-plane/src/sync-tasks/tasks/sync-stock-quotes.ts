@@ -36,10 +36,15 @@ export interface StockQuote {
   trade_date: string;
 }
 
+type SyncTaskExecutionResult = {
+  syncCount: number;
+  dataSource: string;
+};
+
 /**
  * 同步全市场最新行情
  */
-export async function syncStockQuotes() {
+export async function syncStockQuotes(): Promise<SyncTaskExecutionResult> {
   const scriptPath = path.join(__dirname, '../python-scripts/fetch_stock_quotes.py');
   const pool = getPool();
   const taskId = await logTaskStart('sync_stock_quotes');
@@ -102,6 +107,10 @@ export async function syncStockQuotes() {
       await client.query('COMMIT');
       logInfo(`Successfully synced ${count} stock quotes for ${today}`);
       await logTaskSuccess(taskId, count, dataSource);
+      return {
+        syncCount: count,
+        dataSource,
+      };
 
     } catch (e) {
       await client.query('ROLLBACK');

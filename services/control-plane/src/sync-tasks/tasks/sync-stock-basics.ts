@@ -34,10 +34,15 @@ export interface StockBasic {
   list_date: string;
 }
 
+type SyncTaskExecutionResult = {
+  syncCount: number;
+  dataSource: string;
+};
+
 /**
  * 同步股票基础信息
  */
-export async function syncStockBasics() {
+export async function syncStockBasics(): Promise<SyncTaskExecutionResult> {
   const scriptPath = path.join(__dirname, '../python-scripts/fetch-stock-basics.py');
   const pool = getPool();
   const taskId = await logTaskStart('sync_stock_basics');
@@ -124,6 +129,10 @@ export async function syncStockBasics() {
       await client.query('COMMIT');
       logInfo(`Successfully synced ${count} stock basics records`);
       await logTaskSuccess(taskId, count, dataSource);
+      return {
+        syncCount: count,
+        dataSource,
+      };
 
     } catch (e) {
       await client.query('ROLLBACK');

@@ -34,7 +34,12 @@ interface MarketNewsItemInput {
   metadata: Record<string, unknown>;
 }
 
-export async function syncMarketNews() {
+type SyncTaskExecutionResult = {
+  syncCount: number;
+  dataSource: string;
+};
+
+export async function syncMarketNews(): Promise<SyncTaskExecutionResult> {
   const scriptPath = path.join(__dirname, '../python-scripts/fetch_market_news.py');
   const pool = getPool();
   const taskId = await logTaskStart('sync_market_news');
@@ -120,6 +125,10 @@ export async function syncMarketNews() {
       syncCount = items.length;
       logInfo(`Successfully synced ${items.length} market news items`);
       await logTaskSuccess(taskId, syncCount, dataSource);
+      return {
+        syncCount,
+        dataSource,
+      };
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;

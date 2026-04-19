@@ -28,10 +28,15 @@ export interface FinanceData {
   eps: number;
 }
 
+type SyncTaskExecutionResult = {
+  syncCount: number;
+  dataSource: string;
+};
+
 /**
  * 同步季度财务数据
  */
-export async function syncFinanceData() {
+export async function syncFinanceData(): Promise<SyncTaskExecutionResult> {
   const scriptPath = path.join(__dirname, '../python-scripts/fetch-finance-data.py');
   const pool = getPool();
   const taskId = await logTaskStart('sync_finance_data');
@@ -113,6 +118,10 @@ export async function syncFinanceData() {
       await client.query('COMMIT');
       logInfo(`Successfully synced ${count} finance data records for ${reportYear}Q${reportQuarter}`);
       await logTaskSuccess(taskId, count, dataSource);
+      return {
+        syncCount: count,
+        dataSource,
+      };
 
     } catch (e) {
       await client.query('ROLLBACK');
