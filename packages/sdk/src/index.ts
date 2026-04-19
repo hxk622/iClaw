@@ -436,14 +436,19 @@ export interface FinanceComplianceEventData {
     | 'advice_request'
     | 'personalized_request'
     | 'execution_request'
+    | 'unknown'
     | null;
-  output_classification: 'market_data' | 'research_summary' | 'investment_view' | 'actionable_advice' | null;
+  output_classification: 'market_data' | 'research_summary' | 'investment_view' | 'actionable_advice' | 'unknown' | null;
   risk_level: 'low' | 'medium' | 'high';
   show_disclaimer: boolean;
   disclaimer_text: string | null;
   degraded: boolean;
   blocked: boolean;
   reasons: string[];
+  matched_rules?: string[];
+  confidence?: 'low' | 'medium' | 'high';
+  classifier_version?: string | null;
+  decision_source?: 'plugin' | 'server' | 'heuristic_fallback';
   used_capabilities: string[];
   used_model: string | null;
   metadata: Record<string, unknown>;

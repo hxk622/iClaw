@@ -649,12 +649,16 @@ export type FinanceInputClassification =
   | 'research_request'
   | 'advice_request'
   | 'personalized_request'
-  | 'execution_request';
+  | 'execution_request'
+  | 'unknown';
 export type FinanceOutputClassification =
   | 'market_data'
   | 'research_summary'
   | 'investment_view'
-  | 'actionable_advice';
+  | 'actionable_advice'
+  | 'unknown';
+export type FinanceComplianceConfidence = 'low' | 'medium' | 'high';
+export type FinanceComplianceDecisionSource = 'plugin' | 'server' | 'heuristic_fallback';
 
 export type FinanceComplianceEventRecord = {
   id: string;
@@ -671,6 +675,10 @@ export type FinanceComplianceEventRecord = {
   degraded: boolean;
   blocked: boolean;
   reasons: string[];
+  matchedRules: string[];
+  confidence: FinanceComplianceConfidence;
+  classifierVersion: string | null;
+  decisionSource: FinanceComplianceDecisionSource;
   usedCapabilities: string[];
   usedModel: string | null;
   metadata: Record<string, unknown>;
@@ -1221,6 +1229,10 @@ export type CreateFinanceComplianceEventInput = {
   degraded?: boolean | null;
   blocked?: boolean | null;
   reasons_json?: string[] | null;
+  matched_rules_json?: string[] | null;
+  confidence?: FinanceComplianceConfidence | null;
+  classifier_version?: string | null;
+  decision_source?: FinanceComplianceDecisionSource | null;
   used_capabilities_json?: string[] | null;
   used_model?: string | null;
   metadata_json?: Record<string, unknown> | null;

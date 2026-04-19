@@ -10,16 +10,20 @@ export type FinanceInputClassification =
   | 'research_request'
   | 'advice_request'
   | 'personalized_request'
-  | 'execution_request';
+  | 'execution_request'
+  | 'unknown';
 
 export type FinanceOutputClassification =
   | 'market_data'
   | 'research_summary'
   | 'investment_view'
-  | 'actionable_advice';
+  | 'actionable_advice'
+  | 'unknown';
 
 export type FinanceComplianceRiskLevel = 'low' | 'medium' | 'high';
 export type FinanceComplianceChannel = 'chat' | 'cron' | 'notification' | 'report';
+export type FinanceComplianceConfidence = 'low' | 'medium' | 'high';
+export type FinanceComplianceDecisionSource = 'plugin' | 'server' | 'heuristic_fallback';
 
 export interface FinanceCapabilityPolicy {
   domain: 'finance';
@@ -72,6 +76,10 @@ export interface ComplianceEnvelope {
     blocked: boolean;
     degraded: boolean;
     reasons: string[];
+    matchedRules: string[];
+    confidence: FinanceComplianceConfidence;
+    classifierVersion: string | null;
+    decisionSource: FinanceComplianceDecisionSource;
     usedCapabilities: string[];
     usedModel: string | null;
     sourceAttributionRequired: boolean;
@@ -108,7 +116,7 @@ const DEFAULT_FINANCE_OEM_POLICY: FinanceOemCompliancePolicy = {
   disclaimerText: DEFAULT_DISCLAIMER_TEXT,
   blockingPolicy: 'research_only',
   showFor: ['investment_view', 'actionable_advice'],
-  hideFor: ['market_data'],
+  hideFor: ['market_data', 'unknown'],
   blockFor: ['execution_request'],
   degradeFor: ['advice_request', 'personalized_request'],
 };
@@ -179,6 +187,26 @@ function containsKeyword(text: string, keywords: string[]): boolean {
 function normalizeDisclaimerText(input: string | null | undefined): string | null {
   const text = (input || '').trim();
   return text || null;
+}
+
+function classifyConfidence(input: {
+  inputClassification: FinanceInputClassification | null;
+  outputClassification: FinanceOutputClassification | null;
+  reasons: string[];
+}): FinanceComplianceConfidence {
+  if (!input.inputClassification || !input.outputClassification) {
+    return 'low';
+  }
+  if (input.inputClassification === 'unknown' || input.outputClassification === 'unknown') {
+    return 'low';
+  }
+  if (input.outputClassification === 'actionable_advice') {
+    return input.reasons.some((reason) => reason.includes('strong_actionable_phrase')) ? 'high' : 'medium';
+  }
+  if (input.outputClassification === 'investment_view') {
+    return 'medium';
+  }
+  return 'high';
 }
 
 function hasCapabilityDisclaimerRequirement(capabilityPolicies: FinanceCapabilityPolicy[]): boolean {
@@ -268,7 +296,30 @@ export function resolveEffectiveFinanceComplianceSnapshot(input: {
   if (hasExplicitFinanceComplianceSnapshot(input.snapshot)) {
     return input.snapshot;
   }
-  return input.heuristic?.compliance ?? null;
+  const fallback = input.heuristic?.compliance ?? null;
+  if (fallback) {
+    return fallback;
+  }
+  return {
+    domain: 'finance',
+    inputClassification: 'unknown',
+    outputClassification: 'unknown',
+    riskLevel: 'high',
+    showDisclaimer: true,
+    disclaimerText: DEFAULT_DISCLAIMER_TEXT,
+    requiresRiskSection: true,
+    blocked: false,
+    degraded: true,
+    reasons: ['missing_structured_finance_snapshot'],
+    matchedRules: [],
+    confidence: 'low',
+    classifierVersion: null,
+    decisionSource: 'heuristic_fallback',
+    usedCapabilities: [],
+    usedModel: null,
+    sourceAttributionRequired: false,
+    timestampRequired: false,
+  };
 }
 
 export function resolveEffectiveFinanceDisclaimer(input: {
@@ -334,6 +385,14 @@ export function resolveFinanceComplianceEnvelope(
       blocked,
       degraded,
       reasons,
+      matchedRules: reasons.filter((reason) => reason !== 'finance_domain'),
+      confidence: classifyConfidence({
+        inputClassification: input.inputClassification,
+        outputClassification: input.outputClassification,
+        reasons,
+      }),
+      classifierVersion: input.oemPolicy?.classificationPolicy || 'finance_v1',
+      decisionSource: 'heuristic_fallback',
       usedCapabilities: input.usedCapabilities || [],
       usedModel: input.usedModel || null,
       sourceAttributionRequired: requiresSourceAttribution(capabilityPolicies),

@@ -54,6 +54,10 @@ export interface OutputArtifactFinanceComplianceSnapshot {
   blocked: boolean;
   degraded: boolean;
   reasons: string[];
+  matchedRules: string[];
+  confidence: 'low' | 'medium' | 'high';
+  classifierVersion: string | null;
+  decisionSource: 'plugin' | 'server' | 'heuristic_fallback';
   usedCapabilities: string[];
   usedModel: string | null;
   sourceAttributionRequired: boolean;
@@ -164,6 +168,18 @@ export function parseOutputArtifactFinanceCompliance(
     blocked: (raw as Record<string, unknown>).blocked === true,
     degraded: (raw as Record<string, unknown>).degraded === true,
     reasons: normalizeStringArray((raw as Record<string, unknown>).reasons, 120),
+    matchedRules: normalizeStringArray((raw as Record<string, unknown>).matchedRules, 120),
+    confidence:
+      (raw as Record<string, unknown>).confidence === 'low' || (raw as Record<string, unknown>).confidence === 'high'
+        ? ((raw as Record<string, unknown>).confidence as 'low' | 'high')
+        : 'medium',
+    classifierVersion: normalizeOptionalText((raw as Record<string, unknown>).classifierVersion, 120),
+    decisionSource:
+      (raw as Record<string, unknown>).decisionSource === 'plugin' ||
+      (raw as Record<string, unknown>).decisionSource === 'server' ||
+      (raw as Record<string, unknown>).decisionSource === 'heuristic_fallback'
+        ? ((raw as Record<string, unknown>).decisionSource as 'plugin' | 'server' | 'heuristic_fallback')
+        : 'heuristic_fallback',
     usedCapabilities: normalizeStringArray((raw as Record<string, unknown>).usedCapabilities, 120),
     usedModel: normalizeOptionalText((raw as Record<string, unknown>).usedModel, 160),
     sourceAttributionRequired: (raw as Record<string, unknown>).sourceAttributionRequired === true,

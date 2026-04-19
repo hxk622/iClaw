@@ -96,14 +96,16 @@ function normalizeFinanceCompliance(value: unknown): FinanceComplianceSnapshot |
       source.inputClassification === 'research_request' ||
       source.inputClassification === 'advice_request' ||
       source.inputClassification === 'personalized_request' ||
-      source.inputClassification === 'execution_request'
+      source.inputClassification === 'execution_request' ||
+      source.inputClassification === 'unknown'
         ? source.inputClassification
         : null,
     outputClassification:
       source.outputClassification === 'market_data' ||
       source.outputClassification === 'research_summary' ||
       source.outputClassification === 'investment_view' ||
-      source.outputClassification === 'actionable_advice'
+      source.outputClassification === 'actionable_advice' ||
+      source.outputClassification === 'unknown'
         ? source.outputClassification
         : null,
     riskLevel: source.riskLevel === 'low' || source.riskLevel === 'high' ? source.riskLevel : 'medium',
@@ -113,6 +115,13 @@ function normalizeFinanceCompliance(value: unknown): FinanceComplianceSnapshot |
     blocked: source.blocked === true,
     degraded: source.degraded === true,
     reasons: Array.isArray(source.reasons) ? source.reasons.filter((item): item is string => typeof item === 'string') : [],
+    matchedRules: Array.isArray(source.matchedRules) ? source.matchedRules.filter((item): item is string => typeof item === 'string') : [],
+    confidence: source.confidence === 'low' || source.confidence === 'high' ? source.confidence : 'medium',
+    classifierVersion: normalizeText(source.classifierVersion),
+    decisionSource:
+      source.decisionSource === 'plugin' || source.decisionSource === 'server' || source.decisionSource === 'heuristic_fallback'
+        ? source.decisionSource
+        : 'heuristic_fallback',
     usedCapabilities: Array.isArray(source.usedCapabilities)
       ? source.usedCapabilities.filter((item): item is string => typeof item === 'string')
       : [],
