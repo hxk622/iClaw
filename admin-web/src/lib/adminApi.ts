@@ -6,6 +6,8 @@ import type {
   ClientPerfSampleRecord,
   FinanceComplianceEventRecord,
   FinanceComplianceSummaryData,
+  SyncTaskRunRecord,
+  SyncTaskRunTriggerResult,
   DesktopFaultReportDetailRecord,
   DesktopFaultReportSummaryRecord,
   OverviewData,
@@ -1470,6 +1472,64 @@ export async function loadFinanceComplianceSummary(input: {
       degradedCount: numberValue(item.degraded_count),
       blockedCount: numberValue(item.blocked_count),
     })),
+  };
+}
+
+export async function loadSyncTaskRuns(input: {
+  taskId?: string;
+  status?: string;
+  triggerType?: string;
+  limit?: number;
+} = {}): Promise<SyncTaskRunRecord[]> {
+  const params = new URLSearchParams();
+  if (input.taskId?.trim()) params.set('task_id', input.taskId.trim());
+  if (input.status?.trim()) params.set('status', input.status.trim());
+  if (input.triggerType?.trim()) params.set('trigger_type', input.triggerType.trim());
+  params.set('limit', String(input.limit && input.limit > 0 ? input.limit : 100));
+  const data = await apiFetch(`/admin/sync-tasks/runs?${params.toString()}`, { method: 'GET' });
+  return toArray<Record<string, unknown>>(asObject(data).items).map((item) => ({
+    runId: stringValue(item.run_id || item.runId),
+    taskId: stringValue(item.task_id || item.taskId),
+    taskLabel: stringValue(item.task_label || item.taskLabel),
+    category: stringValue(item.category),
+    triggerType: (stringValue(item.trigger_type || item.triggerType) || 'manual') as SyncTaskRunRecord['triggerType'],
+    schedule: stringValue(item.schedule) || null,
+    status: (stringValue(item.status) || 'running') as SyncTaskRunRecord['status'],
+    startedAt: stringValue(item.started_at || item.startedAt),
+    finishedAt: stringValue(item.finished_at || item.finishedAt) || null,
+    durationMs:
+      typeof item.duration_ms === 'number'
+        ? item.duration_ms
+        : typeof item.durationMs === 'number'
+          ? item.durationMs
+          : null,
+    syncCount:
+      typeof item.sync_count === 'number'
+        ? item.sync_count
+        : typeof item.syncCount === 'number'
+          ? item.syncCount
+          : null,
+    dataSource: stringValue(item.data_source || item.dataSource) || null,
+    errorMessage: stringValue(item.error_message || item.errorMessage) || null,
+    metadata: asObject(item.metadata),
+    createdAt: stringValue(item.created_at || item.createdAt),
+    updatedAt: stringValue(item.updated_at || item.updatedAt),
+  }));
+}
+
+export async function triggerSyncTask(taskId: string): Promise<SyncTaskRunTriggerResult> {
+  const data = await apiFetch('/admin/sync-tasks/run', {
+    method: 'POST',
+    body: JSON.stringify({
+      task_id: taskId,
+    }),
+  });
+  const root = asObject(data);
+  return {
+    runId: stringValue(root.run_id || root.runId),
+    taskId: stringValue(root.task_id || root.taskId),
+    triggerType: 'manual',
+    status: (stringValue(root.status) || 'running') as SyncTaskRunTriggerResult['status'],
   };
 }
 

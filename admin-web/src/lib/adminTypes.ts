@@ -28,6 +28,7 @@ export type AdminRoute =
   | 'audit-log'
   | 'client-metrics'
   | 'finance-compliance'
+  | 'sync-tasks'
   | 'fault-reports';
 
 export type NavItem = {
@@ -785,6 +786,32 @@ export type FinanceComplianceSummaryData = {
     degradedCount: number;
     blockedCount: number;
   }>;
+};
+
+export type SyncTaskRunRecord = {
+  runId: string;
+  taskId: string;
+  taskLabel: string;
+  category: string;
+  triggerType: 'manual' | 'schedule' | 'warmup';
+  schedule: string | null;
+  status: 'running' | 'success' | 'failed' | 'skipped';
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  syncCount: number | null;
+  dataSource: string | null;
+  errorMessage: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SyncTaskRunTriggerResult = {
+  runId: string;
+  taskId: string;
+  triggerType: 'manual';
+  status: 'running' | 'success' | 'failed' | 'skipped';
 };
 
 export type BrandDetailData = {

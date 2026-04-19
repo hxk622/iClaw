@@ -74,6 +74,7 @@ import { FinanceCompliancePage } from './components/FinanceCompliancePage';
 import { ModelCenterPage } from './components/ModelCenterPage';
 import { PaymentConfigPage } from './components/PaymentConfigPage';
 import { RechargePackagesPage } from './components/RechargePackagesPage';
+import { SyncTaskRunsPage } from './components/SyncTaskRunsPage';
 import {
   adminFilterControlStyle,
   AdminFilterStack,
@@ -140,6 +141,7 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'audit-log', label: '审计日志' },
       { id: 'user-action-audit', label: '用户Action审计' },
       { id: 'finance-compliance', label: '金融合规审计' },
+      { id: 'sync-tasks', label: '同步任务' },
     ],
   },
 ];
@@ -2449,6 +2451,8 @@ export default function App() {
                 <ClientMetricsPage />
               ) : route === 'finance-compliance' ? (
                 <FinanceCompliancePage />
+              ) : route === 'sync-tasks' ? (
+                <SyncTaskRunsPage />
               ) : route === 'user-action-audit' ? (
                 <UserActionAuditPage
                   items={userActionAuditItems}
