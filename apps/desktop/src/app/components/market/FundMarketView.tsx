@@ -20,6 +20,7 @@ import {Button} from '@/app/components/ui/Button';
 import {Chip} from '@/app/components/ui/Chip';
 import {PageContent, PageHeader, PageSurface} from '@/app/components/ui/PageLayout';
 import {cn} from '@/app/lib/cn';
+import { resolveFundPriceLabel, resolveFundPrimaryPrice } from '@/app/lib/fund-market-display';
 import {INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE} from '@/app/lib/ui-interactions';
 import {InstrumentIdentityBadge, WorkspaceFilterPill, WorkspaceMetricGrid, WorkspaceSearchControls, WorkspaceSectionCard} from './MarketWorkspaceShared';
 
@@ -120,10 +121,6 @@ function formatDataSource(value: string | null | undefined): string {
 function formatPrice(value: number | null | undefined, digits = 4): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '--';
   return value.toFixed(digits);
-}
-
-function resolvePriceLabel(fund: FundItem): string {
-  return fund.instrument_kind === 'fund' && fund.exchange === 'otc' ? '最新净值' : '场内价格';
 }
 
 function resolveInstrumentLabel(fund: MarketFundData): string {
@@ -272,9 +269,9 @@ function FundCard({
           </div>
         </div>
         <div className="rounded-[18px] border border-[rgba(42,74,111,0.12)] bg-[rgba(42,74,111,0.06)] px-3 py-2 text-right">
-          <div className="text-[11px] text-[var(--text-muted)]">{resolvePriceLabel(fund)}</div>
+          <div className="text-[11px] text-[var(--text-muted)]">{resolveFundPriceLabel(fund)}</div>
           <div className="mt-1 text-[18px] font-semibold text-[var(--text-primary)]">
-            {formatPrice(fund.current_price ?? fund.nav_price)}
+            {formatPrice(resolveFundPrimaryPrice(fund))}
           </div>
           <div className={cn('mt-1 text-[12px] font-semibold', (fund.change_percent ?? 0) >= 0 ? 'text-[rgb(21,128,61)]' : 'text-[rgb(185,28,28)]')}>
             {formatSignedPercent(fund.change_percent, 2)}
@@ -516,8 +513,8 @@ function FundDrawer({
             </div>
             <div className="mt-4 flex items-end gap-3">
               <div>
-                <div className="text-[11px] text-[var(--text-muted)]">{resolvePriceLabel(fund)}</div>
-                <div className="mt-1 text-[30px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{formatPrice(fund.current_price ?? fund.nav_price)}</div>
+                <div className="text-[11px] text-[var(--text-muted)]">{resolveFundPriceLabel(fund)}</div>
+                <div className="mt-1 text-[30px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{formatPrice(resolveFundPrimaryPrice(fund))}</div>
               </div>
               <div className={cn('mb-1 inline-flex items-center gap-1 text-[14px] font-semibold', (fund.change_percent ?? 0) >= 0 ? 'text-[rgb(21,128,61)]' : 'text-[rgb(185,28,28)]')}>
                 {(fund.change_percent ?? 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
