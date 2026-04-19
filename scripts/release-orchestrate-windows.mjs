@@ -81,12 +81,16 @@ async function main() {
     : [];
   const plan = [
     ['node', ['scripts/release-create-version-record.mjs', ...releaseVersionArg]],
+    ['node', ['scripts/release-prod-guardrails.mjs', '--brand', options.brandId, '--channel', options.channel, '--target', options.target, ...releaseVersionArg, '--mode', 'pre']],
     ['node', ['scripts/release-guard.mjs', '--brand', options.brandId, '--channel', options.channel, '--target', options.target, ...releaseVersionArg, '--write-version-record']],
     ['node', ['scripts/release-preflight.mjs', ...releaseVersionArg]],
     ['node', ['scripts/run-with-env.mjs', options.channel, 'node', 'scripts/build-desktop-package.mjs', '--brand', options.brandId, '--target', options.target]],
+    ['node', ['scripts/release-prod-guardrails.mjs', '--brand', options.brandId, '--channel', options.channel, '--target', options.target, ...releaseVersionArg, '--mode', 'local']],
     ['node', ['scripts/release-guard.mjs', '--brand', options.brandId, '--channel', options.channel, '--target', options.target, ...releaseVersionArg, '--write-version-record']],
     ['node', ['scripts/run-with-env.mjs', options.channel, 'bash', 'scripts/publish-downloads.sh', options.channel]],
+    ['node', ['scripts/release-prod-guardrails.mjs', '--brand', options.brandId, '--channel', options.channel, '--target', options.target, ...releaseVersionArg, '--mode', 'public']],
     ['node', ['scripts/run-with-env.mjs', options.channel, 'node', 'scripts/publish-desktop-release.mjs', '--brand', options.brandId, '--channel', options.channel]],
+    ['node', ['scripts/release-prod-guardrails.mjs', '--brand', options.brandId, '--channel', options.channel, '--target', options.target, ...releaseVersionArg, '--mode', 'public', '--check-desktop-release-api']],
   ];
 
   if (!options.execute) {

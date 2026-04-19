@@ -9,6 +9,7 @@
 - `release-checklist.md`
 - `release-matrix.md`
 - `release-standard.md`
+- `release-automation-guardrails.md`
 - `version-record-template.md`
 - `windows-desktop-release-sop.md`
 
@@ -19,6 +20,7 @@
 ## 推荐阅读顺序
 
 1. `release-standard.md`
-2. `release-checklist.md`
-3. `release-matrix.md`
-4. `windows-desktop-release-sop.md`
+2. `release-automation-guardrails.md`
+3. `release-checklist.md`
+4. `release-matrix.md`
+5. `windows-desktop-release-sop.md`

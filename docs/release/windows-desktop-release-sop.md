@@ -24,15 +24,23 @@
 
 ```bash
 node scripts/release-create-version-record.mjs --release-version <1.0.x.yyyymmddHHMM>
+node scripts/release-prod-guardrails.mjs --brand <iclaw|caiclaw> --channel prod --target x86_64-pc-windows-msvc --release-version <1.0.x.yyyymmddHHMM> --mode pre
 node scripts/release-guard.mjs --brand <iclaw|caiclaw> --channel prod --target x86_64-pc-windows-msvc --release-version <1.0.x.yyyymmddHHMM> --write-version-record
-node scripts/release-orchestrate-windows.mjs --brand <iclaw|caiclaw> --channel prod --target x86_64-pc-windows-msvc --release-version <1.0.x.yyyymmddHHMM>
+node scripts/release-orchestrate-windows.mjs --brand <iclaw|caiclaw> --channel prod --target x86_64-pc-windows-msvc --release-version <1.0.x.yyyymmddHHMM> --execute
 ```
 
 其中：
 
 - `release-create-version-record` 负责补齐 `version_record` 和 `test_report`
+- `release-prod-guardrails` 负责构建前、本地产物、下载站、desktop release policy 四类硬校验
 - `release-guard` 负责统一生成发版守护报告，并把结果回填到版本记录
 - `release-orchestrate-windows` 负责串起建档、守护检查、打包、再次守护、发布入口
+
+补充：
+
+- `release-orchestrate-windows.mjs` 不带 `--execute` 时只输出 dry-run plan，适合先审命令
+- nginx `/downloads/`、`/runtime/` bucket 指向校验见：
+  - [release-automation-guardrails.md](./release-automation-guardrails.md)
 
 ## 0.2 品牌命名冻结规则
 
@@ -41,7 +49,7 @@ node scripts/release-orchestrate-windows.mjs --brand <iclaw|caiclaw> --channel p
 - 历史文档、历史脚本参数、历史构建产物中出现的 `licaiclaw`，视为旧内部标识，不再作为新增文档的首选称呼
 - 如脚本/配置/数据库字段仍需兼容历史标识，必须在实现层做兼容；对外口径不再回退到 `licaiclaw`
 
-## 0.1 已脚本化沉淀的 12 项
+## 0.1 已脚本化沉淀的 14 项
 
 以下 12 项已落到脚本/SOP，不再靠口头记忆：
 
@@ -57,6 +65,8 @@ node scripts/release-orchestrate-windows.mjs --brand <iclaw|caiclaw> --channel p
 10. 本地 runtime snapshot / openclaw.json 检查
 11. 发布链路命令统一输出
 12. `version_record` / `test_report` 自动补齐与回填
+13. downloads/runtime bucket 代理指向校验与修复
+14. release manifest 与 desktop release api 一致性校验
 
 ## 2. 当前冻结口径
 

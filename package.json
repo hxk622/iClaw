@@ -64,6 +64,7 @@
     "publish:desktop-release": "node scripts/run-with-env.mjs prod node scripts/publish-desktop-release.mjs",
     "release:create-record": "node scripts/release-create-version-record.mjs",
     "release:guard": "node scripts/release-guard.mjs",
+    "release:prod:guardrails": "node scripts/release-prod-guardrails.mjs",
     "release:orchestrate:windows": "node scripts/release-orchestrate-windows.mjs",
     "doctor:desktop-update": "node scripts/run-with-env.mjs dev node scripts/doctor-desktop-update.mjs --channel dev",
     "self-test:desktop-update": "node scripts/self-test-desktop-update.mjs",
