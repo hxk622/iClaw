@@ -5223,6 +5223,7 @@ export class ControlPlaneService {
       run_id: result.runId,
       task_id: task.id,
       trigger_type: 'manual',
+      status: result.status,
     };
   }
 

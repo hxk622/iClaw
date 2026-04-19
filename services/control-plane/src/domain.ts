@@ -943,7 +943,7 @@ export type SyncTaskRunRecord = {
   category: string;
   triggerType: 'manual' | 'schedule' | 'warmup';
   schedule: string | null;
-  status: 'running' | 'success' | 'failed';
+  status: 'running' | 'success' | 'failed' | 'skipped';
   startedAt: string;
   finishedAt: string | null;
   durationMs: number | null;
@@ -962,7 +962,7 @@ export type AdminSyncTaskRunView = {
   category: string;
   trigger_type: 'manual' | 'schedule' | 'warmup';
   schedule: string | null;
-  status: 'running' | 'success' | 'failed';
+  status: 'running' | 'success' | 'failed' | 'skipped';
   started_at: string;
   finished_at: string | null;
   duration_ms: number | null;
@@ -978,6 +978,7 @@ export type AdminSyncTaskRunTriggerView = {
   run_id: string;
   task_id: string;
   trigger_type: 'manual';
+  status: 'running' | 'success' | 'failed' | 'skipped';
 };
 
 export type AdminDesktopUpdateEventView = AdminClientMetricEventView & {

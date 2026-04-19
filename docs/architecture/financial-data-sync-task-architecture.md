@@ -344,6 +344,25 @@ TypeScript 任务负责：
 - `finance-data` 不适合 warmup
 - `industry-concept` 通常也不应阻塞启动
 
+## 8.1 多实例防重
+
+当前定时任务仍然跑在 `control-plane` 进程内，因此一旦进入多实例部署，必须解决“同一个 cron 在多个副本上同时触发”的问题。
+
+推荐做法：
+
+- 在数据库中维护 `sync_task_leases`
+- runner 执行前先尝试获取 `task_id` 对应 lease
+- 未获取到 lease 的实例直接把本次 run 标记为 `skipped`
+- 获取到 lease 的实例负责实际执行
+- 任务正常结束后主动释放 lease
+- 任务异常退出时依赖 `leased_until` 超时恢复
+
+这意味着：
+
+- 调度器仍可以暂时留在 `control-plane`
+- 但多实例部署不会重复抓同一份数据
+- 后续即使接入 XXL-JOB / K8s CronJob，也可以复用同一套 lease 逻辑
+
 ## 9. 手工触发与运维
 
 当前已经新增：
