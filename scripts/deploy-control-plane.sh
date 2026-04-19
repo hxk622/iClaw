@@ -152,3 +152,6 @@ curl -i -X OPTIONS \
   -H 'Access-Control-Request-Method: POST' \
   -H 'Access-Control-Request-Headers: content-type,x-iclaw-app-name,x-iclaw-channel' \
   https://caiclaw.aiyuanxi.com/auth/login
+
+echo "Verifying control-plane health/build metadata via public endpoint"
+node "$ROOT_DIR/scripts/verify-prod-deploy.mjs" --component control-plane --brand "${APP_NAME:-caiclaw}" --channel prod

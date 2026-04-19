@@ -49,9 +49,9 @@ node scripts/release-orchestrate-windows.mjs --brand <iclaw|caiclaw> --channel p
 - 历史文档、历史脚本参数、历史构建产物中出现的 `licaiclaw`，视为旧内部标识，不再作为新增文档的首选称呼
 - 如脚本/配置/数据库字段仍需兼容历史标识，必须在实现层做兼容；对外口径不再回退到 `licaiclaw`
 
-## 0.1 已脚本化沉淀的 14 项
+## 0.1 已脚本化沉淀的 16 项
 
-以下 12 项已落到脚本/SOP，不再靠口头记忆：
+以下事项已落到脚本/SOP，不再靠口头记忆：
 
 1. OpenClaw UI/runtime 版本一致性检查
 2. OEM 品牌一致性检查
@@ -67,6 +67,8 @@ node scripts/release-orchestrate-windows.mjs --brand <iclaw|caiclaw> --channel p
 12. `version_record` / `test_report` 自动补齐与回填
 13. downloads/runtime bucket 代理指向校验与修复
 14. release manifest 与 desktop release api 一致性校验
+15. control-plane/admin-web/home-web 发布后 build-info 回读校验
+16. home-web 渲染态下载按钮与 release manifest 一致性校验
 
 ## 2. 当前冻结口径
 

@@ -24,6 +24,7 @@ if [[ "$MODE" == "prod" ]]; then
   echo "Deploying home-web/dist -> ${ICLAW_NGINX_USER}@${ICLAW_NGINX_HOST}:${ICLAW_NGINX_PATH}"
   ssh "${ICLAW_NGINX_USER}@${ICLAW_NGINX_HOST}" "mkdir -p ${ICLAW_NGINX_PATH}"
   rsync -avz --delete "$ROOT_DIR/home-web/dist/" "${ICLAW_NGINX_USER}@${ICLAW_NGINX_HOST}:${ICLAW_NGINX_PATH}/"
+  node "$ROOT_DIR/scripts/verify-prod-deploy.mjs" --component home-web --brand "${APP_NAME:-caiclaw}" --channel prod
   echo "home-web deployed to prod nginx"
   exit 0
 fi

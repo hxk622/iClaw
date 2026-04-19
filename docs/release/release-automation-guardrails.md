@@ -10,6 +10,7 @@
 - 上传下载站后自动复核
 - 发布 desktop release policy 后再做一轮公网验真
 - 入口机 nginx 指向错误时可一键修复
+- 服务端 / 静态站发布后自动回读线上 build-info 与关键下载入口
 
 ## 已落地脚本
 
@@ -74,6 +75,35 @@ python scripts/fix-nginx-download-proxy.py ... --apply --reload
 - 对比期望 bucket
 - 可自动备份配置、落盘、`nginx -t`、reload
 
+### `scripts/verify-prod-deploy.mjs`
+
+统一的 prod 发布后验真脚本，支持：
+
+```bash
+node scripts/verify-prod-deploy.mjs --component <control-plane|admin-web|home-web> --brand caiclaw --channel prod
+```
+
+当前覆盖：
+
+- `control-plane`
+  - `GET /health` 返回 `status=ok`
+  - 回读线上 `release_version`
+  - 默认对比本地 `services/control-plane/build-info.json`
+- `admin-web`
+  - 首页返回 `200`
+  - `build-info.json` 返回 `200`
+  - 默认对比本地 `admin-web/dist/build-info.json`
+- `home-web`
+  - 首页返回 `200`
+  - `build-info.json` 返回 `200`
+  - `/desktop/release-manifest` 返回有效条目
+  - 若本机可用 Chrome headless，则继续核对首页渲染后的下载按钮 href 是否与 manifest 一致
+
+补充：
+
+- 如只是排查线上现状，不想和当前本地工作区比较，可加 `--skip-local-compare`
+- `home-web` 的 DOM 下载链接校验默认自动探测本机 Chrome；若要求必须执行，可加 `--require-chrome`
+
 ## 已接入主流程
 
 ### `scripts/release-orchestrate-windows.mjs`
@@ -100,6 +130,8 @@ python scripts/fix-nginx-download-proxy.py ... --apply --reload
 - 公网 installer 404
 - `/desktop/release-manifest` 版本与 installer 不一致
 - 关键 shell 脚本被 CRLF 污染
+- `control-plane` / `admin-web` / `home-web` 发布后未真正切到当前构建
+- `home-web` 首页下载按钮仍指向旧包
 
 ## 这轮沉淀的高频坑
 
@@ -116,11 +148,11 @@ python scripts/fix-nginx-download-proxy.py ... --apply --reload
 
 下一批建议继续自动化：
 
-1. `deploy-control-plane.sh` / `deploy-admin.sh` / `deploy-home.sh` 完成后自动做健康检查和版本回读
-2. 发布下载页后自动抓取 `home-web` 下载按钮目标并和 manifest 对比
-3. Windows 包体、安装后目录大小、文件数、启动关键阶段耗时自动落档到 `test_report`
-4. Windows 签名状态、时间戳状态、证书指纹自动校验
-5. 桌面自测 smoke 结果自动回填到版本记录
+1. Windows 包体、安装后目录大小、文件数、启动关键阶段耗时自动落档到 `test_report`
+2. Windows 签名状态、时间戳状态、证书指纹自动校验
+3. 桌面自测 smoke 结果自动回填到版本记录
+4. `deploy-prod-marketing.sh` 内部完全收口到统一验真脚本，减少重复 smoke 逻辑
+5. 发布后自动输出“当前线上版本矩阵”，便于直接贴进 `version_record`
 
 ## 推荐执行方式
 
@@ -136,4 +168,7 @@ node scripts/release-orchestrate-windows.mjs --brand caiclaw --channel prod --ta
 node scripts/release-prod-guardrails.mjs --brand caiclaw --channel prod --target x86_64-pc-windows-msvc --release-version <version> --mode pre
 node scripts/release-prod-guardrails.mjs --brand caiclaw --channel prod --target x86_64-pc-windows-msvc --release-version <version> --mode local
 node scripts/release-prod-guardrails.mjs --brand caiclaw --channel prod --target x86_64-pc-windows-msvc --release-version <version> --mode public --check-desktop-release-api
+node scripts/verify-prod-deploy.mjs --component control-plane --brand caiclaw --channel prod --skip-local-compare
+node scripts/verify-prod-deploy.mjs --component admin-web --brand caiclaw --channel prod --skip-local-compare
+node scripts/verify-prod-deploy.mjs --component home-web --brand caiclaw --channel prod --skip-local-compare
 ```

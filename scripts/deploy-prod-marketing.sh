@@ -127,6 +127,7 @@ deploy_home_web_brand() {
   run_with_password \
     "$ICLAW_NGINX_PASSWORD" \
     "cd $(printf '%q' "$ROOT_DIR") && ssh ${ICLAW_NGINX_USER}@${ICLAW_NGINX_HOST} \"mkdir -p ${nginx_path}\" && rsync -avz --delete home-web/dist/ ${ICLAW_NGINX_USER}@${ICLAW_NGINX_HOST}:${nginx_path}/"
+  run_cmd node "$ROOT_DIR/scripts/verify-prod-deploy.mjs" --component home-web --brand "$brand" --channel prod
 }
 
 deploy_control_plane() {

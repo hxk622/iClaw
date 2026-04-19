@@ -66,6 +66,7 @@
     "release:guard": "node scripts/release-guard.mjs",
     "release:prod:guardrails": "node scripts/release-prod-guardrails.mjs",
     "release:orchestrate:windows": "node scripts/release-orchestrate-windows.mjs",
+    "verify:prod:deploy": "node scripts/verify-prod-deploy.mjs",
     "doctor:desktop-update": "node scripts/run-with-env.mjs dev node scripts/doctor-desktop-update.mjs --channel dev",
     "self-test:desktop-update": "node scripts/self-test-desktop-update.mjs",
     "migrate:skill-catalog-table": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane migrate:skill-catalog-table",
