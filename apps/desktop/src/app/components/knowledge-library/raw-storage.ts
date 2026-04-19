@@ -1,6 +1,6 @@
-import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
-import { buildStorageKey } from '@/app/lib/storage';
-import type { CreateRawMaterialInput, RawMaterial, RawMaterialKind, RawMaterialSourceType } from './types';
+import { readCacheJson, writeCacheJson } from '../../lib/persistence/cache-store.ts';
+import { buildStorageKey } from '../../lib/storage.ts';
+import type { CreateRawMaterialInput, RawMaterial, RawMaterialKind, RawMaterialSourceType } from './types.ts';
 
 const RAW_MATERIALS_STORAGE_KEY = buildStorageKey('knowledge-library.raw-materials.v1');
 

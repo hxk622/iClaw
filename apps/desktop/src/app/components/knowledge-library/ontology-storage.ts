@@ -1,6 +1,6 @@
-import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
-import { buildStorageKey } from '@/app/lib/storage';
-import type { OntologyDocument } from './ontology-types';
+import { readCacheJson, writeCacheJson } from '../../lib/persistence/cache-store.ts';
+import { buildStorageKey } from '../../lib/storage.ts';
+import type { OntologyDocument } from './ontology-types.ts';
 
 const ONTOLOGY_STORAGE_KEY = buildStorageKey('knowledge-library.ontology.v1');
 

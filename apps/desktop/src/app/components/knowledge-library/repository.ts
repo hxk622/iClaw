@@ -6,12 +6,12 @@ import {
   upsertRawMaterial,
 } from './raw-storage.ts';
 import type { CreateRawMaterialInput, RawMaterial } from './types.ts';
-import { compileRawToOntology } from './ontology-pipeline.ts';
-import { getOntologyDocumentById, listOntologyDocuments, upsertOntologyDocument } from './ontology-storage.ts';
+import { getOntologyDocumentById, listOntologyDocuments } from './ontology-storage.ts';
 import type { OntologyDocument } from './ontology-types.ts';
 import { buildOutputArtifactsFromOntologyDocuments } from './output-pipeline.ts';
 import { getOutputArtifactByDedupeKey, getOutputArtifactById, listOutputArtifacts, upsertOutputArtifact } from './output-storage.ts';
 import type { CreateOutputArtifactInput, OutputArtifact } from './output-types.ts';
+import { syncOutputArtifactsIntoOntology, syncRawMaterialsIntoOntology } from './graph-compiler.ts';
 
 export interface KnowledgeLibraryRepository {
   listRawMaterials(input?: {
@@ -97,8 +97,7 @@ export function createLocalKnowledgeLibraryRepository(): KnowledgeLibraryReposit
       return getOntologyDocumentById(id);
     },
     async compileRawMaterialsToOntology(rawMaterials) {
-      const compiled = compileRawToOntology({ rawMaterials });
-      return compiled.documents.map((document) => upsertOntologyDocument(document));
+      return syncRawMaterialsIntoOntology(rawMaterials);
     },
     async listOutputArtifacts(input) {
       const normalizedQuery = input?.query?.trim().toLowerCase() || '';
@@ -121,10 +120,14 @@ export function createLocalKnowledgeLibraryRepository(): KnowledgeLibraryReposit
       return getOutputArtifactByDedupeKey(dedupeKey);
     },
     async upsertOutputArtifact(input) {
-      return upsertOutputArtifact(input);
+      const saved = upsertOutputArtifact(input);
+      await syncOutputArtifactsIntoOntology([saved]);
+      return saved;
     },
     async generateOutputArtifactsFromOntology(documents) {
-      return buildOutputArtifactsFromOntologyDocuments(documents).map((item) => upsertOutputArtifact(item));
+      const saved = buildOutputArtifactsFromOntologyDocuments(documents).map((item) => upsertOutputArtifact(item));
+      await syncOutputArtifactsIntoOntology(saved);
+      return saved;
     },
   };
 }

@@ -61,6 +61,11 @@ export interface OntologyDocument {
   metadata?: {
     chunk_count?: number;
     compiler_version?: string;
+    compiler_backend?: string;
+    generated_from?: 'raw' | 'output' | null;
+    source_output_artifact_ids?: string[];
+    source_ontology_ids?: string[];
+    source_surface?: string | null;
   } | null;
 }
 

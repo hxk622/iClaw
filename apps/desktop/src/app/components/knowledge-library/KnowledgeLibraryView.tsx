@@ -30,6 +30,7 @@ import {
   parseOutputArtifactSourceSurface,
 } from './output-types';
 import { openWorkspaceArtifact } from '@/app/lib/tauri-artifact-preview';
+import type { RawMaterial } from './types';
 import {
   extractChatFeedbackFromContainer,
   saveChatFeedbackAsMemo,
@@ -365,6 +366,7 @@ export function KnowledgeLibraryView({
   const processFiles = async (files: File[]) => {
     if (files.length === 0) return;
     let lastCreatedId: string | null = null;
+    const createdRawMaterials: RawMaterial[] = [];
     for (const file of files) {
       const lowerName = file.name.toLowerCase();
       const isTextLike =
@@ -407,8 +409,17 @@ export function KnowledgeLibraryView({
         tags: ['上传', ...(file.type === 'application/pdf' ? ['PDF'] : [])],
       });
       lastCreatedId = created.id;
+      createdRawMaterials.push(created);
+    }
+    if (createdRawMaterials.length > 0) {
+      const ontologyDocuments = await repository.compileRawMaterialsToOntology(createdRawMaterials);
+      if (ontologyDocuments.length > 0) {
+        await repository.generateOutputArtifactsFromOntology(ontologyDocuments);
+      }
     }
     setMaterialsRefreshKey((current) => current + 1);
+    setOntologyRefreshKey((current) => current + 1);
+    setOutputRefreshKey((current) => current + 1);
     if (lastCreatedId) {
       setActiveTab('materials');
       setSelectedByTab((current) => ({ ...current, materials: lastCreatedId }));
@@ -465,6 +476,7 @@ export function KnowledgeLibraryView({
       });
       if (created) {
         setOutputRefreshKey((current) => current + 1);
+        setOntologyRefreshKey((current) => current + 1);
         setActiveTab('artifacts');
         setSelectedByTab((current) => ({ ...current, artifacts: created.id }));
       }

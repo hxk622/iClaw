@@ -3,6 +3,7 @@ import type { FinanceComplianceSnapshot } from '../../lib/finance-compliance.ts'
 import { buildOutputArtifactFromChatTurn, type ChatOutputArtifactRef } from './chat-output-bridge.ts';
 import { getOutputArtifactByDedupeKey, upsertOutputArtifact } from './output-storage.ts';
 import type { OutputArtifact, OutputArtifactType } from './output-types.ts';
+import { syncOutputArtifactsIntoOntology } from './graph-compiler.ts';
 
 export interface PromoteChatOutputArtifactInput {
   turn: Pick<ChatTurnRecord, 'id' | 'conversationId' | 'sessionKey' | 'prompt' | 'title' | 'artifacts' | 'financeCompliance'>;
@@ -50,8 +51,10 @@ export async function promoteChatTurnToOutputArtifact(input: PromoteChatOutputAr
       : null;
   const existing =
     typeof dedupeKey === 'string' && dedupeKey.trim() ? getOutputArtifactByDedupeKey(dedupeKey) : null;
-  return upsertOutputArtifact({
+  const saved = upsertOutputArtifact({
     ...nextArtifact,
     id: existing?.id,
   });
+  await syncOutputArtifactsIntoOntology([saved]);
+  return saved;
 }

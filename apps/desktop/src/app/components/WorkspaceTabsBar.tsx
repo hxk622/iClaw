@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { WorkspaceTabRecord, WorkspaceTabRuntimeStatus } from '@/app/lib/workspace-tabs';
 
@@ -56,16 +56,26 @@ type WorkspaceTabsBarProps = {
   onReorder: (fromTabId: string, toTabId: string) => void;
 };
 
+const TAB_ESTIMATED_WIDTH = 184;
+const NEW_BUTTON_WIDTH = 40;
+const OVERFLOW_BUTTON_WIDTH = 44;
+
 export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const overflowButtonRef = useRef<HTMLButtonElement | null>(null);
   const [menuTabId, setMenuTabId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
+  const [overflowMenuPosition, setOverflowMenuPosition] = useState({ x: 0, y: 0 });
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
   const [portalReady, setPortalReady] = useState(false);
+  const [availableWidth, setAvailableWidth] = useState(0);
   const activeTabRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const overflowMenuRef = useRef<HTMLDivElement | null>(null);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -73,7 +83,7 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
   }, []);
 
   useEffect(() => {
-    if (!menuTabId && !renamingTabId) {
+    if (!menuTabId && !renamingTabId && !overflowMenuOpen) {
       return;
     }
 
@@ -85,8 +95,12 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
       if (menuRef.current?.contains(target)) {
         return;
       }
+      if (overflowMenuRef.current?.contains(target)) {
+        return;
+      }
       setMenuTabId(null);
       setRenamingTabId(null);
+      setOverflowMenuOpen(false);
       setDraftTitle('');
     };
 
@@ -96,6 +110,7 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
       }
       setMenuTabId(null);
       setRenamingTabId(null);
+      setOverflowMenuOpen(false);
       setDraftTitle('');
     };
 
@@ -105,7 +120,28 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
       document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [menuTabId, renamingTabId]);
+  }, [menuTabId, overflowMenuOpen, renamingTabId]);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) {
+      return;
+    }
+
+    const update = () => {
+      setAvailableWidth(rail.clientWidth);
+    };
+    update();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update);
+      return () => window.removeEventListener('resize', update);
+    }
+
+    const observer = new ResizeObserver(() => update());
+    observer.observe(rail);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!renamingTabId) {
@@ -127,15 +163,78 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
     setDraftTitle('');
   };
 
+  const { visibleTabs, overflowTabs } = useMemo(() => {
+    if (props.tabs.length === 0) {
+      return {
+        visibleTabs: [] as WorkspaceTabRecord[],
+        overflowTabs: [] as WorkspaceTabRecord[],
+      };
+    }
+
+    const baseSlots = Math.max(
+      1,
+      Math.floor(Math.max(availableWidth - NEW_BUTTON_WIDTH, TAB_ESTIMATED_WIDTH) / TAB_ESTIMATED_WIDTH),
+    );
+    if (props.tabs.length <= baseSlots) {
+      return {
+        visibleTabs: props.tabs,
+        overflowTabs: [] as WorkspaceTabRecord[],
+      };
+    }
+
+    const visibleLimit = Math.max(1, baseSlots - 1);
+    const pinnedTabs = props.tabs.filter((tab) => tab.pinned);
+    const mustShowIds = new Set<string>();
+
+    if (pinnedTabs.length >= visibleLimit) {
+      pinnedTabs.slice(0, Math.max(0, visibleLimit - 1)).forEach((tab) => mustShowIds.add(tab.id));
+      mustShowIds.add(props.activeTabId);
+    } else {
+      pinnedTabs.forEach((tab) => mustShowIds.add(tab.id));
+      mustShowIds.add(props.activeTabId);
+    }
+
+    const visible: WorkspaceTabRecord[] = [];
+    for (const tab of props.tabs) {
+      if (!mustShowIds.has(tab.id)) {
+        continue;
+      }
+      if (visible.find((item) => item.id === tab.id)) {
+        continue;
+      }
+      if (visible.length >= visibleLimit) {
+        break;
+      }
+      visible.push(tab);
+    }
+    for (const tab of props.tabs) {
+      if (visible.length >= visibleLimit) {
+        break;
+      }
+      if (visible.find((item) => item.id === tab.id)) {
+        continue;
+      }
+      visible.push(tab);
+    }
+
+    const visibleIdSet = new Set(visible.map((tab) => tab.id));
+    return {
+      visibleTabs: visible,
+      overflowTabs: props.tabs.filter((tab) => !visibleIdSet.has(tab.id)),
+    };
+  }, [availableWidth, props.activeTabId, props.tabs]);
+
   return (
     <div
-      className="flex h-12 shrink-0 items-center gap-2 overflow-x-auto border-b px-4 py-2"
+      ref={railRef}
+      className="flex h-12 shrink-0 items-center gap-2 overflow-hidden border-b px-4 py-2"
       style={{
         borderColor: 'var(--chat-surface-panel-border)',
         background: 'color-mix(in srgb, var(--chat-surface-header-bg) 92%, transparent)',
       }}
     >
-      {props.tabs.map((tab) => {
+      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+      {visibleTabs.map((tab) => {
         const isActive = tab.id === props.activeTabId;
         const colorStyle = WORKSPACE_TAB_COLOR_STYLES[tab.color] || WORKSPACE_TAB_COLOR_STYLES.default;
         const runtime = props.runtimeByTabId[tab.id] ?? {
@@ -429,6 +528,30 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
           </div>
         );
       })}
+      {overflowTabs.length > 0 ? (
+        <button
+          ref={overflowButtonRef}
+          type="button"
+          className="inline-flex h-[31px] shrink-0 items-center justify-center rounded-[13px] border px-3 text-[12px] font-medium text-[var(--text-secondary)] transition hover:scale-[1.02] hover:bg-[var(--surface-panel-subtle-bg)] hover:text-[var(--text-primary)]"
+          style={{
+            borderColor: 'var(--chat-surface-panel-border)',
+            background: 'color-mix(in srgb, var(--chat-surface-panel-muted) 92%, var(--bg-elevated))',
+          }}
+          onClick={() => {
+            const rect = overflowButtonRef.current?.getBoundingClientRect();
+            setOverflowMenuPosition({
+              x: rect ? Math.max(12, rect.right - 220) : 12,
+              y: rect ? rect.bottom + 8 : 48,
+            });
+            setOverflowMenuOpen((current) => !current);
+            setMenuTabId(null);
+          }}
+          aria-label={`更多标签页 ${overflowTabs.length}`}
+        >
+          更多
+        </button>
+      ) : null}
+      </div>
       <button
         type="button"
         className="inline-flex h-[31px] w-[31px] shrink-0 items-center justify-center rounded-[13px] border text-[18px] text-[var(--text-secondary)] transition hover:scale-[1.03] hover:bg-[var(--surface-panel-subtle-bg)] hover:text-[var(--text-primary)]"
@@ -443,6 +566,51 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
       >
         +
       </button>
+      {portalReady && overflowMenuOpen && overflowTabs.length > 0
+        ? createPortal(
+            <div
+              ref={overflowMenuRef}
+              className="fixed z-[180] min-w-[220px] rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] p-1.5 shadow-[var(--shadow-popover)]"
+              style={{ left: overflowMenuPosition.x, top: overflowMenuPosition.y }}
+            >
+              <div className="px-3 pb-1 pt-1.5 text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                更多标签页
+              </div>
+              {overflowTabs.map((tab) => {
+                const runtime = props.runtimeByTabId[tab.id] ?? {
+                  busy: false,
+                  hasPendingBilling: false,
+                  hasUnsavedDraft: false,
+                  recovering: false,
+                  ready: false,
+                };
+                const colorStyle = WORKSPACE_TAB_COLOR_STYLES[tab.color] || WORKSPACE_TAB_COLOR_STYLES.default;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[12px] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+                    onClick={() => {
+                      props.onSelect(tab.id);
+                      setOverflowMenuOpen(false);
+                    }}
+                  >
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{
+                        background: runtime.hasUnsavedDraft ? 'var(--state-warn)' : colorStyle.accent,
+                        border: runtime.recovering ? `1.5px solid ${colorStyle.accent}` : undefined,
+                      }}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{tab.title}</span>
+                    {tab.pinned ? <span className="text-[10px] text-[var(--text-muted)]">固定</span> : null}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

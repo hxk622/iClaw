@@ -95,6 +95,17 @@ Raw 经过编译进入 Ontology：
 - ontology typing
 - evidence linking
 
+这一层在系统里的正式角色应冻结为：
+
+- `Graph Compiler`
+- 当前可以由本地 fallback compiler 承担
+- 后续可替换为 `graphify v3` runner
+
+也就是说：
+
+- 第一栏 Ontology tab 展示的是编译结果
+- Graphify 是编译后端，不是 tab 本身
+
 ### Step C：Produce
 
 Raw / Ontology 共同驱动 Output：
@@ -110,9 +121,16 @@ Raw / Ontology 共同驱动 Output：
 Output 与 Chat 再次回写系统：
 
 - 新摘录进入 Raw
-- 新关系进入 Ontology
 - 新成果进入 Output
+- Output 再次触发 graph compile
+- 更新后的 Ontology 再反哺 Chat
 - 用户修正形成新的证据与规则
+
+这里必须特别强调：
+
+- Chat 不直接改 Ontology
+- Chat 先产出 Raw / Claim / Output
+- Compiler 再把这些对象编译进 Ontology
 
 ## 3. 模块边界
 
@@ -139,9 +157,16 @@ Output 与 Chat 再次回写系统：
 职责：
 
 - 把 Raw 转为结构化知识对象
+- 把 Output 转为结构化知识对象
 - 建立本体关系
 - 绑定证据来源
 - 输出可渲染的图谱对象
+
+边界：
+
+- iClaw 持有对象层、存储层、审计层
+- `graphify v3` 是可替换 compiler backend
+- 编译产物必须映射回 iClaw 自己的 `OntologyDocument`
 
 ## 3.4 Output 生成器
 
@@ -214,6 +239,7 @@ Chat 产生的有价值内容必须沉淀回 Raw / Ontology / Output，而不是
 - 新素材导入
 - 素材更新
 - 用户手动要求“编入本体图谱”
+- 后台 graph compiler job 完成
 
 ### Ontology -> Output 触发器
 
@@ -226,6 +252,19 @@ Chat 产生的有价值内容必须沉淀回 Raw / Ontology / Output，而不是
 - 用户确认“沉淀到知识库”
 - AI 对话生成结构化结论
 - 规则卡 / 摘要 / memo 被确认保存
+
+### Output -> Ontology 触发器
+
+- 新 Output 保存
+- Output 更新
+- Chat promotion 产出进入成果层
+
+触发动作：
+
+- run / enqueue graph compiler job
+- 生成 `Output` 节点
+- 建立 `derived_from` / `evidenced_by` 边
+- 回写到第一栏 Ontology tab
 
 ## 7. 为什么这套架构能避免补丁式开发
 

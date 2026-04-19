@@ -26,10 +26,11 @@ Ontology 不是静态图，也不是 tag 图。
 
 ### 结论 2
 
-Graphify 是 `render + graphify` 候选内核，不是系统总模型。
+Graphify v3 是 `graph compiler / query backend` 候选内核，不是系统总模型。
 
 - iClaw 负责对象协议与知识边界
-- Graphify 负责把编译后的结构化图谱变成可视关系图，并承担 graphify 流程中的关系生成与图结构组织能力
+- Graphify 负责 graph compile、graph json / report 产物、关系抽取
+- iClaw 再把这些产物映射回自己的 `OntologyDocument`
 
 ### 结论 3
 
@@ -37,13 +38,21 @@ Ontology 是 Raw 与 Output 之间的必经中间层。
 
 如果 Output 可以绕开 Ontology 直接从 Raw 长出来，本体图谱就会退化为装饰层。
 
+进一步冻结：
+
+- Raw 是 compiler 输入
+- Output 也是 compiler 输入
+- Chat 不直接修改 Ontology
+- Chat 只能通过 Raw / Output 反馈来触发 compiler
+
 ## 2. Pipeline 分层
 
-## Layer 1：Raw Intake
+## Layer 1：Corpus Intake
 
 输入对象：
 
 - RawMaterial
+- OutputArtifact
 
 输入内容包括：
 
@@ -54,6 +63,13 @@ Ontology 是 Raw 与 Output 之间的必经中间层。
 - source_type
 - tags
 - metadata
+
+其中 Output 输入必须至少带：
+
+- lineage
+- source_raw_ids
+- source_ontology_ids
+- finance_compliance metadata（若存在）
 
 ## Layer 2：Preprocess
 
@@ -128,6 +144,8 @@ Ontology 是 Raw 与 Output 之间的必经中间层。
 - `Company -> belongs_to -> Sector`
 - `Asset -> influenced_by -> MacroFactor`
 - `Memo -> derived_from -> RawMaterial`
+- `Output -> derived_from -> Ontology`
+- `Output -> evidenced_by -> RawMaterial`
 
 输出对象：
 
@@ -164,11 +182,10 @@ Graphify 在 iClaw 中的角色应明确为：
 
 ### 负责
 
-- graphify 过程中的图结构组织
-- 节点/边可视化
-- force-directed / relation graph 渲染
-- 节点聚类与中心节点聚焦
-- Ontology graph 的第二栏关系图视图
+- graph compile backend
+- graph.json / graph report 产物生成
+- 节点/边关系抽取
+- 后续 query backend 候选
 
 ### 不负责
 
@@ -177,10 +194,12 @@ Graphify 在 iClaw 中的角色应明确为：
 - Chat 对象协议
 - 插件采集协议
 - OEM 结构
+- 最终 OntologyDocument 真值存储
+- 金融合规与审计
 
 也就是：
 
-> Graphify 是 Ontology layer 的编译/渲染内核之一，不是整个知识库系统的母体。
+> Graphify 是 Ontology layer 的编译后端之一，不是整个知识库系统的母体。
 
 ## 4. 本体论最小要求
 
@@ -258,6 +277,13 @@ Output 不应只“引用图谱”，而应进入 ontology。
 - 一篇 memo 是一个 `OutputArtifact`
 - 同时它也可以成为 ontology 中的 `Output` 节点
 - 并与来源 Raw / OntologyNode / OntologyEdge 建立 `derived_from` 关系
+
+推荐流程：
+
+- Output 保存
+- Output 触发 graph compiler job
+- compiler 生成新的 Output 节点 / 边
+- iClaw 把结果 merge 回 OntologyDocument
 
 这样成果才能真的反哺本体图谱。
 
