@@ -7,6 +7,7 @@
 ## 当前内容
 
 - `aliyun-procurement.md`
+- `aliyun-cross-backup.md`
 - `github-skill-publish-sop.md`
 - `nginx-iclaw.conf`
 - `openclaw-sidecar-ci.md`
