@@ -467,6 +467,32 @@ export function buildHeuristicFinanceComplianceEnvelope(input: {
   return result;
 }
 
+export function resolveHeuristicFinanceComplianceEnvelope(input: {
+  snapshot?: FinanceComplianceSnapshot | null;
+  appName: string;
+  channel: FinanceComplianceChannel;
+  title?: string | null;
+  prompt?: string | null;
+  answer: string;
+  usedCapabilities?: string[];
+  usedModel?: string | null;
+  oemPolicy?: FinanceOemCompliancePolicy | null;
+}): ResolveFinanceComplianceResult | null {
+  if (hasExplicitFinanceComplianceSnapshot(input.snapshot)) {
+    return null;
+  }
+  return buildHeuristicFinanceComplianceEnvelope({
+    appName: input.appName,
+    channel: input.channel,
+    title: input.title,
+    prompt: input.prompt,
+    answer: input.answer,
+    usedCapabilities: input.usedCapabilities,
+    usedModel: input.usedModel,
+    oemPolicy: input.oemPolicy,
+  });
+}
+
 export function resolveDisplayFinanceComplianceSnapshot(input: {
   snapshot?: FinanceComplianceSnapshot | null;
   appName: string;
@@ -477,17 +503,10 @@ export function resolveDisplayFinanceComplianceSnapshot(input: {
   usedModel?: string | null;
   oemPolicy?: FinanceOemCompliancePolicy | null;
 }): FinanceComplianceSnapshot | null {
+  const heuristic = resolveHeuristicFinanceComplianceEnvelope(input);
   return resolveEffectiveFinanceComplianceSnapshot({
     snapshot: input.snapshot,
-    heuristic: buildHeuristicFinanceComplianceEnvelope({
-      appName: input.appName,
-      channel: input.channel,
-      title: input.title,
-      prompt: input.prompt,
-      answer: input.answer,
-      usedModel: input.usedModel,
-      oemPolicy: input.oemPolicy,
-    }),
+    heuristic,
   });
 }
 
@@ -501,17 +520,10 @@ export function resolveDisplayFinanceDisclaimer(input: {
   usedModel?: string | null;
   oemPolicy?: FinanceOemCompliancePolicy | null;
 }): string | null {
+  const heuristic = resolveHeuristicFinanceComplianceEnvelope(input);
   return resolveEffectiveFinanceDisclaimer({
     snapshot: input.snapshot,
-    heuristic: buildHeuristicFinanceComplianceEnvelope({
-      appName: input.appName,
-      channel: input.channel,
-      title: input.title,
-      prompt: input.prompt,
-      answer: input.answer,
-      usedModel: input.usedModel,
-      oemPolicy: input.oemPolicy,
-    }),
+    heuristic,
   });
 }
 

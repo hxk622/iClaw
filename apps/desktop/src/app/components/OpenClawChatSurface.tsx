@@ -124,6 +124,7 @@ import {
 } from '../lib/chat-turns';
 import {
   buildHeuristicFinanceComplianceEnvelope,
+  resolveHeuristicFinanceComplianceEnvelope,
   resolveEffectiveFinanceComplianceSnapshot,
 } from '../lib/finance-compliance';
 import { recordFinanceComplianceEvents } from '../lib/finance-compliance-events';
@@ -8034,7 +8035,8 @@ export function OpenClawChatSurface({
             timestampRequired: messageFinanceCompliance?.timestampRequired === true,
           })
         : null;
-    const heuristicFinanceCompliance = buildHeuristicFinanceComplianceEnvelope({
+    const heuristicFinanceCompliance = resolveHeuristicFinanceComplianceEnvelope({
+      snapshot: explicitFinanceCompliance,
       appName,
       channel: 'chat',
       title: null,
