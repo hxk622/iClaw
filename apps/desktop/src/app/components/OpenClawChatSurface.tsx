@@ -350,6 +350,10 @@ type OpenClawChatSurfaceProps = {
   >;
   surfaceVisible?: boolean;
   sendBlockedReason?: string | null;
+  outputPromotionSourceContext?: {
+    rawMaterialIds?: string[];
+    ontologyIds?: string[];
+  } | null;
 };
 
 type ComposerCreditEstimateState = {
@@ -664,6 +668,8 @@ type ArtifactPreviewState = {
   sourceTurnId: string | null;
   sourcePromptText: string | null;
   sourceAnswerText: string | null;
+  sourceRawIds: string[];
+  sourceOntologyIds: string[];
 };
 
 type ArtifactPromotionState = {
@@ -4687,6 +4693,7 @@ export function OpenClawChatSurface({
   ensureRuntimeReadyForRecovery,
   surfaceVisible = true,
   sendBlockedReason = null,
+  outputPromotionSourceContext = null,
 }: OpenClawChatSurfaceProps) {
   const normalizedSnapshotSessionKey = canonicalizeChatSessionKey(sessionKey);
   const localStoredSnapshot = readStoredChatSnapshot({
@@ -5113,6 +5120,12 @@ export function OpenClawChatSurface({
         conversationId,
       });
       const artifactToken = [sourceTurn.turnId || 'unknown', previewPath].join('::');
+      const sourceRawIds = Array.isArray(outputPromotionSourceContext?.rawMaterialIds)
+        ? Array.from(new Set(outputPromotionSourceContext.rawMaterialIds.filter(Boolean)))
+        : [];
+      const sourceOntologyIds = Array.isArray(outputPromotionSourceContext?.ontologyIds)
+        ? Array.from(new Set(outputPromotionSourceContext.ontologyIds.filter(Boolean)))
+        : [];
       const requestSeq = artifactPreviewRequestSeqRef.current + 1;
       artifactPreviewRequestSeqRef.current = requestSeq;
       setArtifactPromotionState({
@@ -5136,6 +5149,8 @@ export function OpenClawChatSurface({
           sourceTurnId: sourceTurn.turnId,
           sourcePromptText: sourceTurn.promptText,
           sourceAnswerText: sourceTurn.answerText || inlineContent,
+          sourceRawIds,
+          sourceOntologyIds,
         });
         return true;
       }
@@ -5155,6 +5170,8 @@ export function OpenClawChatSurface({
           sourceTurnId: sourceTurn.turnId,
           sourcePromptText: sourceTurn.promptText,
           sourceAnswerText: sourceTurn.answerText,
+          sourceRawIds,
+          sourceOntologyIds,
         });
         return false;
       }
@@ -5173,6 +5190,8 @@ export function OpenClawChatSurface({
         sourceTurnId: sourceTurn.turnId,
         sourcePromptText: sourceTurn.promptText,
         sourceAnswerText: sourceTurn.answerText,
+        sourceRawIds,
+        sourceOntologyIds,
       });
 
       const workspaceDir = await ensureArtifactPreviewWorkspaceDir();
@@ -5216,6 +5235,8 @@ export function OpenClawChatSurface({
             sourceTurnId: sourceTurn.turnId,
             sourcePromptText: sourceTurn.promptText,
             sourceAnswerText: sourceTurn.answerText,
+            sourceRawIds,
+            sourceOntologyIds,
           });
           return false;
         }
@@ -5234,6 +5255,8 @@ export function OpenClawChatSurface({
           sourceTurnId: sourceTurn.turnId,
           sourcePromptText: sourceTurn.promptText,
           sourceAnswerText: sourceTurn.answerText,
+          sourceRawIds,
+          sourceOntologyIds,
         });
         return true;
       }
@@ -5274,6 +5297,8 @@ export function OpenClawChatSurface({
             sourceTurnId: sourceTurn.turnId,
             sourcePromptText: sourceTurn.promptText,
             sourceAnswerText: sourceTurn.answerText,
+            sourceRawIds,
+            sourceOntologyIds,
           });
           return false;
         }
@@ -5292,6 +5317,8 @@ export function OpenClawChatSurface({
           sourceTurnId: sourceTurn.turnId,
           sourcePromptText: sourceTurn.promptText,
           sourceAnswerText: sourceTurn.answerText,
+          sourceRawIds,
+          sourceOntologyIds,
         });
         return true;
       }
@@ -5329,6 +5356,8 @@ export function OpenClawChatSurface({
           sourceTurnId: sourceTurn.turnId,
           sourcePromptText: sourceTurn.promptText,
           sourceAnswerText: sourceTurn.answerText,
+          sourceRawIds,
+          sourceOntologyIds,
         });
         return false;
       }
@@ -5370,6 +5399,8 @@ export function OpenClawChatSurface({
           sourceTurnId: sourceTurn.turnId,
           sourcePromptText: sourceTurn.promptText,
           sourceAnswerText: sourceTurn.answerText,
+          sourceRawIds,
+          sourceOntologyIds,
         });
         return false;
       }
@@ -5388,10 +5419,12 @@ export function OpenClawChatSurface({
         sourceTurnId: sourceTurn.turnId,
         sourcePromptText: sourceTurn.promptText,
         sourceAnswerText: sourceTurn.answerText || resolvedContent,
+        sourceRawIds,
+        sourceOntologyIds,
       });
       return true;
     },
-    [conversationId, ensureArtifactPreviewWorkspaceDir],
+    [conversationId, ensureArtifactPreviewWorkspaceDir, outputPromotionSourceContext],
   );
 
   useEffect(() => {
@@ -9201,6 +9234,10 @@ export function OpenClawChatSurface({
           (artifactPreview.kind === 'text' || artifactPreview.kind === 'markdown' ? artifactPreview.content || '' : '') ||
           turn.summary,
         artifactRef,
+        sourceContext: {
+          rawMaterialIds: artifactPreview.sourceRawIds,
+          ontologyIds: artifactPreview.sourceOntologyIds,
+        },
         financeCompliance: turn.financeCompliance,
         sourceSurface: 'chat',
       });

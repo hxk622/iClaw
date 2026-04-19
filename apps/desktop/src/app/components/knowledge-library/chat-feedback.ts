@@ -45,6 +45,16 @@ function currentItemSourceOntologyIds(item: KnowledgeLibraryItem | null): string
   return [];
 }
 
+export function resolveKnowledgeLibraryItemSourceContext(item: KnowledgeLibraryItem | null): {
+  rawMaterialIds: string[];
+  ontologyIds: string[];
+} {
+  return {
+    rawMaterialIds: currentItemSourceRawIds(item),
+    ontologyIds: currentItemSourceOntologyIds(item),
+  };
+}
+
 export async function saveChatFeedbackAsRaw(input: {
   repository: KnowledgeLibraryRepository;
   activeTab: KnowledgeLibraryTab;

@@ -5,6 +5,7 @@ import { OpenClawChatSurface } from '@/app/components/OpenClawChatSurface';
 import { createScopedChatSessionKey } from '@/app/lib/chat-session';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
 import type { KnowledgeLibraryItem, KnowledgeLibraryTab } from './model';
+import { resolveKnowledgeLibraryItemSourceContext } from './chat-feedback';
 
 type KnowledgeLibraryEmbeddedChatSurfaceProps = {
   selectedItem: KnowledgeLibraryItem | null;
@@ -53,6 +54,7 @@ export const KnowledgeLibraryEmbeddedChatSurface = forwardRef<HTMLDivElement, Kn
     ref,
   ) => {
     const sessionSeed = `knowledge-library-${activeTab}`;
+    const sourceContext = resolveKnowledgeLibraryItemSourceContext(selectedItem);
 
     return (
       <div ref={ref} className="knowledge-library-embedded-chat flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -84,6 +86,7 @@ export const KnowledgeLibraryEmbeddedChatSurface = forwardRef<HTMLDivElement, Kn
           runtimeStateKey={`knowledge-library:${sessionSeed}`}
           surfaceVisible
           sendBlockedReason={null}
+          outputPromotionSourceContext={sourceContext}
         />
       </div>
     );

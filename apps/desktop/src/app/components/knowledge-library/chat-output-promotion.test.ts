@@ -74,6 +74,10 @@ test('promoteChatTurnToOutputArtifact upserts by turn dedupe key', async () => {
       title: '晨报网页稿 V2',
       previewKind: 'html',
     },
+    sourceContext: {
+      rawMaterialIds: ['raw_ctx_1', 'raw_ctx_2'],
+      ontologyIds: ['graph_ctx_1'],
+    },
   });
 
   assert.equal(first.id, second.id);
@@ -81,4 +85,6 @@ test('promoteChatTurnToOutputArtifact upserts by turn dedupe key', async () => {
   assert.ok(stored);
   assert.match(stored?.content || '', /第二次结果/);
   assert.match(stored?.content || '', /V2/);
+  assert.deepEqual(stored?.source_raw_ids || [], ['raw_ctx_1', 'raw_ctx_2']);
+  assert.deepEqual(stored?.source_ontology_ids || [], ['graph_ctx_1']);
 });
