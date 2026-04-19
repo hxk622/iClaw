@@ -32,7 +32,7 @@ export const THOUGHT_LIBRARY_TAB_CONFIG: Array<{
   icon: ComponentType<{ className?: string }>;
 }> = [
   { id: 'materials', label: 'Raw / 素材', icon: FileText },
-  { id: 'graph', label: 'Graph / 图谱', icon: Network },
+  { id: 'graph', label: 'Ontology / 本体图谱', icon: Network },
   { id: 'artifacts', label: 'Output / 成果', icon: Sparkles },
 ];
 
@@ -106,7 +106,7 @@ export function getThoughtLibraryPanelTitle(tab: ThoughtLibraryTab): string {
     case 'materials':
       return '素材详情';
     case 'graph':
-      return '图谱视图';
+      return '本体图谱视图';
     case 'artifacts':
       return '成果详情';
   }
@@ -117,7 +117,7 @@ export function getThoughtLibraryPanelDescription(tab: ThoughtLibraryTab): strin
     case 'materials':
       return '原始资料、Clip 和对话沉淀会先进入素材层，再被 AI 编译进图谱。';
     case 'graph':
-      return '图谱层展示结构化关系，可切换查看页面化内容、节点关系和局部子图。';
+      return '本体图谱层展示结构化关系，可切换查看页面化内容、节点关系和局部子图。';
     case 'artifacts':
       return '成果层展示人机共创的专家、Memo 和可分发内容，这些内容也会持续反哺图谱。';
   }

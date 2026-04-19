@@ -300,7 +300,7 @@ export function ThoughtLibraryView({
               </Chip>
             </div>
             <p className="mt-1 text-[13px] leading-6 text-[#64748B] dark:text-[#94A3B8]">
-              素材进入，AI 编译图谱，对话生成成果，成果再反哺图谱。
+              素材进入，AI 编译本体图谱，对话生成成果，成果再反哺本体图谱。
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -310,7 +310,7 @@ export function ThoughtLibraryView({
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索素材、图谱、成果..."
+                placeholder="搜索素材、本体图谱、成果..."
                 className="h-10 w-full rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] pl-10 pr-4 text-[13px] text-[#1E293B] outline-none transition placeholder:text-[#64748B] focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#E8E8E3] dark:placeholder:text-[#94A3B8]"
               />
             </label>
@@ -444,13 +444,13 @@ export function ThoughtLibraryView({
                 <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
                   <div className="rounded-[18px] border border-[rgba(0,0,0,0.08)] bg-white px-5 py-5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
                     <div className="mb-3 text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">
-                      {activeTab === 'graph' ? (graphViewMode === 'graph' ? '关系图谱视图' : '图谱页面视图') : '结构化内容视图'}
+                      {activeTab === 'graph' ? (graphViewMode === 'graph' ? '关系图谱视图' : '本体图谱页面视图') : '结构化内容视图'}
                     </div>
                     {activeTab === 'graph' ? (
                       <div className="mb-3 flex gap-2">
                         {([
                           ['page', '页面视图'],
-                          ['graph', '图谱视图'],
+                          ['graph', '关系图谱视图'],
                         ] as const).map(([mode, label]) => (
                           <button
                             key={mode}
@@ -510,7 +510,7 @@ export function ThoughtLibraryView({
                       </div>
                     ) : (
                       <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
-                        AI 会在这里展示当前对象的正文、摘要、来源结构、关键摘录，以及可被引用的压缩知识块。对于图谱对象，页面视图会优先展示关系说明和来源证据。
+                        AI 会在这里展示当前对象的正文、摘要、来源结构、关键摘录，以及可被引用的压缩知识块。对于本体图谱对象，页面视图会优先展示关系说明和来源证据。
                       </div>
                     )}
                   </div>
@@ -521,7 +521,7 @@ export function ThoughtLibraryView({
                       <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
                         <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">当前层级</div>
                         <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
-                          {activeTab === 'materials' ? '素材输入层' : activeTab === 'graph' ? '图谱编译层' : '成果产出层'}
+                          {activeTab === 'materials' ? '素材输入层' : activeTab === 'graph' ? '本体图谱编译层' : '成果产出层'}
                         </div>
                       </div>
                       <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">

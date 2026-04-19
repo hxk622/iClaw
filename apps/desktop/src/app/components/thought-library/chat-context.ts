@@ -5,7 +5,7 @@ export function buildThoughtLibraryContextPrompt(input: {
   item: ThoughtLibraryItem;
 }): string {
   const layerLabel =
-    input.tab === 'materials' ? '素材层' : input.tab === 'graph' ? '图谱层' : '成果层';
+    input.tab === 'materials' ? '素材层' : input.tab === 'graph' ? '本体图谱层' : '成果层';
   const bodyText = input.item.bodyText?.trim();
   const sourceUrl = input.item.sourceUrl?.trim();
   const sourceLabel = input.item.sourceLabel?.trim();
