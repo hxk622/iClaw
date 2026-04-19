@@ -160,6 +160,46 @@ OutputArtifact 是成果层的统一对象。
 - `created_at`
 - `updated_at`
 
+### 5.1 Chat 派生 Output 的推荐 metadata
+
+当 `OutputArtifact` 来自聊天页 turn / artifact promotion 时，建议在 `metadata` 中统一保留 lineage，而不是只存一段正文。
+
+建议字段：
+
+- `generated_from`
+  - `ontology`
+  - `chat-feedback`
+  - `chat-turn`
+- `lineage.source`
+  - `chat-turn`
+- `lineage.turn_id`
+- `lineage.conversation_id`
+- `lineage.session_key`
+- `lineage.artifact_kinds`
+- `lineage.artifact_refs`
+- `lineage.prompt_excerpt`
+- `lineage.source_raw_ids`
+- `lineage.source_ontology_ids`
+- `finance_compliance`
+- `source_surface`
+
+### 5.2 为什么不用“artifact path 就是真值”
+
+chat 页面里出现的 artifact 经常是本地运行时文件路径、临时网页、导出结果。
+
+这些对象可以作为 `OutputArtifact` 的来源线索，但不应直接充当知识库真值，因为：
+
+- 本地路径不稳定
+- 其它端不可复用
+- 合规与 lineage 会丢失
+- 无法回答“这个成果来自哪次对话、哪批素材、哪条图谱”
+
+因此 schema 上应坚持：
+
+- `artifact` 是来源引用
+- `OutputArtifact` 是知识对象
+- 二者通过 metadata.lineage 关联
+
 ## 6. 映射：iClaw 浏览器插件 -> iClaw RawMaterial
 
 ### 浏览器页面保存
