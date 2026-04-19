@@ -272,6 +272,158 @@
   --ring: var(--brand-primary);
 }
 
+:root[data-tool-card-tone='neutral-slate'] {
+  --tool-running-bg: #f5f9ff;
+  --tool-running-border: #d8e7ff;
+  --tool-running-badge-bg: #e8f1ff;
+  --tool-running-badge-text: #245fa8;
+  --tool-running-icon: #4c8bf5;
+  --tool-running-hover: #edf5ff;
+
+  --tool-success-bg: #f5fbf7;
+  --tool-success-border: #d7efe0;
+  --tool-success-badge-bg: #e8f7ed;
+  --tool-success-badge-text: #216740;
+  --tool-success-icon: #3fa36b;
+  --tool-success-hover: #eef9f2;
+
+  --tool-error-bg: #fff8f8;
+  --tool-error-border: #f5d9d9;
+  --tool-error-badge-bg: #feeaea;
+  --tool-error-badge-text: #ad4545;
+  --tool-error-icon: #d96c6c;
+  --tool-error-hover: #fff1f1;
+
+  --tool-artifact-bg: #f7f9fc;
+  --tool-artifact-border: #dbe4ef;
+  --tool-artifact-badge-bg: #eaf0f7;
+  --tool-artifact-badge-text: #40506a;
+  --tool-artifact-icon: #5d7694;
+  --tool-artifact-hover: #eff4fa;
+
+  --tool-card-title: #101828;
+  --tool-card-secondary: #475467;
+  --tool-card-tertiary: #667085;
+  --tool-card-divider: #dde3ea;
+  --tool-card-shadow: rgba(15, 23, 42, 0.05);
+  --tool-card-subtle-bg: rgba(15, 23, 42, 0.03);
+  --tool-card-subtle-hover: rgba(15, 23, 42, 0.06);
+}
+
+:root[data-tool-card-tone='warm-graphite'] {
+  --tool-running-bg: #f5f8ff;
+  --tool-running-border: #d9e4fb;
+  --tool-running-badge-bg: #e7efff;
+  --tool-running-badge-text: #375ca6;
+  --tool-running-icon: #7aa2f7;
+  --tool-running-hover: #eef4ff;
+
+  --tool-success-bg: #f4faf5;
+  --tool-success-border: #d8ebdc;
+  --tool-success-badge-bg: #e8f6eb;
+  --tool-success-badge-text: #2d6d42;
+  --tool-success-icon: #5fa97a;
+  --tool-success-hover: #eef8f0;
+
+  --tool-error-bg: #fff7f7;
+  --tool-error-border: #f3dada;
+  --tool-error-badge-bg: #fdeaea;
+  --tool-error-badge-text: #a85b5b;
+  --tool-error-icon: #d57979;
+  --tool-error-hover: #fff0f0;
+
+  --tool-artifact-bg: #fbf8f6;
+  --tool-artifact-border: #e5ddd7;
+  --tool-artifact-badge-bg: #efe7e1;
+  --tool-artifact-badge-text: #65584c;
+  --tool-artifact-icon: #8d7965;
+  --tool-artifact-hover: #f5f0eb;
+
+  --tool-card-title: #1d1a17;
+  --tool-card-secondary: #5f5650;
+  --tool-card-tertiary: #857b73;
+  --tool-card-divider: #e4ddd4;
+  --tool-card-shadow: rgba(28, 23, 20, 0.05);
+  --tool-card-subtle-bg: rgba(28, 23, 20, 0.03);
+  --tool-card-subtle-hover: rgba(28, 23, 20, 0.06);
+}
+
+:root[data-tool-card-tone='steel-blue'] {
+  --tool-running-bg: #f2f8ff;
+  --tool-running-border: #cfe3ff;
+  --tool-running-badge-bg: #deedff;
+  --tool-running-badge-text: #295fba;
+  --tool-running-icon: #5f9dff;
+  --tool-running-hover: #e9f3ff;
+
+  --tool-success-bg: #f3fbf7;
+  --tool-success-border: #d4eddd;
+  --tool-success-badge-bg: #e4f6eb;
+  --tool-success-badge-text: #2e7252;
+  --tool-success-icon: #54a677;
+  --tool-success-hover: #ecf8f1;
+
+  --tool-error-bg: #fff8f8;
+  --tool-error-border: #f2dddd;
+  --tool-error-badge-bg: #feeceb;
+  --tool-error-badge-text: #b35f5f;
+  --tool-error-icon: #db7474;
+  --tool-error-hover: #fff0f0;
+
+  --tool-artifact-bg: #f4f8fc;
+  --tool-artifact-border: #d7e4ef;
+  --tool-artifact-badge-bg: #e6eff7;
+  --tool-artifact-badge-text: #37516d;
+  --tool-artifact-icon: #5e85b0;
+  --tool-artifact-hover: #edf4fb;
+
+  --tool-card-title: #122235;
+  --tool-card-secondary: #516478;
+  --tool-card-tertiary: #738598;
+  --tool-card-divider: #d7e4ef;
+  --tool-card-shadow: rgba(15, 23, 42, 0.05);
+  --tool-card-subtle-bg: rgba(15, 23, 42, 0.03);
+  --tool-card-subtle-hover: rgba(15, 23, 42, 0.06);
+}
+
+:root[data-tool-card-tone='olive-terminal'] {
+  --tool-running-bg: #f6faef;
+  --tool-running-border: #dbe6c5;
+  --tool-running-badge-bg: #e9f2d8;
+  --tool-running-badge-text: #5d7630;
+  --tool-running-icon: #89a85e;
+  --tool-running-hover: #eff5e3;
+
+  --tool-success-bg: #f3fbf4;
+  --tool-success-border: #d5edd7;
+  --tool-success-badge-bg: #e5f6e7;
+  --tool-success-badge-text: #316b39;
+  --tool-success-icon: #67af6e;
+  --tool-success-hover: #edf7ee;
+
+  --tool-error-bg: #fff7f5;
+  --tool-error-border: #f2ddd5;
+  --tool-error-badge-bg: #feece8;
+  --tool-error-badge-text: #aa5f4b;
+  --tool-error-icon: #ce7a66;
+  --tool-error-hover: #fff0ed;
+
+  --tool-artifact-bg: #f7f9f3;
+  --tool-artifact-border: #dce5d1;
+  --tool-artifact-badge-bg: #e9efdf;
+  --tool-artifact-badge-text: #516145;
+  --tool-artifact-icon: #728863;
+  --tool-artifact-hover: #eff3e7;
+
+  --tool-card-title: #171d12;
+  --tool-card-secondary: #55614a;
+  --tool-card-tertiary: #7b8572;
+  --tool-card-divider: #dde5d2;
+  --tool-card-shadow: rgba(20, 24, 15, 0.05);
+  --tool-card-subtle-bg: rgba(20, 24, 15, 0.03);
+  --tool-card-subtle-hover: rgba(20, 24, 15, 0.06);
+}
+
 .dark {
   --bg-page: #100f0e;
   --bg-card: #1b1917;
@@ -528,6 +680,158 @@
   --border: var(--border-default);
   --input: var(--border-default);
   --ring: var(--brand-primary);
+}
+
+:root.dark[data-tool-card-tone='neutral-slate'] {
+  --tool-running-bg: rgba(76, 139, 245, 0.1);
+  --tool-running-border: rgba(76, 139, 245, 0.22);
+  --tool-running-badge-bg: rgba(76, 139, 245, 0.16);
+  --tool-running-badge-text: #9cc0ff;
+  --tool-running-icon: #4c8bf5;
+  --tool-running-hover: rgba(76, 139, 245, 0.14);
+
+  --tool-success-bg: rgba(63, 163, 107, 0.1);
+  --tool-success-border: rgba(63, 163, 107, 0.22);
+  --tool-success-badge-bg: rgba(63, 163, 107, 0.16);
+  --tool-success-badge-text: #a2e0bd;
+  --tool-success-icon: #3fa36b;
+  --tool-success-hover: rgba(63, 163, 107, 0.14);
+
+  --tool-error-bg: rgba(217, 108, 108, 0.1);
+  --tool-error-border: rgba(217, 108, 108, 0.22);
+  --tool-error-badge-bg: rgba(217, 108, 108, 0.16);
+  --tool-error-badge-text: #ffb7b7;
+  --tool-error-icon: #d96c6c;
+  --tool-error-hover: rgba(217, 108, 108, 0.14);
+
+  --tool-artifact-bg: rgba(93, 118, 148, 0.12);
+  --tool-artifact-border: rgba(93, 118, 148, 0.24);
+  --tool-artifact-badge-bg: rgba(93, 118, 148, 0.18);
+  --tool-artifact-badge-text: #bfd3eb;
+  --tool-artifact-icon: #89a8c9;
+  --tool-artifact-hover: rgba(93, 118, 148, 0.16);
+
+  --tool-card-title: #e7eaf0;
+  --tool-card-secondary: #98a2b3;
+  --tool-card-tertiary: #7f8b9d;
+  --tool-card-divider: #2a2f3a;
+  --tool-card-shadow: rgba(0, 0, 0, 0.32);
+  --tool-card-subtle-bg: rgba(255, 255, 255, 0.04);
+  --tool-card-subtle-hover: rgba(255, 255, 255, 0.07);
+}
+
+:root.dark[data-tool-card-tone='warm-graphite'] {
+  --tool-running-bg: rgba(122, 162, 247, 0.1);
+  --tool-running-border: rgba(122, 162, 247, 0.22);
+  --tool-running-badge-bg: rgba(122, 162, 247, 0.16);
+  --tool-running-badge-text: #b9ccff;
+  --tool-running-icon: #7aa2f7;
+  --tool-running-hover: rgba(122, 162, 247, 0.14);
+
+  --tool-success-bg: rgba(95, 169, 122, 0.1);
+  --tool-success-border: rgba(95, 169, 122, 0.22);
+  --tool-success-badge-bg: rgba(95, 169, 122, 0.16);
+  --tool-success-badge-text: #b8e4c6;
+  --tool-success-icon: #5fa97a;
+  --tool-success-hover: rgba(95, 169, 122, 0.14);
+
+  --tool-error-bg: rgba(213, 121, 121, 0.1);
+  --tool-error-border: rgba(213, 121, 121, 0.22);
+  --tool-error-badge-bg: rgba(213, 121, 121, 0.16);
+  --tool-error-badge-text: #ffbeb7;
+  --tool-error-icon: #d57979;
+  --tool-error-hover: rgba(213, 121, 121, 0.14);
+
+  --tool-artifact-bg: rgba(141, 121, 101, 0.12);
+  --tool-artifact-border: rgba(141, 121, 101, 0.24);
+  --tool-artifact-badge-bg: rgba(141, 121, 101, 0.18);
+  --tool-artifact-badge-text: #e4d2bf;
+  --tool-artifact-icon: #b79d83;
+  --tool-artifact-hover: rgba(141, 121, 101, 0.16);
+
+  --tool-card-title: #efebe6;
+  --tool-card-secondary: #aea39a;
+  --tool-card-tertiary: #92867d;
+  --tool-card-divider: #37302c;
+  --tool-card-shadow: rgba(0, 0, 0, 0.34);
+  --tool-card-subtle-bg: rgba(255, 248, 240, 0.04);
+  --tool-card-subtle-hover: rgba(255, 248, 240, 0.07);
+}
+
+:root.dark[data-tool-card-tone='steel-blue'] {
+  --tool-running-bg: rgba(95, 157, 255, 0.1);
+  --tool-running-border: rgba(95, 157, 255, 0.22);
+  --tool-running-badge-bg: rgba(95, 157, 255, 0.16);
+  --tool-running-badge-text: #b3d2ff;
+  --tool-running-icon: #5f9dff;
+  --tool-running-hover: rgba(95, 157, 255, 0.14);
+
+  --tool-success-bg: rgba(84, 166, 119, 0.1);
+  --tool-success-border: rgba(84, 166, 119, 0.22);
+  --tool-success-badge-bg: rgba(84, 166, 119, 0.16);
+  --tool-success-badge-text: #b9e8ca;
+  --tool-success-icon: #54a677;
+  --tool-success-hover: rgba(84, 166, 119, 0.14);
+
+  --tool-error-bg: rgba(219, 116, 116, 0.1);
+  --tool-error-border: rgba(219, 116, 116, 0.22);
+  --tool-error-badge-bg: rgba(219, 116, 116, 0.16);
+  --tool-error-badge-text: #ffc0c0;
+  --tool-error-icon: #db7474;
+  --tool-error-hover: rgba(219, 116, 116, 0.14);
+
+  --tool-artifact-bg: rgba(94, 133, 176, 0.12);
+  --tool-artifact-border: rgba(94, 133, 176, 0.24);
+  --tool-artifact-badge-bg: rgba(94, 133, 176, 0.18);
+  --tool-artifact-badge-text: #c2d8f0;
+  --tool-artifact-icon: #86a9d4;
+  --tool-artifact-hover: rgba(94, 133, 176, 0.16);
+
+  --tool-card-title: #e4edf7;
+  --tool-card-secondary: #8ea1b6;
+  --tool-card-tertiary: #73889f;
+  --tool-card-divider: #28394a;
+  --tool-card-shadow: rgba(0, 0, 0, 0.34);
+  --tool-card-subtle-bg: rgba(255, 255, 255, 0.04);
+  --tool-card-subtle-hover: rgba(255, 255, 255, 0.07);
+}
+
+:root.dark[data-tool-card-tone='olive-terminal'] {
+  --tool-running-bg: rgba(137, 168, 94, 0.1);
+  --tool-running-border: rgba(137, 168, 94, 0.22);
+  --tool-running-badge-bg: rgba(137, 168, 94, 0.16);
+  --tool-running-badge-text: #d1e5aa;
+  --tool-running-icon: #89a85e;
+  --tool-running-hover: rgba(137, 168, 94, 0.14);
+
+  --tool-success-bg: rgba(103, 175, 110, 0.1);
+  --tool-success-border: rgba(103, 175, 110, 0.22);
+  --tool-success-badge-bg: rgba(103, 175, 110, 0.16);
+  --tool-success-badge-text: #c1ebc4;
+  --tool-success-icon: #67af6e;
+  --tool-success-hover: rgba(103, 175, 110, 0.14);
+
+  --tool-error-bg: rgba(206, 122, 102, 0.1);
+  --tool-error-border: rgba(206, 122, 102, 0.22);
+  --tool-error-badge-bg: rgba(206, 122, 102, 0.16);
+  --tool-error-badge-text: #ffc3b2;
+  --tool-error-icon: #ce7a66;
+  --tool-error-hover: rgba(206, 122, 102, 0.14);
+
+  --tool-artifact-bg: rgba(114, 136, 99, 0.12);
+  --tool-artifact-border: rgba(114, 136, 99, 0.24);
+  --tool-artifact-badge-bg: rgba(114, 136, 99, 0.18);
+  --tool-artifact-badge-text: #d5e0c3;
+  --tool-artifact-icon: #9fb488;
+  --tool-artifact-hover: rgba(114, 136, 99, 0.16);
+
+  --tool-card-title: #edf0e6;
+  --tool-card-secondary: #a7af99;
+  --tool-card-tertiary: #8b9481;
+  --tool-card-divider: #353d31;
+  --tool-card-shadow: rgba(0, 0, 0, 0.34);
+  --tool-card-subtle-bg: rgba(255, 255, 255, 0.04);
+  --tool-card-subtle-hover: rgba(255, 255, 255, 0.07);
 }
 
 @theme inline {

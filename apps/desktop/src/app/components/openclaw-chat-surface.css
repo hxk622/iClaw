@@ -2255,6 +2255,15 @@ body {
   overflow: hidden;
 }
 
+.openclaw-chat-surface .chat-tools-collapse,
+.openclaw-chat-surface .chat-tool-msg-collapse {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
 .openclaw-chat-surface .chat-tools-summary,
 .openclaw-chat-surface .chat-tool-msg-summary,
 .openclaw-chat-surface .chat-json-summary {
@@ -2275,6 +2284,11 @@ body {
   transition:
     background 160ms ease,
     color 160ms ease;
+}
+
+.openclaw-chat-surface .chat-tools-summary,
+.openclaw-chat-surface .chat-tool-msg-summary {
+  display: none;
 }
 
 .openclaw-chat-surface .chat-tools-summary::marker,
@@ -2355,6 +2369,12 @@ body {
   gap: 12px;
   padding: 12px;
   background: color-mix(in srgb, var(--chat-surface-panel) 98%, transparent);
+}
+
+.openclaw-chat-surface .chat-tools-collapse__body,
+.openclaw-chat-surface .chat-tool-msg-body {
+  padding: 0;
+  background: transparent;
 }
 
 .openclaw-chat-surface .chat-group-messages:has(.chat-tools-collapse),

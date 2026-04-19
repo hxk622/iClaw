@@ -69,6 +69,7 @@ import { FaultReportModal } from './components/FaultReportModal';
 import { DesktopExtensionGrantModal } from './components/DesktopExtensionGrantModal';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { GlobalExceptionDialog, type GlobalExceptionState } from './components/GlobalExceptionDialog';
+import { GlobalToastViewport } from './components/GlobalToastViewport';
 import { submitAutoDiagnosticUpload } from './lib/fault-report';
 import { IClawHeader } from './components/IClawHeader';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
@@ -146,6 +147,7 @@ import { resolveSurfaceCacheLimits } from './lib/surface-cache-profile';
 import { buildNotificationCenterItems } from './lib/notification-center';
 import {
   clearAppNotifications,
+  type AppNotificationRecord,
   markAllAppNotificationsRead,
   markAppNotificationRead,
   useAppNotifications,
@@ -1554,6 +1556,7 @@ export default function App() {
   const [installerFaultReportOpen, setInstallerFaultReportOpen] = useState(false);
   const [globalException, setGlobalException] = useState<GlobalExceptionState | null>(null);
   const [extensionGrantRequest, setExtensionGrantRequest] = useState<ExtensionGrantRequestPayload | null>(null);
+  const [transientToasts, setTransientToasts] = useState<AppNotificationRecord[]>([]);
   const lastAutoDiagnosticFingerprintRef = useRef('');
   const launchStartTrackedRef = useRef(false);
   const launchSuccessTrackedRef = useRef(false);
@@ -1571,6 +1574,47 @@ export default function App() {
   const desktopUpdateLastCheckedAtRef = useRef(0);
   const desktopUpdateCheckInFlightRef = useRef(false);
   const desktopUpdateAutoTriggeredVersionRef = useRef<string | null>(null);
+  const toastTimeoutsRef = useRef<Record<string, number>>({});
+
+  const dismissTransientToast = useCallback((id: string) => {
+    const timeoutId = toastTimeoutsRef.current[id];
+    if (typeof timeoutId === 'number') {
+      window.clearTimeout(timeoutId);
+      delete toastTimeoutsRef.current[id];
+    }
+    setTransientToasts((current) => current.filter((item) => item.id !== id));
+  }, []);
+
+  const showTransientToast = useCallback(
+    (input: { tone: 'success' | 'error' | 'info'; title: string; text: string }) => {
+      const id =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `toast-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const toast: AppNotificationRecord = {
+        id,
+        tone: input.tone,
+        source: 'system',
+        title: input.title,
+        text: input.text,
+        createdAt: new Date().toISOString(),
+        readAt: null,
+        metadata: null,
+      };
+      setTransientToasts((current) => [...current, toast]);
+      toastTimeoutsRef.current[id] = window.setTimeout(() => {
+        dismissTransientToast(id);
+      }, 2600);
+    },
+    [dismissTransientToast],
+  );
+
+  useEffect(() => {
+    return () => {
+      Object.values(toastTimeoutsRef.current).forEach((timeoutId) => window.clearTimeout(timeoutId));
+      toastTimeoutsRef.current = {};
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentUser) {
@@ -2653,7 +2697,7 @@ export default function App() {
   const handleCheckForDesktopUpdates = async (options: {silent?: boolean} = {}) => {
     const { silent = false } = options;
     if (desktopUpdateCheckInFlightRef.current || desktopUpdateActionState === 'downloading') {
-      return;
+      return 'busy' as const;
     }
     desktopUpdateCheckInFlightRef.current = true;
     if (!silent) {
@@ -2684,6 +2728,7 @@ export default function App() {
         if (!silent || normalizeDesktopUpdateEnforcementState(hint) !== 'recommended') {
           setDesktopUpdateStatusMessage(buildDesktopUpdateAnnouncement(hint));
         }
+        return 'update_available' as const;
       } else {
         setDesktopUpdateHint(null);
         void recordDesktopUpdateMetric('desktop_update_check', {
@@ -2696,6 +2741,7 @@ export default function App() {
         if (!silent) {
           setDesktopUpdateStatusMessage('当前已是最新版本。');
         }
+        return 'up_to_date' as const;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : '检查更新失败';
@@ -2714,6 +2760,7 @@ export default function App() {
         setDesktopUpdateError(message);
         setDesktopUpdateStatusMessage(message);
       }
+      return 'failed' as const;
     } finally {
       desktopUpdateCheckInFlightRef.current = false;
       if (!silent && desktopUpdateActionState !== 'ready-to-restart') {
@@ -3041,7 +3088,7 @@ interface AuthedViewProps {
   onUpgradeDesktopApp: () => void;
   onRestartDesktopApp: () => void;
   onSkipDesktopUpdate: () => void;
-  onCheckForDesktopUpdates: () => void;
+  onCheckForDesktopUpdates: () => Promise<'busy' | 'up_to_date' | 'update_available' | 'failed'>;
   desktopUpdateCurrentVersion: string;
   desktopUpdateLatestVersion: string | null;
   desktopUpdateMandatory: boolean;
@@ -4919,6 +4966,7 @@ function AuthedView({
           onCheckForDesktopUpdates={onCheckForDesktopUpdates}
           onUpgradeDesktopApp={onUpgradeDesktopApp}
           onRestartDesktopApp={onRestartDesktopApp}
+          onShowToast={showTransientToast}
         />
       );
     }
@@ -5122,6 +5170,7 @@ function AuthedView({
         onPrimaryAction={handleNotificationPrimaryAction}
         onSecondaryAction={handleNotificationSecondaryAction}
       />
+      <GlobalToastViewport notifications={transientToasts} onDismiss={dismissTransientToast} />
     </div>
   );
 }

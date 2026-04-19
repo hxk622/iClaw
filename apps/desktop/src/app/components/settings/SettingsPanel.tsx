@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
-import { type PersistableSettingsSection, useSettings } from '@/app/contexts/settings-context';
+import { type PersistableSettingsSection, type SettingsSection, useSettings } from '@/app/contexts/settings-context';
 import { SettingsGeneral } from '@/app/components/settings/SettingsGeneral';
 import { Identity } from '@/app/components/settings/Identity';
+import { type DesktopUpdateCheckOutcome, SettingsVersion } from '@/app/components/settings/SettingsVersion';
 import { UserProfile } from '@/app/components/settings/UserProfile';
 import { SoulPersona } from '@/app/components/settings/SoulPersona';
 import { SettingsBottomBar } from '@/app/components/settings/ui/SettingsBottomBar';
@@ -23,9 +24,10 @@ interface SettingsPanelProps {
   desktopUpdateUpgrading: boolean;
   desktopUpdateReadyToRestart: boolean;
   desktopUpdateStatusMessage: string | null;
-  onCheckForDesktopUpdates: () => void;
+  onCheckForDesktopUpdates: () => Promise<DesktopUpdateCheckOutcome>;
   onUpgradeDesktopApp: () => void;
   onRestartDesktopApp: () => void;
+  onShowToast: (input: { tone: 'success' | 'error' | 'info'; title: string; text: string }) => void;
 }
 
 export function SettingsPanel({
@@ -44,18 +46,28 @@ export function SettingsPanel({
   onCheckForDesktopUpdates,
   onUpgradeDesktopApp,
   onRestartDesktopApp,
+  onShowToast,
 }: SettingsPanelProps) {
   const { hasUnsavedChangesForSection, resetSettings } = useSettings();
-  const [activeSection, setActiveSection] = useState<PersistableSettingsSection>('general');
+  const [activeSection, setActiveSection] = useState<SettingsSection>('general');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const hasUnsavedChanges = hasUnsavedChangesForSection(activeSection);
+  const persistableSection = activeSection === 'version' ? null : activeSection;
+  const hasUnsavedChanges = persistableSection ? hasUnsavedChangesForSection(persistableSection) : false;
 
   const content = useMemo(() => {
     switch (activeSection) {
       case 'general':
+        return <SettingsGeneral />;
+      case 'identity':
+        return <Identity />;
+      case 'user-profile':
+        return <UserProfile />;
+      case 'soul-persona':
+        return <SoulPersona />;
+      case 'version':
         return (
-          <SettingsGeneral
+          <SettingsVersion
             currentVersion={desktopUpdateCurrentVersion}
             latestVersion={desktopUpdateLatestVersion}
             mandatory={desktopUpdateMandatory}
@@ -68,14 +80,9 @@ export function SettingsPanel({
             onCheckForUpdates={onCheckForDesktopUpdates}
             onUpgradeNow={onUpgradeDesktopApp}
             onRestartToApply={onRestartDesktopApp}
+            onShowToast={onShowToast}
           />
         );
-      case 'identity':
-        return <Identity />;
-      case 'user-profile':
-        return <UserProfile />;
-      case 'soul-persona':
-        return <SoulPersona />;
       default:
         return null;
     }
@@ -93,6 +100,7 @@ export function SettingsPanel({
     onCheckForDesktopUpdates,
     onUpgradeDesktopApp,
     onRestartDesktopApp,
+    onShowToast,
   ]);
 
   useEffect(() => {
@@ -101,10 +109,13 @@ export function SettingsPanel({
   }, [activeSection]);
 
   const handleSave = async () => {
+    if (!persistableSection) {
+      return;
+    }
     setSaveState('saving');
     setSaveMessage(null);
     try {
-      await onSave(activeSection);
+      await onSave(persistableSection);
       setSaveState('saved');
       setSaveMessage('当前页面更改已保存');
       window.setTimeout(() => {
@@ -118,7 +129,10 @@ export function SettingsPanel({
   };
 
   const handleReset = () => {
-    resetSettings(activeSection);
+    if (!persistableSection) {
+      return;
+    }
+    resetSettings(persistableSection);
     setSaveState('idle');
     setSaveMessage(null);
   };
@@ -156,13 +170,15 @@ export function SettingsPanel({
           </div>
         </div>
 
-        <SettingsBottomBar
-          hasUnsavedChanges={hasUnsavedChanges}
-          saveState={saveState}
-          saveMessage={saveMessage}
-          onReset={handleReset}
-          onSave={handleSave}
-        />
+        {persistableSection ? (
+          <SettingsBottomBar
+            hasUnsavedChanges={hasUnsavedChanges}
+            saveState={saveState}
+            saveMessage={saveMessage}
+            onReset={handleReset}
+            onSave={handleSave}
+          />
+        ) : null}
       </div>
     </div>
   );

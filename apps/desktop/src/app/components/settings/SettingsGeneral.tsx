@@ -1,4 +1,4 @@
-import { Check, FileText, Lock, Monitor, Moon, RefreshCw, Sun } from 'lucide-react';
+import { Check, FileText, Monitor, Moon, Sun } from 'lucide-react';
 import { useSettings } from '@/app/contexts/settings-context';
 import {
   type ContentFontSize,
@@ -6,11 +6,11 @@ import {
   type LayoutPreset,
   type MessageAlignment,
 } from '@/app/lib/general-preferences';
-import { Button } from '@/app/components/ui/Button';
 import { CompactSegmentedControl } from '@/app/components/ui/CompactSegmentedControl';
 import { SettingsBadge } from '@/app/components/settings/ui/SettingsBadge';
 import { SettingsCard } from '@/app/components/settings/ui/SettingsCard';
 import { SettingsChoiceCard } from '@/app/components/settings/ui/SettingsChoiceCard';
+import { ToolCardThemeSelector } from '@/app/components/settings/ToolCardThemeSelector';
 import type { ThemeMode } from '@/app/lib/theme';
 import { cn } from '@/app/lib/cn';
 
@@ -55,47 +55,8 @@ const SETTINGS_SEGMENTED_ACTIVE_CLASS =
   'border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.08)]';
 const SETTINGS_SEGMENTED_INACTIVE_CLASS = 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]';
 
-interface SettingsGeneralProps {
-  currentVersion: string;
-  latestVersion: string | null;
-  mandatory: boolean;
-  enforcementState: 'recommended' | 'required_after_run' | 'required_now';
-  policyLabel: string;
-  checkingForUpdates: boolean;
-  upgrading: boolean;
-  readyToRestart: boolean;
-  statusMessage: string | null;
-  onCheckForUpdates: () => void;
-  onUpgradeNow: () => void;
-  onRestartToApply: () => void;
-}
-
-function formatReleaseVersionLabel(version: string | null): string | null {
-  const normalized = String(version || '').trim();
-  if (!normalized) {
-    return null;
-  }
-  return normalized.includes('+') ? normalized.replace('+', '.') : normalized;
-}
-
-export function SettingsGeneral({
-  currentVersion,
-  latestVersion,
-  mandatory,
-  enforcementState,
-  policyLabel,
-  checkingForUpdates,
-  upgrading,
-  readyToRestart,
-  statusMessage,
-  onCheckForUpdates,
-  onUpgradeNow,
-  onRestartToApply,
-}: SettingsGeneralProps) {
+export function SettingsGeneral() {
   const { settings, updateGeneral } = useSettings();
-  const displayCurrentVersion = formatReleaseVersionLabel(currentVersion) || currentVersion;
-  const displayLatestVersion = formatReleaseVersionLabel(latestVersion);
-  const needsUpdate = Boolean(displayLatestVersion && displayLatestVersion !== displayCurrentVersion);
   const workspaceRoot = settings.workspaceDir || '~/Documents/iClaw/workspace';
 
   return (
@@ -103,7 +64,7 @@ export function SettingsGeneral({
       <header className="space-y-2">
         <h1 className="text-[24px] font-semibold tracking-tight text-[var(--text-primary)]">通用设置</h1>
         <p className="text-[15px] leading-7 text-[var(--text-secondary)]">
-          配置界面主题、阅读体验、聊天布局、工作区映射与桌面更新策略
+          配置界面主题、工具卡片风格、阅读体验、聊天布局与工作区映射
         </p>
       </header>
 
@@ -124,6 +85,19 @@ export function SettingsGeneral({
               descriptionClassName="leading-5"
             />
           ))}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <SectionTitle title="风格主题" />
+        <div className="space-y-2">
+          <div className="text-[13px] leading-6 text-[var(--text-secondary)]">
+            选择一套工具卡片风格主题。浅色和深色会自动适配为同一组风格，不需要分别配置。
+          </div>
+          <ToolCardThemeSelector
+            value={settings.general.toolCardTone}
+            onChange={(toolCardTone) => updateGeneral({ toolCardTone })}
+          />
         </div>
       </section>
 
@@ -223,77 +197,6 @@ export function SettingsGeneral({
         </SettingsCard>
       </section>
 
-      <section className="space-y-4">
-        <SectionTitle title="桌面更新" />
-        <SettingsCard className="rounded-[16px] p-5">
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <VersionMeta label="当前版本" value={displayCurrentVersion} />
-              <div>
-                <VersionMeta label="最新版本" value={displayLatestVersion || '暂未发现更新'} />
-                {needsUpdate ? (
-                  <div className="mt-2">
-                    <SettingsBadge tone="gold">可更新</SettingsBadge>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <SubsectionLabel label="更新策略" />
-              <div className="rounded-[14px] border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_68%,transparent)] p-4">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_16%,transparent)] text-[var(--brand-primary)]">
-                    <Lock className="h-4 w-4" />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-[13px] font-medium text-[var(--text-primary)]">当前由服务器策略统一控制</div>
-                    <div className="text-[12px] leading-5 text-[var(--text-secondary)]">
-                      本地设置里的“常规提醒 / 强制更新”暂未接入实际更新策略。当前真正生效的是服务器下发的升级策略与拦截规则。
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <Button
-                variant="secondary"
-                size="sm"
-                leadingIcon={<RefreshCw className={checkingForUpdates ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />}
-                onClick={onCheckForUpdates}
-                disabled={checkingForUpdates || upgrading}
-              >
-                {checkingForUpdates ? '检查中...' : '检查更新'}
-              </Button>
-
-              {readyToRestart ? (
-                <Button variant="primary" size="sm" onClick={onRestartToApply}>
-                  重启应用
-                </Button>
-              ) : needsUpdate ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leadingIcon={upgrading ? <RefreshCw className="h-4 w-4 animate-spin" /> : undefined}
-                  onClick={onUpgradeNow}
-                  disabled={checkingForUpdates || upgrading}
-                >
-                  {upgrading ? '升级中...' : mandatory ? '立即升级' : '开始升级'}
-                </Button>
-              ) : null}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[var(--text-secondary)]">
-              <span>服务器策略：{policyLabel}</span>
-              {mandatory ? (
-                <span>{enforcementState === 'required_now' ? '当前版本会立即拦截继续使用' : '允许当前任务完成后再升级'}</span>
-              ) : null}
-              {statusMessage ? <span>{statusMessage}</span> : null}
-            </div>
-          </div>
-        </SettingsCard>
-      </section>
     </div>
   );
 }
@@ -304,15 +207,6 @@ function SectionTitle({ title }: { title: string }) {
 
 function SubsectionLabel({ label }: { label: string }) {
   return <div className="text-[13px] font-medium text-[var(--text-secondary)]">{label}</div>;
-}
-
-function VersionMeta({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="mb-1 text-[13px] text-[var(--text-secondary)]">{label}</div>
-      <div className="text-[16px] font-medium text-[var(--text-primary)]">{value}</div>
-    </div>
-  );
 }
 
 function LayoutPresetPreview({ preset, active }: { preset: LayoutPreset; active: boolean }) {

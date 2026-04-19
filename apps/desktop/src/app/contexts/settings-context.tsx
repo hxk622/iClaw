@@ -32,6 +32,7 @@ export type PersistableSettingsSection =
   | 'identity'
   | 'user-profile'
   | 'soul-persona';
+export type SettingsSection = PersistableSettingsSection | 'version';
 
 export type IdentityConfig = {
   markdownContent: string;
@@ -214,6 +215,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     settings.general.language,
     settings.general.layoutPreset,
     settings.general.messageAlignment,
+    settings.general.toolCardTone,
   ]);
 
   useEffect(() => {

@@ -1,10 +1,10 @@
 import { cn } from '@/app/lib/cn';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
-import type { PersistableSettingsSection } from '@/app/contexts/settings-context';
+import type { SettingsSection } from '@/app/contexts/settings-context';
 import { BRAND } from '@/app/lib/brand';
 
 const navigationItems: Array<{
-  key: PersistableSettingsSection;
+  key: SettingsSection;
   label: string;
   sublabel?: string;
 }> = [
@@ -12,11 +12,12 @@ const navigationItems: Array<{
   { key: 'identity', label: '身份设置', sublabel: 'Identity.md' },
   { key: 'user-profile', label: '用户画像', sublabel: 'User.md' },
   { key: 'soul-persona', label: '人格配置', sublabel: 'Soul.md' },
+  { key: 'version', label: '版本', sublabel: '更新与版本信息' },
 ];
 
 interface SettingsSidebarProps {
-  activeSection: PersistableSettingsSection;
-  onSelect: (section: PersistableSettingsSection) => void;
+  activeSection: SettingsSection;
+  onSelect: (section: SettingsSection) => void;
 }
 
 export function SettingsSidebar({ activeSection, onSelect }: SettingsSidebarProps) {

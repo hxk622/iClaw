@@ -2,12 +2,14 @@ export type ContentFontSize = 'small' | 'medium' | 'large' | 'xlarge';
 export type GeneralLanguage = 'zh' | 'en';
 export type LayoutPreset = 'standard' | 'compact' | 'column';
 export type MessageAlignment = 'left' | 'sided';
+export type ToolCardTone = 'default' | 'neutral-slate' | 'warm-graphite' | 'steel-blue' | 'olive-terminal';
 
 export interface GeneralPreferences {
   contentFontSize: ContentFontSize;
   language: GeneralLanguage;
   layoutPreset: LayoutPreset;
   messageAlignment: MessageAlignment;
+  toolCardTone: ToolCardTone;
 }
 
 export const DEFAULT_GENERAL_PREFERENCES: GeneralPreferences = {
@@ -15,6 +17,7 @@ export const DEFAULT_GENERAL_PREFERENCES: GeneralPreferences = {
   language: 'zh',
   layoutPreset: 'standard',
   messageAlignment: 'sided',
+  toolCardTone: 'default',
 };
 
 export function resolveAppLocale(language: GeneralLanguage): 'zh-CN' | 'en-US' {
@@ -37,5 +40,6 @@ export function applyGeneralPreferences(preferences: GeneralPreferences): void {
   root.dataset.appLanguage = preferences.language;
   root.dataset.chatLayoutPreset = preferences.layoutPreset;
   root.dataset.messageAlignment = preferences.messageAlignment;
+  root.dataset.toolCardTone = preferences.toolCardTone;
   root.lang = resolveAppLocale(preferences.language);
 }
