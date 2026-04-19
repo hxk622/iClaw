@@ -124,6 +124,7 @@ export function KnowledgeLibraryView({
   const [graphifyQueryError, setGraphifyQueryError] = useState<string | null>(null);
   const [embeddedChatSeedPrompt, setEmbeddedChatSeedPrompt] = useState<string | null>(null);
   const [embeddedChatSeedPromptKey, setEmbeddedChatSeedPromptKey] = useState<string | null>(null);
+  const [embeddedAutoGraphQueryEnabled, setEmbeddedAutoGraphQueryEnabled] = useState(true);
   const graphCompilerJobs = useGraphCompilerJobs(ontologyRefreshKey + outputRefreshKey + materialsRefreshKey);
 
   const {
@@ -1193,8 +1194,26 @@ export function KnowledgeLibraryView({
           style={{ width: 'clamp(360px, 31vw, 420px)' }}
         >
           <div className="flex items-center justify-between border-b border-[rgba(0,0,0,0.08)] px-4 py-3 dark:border-[rgba(255,255,255,0.08)]">
-            <div className="text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">对话</div>
+            <div>
+              <div className="text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">对话</div>
+              {activeTab === 'graph' ? (
+                <div className="mt-1 text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                  {embeddedAutoGraphQueryEnabled ? '自动图查询已开启' : '自动图查询已关闭'}
+                </div>
+              ) : null}
+            </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {activeTab === 'graph' ? (
+                <label className="inline-flex h-8 items-center gap-2 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-3 text-[11px] text-[#1E293B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]">
+                  <input
+                    type="checkbox"
+                    checked={embeddedAutoGraphQueryEnabled}
+                    onChange={(event) => setEmbeddedAutoGraphQueryEnabled(event.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-[rgba(0,0,0,0.18)] accent-[#D4A574]"
+                  />
+                  <span>自动图查询</span>
+                </label>
+              ) : null}
               {effectiveSelectedItem ? (
                 <>
                   <button
@@ -1246,6 +1265,7 @@ export function KnowledgeLibraryView({
             ref={embeddedChatRef}
             selectedItem={effectiveSelectedItem}
             activeTab={activeTab}
+            autoGraphQueryEnabled={embeddedAutoGraphQueryEnabled && activeTab === 'graph'}
             initialPrompt={embeddedChatSeedPrompt}
             initialPromptKey={embeddedChatSeedPromptKey}
             gatewayUrl={gatewayUrl}
