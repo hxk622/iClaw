@@ -1,6 +1,6 @@
 # Aliyun Cross Backup
 
-更新时间：2026-04-19
+更新时间：2026-04-20
 
 ## 目标
 
@@ -89,6 +89,47 @@ bash scripts/install-cross-backup.sh ./cross-backup.aliyun-dev.env root@47.93.23
 ```bash
 ICLAW_CROSS_BACKUP_RUN_AFTER_INSTALL=1 \
 bash scripts/install-cross-backup.sh ./cross-backup.aliyun-prod.env root@39.106.110.149
+```
+
+## 当前线上定时任务配置
+
+当前线上是通过 `root` 用户的 `crontab` 落地，不是 `systemd timer`。
+
+已安装主机：
+
+- `39.106.110.149`
+- `47.93.231.197`
+
+当前实际 cron 行：
+
+```cron
+0 3 * * * flock -n /var/lock/iclaw-cross-backup.lock /usr/local/bin/iclaw-cross-backup.sh /etc/iclaw/cross-backup.env >> /var/log/iclaw-cross-backup.log 2>&1 # iclaw-cross-backup
+```
+
+含义：
+
+- 每天凌晨 `03:00` 执行
+- 以服务器本地时区为准
+- 通过 `flock` 防止同机重复执行
+- 读取 `/etc/iclaw/cross-backup.env`
+- 执行 `/usr/local/bin/iclaw-cross-backup.sh`
+- 输出追加到 `/var/log/iclaw-cross-backup.log`
+
+当前路径约定：
+
+- 执行脚本：`/usr/local/bin/iclaw-cross-backup.sh`
+- 配置文件：`/etc/iclaw/cross-backup.env`
+- 日志文件：`/var/log/iclaw-cross-backup.log`
+- 锁文件：`/var/lock/iclaw-cross-backup.lock`
+
+如果后续需要改调度时间，不直接手改线上 crontab，优先重新执行安装脚本并覆盖：
+
+```bash
+ICLAW_CROSS_BACKUP_CRON_SCHEDULE="30 2 * * *" \
+bash scripts/install-cross-backup.sh ./cross-backup.aliyun-prod.env root@39.106.110.149
+
+ICLAW_CROSS_BACKUP_CRON_SCHEDULE="30 2 * * *" \
+bash scripts/install-cross-backup.sh ./cross-backup.aliyun-dev.env root@47.93.231.197
 ```
 
 ## 手工验证
