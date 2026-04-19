@@ -4457,6 +4457,42 @@ fn detect_graphify_command() -> Option<(&'static str, Vec<&'static str>)> {
     None
 }
 
+fn detect_graphify_python() -> Option<&'static str> {
+    let candidates = ["python3", "python"];
+    let graphify_pythonpath = env::var("ICLAW_GRAPHIFY_PYTHONPATH").ok();
+    for command in candidates {
+        let mut probe = Command::new(command);
+        probe.args(["-c", "import graphify, networkx"]);
+        if let Some(path) = &graphify_pythonpath {
+            probe.env("PYTHONPATH", path);
+        }
+        probe.stdout(Stdio::null()).stderr(Stdio::null());
+        #[cfg(windows)]
+        configure_background_child_process(&mut probe);
+        if probe.status().map(|status| status.success()).unwrap_or(false) {
+            return Some(command);
+        }
+    }
+    None
+}
+
+fn graphify_compile_runner_path(app: &AppHandle) -> PathBuf {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let packaged = resource_dir
+            .join("resources")
+            .join("graphify_compile_runner.py");
+        if packaged.exists() {
+            return packaged;
+        }
+    }
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("..")
+        .join("scripts")
+        .join("graphify_compile_runner.py")
+}
+
 fn resolve_graphify_output_path(path: &str, app: &AppHandle) -> Result<PathBuf, String> {
     let candidate = PathBuf::from(path.trim());
     let resolved = if candidate.is_absolute() {
@@ -9345,7 +9381,7 @@ fn run_graphify_compile(
         write_graphify_corpus_item(&corpus_items_dir.join(file_name), item)?;
     }
 
-    let Some((command_name, command_args)) = detect_graphify_command() else {
+    let Some(python_command) = detect_graphify_python() else {
         return Ok(GraphifyCompileResultPayload {
             backend: String::from("graphify-v3-cli"),
             available: false,
@@ -9360,21 +9396,28 @@ fn run_graphify_compile(
             stdout: None,
             stderr: None,
             error: Some(String::from(
-                "graphify executable not found; install graphify or expose it on PATH",
+                "graphify python modules not found; install graphifyy dependencies or set ICLAW_GRAPHIFY_PYTHONPATH",
             )),
         });
     };
 
-    let mut command = Command::new(command_name);
-    command.args(&command_args);
-    command.arg(&corpus_items_dir);
+    let output_dir = corpus_items_dir.join("graphify-out");
+    let runner_path = graphify_compile_runner_path(&app);
+    let mut command = Command::new(python_command);
+    command.arg(&runner_path);
+    command.arg("--corpus");
+    command.arg(corpus_items_dir.to_string_lossy().to_string());
+    command.arg("--output");
+    command.arg(output_dir.to_string_lossy().to_string());
     if input.update.unwrap_or(false) {
         command.arg("--update");
     }
     if input.no_viz.unwrap_or(false) {
         command.arg("--no-viz");
     }
-    command.current_dir(&corpus_dir);
+    if let Ok(path) = env::var("ICLAW_GRAPHIFY_PYTHONPATH") {
+        command.env("PYTHONPATH", path);
+    }
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(windows)]
     configure_background_child_process(&mut command);
@@ -9385,37 +9428,56 @@ fn run_graphify_compile(
 
     let stdout = String::from_utf8(output.stdout).ok();
     let stderr = String::from_utf8(output.stderr).ok();
-    let output_dir = corpus_items_dir.join("graphify-out");
     let graph_json_path = output_dir.join("graph.json");
     let report_path = output_dir.join("GRAPH_REPORT.md");
     let html_path = output_dir.join("graph.html");
-    let graph_json_text = graph_json_path
-        .exists()
-        .then(|| fs::read_to_string(&graph_json_path).ok())
-        .flatten();
-    let report_text = report_path
-        .exists()
-        .then(|| fs::read_to_string(&report_path).ok())
-        .flatten();
-
-    let available = output.status.success() && output_dir.exists();
-    let error = if available {
-        None
-    } else {
-        Some(format!(
-            "graphify compile failed (status={})",
-            output
-                .status
-                .code()
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| String::from("signal"))
-        ))
-    };
+    let parsed_stdout = stdout
+        .as_deref()
+        .and_then(|value| value.lines().rev().find(|line| !line.trim().is_empty()))
+        .and_then(|line| serde_json::from_str::<serde_json::Value>(line).ok());
+    let available = parsed_stdout
+        .as_ref()
+        .and_then(|value| value.get("available"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+        && output.status.success()
+        && output_dir.exists();
+    let graph_json_text = parsed_stdout
+        .as_ref()
+        .and_then(|value| value.get("graph_json_text"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+        .or_else(|| graph_json_path.exists().then(|| fs::read_to_string(&graph_json_path).ok()).flatten());
+    let report_text = parsed_stdout
+        .as_ref()
+        .and_then(|value| value.get("report_text"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+        .or_else(|| report_path.exists().then(|| fs::read_to_string(&report_path).ok()).flatten());
+    let error = parsed_stdout
+        .as_ref()
+        .and_then(|value| value.get("error"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+        .or_else(|| {
+            if available {
+                None
+            } else {
+                Some(format!(
+                    "graphify compile failed (status={})",
+                    output
+                        .status
+                        .code()
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| String::from("signal"))
+                ))
+            }
+        });
 
     Ok(GraphifyCompileResultPayload {
         backend: String::from("graphify-v3-cli"),
         available,
-        executable: Some(command_name.to_string()),
+        executable: Some(python_command.to_string()),
         corpus_dir: corpus_dir.to_string_lossy().to_string(),
         output_dir: output_dir.exists().then(|| output_dir.to_string_lossy().to_string()),
         graph_json_path: graph_json_path
