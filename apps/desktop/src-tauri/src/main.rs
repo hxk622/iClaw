@@ -233,6 +233,41 @@ struct WorkspaceArtifactBinaryPayload {
     base64: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphifyCorpusItemInput {
+    id: String,
+    kind: String,
+    title: String,
+    content: String,
+    metadata: Option<serde_json::Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphifyCompileRequestInput {
+    corpus_label: String,
+    items: Vec<GraphifyCorpusItemInput>,
+    update: Option<bool>,
+    no_viz: Option<bool>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphifyCompileResultPayload {
+    backend: String,
+    available: bool,
+    executable: Option<String>,
+    corpus_dir: String,
+    output_dir: Option<String>,
+    graph_json_path: Option<String>,
+    report_path: Option<String>,
+    html_path: Option<String>,
+    stdout: Option<String>,
+    stderr: Option<String>,
+    error: Option<String>,
+}
+
 fn openclaw_main_agent_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = openclaw_state_dir(app)?
         .join("agents")
@@ -4276,6 +4311,100 @@ fn app_data_base_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .app_data_dir()
         .map_err(|e| format!("failed to resolve app_data_dir: {e}"))?;
     Ok(p.join("openclaw"))
+}
+
+fn graphify_jobs_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = app_data_base_dir(app)?.join("knowledge-library").join("graphify-jobs");
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("failed to create graphify jobs dir {}: {e}", path.to_string_lossy()))?;
+    Ok(path)
+}
+
+fn slugify_for_path(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    let mut last_was_sep = false;
+    for ch in value.chars() {
+        let next = if ch.is_ascii_alphanumeric() {
+            ch.to_ascii_lowercase()
+        } else {
+            '-'
+        };
+        if next == '-' {
+            if last_was_sep {
+                continue;
+            }
+            last_was_sep = true;
+            out.push(next);
+        } else {
+            last_was_sep = false;
+            out.push(next);
+        }
+    }
+    let trimmed = out.trim_matches('-').to_string();
+    if trimmed.is_empty() {
+        String::from("graphify-job")
+    } else {
+        trimmed
+    }
+}
+
+fn short_random_suffix() -> String {
+    let mut bytes = [0u8; 6];
+    OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|byte| format!("{:02x}", byte)).collect::<String>()
+}
+
+fn graphify_job_dir(app: &AppHandle, label: &str) -> Result<PathBuf, String> {
+    let root = graphify_jobs_root_dir(app)?;
+    let dir = root.join(format!(
+        "{}-{}-{}",
+        slugify_for_path(label),
+        current_unix_timestamp_string(),
+        short_random_suffix()
+    ));
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("failed to create graphify job dir {}: {e}", dir.to_string_lossy()))?;
+    Ok(dir)
+}
+
+fn write_graphify_corpus_item(path: &Path, item: &GraphifyCorpusItemInput) -> Result<(), String> {
+    let mut body = String::new();
+    body.push_str("---\n");
+    body.push_str(&format!("id: {}\n", item.id.trim()));
+    body.push_str(&format!("kind: {}\n", item.kind.trim()));
+    body.push_str(&format!("title: {}\n", item.title.trim()));
+    if let Some(metadata) = &item.metadata {
+        let metadata_json = serde_json::to_string(metadata)
+            .map_err(|e| format!("failed to serialize graphify corpus metadata: {e}"))?;
+        body.push_str(&format!("metadata_json: '{}'\n", metadata_json.replace('\'', "''")));
+    }
+    body.push_str("---\n\n");
+    body.push_str(&format!("# {}\n\n", item.title.trim()));
+    body.push_str(item.content.trim());
+    body.push('\n');
+    fs::write(path, body)
+        .map_err(|e| format!("failed to write graphify corpus file {}: {e}", path.to_string_lossy()))
+}
+
+fn detect_graphify_command() -> Option<(&'static str, Vec<&'static str>)> {
+    let candidates: [(&str, &[&str]); 3] = [
+        ("graphify", &[]),
+        ("python3", &["-m", "graphify"]),
+        ("python", &["-m", "graphify"]),
+    ];
+
+    for (command, args) in candidates {
+        let mut probe = Command::new(command);
+        probe.args(args).arg("--help");
+        probe.stdout(Stdio::null()).stderr(Stdio::null());
+        #[cfg(windows)]
+        configure_background_child_process(&mut probe);
+        if probe.status().map(|status| status.success()).unwrap_or(false) {
+            return Some((command, args.to_vec()));
+        }
+    }
+
+    None
 }
 
 fn runtime_download_configured(config: &RuntimeBootstrapConfig) -> bool {
@@ -9072,6 +9201,122 @@ fn open_external_url(url: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn run_graphify_compile(
+    app: AppHandle,
+    input: GraphifyCompileRequestInput,
+) -> Result<GraphifyCompileResultPayload, String> {
+    let corpus_dir = graphify_job_dir(&app, &input.corpus_label)?;
+    let corpus_items_dir = corpus_dir.join("corpus");
+    fs::create_dir_all(&corpus_items_dir).map_err(|e| {
+        format!(
+            "failed to create graphify corpus dir {}: {e}",
+            corpus_items_dir.to_string_lossy()
+        )
+    })?;
+
+    if input.items.is_empty() {
+        return Ok(GraphifyCompileResultPayload {
+            backend: String::from("graphify-v3-cli"),
+            available: false,
+            executable: None,
+            corpus_dir: corpus_dir.to_string_lossy().to_string(),
+            output_dir: None,
+            graph_json_path: None,
+            report_path: None,
+            html_path: None,
+            stdout: None,
+            stderr: None,
+            error: Some(String::from("graphify corpus is empty")),
+        });
+    }
+
+    for item in &input.items {
+        let file_name = format!(
+            "{}-{}-{}.md",
+            item.kind.trim(),
+            slugify_for_path(&item.title),
+            slugify_for_path(&item.id)
+        );
+        write_graphify_corpus_item(&corpus_items_dir.join(file_name), item)?;
+    }
+
+    let Some((command_name, command_args)) = detect_graphify_command() else {
+        return Ok(GraphifyCompileResultPayload {
+            backend: String::from("graphify-v3-cli"),
+            available: false,
+            executable: None,
+            corpus_dir: corpus_dir.to_string_lossy().to_string(),
+            output_dir: None,
+            graph_json_path: None,
+            report_path: None,
+            html_path: None,
+            stdout: None,
+            stderr: None,
+            error: Some(String::from(
+                "graphify executable not found; install graphify or expose it on PATH",
+            )),
+        });
+    };
+
+    let mut command = Command::new(command_name);
+    command.args(&command_args);
+    command.arg(&corpus_items_dir);
+    if input.update.unwrap_or(false) {
+        command.arg("--update");
+    }
+    if input.no_viz.unwrap_or(false) {
+        command.arg("--no-viz");
+    }
+    command.current_dir(&corpus_dir);
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    #[cfg(windows)]
+    configure_background_child_process(&mut command);
+
+    let output = command
+        .output()
+        .map_err(|e| format!("failed to run graphify compile: {e}"))?;
+
+    let stdout = String::from_utf8(output.stdout).ok();
+    let stderr = String::from_utf8(output.stderr).ok();
+    let output_dir = corpus_items_dir.join("graphify-out");
+    let graph_json_path = output_dir.join("graph.json");
+    let report_path = output_dir.join("GRAPH_REPORT.md");
+    let html_path = output_dir.join("graph.html");
+
+    let available = output.status.success() && output_dir.exists();
+    let error = if available {
+        None
+    } else {
+        Some(format!(
+            "graphify compile failed (status={})",
+            output
+                .status
+                .code()
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| String::from("signal"))
+        ))
+    };
+
+    Ok(GraphifyCompileResultPayload {
+        backend: String::from("graphify-v3-cli"),
+        available,
+        executable: Some(command_name.to_string()),
+        corpus_dir: corpus_dir.to_string_lossy().to_string(),
+        output_dir: output_dir.exists().then(|| output_dir.to_string_lossy().to_string()),
+        graph_json_path: graph_json_path
+            .exists()
+            .then(|| graph_json_path.to_string_lossy().to_string()),
+        report_path: report_path
+            .exists()
+            .then(|| report_path.to_string_lossy().to_string()),
+        html_path: html_path.exists().then(|| html_path.to_string_lossy().to_string()),
+        stdout,
+        stderr,
+        error,
+    })
+}
+
+#[tauri::command]
 fn resolve_workspace_artifact_path(
     app: AppHandle,
     path: String,
@@ -9526,6 +9771,7 @@ fn main() {
             resolve_workspace_artifact_path,
             read_workspace_artifact_base64,
             open_workspace_artifact,
+            run_graphify_compile,
             check_desktop_update,
             download_and_install_desktop_update,
             download_and_launch_desktop_installer,

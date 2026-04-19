@@ -66,6 +66,11 @@ export interface OntologyDocument {
     source_output_artifact_ids?: string[];
     source_ontology_ids?: string[];
     source_surface?: string | null;
+    graphify_corpus_dir?: string | null;
+    graphify_output_dir?: string | null;
+    graphify_graph_json_path?: string | null;
+    graphify_report_path?: string | null;
+    graphify_html_path?: string | null;
   } | null;
 }
 
