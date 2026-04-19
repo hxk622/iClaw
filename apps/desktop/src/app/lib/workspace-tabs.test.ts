@@ -3,10 +3,14 @@ import assert from 'node:assert/strict';
 
 import { writeCurrentChatPersistenceUserScope } from './chat-persistence-scope.ts';
 import {
+  closeOtherWorkspaceTabs,
+  closeWorkspaceTabsToRight,
   ACTIVE_WORKSPACE_TABS_STORAGE_KEY,
   createWorkspaceTabRecord,
   readPersistedWorkspaceTabsSnapshot,
+  renameWorkspaceTab,
   reorderWorkspaceTabs,
+  setWorkspaceTabColor,
   setWorkspaceTabPinned,
   sortWorkspaceTabsByPinned,
   writePersistedWorkspaceTabsSnapshot,
@@ -404,4 +408,146 @@ test('sortWorkspaceTabsByPinned keeps pinned tabs before normal tabs', () => {
 
   const next = sortWorkspaceTabsByPinned([tabA, tabB, tabC]);
   assert.deepEqual(next.map((tab) => tab.id), ['tab-b', 'tab-a', 'tab-c']);
+});
+
+test('renameWorkspaceTab updates title and switches titleSource to user', () => {
+  const tab = createWorkspaceTabRecord({
+    id: 'tab-a',
+    title: '旧标题',
+    route: {
+      conversationId: 'conv-a',
+      sessionKey: 'agent:main:a',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+
+  const next = renameWorkspaceTab([tab], 'tab-a', '新标题');
+  assert.equal(next[0].title, '新标题');
+  assert.equal(next[0].titleSource, 'user');
+});
+
+test('setWorkspaceTabColor updates the target tab color only', () => {
+  const tabA = createWorkspaceTabRecord({
+    id: 'tab-a',
+    title: 'A',
+    route: {
+      conversationId: 'conv-a',
+      sessionKey: 'agent:main:a',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const tabB = createWorkspaceTabRecord({
+    id: 'tab-b',
+    title: 'B',
+    route: {
+      conversationId: 'conv-b',
+      sessionKey: 'agent:main:b',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+
+  const next = setWorkspaceTabColor([tabA, tabB], 'tab-b', 'rose');
+  assert.equal(next[0].color, 'default');
+  assert.equal(next[1].color, 'rose');
+});
+
+test('closeOtherWorkspaceTabs keeps only the requested tab', () => {
+  const tabA = createWorkspaceTabRecord({
+    id: 'tab-a',
+    title: 'A',
+    route: {
+      conversationId: 'conv-a',
+      sessionKey: 'agent:main:a',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const tabB = createWorkspaceTabRecord({
+    id: 'tab-b',
+    title: 'B',
+    route: {
+      conversationId: 'conv-b',
+      sessionKey: 'agent:main:b',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const tabC = createWorkspaceTabRecord({
+    id: 'tab-c',
+    title: 'C',
+    route: {
+      conversationId: 'conv-c',
+      sessionKey: 'agent:main:c',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+
+  const next = closeOtherWorkspaceTabs([tabA, tabB, tabC], 'tab-b');
+  assert.deepEqual(next.map((tab) => tab.id), ['tab-b']);
+});
+
+test('closeWorkspaceTabsToRight removes tabs after the target index only', () => {
+  const createTab = (id: string) =>
+    createWorkspaceTabRecord({
+      id,
+      title: id,
+      route: {
+        conversationId: id,
+        sessionKey: `agent:main:${id}`,
+        initialPrompt: null,
+        initialPromptKey: null,
+        focusedTurnId: null,
+        focusedTurnKey: null,
+        initialAgentSlug: null,
+        initialSkillSlug: null,
+        initialSkillOption: null,
+        initialStockContext: null,
+      },
+    });
+
+  const next = closeWorkspaceTabsToRight(
+    [createTab('tab-a'), createTab('tab-b'), createTab('tab-c'), createTab('tab-d')],
+    'tab-b',
+  );
+  assert.deepEqual(next.map((tab) => tab.id), ['tab-a', 'tab-b']);
 });

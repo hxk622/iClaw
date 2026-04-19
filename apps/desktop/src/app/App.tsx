@@ -186,10 +186,14 @@ import {
   type PersistedChatRouteSnapshot,
 } from './lib/chat-route-persistence';
 import {
+  closeOtherWorkspaceTabs,
+  closeWorkspaceTabsToRight,
   createWorkspaceTabRecord,
   MAX_WORKSPACE_TABS,
+  renameWorkspaceTab,
   readPersistedWorkspaceTabsSnapshot,
   reorderWorkspaceTabs,
+  setWorkspaceTabColor,
   setWorkspaceTabPinned,
   sortWorkspaceTabsByPinned,
   writePersistedWorkspaceTabsSnapshot,
@@ -3558,35 +3562,11 @@ function AuthedView({
   );
 
   const handleRenameWorkspaceTab = useCallback((tabId: string, nextTitle: string) => {
-    const normalizedTitle = normalizeOptionalText(nextTitle);
-    setWorkspaceTabs((current) =>
-      current.map((tab) => {
-        if (tab.id !== tabId) {
-          return tab;
-        }
-        const nextRoute = restoreActiveChatRoute(tab.route);
-        return {
-          ...tab,
-          title: normalizedTitle || resolveWorkspaceTabTitle(nextRoute, tab.title),
-          titleSource: normalizedTitle ? 'user' : 'auto',
-          updatedAt: new Date().toISOString(),
-        };
-      }),
-    );
+    setWorkspaceTabs((current) => renameWorkspaceTab(current, tabId, nextTitle));
   }, []);
 
   const handleChangeWorkspaceTabColor = useCallback((tabId: string, color: WorkspaceTabRecord['color']) => {
-    setWorkspaceTabs((current) =>
-      current.map((tab) =>
-        tab.id === tabId
-          ? {
-              ...tab,
-              color,
-              updatedAt: new Date().toISOString(),
-            }
-          : tab,
-      ),
-    );
+    setWorkspaceTabs((current) => setWorkspaceTabColor(current, tabId, color));
   }, []);
 
   const handleSetWorkspaceTabPinned = useCallback((tabId: string, pinned: boolean) => {
@@ -3616,7 +3596,7 @@ function AuthedView({
         Object.fromEntries(Object.entries(current).filter(([key]) => !surfaceKeysToRemove.has(key))),
       );
       workspaceTabVisitHistoryRef.current = [tabId];
-      setWorkspaceTabs([target]);
+      setWorkspaceTabs((current) => closeOtherWorkspaceTabs(current, tabId));
       activateWorkspaceTab(tabId);
     },
     [activateWorkspaceTab],
@@ -3642,7 +3622,7 @@ function AuthedView({
         Object.fromEntries(Object.entries(current).filter(([key]) => !surfaceKeysToRemove.has(key))),
       );
       workspaceTabVisitHistoryRef.current = workspaceTabVisitHistoryRef.current.filter((value) => !idsToRemove.has(value));
-      setWorkspaceTabs(tabsToKeep);
+      setWorkspaceTabs((current) => closeWorkspaceTabsToRight(current, tabId));
       if (idsToRemove.has(activeWorkspaceTabIdRef.current)) {
         activateWorkspaceTab(tabId);
       }

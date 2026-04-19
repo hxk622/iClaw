@@ -39,6 +39,7 @@
     "test:e2e:chat:new-chat-switch": "node scripts/run-with-tmp-harvest.mjs node tests/chat/new-chat-create-and-switch.test.mjs",
     "test:e2e:chat:workspace-tabs": "node scripts/run-with-tmp-harvest.mjs node tests/chat/workspace-tabs-switch-and-close.test.mjs",
     "test:e2e:chat:workspace-tabs-auth": "node scripts/run-with-tmp-harvest.mjs node tests/chat/workspace-tabs-auth-switch-and-close.test.mjs",
+    "test:e2e:chat:workspace-tabs-persistence": "node scripts/run-with-tmp-harvest.mjs node tests/chat/workspace-tabs-menu-persistence.test.mjs",
     "test:e2e:chat:persisted-session-restore": "node scripts/run-with-tmp-harvest.mjs node tests/chat/persisted-session-restore.test.mjs",
     "test:e2e:chat:empty-state": "node scripts/run-with-tmp-harvest.mjs node tests/chat/conversation-empty-state.test.mjs",
     "test:e2e:auth:login-bootstrap": "node scripts/run-with-tmp-harvest.mjs node tests/auth/login-session-bootstrap.test.mjs",

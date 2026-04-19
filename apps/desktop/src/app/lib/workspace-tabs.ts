@@ -301,3 +301,62 @@ export function setWorkspaceTabPinned(
   nextTabs.splice(targetIndex, 0, updatedTab);
   return nextTabs;
 }
+
+export function renameWorkspaceTab(
+  tabs: WorkspaceTabRecord[],
+  tabId: string,
+  title: string,
+): WorkspaceTabRecord[] {
+  const normalizedTitle = normalizeOptionalText(title);
+  if (!normalizedTitle) {
+    return tabs;
+  }
+  return tabs.map((tab) =>
+    tab.id === tabId
+      ? {
+          ...tab,
+          title: normalizedTitle,
+          titleSource: 'user',
+          updatedAt: new Date().toISOString(),
+        }
+      : tab,
+  );
+}
+
+export function setWorkspaceTabColor(
+  tabs: WorkspaceTabRecord[],
+  tabId: string,
+  color: WorkspaceTabColor,
+): WorkspaceTabRecord[] {
+  return tabs.map((tab) =>
+    tab.id === tabId
+      ? {
+          ...tab,
+          color,
+          updatedAt: new Date().toISOString(),
+        }
+      : tab,
+  );
+}
+
+export function closeOtherWorkspaceTabs(
+  tabs: WorkspaceTabRecord[],
+  keepTabId: string,
+): WorkspaceTabRecord[] {
+  const target = tabs.find((tab) => tab.id === keepTabId);
+  if (!target) {
+    return tabs;
+  }
+  return [target];
+}
+
+export function closeWorkspaceTabsToRight(
+  tabs: WorkspaceTabRecord[],
+  tabId: string,
+): WorkspaceTabRecord[] {
+  const targetIndex = tabs.findIndex((tab) => tab.id === tabId);
+  if (targetIndex < 0 || targetIndex >= tabs.length - 1) {
+    return tabs;
+  }
+  return tabs.slice(0, targetIndex + 1);
+}
