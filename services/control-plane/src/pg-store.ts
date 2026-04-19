@@ -1074,6 +1074,27 @@ function parseJsonObject(raw: unknown): Record<string, unknown> {
   return raw as Record<string, unknown>;
 }
 
+function readMetadataString(metadata: Record<string, unknown>, key: string): string | null {
+  const value = metadata[key];
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function readMetadataBoolean(metadata: Record<string, unknown>, key: string): boolean | null {
+  const value = metadata[key];
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  }
+  return null;
+}
+
 function parseJsonObjectArray(raw: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(raw)) {
     return [];
