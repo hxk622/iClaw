@@ -2,8 +2,10 @@ import { upsertOntologyDocument } from './ontology-storage.ts';
 import { compileRawToOntology } from './ontology-pipeline.ts';
 import { buildOntologyDocumentsFromOutputArtifacts } from './output-ontology-pipeline.ts';
 import { importGraphifyGraphToOntologyDocument } from './graphify-importer.ts';
+import { buildGraphifyReportOutputArtifact } from './graphify-report-importer.ts';
 import type { OntologyDocument } from './ontology-types.ts';
-import type { OutputArtifact } from './output-types.ts';
+import type { CreateOutputArtifactInput, OutputArtifact } from './output-types.ts';
+import { upsertOutputArtifact } from './output-storage.ts';
 import type { RawMaterial } from './types.ts';
 import { runGraphifyCompile, type GraphifyCorpusItem } from '../../lib/tauri-graphify.ts';
 
@@ -20,6 +22,7 @@ export interface GraphCompilerJobResult {
   backend: GraphCompilerBackend;
   trigger: GraphCompilerTrigger;
   documents: OntologyDocument[];
+  outputArtifacts: CreateOutputArtifactInput[];
 }
 
 function normalizeText(value: string | null | undefined, maxLength = 24000): string {
@@ -106,6 +109,7 @@ export async function runLocalGraphCompilerJob(input: GraphCompilerJobInput): Pr
     backend: 'local-fallback',
     trigger: input.trigger,
     documents: [...rawDocuments, ...outputDocuments],
+    outputArtifacts: [],
   };
 }
 
@@ -123,11 +127,29 @@ export async function runGraphCompilerJob(input: GraphCompilerJobInput): Promise
   }
 
   const importedDocuments = importGraphifyDocuments(input, graphifyResult);
+  const importedReportArtifacts =
+    importedDocuments.length > 0 && graphifyResult.reportText
+      ? importedDocuments.map((document) =>
+          buildGraphifyReportOutputArtifact({
+            trigger: input.trigger,
+            reportText: graphifyResult.reportText || '',
+            reportPath: graphifyResult.reportPath,
+            htmlPath: graphifyResult.htmlPath,
+            graphJsonPath: graphifyResult.graphJsonPath,
+            corpusDir: graphifyResult.corpusDir,
+            outputDir: graphifyResult.outputDir,
+            ontologyDocument: document,
+            rawMaterials: input.rawMaterials,
+            outputArtifacts: input.outputArtifacts,
+          }),
+        )
+      : [];
   if (importedDocuments.length > 0) {
     return {
       backend: 'graphify-v3',
       trigger: input.trigger,
       documents: importedDocuments,
+      outputArtifacts: importedReportArtifacts,
     };
   }
 
@@ -135,6 +157,7 @@ export async function runGraphCompilerJob(input: GraphCompilerJobInput): Promise
     backend: 'graphify-v3',
     trigger: input.trigger,
     documents: applyGraphifyMetadata(fallback.documents, graphifyResult),
+    outputArtifacts: [],
   };
 }
 
@@ -143,6 +166,9 @@ export async function syncRawMaterialsIntoOntology(rawMaterials: RawMaterial[]):
     trigger: 'raw_ingest',
     rawMaterials,
   });
+  result.outputArtifacts.forEach((item) => {
+    upsertOutputArtifact(item);
+  });
   return result.documents.map((document) => upsertOntologyDocument(document));
 }
 
@@ -150,6 +176,9 @@ export async function syncOutputArtifactsIntoOntology(outputArtifacts: OutputArt
   const result = await runGraphCompilerJob({
     trigger: 'output_feedback',
     outputArtifacts,
+  });
+  result.outputArtifacts.forEach((item) => {
+    upsertOutputArtifact(item);
   });
   return result.documents.map((document) => upsertOntologyDocument(document));
 }

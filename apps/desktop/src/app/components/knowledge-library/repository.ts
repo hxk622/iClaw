@@ -97,7 +97,8 @@ export function createLocalKnowledgeLibraryRepository(): KnowledgeLibraryReposit
       return getOntologyDocumentById(id);
     },
     async compileRawMaterialsToOntology(rawMaterials) {
-      return syncRawMaterialsIntoOntology(rawMaterials);
+      const documents = await syncRawMaterialsIntoOntology(rawMaterials);
+      return documents;
     },
     async listOutputArtifacts(input) {
       const normalizedQuery = input?.query?.trim().toLowerCase() || '';
