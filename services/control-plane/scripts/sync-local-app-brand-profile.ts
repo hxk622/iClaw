@@ -207,6 +207,7 @@ function buildProfile(detail: PortalAppDetail, cachedAssets: Record<string, stri
       installerHero: cachedAssets.installerHero,
       tauriIconsDir: cachedAssets.tauriIconsDir,
       assistantAvatar: cachedAssets.assistantAvatar,
+      brandMark: cachedAssets.brandMark,
       logoMaster: cachedAssets.logoMaster,
       homeLogo: cachedAssets.homeLogo,
       homeHeroArt: cachedAssets.homeHeroArt,
@@ -310,6 +311,13 @@ async function main() {
       detail,
       repoRoot,
       cacheRoot,
+      'brandMark',
+      `assets/brand-mark${extname(findAsset(detail, 'brandMark')?.objectKey || '') || '.png'}`,
+    );
+    await writeAssetFile(
+      detail,
+      repoRoot,
+      cacheRoot,
       'logoMaster',
       `assets/logo-master${extname(findAsset(detail, 'logoMaster')?.objectKey || '') || '.png'}`,
     );
@@ -345,6 +353,10 @@ async function main() {
       assistantAvatar: await relativePathIfExists(
         cacheRoot,
         `assets/assistant-avatar${extname(findAsset(detail, 'assistantAvatar')?.objectKey || '') || '.png'}`,
+      ),
+      brandMark: await relativePathIfExists(
+        cacheRoot,
+        `assets/brand-mark${extname(findAsset(detail, 'brandMark')?.objectKey || '') || '.png'}`,
       ),
       logoMaster: await relativePathIfExists(
         cacheRoot,

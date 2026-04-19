@@ -11,7 +11,7 @@ Unify desktop icon generation so macOS Dock, Windows taskbar/start menu, install
 - `logoMaster` must be a transparent PNG.
 - Do not use JPG as `logoMaster`.
 - `homeLogo` and marketing assets can use JPG/WebP if needed, but desktop icon generation must not depend on them.
-- `assistantAvatar`, `faviconPng`, and `homeLogo` are explicit surface-owned assets; see `docs/design/brand-surface-asset-contract.md`.
+- `assistantAvatar`, `brandMark`, `faviconPng`, and `homeLogo` are explicit surface-owned assets; see `docs/design/brand-surface-asset-contract.md`.
 - `tauri-icons/icon.png`, `icon.icns`, and `icon.ico` are generated artifacts, not hand-edited source-of-truth assets.
 
 ## Generation flow

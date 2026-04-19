@@ -12,7 +12,9 @@ Separate desktop icon masters from in-product avatar/brand-mark assets, and requ
   - Transparent padding is allowed here.
 - `assets.faviconPng`
   - Small square brand token for web/favicon usage.
-  - Source of truth for generated in-product `brand-mark.png`.
+- `assets.brandMark`
+  - Source of truth for left-top/sidebar/header brand mark usage.
+  - Should be composed for small rounded-square presentation in the shell.
 - `assets.assistantAvatar`
   - Preferred source for assistant/chat avatar surfaces.
   - Should be tightly cropped and safe inside circular masks.
@@ -27,15 +29,18 @@ Separate desktop icon masters from in-product avatar/brand-mark assets, and requ
 - Chat assistant avatar
   - `assistantAvatar`
 - In-product `brand-mark.png`
+  - `brandMark`
+- Browser/app favicon
   - `faviconPng`
 - Home/marketing logo
   - `homeLogo`
 
 ## Rules
 
-- Every packaging profile must explicitly provide `assistantAvatar`, `faviconPng`, `homeLogo`, and `logoMaster`.
+- Every packaging profile must explicitly provide `assistantAvatar`, `brandMark`, `faviconPng`, `homeLogo`, and `logoMaster`.
 - No surface asset fallback is allowed inside the packaging/build pipeline.
 - `logoMaster` is never a substitute for `assistantAvatar`.
+- `logoMaster` is never a substitute for `brandMark`.
 - `brand-mark.png` and `assistant-avatar.png` must be generated from their explicit owners, not from a fallback chain.
 
 ## Build enforcement
@@ -47,5 +52,5 @@ Separate desktop icon masters from in-product avatar/brand-mark assets, and requ
 
 ## Current application
 
-- `caiclaw` now declares `assets.assistantAvatar = assets.faviconPng`.
-- This keeps chat/avatar surfaces visually full while leaving `logoMaster` dedicated to desktop icon generation.
+- `iclaw` and `caiclaw` now declare `assets.brandMark` explicitly.
+- `caiclaw` keeps `assistantAvatar` explicit and separate from `logoMaster`, while `brandMark` is currently sourced from its favicon asset by configuration, not by fallback.

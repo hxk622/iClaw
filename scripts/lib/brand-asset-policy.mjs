@@ -9,6 +9,7 @@ export function inspectBrandAssetPolicy(profile) {
 
   const normalizedAssets = {
     assistantAvatar: trimString(assets.assistantAvatar),
+    brandMark: trimString(assets.brandMark),
     faviconPng: trimString(assets.faviconPng),
     homeLogo: trimString(assets.homeLogo),
     logoMaster: trimString(assets.logoMaster),
@@ -20,8 +21,11 @@ export function inspectBrandAssetPolicy(profile) {
   if (!normalizedAssets.assistantAvatar) {
     errors.push('assets.assistantAvatar is required for chat assistant avatar surfaces');
   }
+  if (!normalizedAssets.brandMark) {
+    errors.push('assets.brandMark is required for sidebar/header brand-mark surfaces');
+  }
   if (!normalizedAssets.faviconPng) {
-    errors.push('assets.faviconPng is required for favicon and small brand-mark surfaces');
+    errors.push('assets.faviconPng is required for favicon surfaces');
   }
   if (!normalizedAssets.homeLogo) {
     errors.push('assets.homeLogo is required for home/marketing logo surfaces');
@@ -36,8 +40,8 @@ export function inspectBrandAssetPolicy(profile) {
       path: normalizedAssets.assistantAvatar,
     },
     brandMark: {
-      sourceKey: 'faviconPng',
-      path: normalizedAssets.faviconPng,
+      sourceKey: 'brandMark',
+      path: normalizedAssets.brandMark,
     },
     homeLogo: {
       sourceKey: 'homeLogo',
