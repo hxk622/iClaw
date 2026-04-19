@@ -4,6 +4,14 @@ import { SecurityStatusInline } from '@/app/components/ui/SecurityStatusInline';
 import { NotificationCenterBell } from '@/app/components/notifications/NotificationCenterBell';
 import { cn } from '@/app/lib/cn';
 import { BRAND } from '@/app/lib/brand';
+import {
+  buildDefaultHeaderOverviewUrl,
+  normalizeHeaderHeadline,
+  normalizeHeaderOverviewPayload,
+  normalizeHeaderQuote,
+  type HeaderHeadline,
+  type HeaderMarketQuote,
+} from '@/app/lib/header-market-feed';
 import type { ResolvedHeaderConfig } from '@/app/lib/oem-runtime';
 
 type IClawHeaderProps = {
@@ -16,21 +24,6 @@ type IClawHeaderProps = {
   notificationUnreadCount?: number;
   notificationCenterOpen?: boolean;
   onNotificationsClick?: () => void;
-};
-
-type HeaderMarketQuote = {
-  id: string;
-  label: string;
-  value: string;
-  changePercent: string;
-  change: number;
-};
-
-type HeaderHeadline = {
-  id: string;
-  title: string;
-  source?: string | null;
-  href?: string | null;
 };
 
 type HeaderFeedSnapshot = {
@@ -110,115 +103,6 @@ function formatBalance(value: number | null, authenticated: boolean, loading: bo
   return `${new Intl.NumberFormat('zh-CN').format(value)}积分`;
 }
 
-function normalizeNumber(input: unknown): number {
-  if (typeof input === 'number' && Number.isFinite(input)) {
-    return input;
-  }
-  if (typeof input === 'string') {
-    const parsed = Number(input.replace(/,/g, '').trim());
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  return 0;
-}
-
-function normalizeQuote(raw: unknown, index: number): HeaderMarketQuote | null {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const source = raw as Record<string, unknown>;
-  const id = typeof source.id === 'string' && source.id.trim() ? source.id.trim() : `quote-${index}`;
-  const label =
-    typeof source.label === 'string' && source.label.trim()
-      ? source.label.trim()
-      : typeof source.name === 'string' && source.name.trim()
-        ? source.name.trim()
-        : null;
-  if (!label) {
-    return null;
-  }
-
-  const rawValue = source.value ?? source.price ?? source.last ?? source.latest;
-  const rawChangePercent = source.changePercent ?? source.percent ?? source.change_rate ?? source.change_pct;
-  const rawChange = source.change ?? source.delta ?? source.change_value ?? rawChangePercent;
-
-  const value =
-    typeof rawValue === 'string' && rawValue.trim()
-      ? rawValue.trim()
-      : typeof rawValue === 'number'
-        ? rawValue.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
-        : '--';
-
-  const change = normalizeNumber(rawChange);
-  let changePercent = '0.00%';
-  if (typeof rawChangePercent === 'string' && rawChangePercent.trim()) {
-    const trimmed = rawChangePercent.trim();
-    changePercent = /%$/.test(trimmed) ? trimmed : `${trimmed}%`;
-  } else if (typeof rawChangePercent === 'number' && Number.isFinite(rawChangePercent)) {
-    const prefix = rawChangePercent > 0 ? '+' : '';
-    changePercent = `${prefix}${rawChangePercent.toFixed(2)}%`;
-  } else {
-    const prefix = change > 0 ? '+' : '';
-    changePercent = `${prefix}${change.toFixed(2)}%`;
-  }
-
-  return {
-    id,
-    label,
-    value,
-    change,
-    changePercent,
-  };
-}
-
-function normalizeHeadline(raw: unknown, index: number): HeaderHeadline | null {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const source = raw as Record<string, unknown>;
-  const title =
-    typeof source.title === 'string' && source.title.trim()
-      ? source.title.trim()
-      : typeof source.text === 'string' && source.text.trim()
-        ? source.text.trim()
-        : typeof source.headline === 'string' && source.headline.trim()
-          ? source.headline.trim()
-          : null;
-
-  if (!title) {
-    return null;
-  }
-
-  const id = typeof source.id === 'string' && source.id.trim() ? source.id.trim() : `headline-${index}`;
-  const newsSource =
-    typeof source.source === 'string' && source.source.trim()
-      ? source.source.trim()
-      : typeof source.provider === 'string' && source.provider.trim()
-        ? source.provider.trim()
-        : null;
-  const href = typeof source.href === 'string' && source.href.trim() ? source.href.trim() : null;
-
-  return {
-    id,
-    title,
-    source: newsSource,
-    href,
-  };
-}
-
-function trimUrl(value: string | null | undefined): string {
-  return (value || '').trim().replace(/\/+$/, '');
-}
-
-function buildDefaultHeaderOverviewUrl(): string {
-  const normalizedBaseUrl = trimUrl(HEADER_AUTH_BASE_URL);
-  if (!normalizedBaseUrl) {
-    return '';
-  }
-  return `${normalizedBaseUrl}/market/overview?market_scope=cn&index_limit=6&headline_limit=8`;
-}
-
 async function fetchHeaderCollection<T>(
   url: string,
   normalizer: (value: unknown, index: number) => T | null,
@@ -277,50 +161,8 @@ async function fetchHeaderOverview(
     throw new Error(`header overview http ${response.status}`);
   }
 
-  const payload = (await response.json()) as
-    | { data?: Record<string, unknown> | null }
-    | Record<string, unknown>
-    | null;
-  const data =
-    payload && typeof payload === 'object' && 'data' in payload && payload.data && typeof payload.data === 'object'
-      ? (payload.data as Record<string, unknown>)
-      : payload && typeof payload === 'object'
-        ? (payload as Record<string, unknown>)
-        : null;
-  if (!data) {
-    return null;
-  }
-
-  const rawQuotes = Array.isArray(data.indices) ? data.indices : [];
-  const rawHeadlines = Array.isArray(data.headlines) ? data.headlines : [];
-  const quotes = rawQuotes
-    .map((raw, index) =>
-      normalizeQuote(
-        raw && typeof raw === 'object'
-          ? {
-              id: (raw as Record<string, unknown>).index_key,
-              label: (raw as Record<string, unknown>).index_name,
-              value: (raw as Record<string, unknown>).value,
-              changePercent: (raw as Record<string, unknown>).change_percent,
-              change: (raw as Record<string, unknown>).change_amount,
-            }
-          : raw,
-        index,
-      ),
-    )
-    .filter((item): item is HeaderMarketQuote => item !== null);
-  const headlines = rawHeadlines.map(normalizeHeadline).filter((item): item is HeaderHeadline => item !== null);
-
-  const snapshotAt =
-    typeof data.snapshot_at === 'string' && data.snapshot_at.trim()
-      ? Date.parse(data.snapshot_at)
-      : Number.NaN;
-
-  return {
-    quotes,
-    headlines,
-    updatedAt: Number.isFinite(snapshotAt) ? snapshotAt : null,
-  };
+  const payload = (await response.json()) as unknown;
+  return normalizeHeaderOverviewPayload(payload);
 }
 
 function getTrendIcon(change: number) {
@@ -351,7 +193,10 @@ function useHeaderFeed(config?: ResolvedHeaderConfig | null): HeaderFeedSnapshot
   const [quotesLive, setQuotesLive] = useState(false);
   const [newsLive, setNewsLive] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
-  const defaultOverviewUrl = useMemo(() => HEADER_OVERVIEW_URL || buildDefaultHeaderOverviewUrl(), []);
+  const defaultOverviewUrl = useMemo(
+    () => HEADER_OVERVIEW_URL || buildDefaultHeaderOverviewUrl(HEADER_AUTH_BASE_URL),
+    [],
+  );
 
   useEffect(() => {
     if (!quotesLive) {
