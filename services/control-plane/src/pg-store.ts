@@ -1417,6 +1417,7 @@ function mapMarketStockRow(row: MarketStockRow): MarketStockRecord {
 }
 
 function mapMarketFundRow(row: MarketFundRow): MarketFundRecord {
+  const metadata = parseJsonObject(row.metadata_json);
   return {
     id: row.id,
     market: row.market,
@@ -1443,8 +1444,19 @@ function mapMarketFundRow(row: MarketFundRow): MarketFundRecord {
     amount: row.amount === null ? null : parseDbNumber(row.amount),
     turnoverRate: row.turnover_rate === null ? null : parseDbNumber(row.turnover_rate),
     dividendMode: row.dividend_mode,
+    quoteSource: row.source,
+    quoteSnapshotAt: row.updated_at.toISOString(),
+    quoteIsDelayed: true,
+    latestNavDate: readMetadataString(metadata, 'latest_nav_date'),
+    managerWorkTime: readMetadataString(metadata, 'manager_work_time'),
+    managerFundSizeText: readMetadataString(metadata, 'manager_fund_size_text'),
+    watchlisted: readMetadataBoolean(metadata, 'watchlisted') === true,
+    themeKey: readMetadataString(metadata, 'theme_key'),
+    summary: readMetadataString(metadata, 'summary'),
+    aiFocus: readMetadataString(metadata, 'ai_focus'),
+    assetAllocation: parseJsonObject(metadata.asset_allocation),
     strategyTags: Array.isArray(row.strategy_tags) ? row.strategy_tags.filter((item) => typeof item === 'string') : [],
-    metadata: parseJsonObject(row.metadata_json),
+    metadata,
     importedAt: row.imported_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };

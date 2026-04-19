@@ -96,13 +96,25 @@ function formatScaleAmount(value: number | null | undefined): string {
   return `${yi.toFixed(2)}亿`;
 }
 
-function getMetadataString(fund: MarketFundData, key: string): string | null {
-  const value = fund.metadata?.[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
+function formatDatetime(value: string | null | undefined): string {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return date.toLocaleString('zh-CN', {hour12: false});
 }
 
-function getMetadataBoolean(fund: MarketFundData, key: string): boolean {
-  return fund.metadata?.[key] === true;
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('zh-CN');
+}
+
+function formatDataSource(value: string | null | undefined): string {
+  const normalized = (value || '').trim();
+  if (!normalized) return '--';
+  if (normalized === 'eastmoney') return '东方财富';
+  return normalized;
 }
 
 function resolveInstrumentLabel(fund: MarketFundData): string {
@@ -129,7 +141,7 @@ function resolveTypeLabel(fund: MarketFundData): string {
 }
 
 function resolveSummary(fund: MarketFundData): string {
-  const explicit = getMetadataString(fund, 'summary');
+  const explicit = fund.summary?.trim();
   if (explicit) return explicit;
   const segments: string[] = [];
   if (fund.tracking_target) segments.push(`跟踪 / 风格围绕 ${fund.tracking_target}`);
@@ -140,7 +152,7 @@ function resolveSummary(fund: MarketFundData): string {
 
 function resolveAiFocus(fund: MarketFundData): string {
   return (
-    getMetadataString(fund, 'ai_focus') ||
+    fund.ai_focus?.trim() ||
     (fund.tracking_target ? `${fund.tracking_target} 与回撤来源` : '收益来源、回撤质量与持仓风格')
   );
 }
@@ -154,8 +166,8 @@ function toFundItem(fund: MarketFundData): FundItem {
     typeLabel: resolveTypeLabel(fund),
     summary: resolveSummary(fund),
     aiFocus: resolveAiFocus(fund),
-    watchlisted: getMetadataBoolean(fund, 'watchlisted'),
-    themeKey: getMetadataString(fund, 'theme_key'),
+    watchlisted: fund.watchlisted,
+    themeKey: fund.theme_key,
   };
 }
 
@@ -244,6 +256,7 @@ function FundCard({
               <Chip tone="outline">{fund.symbol}</Chip>
               <Chip tone="muted">{fund.typeLabel}</Chip>
               <Chip tone={fundTagTone(fund.strategy_tags[0] || '')}>{fund.strategy_tags[0] || fund.instrumentLabel}</Chip>
+              {fund.quote_is_delayed ? <Chip tone="warning">延迟快照</Chip> : null}
             </div>
             <h3 className="mt-3 text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{fund.companyName}</h3>
             <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{fund.summary}</p>
@@ -303,6 +316,11 @@ function FundCard({
             AI 对话
           </Button>
         </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-muted)]">
+        <span>数据源 {formatDataSource(fund.quote_source || fund.source)}</span>
+        <span>更新 {formatDatetime(fund.quote_snapshot_at || fund.updated_at)}</span>
       </div>
     </button>
   );
@@ -481,6 +499,7 @@ function FundDrawer({
               {fund.strategy_tags.map((tag) => (
                 <Chip key={tag} tone={fundTagTone(tag)}>{tag}</Chip>
               ))}
+              {fund.quote_is_delayed ? <Chip tone="warning">延迟快照</Chip> : null}
             </div>
             <div className="mt-4 flex items-end gap-3">
               <div className="text-[30px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{formatSignedPercent(fund.return_1y)}</div>
@@ -520,6 +539,11 @@ function FundDrawer({
               {label: '分红方式', value: fund.dividend_mode || '--'},
               {label: '近一月', value: formatSignedPercent(fund.return_1m)},
               {label: '最大回撤', value: formatSignedPercent(fund.max_drawdown)},
+              {label: '净值日期', value: formatDate(fund.latest_nav_date)},
+              {label: '经理任期', value: fund.manager_work_time || '--'},
+              {label: '经理管理规模', value: fund.manager_fund_size_text || '--'},
+              {label: '数据源', value: formatDataSource(fund.quote_source || fund.source)},
+              {label: '更新时间', value: formatDatetime(fund.quote_snapshot_at || fund.updated_at)},
             ].map((item) => (
               <div key={item.label} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
                 <div className="text-[11px] text-[var(--text-muted)]">{item.label}</div>
@@ -531,6 +555,20 @@ function FundDrawer({
           <section className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4">
             <div className="text-[14px] font-semibold text-[var(--text-primary)]">配置解读</div>
             <div className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">{fund.summary}</div>
+          </section>
+
+          <section className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4">
+            <div className="text-[14px] font-semibold text-[var(--text-primary)]">基金画像</div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-3 dark:bg-[rgba(255,255,255,0.02)]">
+                <div className="text-[11px] text-[var(--text-muted)]">主题分组</div>
+                <div className="mt-2 text-[15px] font-semibold text-[var(--text-primary)]">{fund.theme_key || '--'}</div>
+              </div>
+              <div className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-3 dark:bg-[rgba(255,255,255,0.02)]">
+                <div className="text-[11px] text-[var(--text-muted)]">重点跟踪</div>
+                <div className="mt-2 text-[15px] font-semibold text-[var(--text-primary)]">{fund.watchlisted ? '是' : '否'}</div>
+              </div>
+            </div>
           </section>
 
           <section className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4">

@@ -676,6 +676,17 @@ export interface MarketFundData {
   amount: number | null;
   turnover_rate: number | null;
   dividend_mode: string | null;
+  quote_source: string | null;
+  quote_snapshot_at: string | null;
+  quote_is_delayed: boolean;
+  latest_nav_date: string | null;
+  manager_work_time: string | null;
+  manager_fund_size_text: string | null;
+  watchlisted: boolean;
+  theme_key: string | null;
+  summary: string | null;
+  ai_focus: string | null;
+  asset_allocation: Record<string, unknown>;
   strategy_tags: string[];
   metadata: Record<string, unknown>;
   imported_at: string;
