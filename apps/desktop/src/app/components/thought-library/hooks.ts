@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { KnowledgeLibraryRepository } from './repository';
 import type { CreateRawMaterialInput, RawMaterial } from './types';
 import type { OntologyDocument } from './ontology-types';
+import type { OutputArtifact } from './output-types';
 
 export function useRawMaterials(input: {
   repository: KnowledgeLibraryRepository;
@@ -153,6 +154,75 @@ export function useOntologyDocumentDetail(input: {
       cancelled = true;
     };
   }, [ontologyDocumentId, refreshKey, repository]);
+
+  return { item, loading, error };
+}
+
+export function useOutputArtifacts(input: {
+  repository: KnowledgeLibraryRepository;
+  query: string;
+  refreshKey?: number;
+}) {
+  const { repository, query, refreshKey = 0 } = input;
+  const [items, setItems] = useState<OutputArtifact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const nextItems = await repository.listOutputArtifacts({ query });
+      setItems(nextItems);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'failed_to_load_output_artifacts');
+    } finally {
+      setLoading(false);
+    }
+  }, [query, repository]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh, refreshKey]);
+
+  return { items, loading, error, refresh };
+}
+
+export function useOutputArtifactDetail(input: {
+  repository: KnowledgeLibraryRepository;
+  outputArtifactId: string | null;
+  refreshKey?: number;
+}) {
+  const { repository, outputArtifactId, refreshKey = 0 } = input;
+  const [item, setItem] = useState<OutputArtifact | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!outputArtifactId) {
+      setItem(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    void repository
+      .getOutputArtifactById(outputArtifactId)
+      .then((next) => {
+        if (!cancelled) setItem(next);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'failed_to_load_output_artifact');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [outputArtifactId, refreshKey, repository]);
 
   return { item, loading, error };
 }

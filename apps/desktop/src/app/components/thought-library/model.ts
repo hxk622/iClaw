@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { RawMaterial } from './types';
 import type { GraphifyDocumentViewModel, OntologyDocument } from './ontology-types';
+import type { OutputArtifact } from './output-types';
 
 export type ThoughtLibraryTab = 'materials' | 'graph' | 'artifacts';
 export type GraphViewMode = 'page' | 'graph';
@@ -27,6 +28,7 @@ export type ThoughtLibraryItem = {
   rawMaterial?: RawMaterial | null;
   ontologyDocument?: OntologyDocument | null;
   ontologyGraphView?: GraphifyDocumentViewModel | null;
+  outputArtifact?: OutputArtifact | null;
 };
 
 export const THOUGHT_LIBRARY_TAB_CONFIG: Array<{
@@ -39,7 +41,7 @@ export const THOUGHT_LIBRARY_TAB_CONFIG: Array<{
   { id: 'artifacts', label: 'Output / 成果', icon: Sparkles },
 ];
 
-const STATIC_THOUGHT_LIBRARY_ITEMS: Record<Exclude<ThoughtLibraryTab, 'materials'>, ThoughtLibraryItem[]> = {
+const STATIC_THOUGHT_LIBRARY_ITEMS: Record<'graph', ThoughtLibraryItem[]> = {
   graph: [
     {
       id: 'graph-1',
@@ -69,38 +71,9 @@ const STATIC_THOUGHT_LIBRARY_ITEMS: Record<Exclude<ThoughtLibraryTab, 'materials
       meta: '今天 11:07',
     },
   ],
-  artifacts: [
-    {
-      id: 'output-1',
-      title: '张磊',
-      subtitle: '专家 · 已发布给粉丝',
-      summary: '高瓴风格的长期主义与产业研究专家，已连接到图谱中的私募与产业节点。',
-      tags: ['专家', '私募', '分享'],
-      icon: WandSparkles,
-      meta: '昨天 23:14',
-    },
-    {
-      id: 'output-2',
-      title: '债券配置研究 Memo',
-      subtitle: 'Artifact · 可继续二创',
-      summary: '基于固收 Raw 和 Graph 子图生成的研究备忘录，可继续对外改写或喂给专家。',
-      tags: ['Memo', '债券', '成果'],
-      icon: FileText,
-      meta: '今天 10:08',
-    },
-    {
-      id: 'output-3',
-      title: '黄金避险卡片组',
-      subtitle: '卡片 · 已分享',
-      summary: '从黄金相关人物与宏观图谱中衍生出的卡片式内容，用于对外传播和粉丝教育。',
-      tags: ['黄金', '卡片', '分享'],
-      icon: BookOpen,
-      meta: '2 天前',
-    },
-  ],
 };
 
-export function getStaticThoughtLibraryItems(tab: Exclude<ThoughtLibraryTab, 'materials'>): ThoughtLibraryItem[] {
+export function getStaticThoughtLibraryItems(tab: 'graph'): ThoughtLibraryItem[] {
   return STATIC_THOUGHT_LIBRARY_ITEMS[tab];
 }
 

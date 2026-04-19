@@ -9,6 +9,9 @@ import type { CreateRawMaterialInput, RawMaterial } from './types';
 import { compileRawToOntology } from './ontology-pipeline';
 import { getOntologyDocumentById, listOntologyDocuments, upsertOntologyDocument } from './ontology-storage';
 import type { OntologyDocument } from './ontology-types';
+import { buildOutputArtifactsFromOntologyDocuments } from './output-pipeline';
+import { getOutputArtifactById, listOutputArtifacts, upsertOutputArtifact } from './output-storage';
+import type { CreateOutputArtifactInput, OutputArtifact } from './output-types';
 
 export interface KnowledgeLibraryRepository {
   listRawMaterials(input?: {
@@ -26,6 +29,13 @@ export interface KnowledgeLibraryRepository {
   }): Promise<OntologyDocument[]>;
   getOntologyDocumentById(id: string): Promise<OntologyDocument | null>;
   compileRawMaterialsToOntology(rawMaterials: RawMaterial[]): Promise<OntologyDocument[]>;
+  listOutputArtifacts(input?: {
+    query?: string;
+    limit?: number;
+  }): Promise<OutputArtifact[]>;
+  getOutputArtifactById(id: string): Promise<OutputArtifact | null>;
+  upsertOutputArtifact(input: CreateOutputArtifactInput & { id?: string }): Promise<OutputArtifact>;
+  generateOutputArtifactsFromOntology(documents: OntologyDocument[]): Promise<OutputArtifact[]>;
 }
 
 function filterRawMaterials(items: RawMaterial[], input?: { query?: string; sourceKinds?: string[]; limit?: number }): RawMaterial[] {
@@ -88,6 +98,29 @@ export function createLocalKnowledgeLibraryRepository(): KnowledgeLibraryReposit
     async compileRawMaterialsToOntology(rawMaterials) {
       const compiled = compileRawToOntology({ rawMaterials });
       return compiled.documents.map((document) => upsertOntologyDocument(document));
+    },
+    async listOutputArtifacts(input) {
+      const normalizedQuery = input?.query?.trim().toLowerCase() || '';
+      const items = listOutputArtifacts().filter((item) => {
+        if (!normalizedQuery) return true;
+        return [item.title, item.summary, item.content, ...(item.publish_targets || [])]
+          .join(' ')
+          .toLowerCase()
+          .includes(normalizedQuery);
+      });
+      if (typeof input?.limit === 'number' && Number.isFinite(input.limit) && input.limit > 0) {
+        return items.slice(0, Math.floor(input.limit));
+      }
+      return items;
+    },
+    async getOutputArtifactById(id) {
+      return getOutputArtifactById(id);
+    },
+    async upsertOutputArtifact(input) {
+      return upsertOutputArtifact(input);
+    },
+    async generateOutputArtifactsFromOntology(documents) {
+      return buildOutputArtifactsFromOntologyDocuments(documents).map((item) => upsertOutputArtifact(item));
     },
   };
 }

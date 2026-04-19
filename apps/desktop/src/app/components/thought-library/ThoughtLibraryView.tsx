@@ -19,10 +19,11 @@ import { ThoughtLibraryEmbeddedChatSurface } from './ThoughtLibraryEmbeddedChatS
 import type { IClawClient } from '@iclaw/sdk';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
 import { createLocalKnowledgeLibraryRepository } from './repository';
-import { useCreateRawMaterial, useOntologyDocumentDetail, useOntologyDocuments, useRawMaterialDetail, useRawMaterials } from './hooks';
+import { useCreateRawMaterial, useOntologyDocumentDetail, useOntologyDocuments, useOutputArtifactDetail, useOutputArtifacts, useRawMaterialDetail, useRawMaterials } from './hooks';
 import { mapRawMaterialToThoughtLibraryItem } from './raw-mappers';
 import { mapOntologyDocumentToThoughtLibraryItem } from './ontology-mappers';
 import { GraphifyOntologyGraphView } from './GraphifyOntologyGraphView';
+import { mapOutputArtifactToThoughtLibraryItem } from './output-mappers';
 import {
   importBrowserCaptureBatch,
   importBrowserCapturePayload,
@@ -82,6 +83,7 @@ export function ThoughtLibraryView({
   const [graphViewMode, setGraphViewMode] = useState<GraphViewMode>('page');
   const [materialsRefreshKey, setMaterialsRefreshKey] = useState(0);
   const [ontologyRefreshKey, setOntologyRefreshKey] = useState(0);
+  const [outputRefreshKey, setOutputRefreshKey] = useState(0);
 
   const {
     items: rawMaterials,
@@ -96,6 +98,11 @@ export function ThoughtLibraryView({
     query: activeTab === 'graph' ? query : '',
     refreshKey: ontologyRefreshKey,
   });
+  const { items: outputArtifacts } = useOutputArtifacts({
+    repository,
+    query: activeTab === 'artifacts' ? query : '',
+    refreshKey: outputRefreshKey,
+  });
 
   const items = useMemo<ThoughtLibraryItem[]>(() => {
     if (activeTab === 'materials') {
@@ -104,13 +111,16 @@ export function ThoughtLibraryView({
     if (activeTab === 'graph') {
       return ontologyDocuments.map(mapOntologyDocumentToThoughtLibraryItem);
     }
+    if (activeTab === 'artifacts') {
+      return outputArtifacts.map(mapOutputArtifactToThoughtLibraryItem);
+    }
     const source = getStaticThoughtLibraryItems(activeTab);
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) return source;
     return source.filter((item) =>
       [item.title, item.subtitle, item.summary, ...item.tags].join(' ').toLowerCase().includes(normalizedQuery),
     );
-  }, [activeTab, ontologyDocuments, query, rawMaterials]);
+  }, [activeTab, ontologyDocuments, outputArtifacts, query, rawMaterials]);
 
   const selectedId = selectedByTab[activeTab];
   const selectedItem = useMemo(() => items.find((item) => item.id === selectedId) || items[0] || null, [items, selectedId]);
@@ -124,6 +134,11 @@ export function ThoughtLibraryView({
     ontologyDocumentId: activeTab === 'graph' ? selectedItem?.id || null : null,
     refreshKey: ontologyRefreshKey,
   });
+  const { item: selectedOutputArtifact } = useOutputArtifactDetail({
+    repository,
+    outputArtifactId: activeTab === 'artifacts' ? selectedItem?.id || null : null,
+    refreshKey: outputRefreshKey,
+  });
   const selectedDisplayItem = useMemo<ThoughtLibraryItem | null>(() => {
     if (!selectedItem) return null;
     if (activeTab !== 'materials') return selectedItem;
@@ -133,14 +148,23 @@ export function ThoughtLibraryView({
     if (activeTab !== 'graph' || !selectedItem) return selectedDisplayItem;
     return selectedOntologyDocument ? mapOntologyDocumentToThoughtLibraryItem(selectedOntologyDocument) : selectedItem;
   }, [activeTab, selectedDisplayItem, selectedItem, selectedOntologyDocument]);
-  const effectiveSelectedItem = activeTab === 'graph' ? selectedOntologyDisplayItem : selectedDisplayItem;
+  const selectedOutputDisplayItem = useMemo<ThoughtLibraryItem | null>(() => {
+    if (activeTab !== 'artifacts' || !selectedItem) return selectedDisplayItem;
+    return selectedOutputArtifact ? mapOutputArtifactToThoughtLibraryItem(selectedOutputArtifact) : selectedItem;
+  }, [activeTab, selectedDisplayItem, selectedItem, selectedOutputArtifact]);
+  const effectiveSelectedItem =
+    activeTab === 'graph' ? selectedOntologyDisplayItem : activeTab === 'artifacts' ? selectedOutputDisplayItem : selectedDisplayItem;
 
   useEffect(() => {
     if (rawMaterials.length === 0) {
       return;
     }
-    void repository.compileRawMaterialsToOntology(rawMaterials);
-    setOntologyRefreshKey((current) => current + 1);
+    void repository.compileRawMaterialsToOntology(rawMaterials).then((documents) => {
+      setOntologyRefreshKey((current) => current + 1);
+      void repository.generateOutputArtifactsFromOntology(documents).then(() => {
+        setOutputRefreshKey((current) => current + 1);
+      });
+    });
   }, [rawMaterials, repository]);
 
   useEffect(() => {
@@ -228,7 +252,12 @@ export function ThoughtLibraryView({
 
   const handleSwitchTab = (nextTab: ThoughtLibraryTab) => {
     setActiveTab(nextTab);
-    const nextItems = nextTab === 'materials' ? rawMaterials.map(mapRawMaterialToThoughtLibraryItem) : getStaticThoughtLibraryItems(nextTab);
+    const nextItems =
+      nextTab === 'materials'
+        ? rawMaterials.map(mapRawMaterialToThoughtLibraryItem)
+        : nextTab === 'graph'
+          ? ontologyDocuments.map(mapOntologyDocumentToThoughtLibraryItem)
+          : outputArtifacts.map(mapOutputArtifactToThoughtLibraryItem);
     setSelectedByTab((current) => ({
       ...current,
       [nextTab]: current[nextTab] || nextItems[0]?.id || null,
@@ -521,6 +550,26 @@ export function ThoughtLibraryView({
                             <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">更新时间</div>
                             <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
                               {selectedRawMaterial?.updated_at ? new Date(selectedRawMaterial.updated_at).toLocaleString() : '刚刚'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : activeTab === 'artifacts' ? (
+                      <div className="space-y-3">
+                        <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
+                          {effectiveSelectedItem.bodyText?.trim() || effectiveSelectedItem.summary}
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">成果类型</div>
+                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                              {selectedOutputArtifact?.type || 'artifact'} · {selectedOutputArtifact?.status || 'draft'}
+                            </div>
+                          </div>
+                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源本体图谱</div>
+                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                              {(selectedOutputArtifact?.source_ontology_ids || []).length || 0} 个
                             </div>
                           </div>
                         </div>
