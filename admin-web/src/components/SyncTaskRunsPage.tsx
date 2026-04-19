@@ -35,6 +35,8 @@ export function SyncTaskRunsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [runningTaskId, setRunningTaskId] = useState('');
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [expandedRunId, setExpandedRunId] = useState('');
 
   const loadRuns = async () => {
     setLoading(true);
@@ -57,6 +59,16 @@ export function SyncTaskRunsPage() {
   useEffect(() => {
     void loadRuns();
   }, [taskId, status, triggerType]);
+
+  useEffect(() => {
+    if (!autoRefresh) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void loadRuns();
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [autoRefresh, taskId, status, triggerType]);
 
   const runningCount = useMemo(() => runs.filter((item) => item.status === 'running').length, [runs]);
   const failedCount = useMemo(() => runs.filter((item) => item.status === 'failed').length, [runs]);
@@ -118,6 +130,13 @@ export function SyncTaskRunsPage() {
               <button className="ghost-button" type="button" onClick={() => void loadRuns()} disabled={loading}>
                 刷新
               </button>
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => setAutoRefresh((current) => !current)}
+              >
+                {autoRefresh ? '自动刷新中' : '开启自动刷新'}
+              </button>
             </AdminSelectorRow>
           </AdminFilterStack>
         </div>
@@ -171,7 +190,21 @@ export function SyncTaskRunsPage() {
           <div className="fig-list">
             {runs.length ? (
               runs.map((item) => (
-                <article key={item.runId} className="fig-list-item">
+                <article
+                  key={item.runId}
+                  className="fig-list-item"
+                  style={{
+                    borderLeft:
+                      item.status === 'failed'
+                        ? '3px solid #b91c1c'
+                        : item.status === 'skipped'
+                          ? '3px solid #92400e'
+                          : item.status === 'success'
+                            ? '3px solid #15803d'
+                            : '3px solid transparent',
+                    paddingLeft: 12,
+                  }}
+                >
                   <div className="fig-list-item__body">
                     <div className="fig-list-item__title" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                       <span>{item.taskLabel || item.taskId}</span>
@@ -193,6 +226,50 @@ export function SyncTaskRunsPage() {
                       {`同步量 ${item.syncCount ?? '—'} · 数据源 ${item.dataSource || '—'} · 耗时 ${item.durationMs ?? '—'}ms`}
                     </div>
                     {item.errorMessage ? <div className="fig-list-item__meta" style={{ color: '#b91c1c' }}>{item.errorMessage}</div> : null}
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={() => setExpandedRunId((current) => (current === item.runId ? '' : item.runId))}
+                      >
+                        {expandedRunId === item.runId ? '收起详情' : '展开详情'}
+                      </button>
+                    </div>
+                    {expandedRunId === item.runId ? (
+                      <div
+                        style={{
+                          marginTop: 12,
+                          borderRadius: 12,
+                          background: '#f8fafc',
+                          padding: 12,
+                          fontSize: 12,
+                          lineHeight: 1.6,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {JSON.stringify(
+                          {
+                            run_id: item.runId,
+                            task_id: item.taskId,
+                            task_label: item.taskLabel,
+                            category: item.category,
+                            trigger_type: item.triggerType,
+                            schedule: item.schedule,
+                            status: item.status,
+                            started_at: item.startedAt,
+                            finished_at: item.finishedAt,
+                            duration_ms: item.durationMs,
+                            sync_count: item.syncCount,
+                            data_source: item.dataSource,
+                            error_message: item.errorMessage,
+                            metadata: item.metadata,
+                          },
+                          null,
+                          2,
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 </article>
               ))
