@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, RefreshCw, Search } from 'lucide-react';
+import { BookPlus, FilePlus2, Plus, RefreshCw, Search, Sparkles } from 'lucide-react';
 
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
@@ -24,6 +24,12 @@ import { mapRawMaterialToThoughtLibraryItem } from './raw-mappers';
 import { mapOntologyDocumentToThoughtLibraryItem } from './ontology-mappers';
 import { GraphifyOntologyGraphView } from './GraphifyOntologyGraphView';
 import { mapOutputArtifactToThoughtLibraryItem } from './output-mappers';
+import {
+  extractChatFeedbackFromContainer,
+  saveChatFeedbackAsMemo,
+  saveChatFeedbackAsOntologyClaim,
+  saveChatFeedbackAsRaw,
+} from './chat-feedback';
 import {
   importBrowserCaptureBatch,
   importBrowserCapturePayload,
@@ -77,6 +83,7 @@ export function ThoughtLibraryView({
   const repository = useMemo(() => createLocalKnowledgeLibraryRepository(), []);
   const { create: createRawMaterialRecord } = useCreateRawMaterial(repository);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const embeddedChatRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<ThoughtLibraryTab>(initialState.activeTab);
   const [selectedByTab, setSelectedByTab] = useState(initialState.selectedByTab);
   const [query, setQuery] = useState('');
@@ -84,6 +91,7 @@ export function ThoughtLibraryView({
   const [materialsRefreshKey, setMaterialsRefreshKey] = useState(0);
   const [ontologyRefreshKey, setOntologyRefreshKey] = useState(0);
   const [outputRefreshKey, setOutputRefreshKey] = useState(0);
+  const [feedbackBusy, setFeedbackBusy] = useState<'raw' | 'claim' | 'memo' | null>(null);
 
   const {
     items: rawMaterials,
@@ -343,6 +351,64 @@ export function ThoughtLibraryView({
     if (lastCreatedId) {
       setActiveTab('materials');
       setSelectedByTab((current) => ({ ...current, materials: lastCreatedId }));
+    }
+  };
+
+  const handleSaveFeedbackAsRaw = async () => {
+    setFeedbackBusy('raw');
+    try {
+      const feedback = extractChatFeedbackFromContainer(embeddedChatRef.current);
+      const created = await saveChatFeedbackAsRaw({
+        repository,
+        activeTab,
+        selectedItem: effectiveSelectedItem,
+        feedback,
+      });
+      if (created) {
+        setMaterialsRefreshKey((current) => current + 1);
+        setActiveTab('materials');
+        setSelectedByTab((current) => ({ ...current, materials: created.id }));
+      }
+    } finally {
+      setFeedbackBusy(null);
+    }
+  };
+
+  const handleSaveFeedbackAsClaim = async () => {
+    setFeedbackBusy('claim');
+    try {
+      const feedback = extractChatFeedbackFromContainer(embeddedChatRef.current);
+      const created = await saveChatFeedbackAsOntologyClaim({
+        repository,
+        selectedItem: effectiveSelectedItem,
+        feedback,
+      });
+      if (created) {
+        setOntologyRefreshKey((current) => current + 1);
+        setActiveTab('graph');
+        setSelectedByTab((current) => ({ ...current, graph: created.id }));
+      }
+    } finally {
+      setFeedbackBusy(null);
+    }
+  };
+
+  const handleSaveFeedbackAsMemo = async () => {
+    setFeedbackBusy('memo');
+    try {
+      const feedback = extractChatFeedbackFromContainer(embeddedChatRef.current);
+      const created = await saveChatFeedbackAsMemo({
+        repository,
+        selectedItem: effectiveSelectedItem,
+        feedback,
+      });
+      if (created) {
+        setOutputRefreshKey((current) => current + 1);
+        setActiveTab('artifacts');
+        setSelectedByTab((current) => ({ ...current, artifacts: created.id }));
+      }
+    } finally {
+      setFeedbackBusy(null);
     }
   };
 
@@ -620,17 +686,49 @@ export function ThoughtLibraryView({
         >
           <div className="flex items-center justify-between border-b border-[rgba(0,0,0,0.08)] px-4 py-3 dark:border-[rgba(255,255,255,0.08)]">
             <div className="text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">对话</div>
-            {effectiveSelectedItem ? (
-              <button
-                type="button"
-                onClick={handleOpenContextChat}
-                className="inline-flex h-8 items-center justify-center rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-3 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
-              >
-                在主对话中打开
-              </button>
-            ) : null}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {effectiveSelectedItem ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveFeedbackAsRaw()}
+                    disabled={feedbackBusy !== null}
+                    className="inline-flex h-8 items-center justify-center gap-1 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-2.5 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] disabled:cursor-not-allowed disabled:opacity-60 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                  >
+                    <FilePlus2 className="h-3.5 w-3.5" />
+                    <span>{feedbackBusy === 'raw' ? '沉淀中' : '存为 Raw'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveFeedbackAsClaim()}
+                    disabled={feedbackBusy !== null}
+                    className="inline-flex h-8 items-center justify-center gap-1 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-2.5 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] disabled:cursor-not-allowed disabled:opacity-60 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                  >
+                    <BookPlus className="h-3.5 w-3.5" />
+                    <span>{feedbackBusy === 'claim' ? '沉淀中' : '存为 Claim'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveFeedbackAsMemo()}
+                    disabled={feedbackBusy !== null}
+                    className="inline-flex h-8 items-center justify-center gap-1 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-2.5 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] disabled:cursor-not-allowed disabled:opacity-60 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>{feedbackBusy === 'memo' ? '沉淀中' : '存为 Memo'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenContextChat}
+                    className="inline-flex h-8 items-center justify-center rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-3 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                  >
+                    在主对话中打开
+                  </button>
+                </>
+              ) : null}
+            </div>
           </div>
           <ThoughtLibraryEmbeddedChatSurface
+            ref={embeddedChatRef}
             selectedItem={effectiveSelectedItem}
             activeTab={activeTab}
             gatewayUrl={gatewayUrl}
