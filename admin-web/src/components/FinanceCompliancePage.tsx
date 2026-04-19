@@ -57,6 +57,11 @@ export function FinanceCompliancePage() {
   const eventsByChannel = summary?.byChannel ?? [];
   const eventsByOutputClassification = summary?.byOutputClassification ?? [];
   const topReasons = summary?.topReasons ?? [];
+  const byDay = summary?.byDay ?? [];
+  const maxDailyTotal = useMemo(
+    () => byDay.reduce((current, item) => Math.max(current, item.total), 0),
+    [byDay],
+  );
   const selectedEvent = useMemo(
     () => events.find((item) => item.id === selectedId) || events[0] || null,
     [events, selectedId],
@@ -182,6 +187,56 @@ export function FinanceCompliancePage() {
             </div>
           </section>
         </div>
+
+        <section className="fig-card fig-card--subtle" style={{ marginTop: 20 }}>
+          <div className="fig-card__head">
+            <h3>按日趋势</h3>
+            <span>{String(byDay.length)} 天</span>
+          </div>
+          <div className="fig-list">
+            {byDay.length ? (
+              byDay.map((item) => (
+                <article key={item.date} className="fig-list-item">
+                  <div className="fig-list-item__body">
+                    <div className="fig-list-item__title">{item.date}</div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gap: 8,
+                        gridTemplateColumns: 'minmax(0,1fr) auto',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 10,
+                          borderRadius: 999,
+                          background: '#e2e8f0',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${maxDailyTotal > 0 ? Math.max(8, Math.round((item.total / maxDailyTotal) * 100)) : 0}%`,
+                            borderRadius: 999,
+                            background: 'linear-gradient(90deg, #c48a2a 0%, #b45309 100%)',
+                          }}
+                        />
+                      </div>
+                      <div className="fig-list-item__meta">{`${item.total} 条`}</div>
+                    </div>
+                    <div className="fig-list-item__meta">
+                      {`免责声明 ${item.disclaimerCount} · 降级 ${item.degradedCount} · 拦截 ${item.blockedCount}`}
+                    </div>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="empty-state">暂无趋势数据。</div>
+            )}
+          </div>
+        </section>
 
         <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(0, 1.2fr) minmax(340px, 0.8fr)', marginTop: 20 }}>
           <section className="fig-card fig-card--subtle">
