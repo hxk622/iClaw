@@ -122,6 +122,104 @@ bash scripts/install-cross-backup.sh ./cross-backup.aliyun-prod.env root@39.106.
 - 日志文件：`/var/log/iclaw-cross-backup.log`
 - 锁文件：`/var/lock/iclaw-cross-backup.lock`
 
+## 当前线上备份路径
+
+### 本机临时目录
+
+每次执行时，源机器会先在本机生成临时目录：
+
+- `/var/tmp/iclaw-cross-backup/run-<UTC时间戳>.*`
+
+用途：
+
+- 暂存 PostgreSQL dump
+- 暂存 dump 校验文件 `.sha256`
+- 暂存本次执行 manifest
+
+这些临时文件在脚本退出时会自动清理，不作为长期备份保留路径。
+
+### PostgreSQL 备份落点
+
+PostgreSQL dump 不落本地长期目录，长期保存在对端 MinIO：
+
+- dump：
+  - `iclaw-cross-backup-postgres/<node>/<yyyy>/<mm>/<dd>/<node>-control-plane-<UTC时间戳>.dump`
+- checksum：
+  - `iclaw-cross-backup-postgres/<node>/<yyyy>/<mm>/<dd>/<node>-control-plane-<UTC时间戳>.dump.sha256`
+
+当前两台机器对应关系：
+
+- `39.106.110.149` 生成的 PostgreSQL 备份写到 `47.93.231.197:9000`
+  - `iclaw-cross-backup-postgres/aliyun-prod/<yyyy>/<mm>/<dd>/...`
+- `47.93.231.197` 生成的 PostgreSQL 备份写到 `39.106.110.149:9000`
+  - `iclaw-cross-backup-postgres/aliyun-dev/<yyyy>/<mm>/<dd>/...`
+
+### Manifest 落点
+
+每次执行都会在对端 MinIO 写一份 manifest：
+
+- `iclaw-cross-backup-manifests/<node>/<UTC时间戳>.txt`
+
+当前两台机器对应关系：
+
+- `39.106.110.149 -> 47.93.231.197`
+  - `iclaw-cross-backup-manifests/aliyun-prod/<UTC时间戳>.txt`
+- `47.93.231.197 -> 39.106.110.149`
+  - `iclaw-cross-backup-manifests/aliyun-dev/<UTC时间戳>.txt`
+
+### S3 / MinIO 备份落点
+
+对象存储采用“每个源 bucket 对应一个对端 backup bucket”的方式，不直接覆盖对端业务 bucket。
+
+命名规则：
+
+- backup bucket：
+  - `iclaw-cross-backup-<node>-<source-bucket>`
+- bucket 内对象根目录：
+  - `data/`
+
+因此对象的长期落点格式是：
+
+- `iclaw-cross-backup-<node>-<source-bucket>/data/<原始对象路径>`
+
+### 当前线上实际 bucket 映射
+
+当前线上配置了以下源 bucket；如果某个 bucket 在源端不存在，脚本会自动跳过。
+
+`39.106.110.149 -> 47.93.231.197`
+
+- `iclaw-files`
+  - `iclaw-cross-backup-aliyun-prod-iclaw-files/data/`
+- `licaiclaw-files`
+  - `iclaw-cross-backup-aliyun-prod-licaiclaw-files/data/`
+- `iclaw-user-assets`
+  - `iclaw-cross-backup-aliyun-prod-iclaw-user-assets/data/`
+- `iclaw-prod`
+  - `iclaw-cross-backup-aliyun-prod-iclaw-prod/data/`
+- `licaiclaw-prod`
+  - `iclaw-cross-backup-aliyun-prod-licaiclaw-prod/data/`
+- `caiclaw-prod`
+  - `iclaw-cross-backup-aliyun-prod-caiclaw-prod/data/`
+- `openalpha-files`
+  - `iclaw-cross-backup-aliyun-prod-openalpha-files/data/`
+
+`47.93.231.197 -> 39.106.110.149`
+
+- `iclaw-files`
+  - `iclaw-cross-backup-aliyun-dev-iclaw-files/data/`
+- `licaiclaw-files`
+  - `iclaw-cross-backup-aliyun-dev-licaiclaw-files/data/`
+- `iclaw-user-assets`
+  - `iclaw-cross-backup-aliyun-dev-iclaw-user-assets/data/`
+- `iclaw-prod`
+  - `iclaw-cross-backup-aliyun-dev-iclaw-prod/data/`
+- `licaiclaw-prod`
+  - `iclaw-cross-backup-aliyun-dev-licaiclaw-prod/data/`
+- `caiclaw-prod`
+  - `iclaw-cross-backup-aliyun-dev-caiclaw-prod/data/`
+- `openalpha-files`
+  - `iclaw-cross-backup-aliyun-dev-openalpha-files/data/`
+
 如果后续需要改调度时间，不直接手改线上 crontab，优先重新执行安装脚本并覆盖：
 
 ```bash
