@@ -1,6 +1,11 @@
 import { readCacheJson, writeCacheJson } from '../../lib/persistence/cache-store.ts';
 import { buildStorageKey } from '../../lib/storage.ts';
 import type { OntologyDocument } from './ontology-types.ts';
+import {
+  getOntologyGraphIdentity,
+  getOntologyRevisionId,
+  withOntologyRevisionMetadata,
+} from './ontology-revisions.ts';
 
 const ONTOLOGY_STORAGE_KEY = buildStorageKey('knowledge-library.ontology.v1');
 
@@ -8,6 +13,7 @@ type OntologyStore = {
   version: 1;
   updated_at: string;
   items: OntologyDocument[];
+  latest_by_identity?: Record<string, string>;
 };
 
 function nowIso(): string {
@@ -25,8 +31,16 @@ function parseStore(raw: unknown): OntologyStore {
     updated_at: typeof candidate.updated_at === 'string' ? candidate.updated_at : nowIso(),
     items: items
       .filter((item) => item && typeof item === 'object')
-      .map((item) => item as OntologyDocument)
+      .map((item) => withOntologyRevisionMetadata(item as OntologyDocument))
       .sort((left, right) => String(right.updated_at || '').localeCompare(String(left.updated_at || ''))),
+    latest_by_identity:
+      candidate.latest_by_identity && typeof candidate.latest_by_identity === 'object'
+        ? Object.fromEntries(
+            Object.entries(candidate.latest_by_identity).filter(
+              ([key, value]) => Boolean(key) && typeof value === 'string' && value.trim(),
+            ),
+          )
+        : undefined,
   };
 }
 
@@ -39,22 +53,48 @@ function writeStore(store: OntologyStore): void {
 }
 
 export function listOntologyDocuments(): OntologyDocument[] {
-  return readStore().items;
+  const store = readStore();
+  const latestByIdentity = store.latest_by_identity || {};
+  const seen = new Set<string>();
+  const results: OntologyDocument[] = [];
+  store.items.forEach((item) => {
+    const identity = getOntologyGraphIdentity(item);
+    const latestRevisionId = latestByIdentity[identity] || getOntologyRevisionId(item);
+    if (seen.has(identity) || getOntologyRevisionId(item) !== latestRevisionId) {
+      return;
+    }
+    seen.add(identity);
+    results.push(item);
+  });
+  return results;
 }
 
 export function getOntologyDocumentById(id: string): OntologyDocument | null {
-  return readStore().items.find((item) => item.id === id) || null;
+  const store = readStore();
+  const exact = store.items.find((item) => item.id === id) || null;
+  if (exact) {
+    return exact;
+  }
+  const latestRevisionId = store.latest_by_identity?.[id] || null;
+  if (latestRevisionId) {
+    return store.items.find((item) => item.id === latestRevisionId) || null;
+  }
+  return store.items.find((item) => getOntologyGraphIdentity(item) === id) || null;
 }
 
 export function upsertOntologyDocument(document: OntologyDocument): OntologyDocument {
   const store = readStore();
-  const next: OntologyDocument = {
+  const next: OntologyDocument = withOntologyRevisionMetadata({
     ...document,
     updated_at: nowIso(),
-  };
+  });
   const items = [next, ...store.items.filter((item) => item.id !== next.id)].sort((left, right) =>
     String(right.updated_at || '').localeCompare(String(left.updated_at || '')),
   );
-  writeStore({ version: 1, updated_at: next.updated_at, items });
+  const latestByIdentity = {
+    ...(store.latest_by_identity || {}),
+    [getOntologyGraphIdentity(next)]: getOntologyRevisionId(next),
+  };
+  writeStore({ version: 1, updated_at: next.updated_at, items, latest_by_identity: latestByIdentity });
   return next;
 }

@@ -59,6 +59,11 @@ export interface OntologyDocument {
   nodes: OntologyNode[];
   edges: OntologyEdge[];
   metadata?: {
+    graph_identity?: string;
+    revision_id?: string;
+    previous_revision_id?: string | null;
+    compiled_at?: string;
+    source_signature?: string | null;
     chunk_count?: number;
     compiler_version?: string;
     compiler_backend?: string;

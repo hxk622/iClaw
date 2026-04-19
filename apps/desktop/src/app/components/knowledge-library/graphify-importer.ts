@@ -1,6 +1,7 @@
 import type { OntologyDocument, OntologyEdge, OntologyNode, OntologyNodeType, OntologyRelationType } from './ontology-types.ts';
 import type { OutputArtifact } from './output-types.ts';
 import type { RawMaterial } from './types.ts';
+import { buildOntologySourceSignature, buildOntologyRevisionId } from './ontology-revisions.ts';
 
 type GraphifyJsonNode = {
   id: string;
@@ -208,8 +209,21 @@ export function importGraphifyGraphToOntologyDocument(input: ImportGraphifyGraph
     .filter((edge): edge is OntologyEdge => Boolean(edge));
 
   const now = nowIso();
+  const graphIdentity = identity.id;
+  const sourceSignature = buildOntologySourceSignature({
+    graphIdentity,
+    sourceRawIds,
+    sourceOutputIds: outputArtifactIds,
+    compilerBackend: 'graphify-v3',
+    compilerVersion: 'graphify-v3-importer-v1',
+    generatedFrom: input.trigger === 'output_feedback' ? 'output' : 'raw',
+  });
   return {
-    id: identity.id,
+    id: buildOntologyRevisionId({
+      graphIdentity,
+      compiledAt: now,
+      sourceSignature,
+    }),
     title: identity.title,
     summary: identity.summary,
     source_raw_ids: sourceRawIds,
@@ -219,6 +233,14 @@ export function importGraphifyGraphToOntologyDocument(input: ImportGraphifyGraph
     nodes,
     edges,
     metadata: {
+      graph_identity: graphIdentity,
+      revision_id: buildOntologyRevisionId({
+        graphIdentity,
+        compiledAt: now,
+        sourceSignature,
+      }),
+      compiled_at: now,
+      source_signature: sourceSignature,
       chunk_count: 0,
       compiler_version: 'graphify-v3-importer-v1',
       compiler_backend: 'graphify-v3',

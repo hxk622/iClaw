@@ -1,6 +1,7 @@
 import { getRawMaterialById } from './raw-storage.ts';
 import { getOntologyDocumentById } from './ontology-storage.ts';
 import type { OntologyDocument, OntologyEdge, OntologyNode } from './ontology-types.ts';
+import { buildOntologyRevisionId, buildOntologySourceSignature } from './ontology-revisions.ts';
 import {
   parseOutputArtifactFinanceCompliance,
   parseOutputArtifactLineage,
@@ -51,6 +52,7 @@ export function buildOntologyDocumentFromOutputArtifact(artifact: OutputArtifact
   const lineage = parseOutputArtifactLineage(artifact.metadata || null);
   const sourceSurface = parseOutputArtifactSourceSurface(artifact.metadata || null);
   const financeCompliance = parseOutputArtifactFinanceCompliance(artifact.metadata || null);
+  const graphIdentity = graphId;
 
   const sourceRawMaterials = uniqueStrings(artifact.source_raw_ids)
     .map((id) => getRawMaterialById(id))
@@ -228,7 +230,18 @@ export function buildOntologyDocumentFromOutputArtifact(artifact: OutputArtifact
   }
 
   return {
-    id: graphId,
+    id: buildOntologyRevisionId({
+      graphIdentity,
+      compiledAt: now,
+      sourceSignature: buildOntologySourceSignature({
+        graphIdentity,
+        sourceRawIds: uniqueStrings(artifact.source_raw_ids),
+        sourceOutputIds: [artifact.id],
+        compilerBackend: 'local-fallback',
+        compilerVersion: OUTPUT_ONTOLOGY_COMPILER_VERSION,
+        generatedFrom: 'output',
+      }),
+    }),
     title: `${artifact.title} 图谱`,
     summary: `由成果 ${artifact.title} 反哺生成的本体图谱。`,
     source_raw_ids: uniqueStrings(artifact.source_raw_ids),
@@ -238,6 +251,28 @@ export function buildOntologyDocumentFromOutputArtifact(artifact: OutputArtifact
     nodes,
     edges,
     metadata: {
+      graph_identity: graphIdentity,
+      revision_id: buildOntologyRevisionId({
+        graphIdentity,
+        compiledAt: now,
+        sourceSignature: buildOntologySourceSignature({
+          graphIdentity,
+          sourceRawIds: uniqueStrings(artifact.source_raw_ids),
+          sourceOutputIds: [artifact.id],
+          compilerBackend: 'local-fallback',
+          compilerVersion: OUTPUT_ONTOLOGY_COMPILER_VERSION,
+          generatedFrom: 'output',
+        }),
+      }),
+      compiled_at: now,
+      source_signature: buildOntologySourceSignature({
+        graphIdentity,
+        sourceRawIds: uniqueStrings(artifact.source_raw_ids),
+        sourceOutputIds: [artifact.id],
+        compilerBackend: 'local-fallback',
+        compilerVersion: OUTPUT_ONTOLOGY_COMPILER_VERSION,
+        generatedFrom: 'output',
+      }),
       chunk_count: 0,
       compiler_version: OUTPUT_ONTOLOGY_COMPILER_VERSION,
       compiler_backend: 'local-fallback',
