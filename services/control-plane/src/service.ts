@@ -88,6 +88,7 @@ import type {
   AdminClientPerfSampleView,
   AdminFinanceComplianceEventView,
   AdminFinanceComplianceSummaryView,
+  AdminSyncTaskRunView,
   FinanceComplianceChannel,
   FinanceComplianceEventRecord,
   FinanceComplianceRiskLevel,
@@ -128,6 +129,7 @@ import type {
   SkillSource,
   SkillCatalogEntryRecord,
   SkillCatalogEntryView,
+  SyncTaskRunRecord,
   SkillSyncRunView,
   SkillSyncSourceView,
   InvestmentExpertCatalogItemView,
@@ -1161,6 +1163,27 @@ function toAdminFinanceComplianceEventView(record: FinanceComplianceEventRecord)
     used_model: record.usedModel,
     metadata: record.metadata,
     created_at: record.createdAt,
+  };
+}
+
+function toAdminSyncTaskRunView(record: SyncTaskRunRecord): AdminSyncTaskRunView {
+  return {
+    run_id: record.runId,
+    task_id: record.taskId,
+    task_label: record.taskLabel,
+    category: record.category,
+    trigger_type: record.triggerType,
+    schedule: record.schedule,
+    status: record.status,
+    started_at: record.startedAt,
+    finished_at: record.finishedAt,
+    duration_ms: record.durationMs,
+    sync_count: record.syncCount,
+    data_source: record.dataSource,
+    error_message: record.errorMessage,
+    metadata: record.metadata,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
   };
 }
 
@@ -5158,6 +5181,25 @@ export class ControlPlaneService {
       limit: input.limit,
     });
     return {items: items.map(toAdminFinanceComplianceEventView)};
+  }
+
+  async listAdminSyncTaskRuns(
+    accessToken: string,
+    input: {
+      task_id?: string | null;
+      status?: string | null;
+      trigger_type?: string | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminSyncTaskRunView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listSyncTaskRuns({
+      taskId: input.task_id || null,
+      status: input.status || null,
+      triggerType: input.trigger_type || null,
+      limit: input.limit,
+    });
+    return {items: items.map(toAdminSyncTaskRunView)};
   }
 
   async getAdminFinanceComplianceSummary(

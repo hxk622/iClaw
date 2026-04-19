@@ -2361,6 +2361,17 @@ const server = createJsonServer([
       }),
   },
   {
+    method: 'GET',
+    path: '/admin/sync-tasks/runs',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminSyncTaskRuns(requireBearerToken(headers), {
+        task_id: url.searchParams.get('task_id'),
+        status: url.searchParams.get('status'),
+        trigger_type: url.searchParams.get('trigger_type'),
+        limit: url.searchParams.get('limit') ? Number.parseInt(url.searchParams.get('limit') || '', 10) : null,
+      }),
+  },
+  {
     method: 'POST',
     path: '/portal/client-metrics/events',
     handler: ({headers, body}: HandlerContext) =>

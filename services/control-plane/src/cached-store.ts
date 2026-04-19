@@ -41,6 +41,7 @@ import type {
   SessionRecord,
   SessionTokenPair,
   SkillCatalogEntryRecord,
+  SyncTaskRunRecord,
   SkillSyncRunRecord,
   SkillSyncSourceRecord,
   DesktopActionApprovalGrantRecord,
@@ -785,6 +786,15 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     offset?: number | null;
   }): Promise<{items: MarketNewsItemRecord[]; total: number}> {
     return this.base.listMarketNews(input);
+  }
+
+  async listSyncTaskRuns(input?: {
+    taskId?: string | null;
+    status?: string | null;
+    triggerType?: string | null;
+    limit?: number | null;
+  }): Promise<SyncTaskRunRecord[]> {
+    return this.base.listSyncTaskRuns(input);
   }
 
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {

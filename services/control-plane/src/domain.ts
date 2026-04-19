@@ -936,6 +936,44 @@ export type AdminFinanceComplianceSummaryView = {
   by_day: AdminFinanceComplianceDailySummaryView[];
 };
 
+export type SyncTaskRunRecord = {
+  runId: string;
+  taskId: string;
+  taskLabel: string;
+  category: string;
+  triggerType: 'manual' | 'schedule' | 'warmup';
+  schedule: string | null;
+  status: 'running' | 'success' | 'failed';
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  syncCount: number | null;
+  dataSource: string | null;
+  errorMessage: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminSyncTaskRunView = {
+  run_id: string;
+  task_id: string;
+  task_label: string;
+  category: string;
+  trigger_type: 'manual' | 'schedule' | 'warmup';
+  schedule: string | null;
+  status: 'running' | 'success' | 'failed';
+  started_at: string;
+  finished_at: string | null;
+  duration_ms: number | null;
+  sync_count: number | null;
+  data_source: string | null;
+  error_message: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AdminDesktopUpdateEventView = AdminClientMetricEventView & {
   rollout_id: string | null;
   update_identity: string;

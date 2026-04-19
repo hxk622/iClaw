@@ -67,6 +67,7 @@ import type {
   SessionRecord,
   SessionTokenPair,
   SkillCatalogEntryRecord,
+  SyncTaskRunRecord,
   SkillSyncRunRecord,
   SkillSyncSourceRecord,
   UpsertAgentCatalogEntryInput,
@@ -440,6 +441,12 @@ export interface ControlPlaneStore {
     limit?: number | null;
     offset?: number | null;
   }): Promise<{items: MarketNewsItemRecord[]; total: number}>;
+  listSyncTaskRuns(input?: {
+    taskId?: string | null;
+    status?: string | null;
+    triggerType?: string | null;
+    limit?: number | null;
+  }): Promise<SyncTaskRunRecord[]>;
   listAgentCatalog(): Promise<AgentCatalogEntryRecord[]>;
   listInvestmentExpertCatalogSummaries(): Promise<InvestmentExpertCatalogSummaryRecord[]>;
   listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]>;
@@ -2248,6 +2255,10 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
 
   async listMarketNews(): Promise<{items: MarketNewsItemRecord[]; total: number}> {
     return {items: [], total: 0};
+  }
+
+  async listSyncTaskRuns(): Promise<SyncTaskRunRecord[]> {
+    return [];
   }
 
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {

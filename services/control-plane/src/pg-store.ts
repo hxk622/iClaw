@@ -72,6 +72,7 @@ import type {
   SessionRecord,
   SessionTokenPair,
   SkillCatalogEntryRecord,
+  SyncTaskRunRecord,
   SkillCatalogRecord,
   SkillSyncRunRecord,
   SkillSyncSourceRecord,
@@ -459,6 +460,25 @@ type MarketOverviewRow = {
   limit_down_count: number | null;
   top_sectors_json: unknown;
   metadata_json: Record<string, unknown> | null;
+};
+
+type SyncTaskRunRow = {
+  run_id: string;
+  task_id: string;
+  task_label: string;
+  category: string;
+  trigger_type: 'manual' | 'schedule' | 'warmup';
+  schedule: string | null;
+  status: 'running' | 'success' | 'failed';
+  started_at: Date;
+  finished_at: Date | null;
+  duration_ms: number | null;
+  sync_count: number | null;
+  data_source: string | null;
+  error_message: string | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: Date;
+  updated_at: Date;
 };
 
 function parseRunBillingSummary(
@@ -1514,6 +1534,27 @@ function mapMarketNewsItemRow(row: MarketNewsItemRow): MarketNewsItemRecord {
     sentimentLabel: row.sentiment_label,
     relatedSymbols: Array.isArray(row.related_symbols) ? row.related_symbols.filter((item) => typeof item === 'string') : [],
     relatedTags: Array.isArray(row.related_tags) ? row.related_tags.filter((item) => typeof item === 'string') : [],
+    metadata: parseJsonObject(row.metadata_json),
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapSyncTaskRunRow(row: SyncTaskRunRow): SyncTaskRunRecord {
+  return {
+    runId: row.run_id,
+    taskId: row.task_id,
+    taskLabel: row.task_label,
+    category: row.category,
+    triggerType: row.trigger_type,
+    schedule: row.schedule,
+    status: row.status,
+    startedAt: row.started_at.toISOString(),
+    finishedAt: row.finished_at ? row.finished_at.toISOString() : null,
+    durationMs: row.duration_ms,
+    syncCount: row.sync_count,
+    dataSource: row.data_source,
+    errorMessage: row.error_message,
     metadata: parseJsonObject(row.metadata_json),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -5984,6 +6025,64 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       items: rowsResult.rows.map(mapMarketNewsItemRow),
       total: Number.parseInt(totalResult.rows[0]?.count || '0', 10) || 0,
     };
+  }
+
+  async listSyncTaskRuns(input?: {
+    taskId?: string | null;
+    status?: string | null;
+    triggerType?: string | null;
+    limit?: number | null;
+  }): Promise<SyncTaskRunRecord[]> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    const taskId = typeof input?.taskId === 'string' ? input.taskId.trim() : '';
+    const status = typeof input?.status === 'string' ? input.status.trim() : '';
+    const triggerType = typeof input?.triggerType === 'string' ? input.triggerType.trim() : '';
+    const limit =
+      typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 100;
+
+    if (taskId) {
+      values.push(taskId);
+      conditions.push(`task_id = $${values.length}`);
+    }
+    if (status) {
+      values.push(status);
+      conditions.push(`status = $${values.length}`);
+    }
+    if (triggerType) {
+      values.push(triggerType);
+      conditions.push(`trigger_type = $${values.length}`);
+    }
+
+    const whereSql = conditions.length ? `where ${conditions.join(' and ')}` : '';
+    values.push(limit);
+    const result = await this.pool.query<SyncTaskRunRow>(
+      `
+        select
+          run_id,
+          task_id,
+          task_label,
+          category,
+          trigger_type,
+          schedule,
+          status,
+          started_at,
+          finished_at,
+          duration_ms,
+          sync_count,
+          data_source,
+          error_message,
+          metadata_json,
+          created_at,
+          updated_at
+        from sync_task_runs
+        ${whereSql}
+        order by started_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapSyncTaskRunRow);
   }
 
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {
