@@ -36,10 +36,11 @@ import {
 } from './output-types';
 import { openWorkspaceArtifact } from '@/app/lib/tauri-artifact-preview';
 import { openGraphifyOutputFile, readGraphifyOutputText } from '@/app/lib/tauri-graphify-output';
-import { runGraphifyQuery } from '@/app/lib/tauri-graphify';
+import { runGraphifyQuery, runGraphifySaveResult } from '@/app/lib/tauri-graphify';
 import { getOutputArtifactByDedupeKey } from './output-storage';
 import type { RawMaterial } from './types';
 import {
+  buildGraphQueryMemoryRawMaterialInput,
   extractChatFeedbackFromContainer,
   saveChatFeedbackAsMemo,
   saveChatFeedbackAsOntologyClaim,
@@ -108,7 +109,7 @@ export function KnowledgeLibraryView({
 }) {
   const initialState = useMemo(() => readKnowledgeLibraryState(), []);
   const repository = useMemo(() => createLocalKnowledgeLibraryRepository(), []);
-  const { create: createRawMaterialRecord } = useCreateRawMaterial(repository);
+  const { create: createRawMaterialRecord, upsert: upsertRawMaterialRecord } = useCreateRawMaterial(repository);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const embeddedChatRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<KnowledgeLibraryTab>(initialState.activeTab);
@@ -129,6 +130,8 @@ export function KnowledgeLibraryView({
   const [graphifyQueryLoading, setGraphifyQueryLoading] = useState(false);
   const [graphifyQueryResult, setGraphifyQueryResult] = useState<string | null>(null);
   const [graphifyQueryError, setGraphifyQueryError] = useState<string | null>(null);
+  const [graphifyQuerySaveBusy, setGraphifyQuerySaveBusy] = useState<'query' | 'path' | null>(null);
+  const [graphifyQuerySaveMessage, setGraphifyQuerySaveMessage] = useState<string | null>(null);
   const [selectedGraphNode, setSelectedGraphNode] = useState<{ id: string; label: string; type: string } | null>(null);
   const [graphPathTargetNodeId, setGraphPathTargetNodeId] = useState<string | null>(null);
   const [graphPathResult, setGraphPathResult] = useState<string | null>(null);
@@ -471,6 +474,8 @@ export function KnowledgeLibraryView({
     setSelectedGraphNode(null);
     setGraphPathTargetNodeId(null);
     setGraphPathResult(null);
+    setGraphifyQuerySaveBusy(null);
+    setGraphifyQuerySaveMessage(null);
   }, [selectedOntologyDocument?.id]);
 
   const handleRefresh = async () => {
@@ -619,6 +624,7 @@ export function KnowledgeLibraryView({
     setGraphifyQueryLoading(true);
     setGraphifyQueryError(null);
     setGraphifyQueryResult(null);
+    setGraphifyQuerySaveMessage(null);
     try {
       const result = await runGraphifyQuery({
         graphPath: selectedOntologyGraphifyGraphPath,
@@ -649,6 +655,7 @@ export function KnowledgeLibraryView({
     const result = findOntologyShortestPath(selectedOntologyDocument, selectedGraphNode.id, graphPathTargetNodeId);
     if (!result) {
       setGraphPathResult('当前两个节点之间没有找到路径。');
+      setGraphifyQuerySaveMessage(null);
       return;
     }
     const text = result.nodes
@@ -661,6 +668,56 @@ export function KnowledgeLibraryView({
       })
       .join('');
     setGraphPathResult(text);
+    setGraphifyQuerySaveMessage(null);
+  };
+
+  const persistGraphifyQueryMemory = async (input: {
+    queryType: 'query' | 'path_query';
+    question: string;
+    answer: string;
+    sourceNodes: string[];
+  }) => {
+    if (!selectedOntologyGraphifyGraphPath || !effectiveSelectedItem) {
+      return;
+    }
+    const busyKey = input.queryType === 'path_query' ? 'path' : 'query';
+    setGraphifyQuerySaveBusy(busyKey);
+    setGraphifyQuerySaveMessage(null);
+    try {
+      const result = await runGraphifySaveResult({
+        graphPath: selectedOntologyGraphifyGraphPath,
+        question: input.question,
+        answer: input.answer,
+        queryType: input.queryType,
+        sourceNodes: input.sourceNodes,
+      });
+      if (!result || !result.available || result.error) {
+        setGraphifyQuerySaveMessage(result?.error || 'graphify save-result 失败。');
+        return;
+      }
+      const raw = await upsertRawMaterialRecord(
+        buildGraphQueryMemoryRawMaterialInput({
+          selectedItem: effectiveSelectedItem,
+          question: input.question,
+          answer: input.answer,
+          queryType: input.queryType,
+          sourceNodes: input.sourceNodes,
+          savedPath: result.savedPath,
+        }),
+      );
+      const documents = await repository.compileRawMaterialsToOntology([raw]);
+      if (documents.length > 0) {
+        await repository.generateOutputArtifactsFromOntology(documents);
+      }
+      setMaterialsRefreshKey((current) => current + 1);
+      setOntologyRefreshKey((current) => current + 1);
+      setOutputRefreshKey((current) => current + 1);
+      setGraphifyQuerySaveMessage('已保存到 Graphify Memory，并回流到知识飞轮。');
+    } catch (error) {
+      setGraphifyQuerySaveMessage(error instanceof Error ? error.message : '保存图查询记忆失败。');
+    } finally {
+      setGraphifyQuerySaveBusy(null);
+    }
   };
 
   const handleOpenGraphifyQueryInChat = () => {
@@ -1250,6 +1307,22 @@ export function KnowledgeLibraryView({
                                   送到右侧对话
                                 </Button>
                               </div>
+                              {selectedGraphNodeDetail.node.evidence_links.length > 0 ? (
+                                <div className="mt-3 rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
+                                  <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">节点证据</div>
+                                  <div className="mt-2 space-y-2">
+                                    {selectedGraphNodeDetail.node.evidence_links.slice(0, 6).map((link, index) => (
+                                      <div key={`${link.raw_id}:${link.chunk_id || 'none'}:${index}`} className="text-[11px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                                        <div>{link.excerpt || '无摘要证据'}</div>
+                                        <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                          {link.raw_id}
+                                          {link.chunk_id ? ` · ${link.chunk_id}` : ''}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
                           ) : null}
                           <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
@@ -1299,10 +1372,30 @@ export function KnowledgeLibraryView({
                               >
                                 送到右侧对话
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() =>
+                                  void persistGraphifyQueryMemory({
+                                    queryType: 'query',
+                                    question: graphifyQueryText.trim(),
+                                    answer: graphifyQueryResult || '',
+                                    sourceNodes: selectedGraphNode ? [selectedGraphNode.label] : [],
+                                  })
+                                }
+                                disabled={!graphifyQueryResult || graphifyQuerySaveBusy !== null}
+                              >
+                                {graphifyQuerySaveBusy === 'query' ? '保存中' : '沉淀为图记忆'}
+                              </Button>
                             </div>
                             {graphifyQueryError ? (
                               <div className="mt-3 text-[12px] leading-6 text-[#B45309] dark:text-[#EBCB8B]">
                                 {graphifyQueryError}
+                              </div>
+                            ) : null}
+                            {graphifyQuerySaveMessage ? (
+                              <div className="mt-3 text-[12px] leading-6 text-[#8A5A14] dark:text-[#EBCB8B]">
+                                {graphifyQuerySaveMessage}
                               </div>
                             ) : null}
                             {graphifyQueryResult ? (
@@ -1349,11 +1442,46 @@ export function KnowledgeLibraryView({
                                 >
                                   送到右侧对话
                                 </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() =>
+                                    void persistGraphifyQueryMemory({
+                                      queryType: 'path_query',
+                                      question: `从 ${selectedGraphNode.label} 到 ${graphPathTargetNode?.label || ''} 的路径是什么？`,
+                                      answer: graphPathResult || '',
+                                      sourceNodes: [selectedGraphNode.label, graphPathTargetNode?.label || ''].filter(Boolean),
+                                    })
+                                  }
+                                  disabled={!graphPathResult || graphifyQuerySaveBusy !== null}
+                                >
+                                  {graphifyQuerySaveBusy === 'path' ? '保存中' : '沉淀为图记忆'}
+                                </Button>
                               </div>
                               {graphPathResult ? (
                                 <pre className="mt-3 max-h-[180px] overflow-auto rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 text-[11px] leading-6 text-[#334155] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#CBD5E1]">
                                   {graphPathResult}
                                 </pre>
+                              ) : null}
+                              {graphPathResult && selectedGraphNodeDetail?.neighbors.length ? (
+                                <div className="mt-3 rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
+                                  <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">路径相关证据</div>
+                                  <div className="mt-2 space-y-2">
+                                    {selectedGraphNodeDetail.neighbors.slice(0, 6).map((neighbor) => (
+                                      <div key={`${neighbor.direction}:${neighbor.edge.id}`} className="text-[11px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                                        <div>
+                                          {neighbor.direction === 'outgoing'
+                                            ? `${selectedGraphNodeDetail.node.label} -> ${neighbor.node.label}`
+                                            : `${neighbor.node.label} -> ${selectedGraphNodeDetail.node.label}`} · {neighbor.edge.relation_type}
+                                        </div>
+                                        <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                          {String(neighbor.edge.metadata?.source_file || 'unknown')}
+                                          {neighbor.edge.metadata?.source_location ? ` · ${String(neighbor.edge.metadata.source_location)}` : ''}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
                               ) : null}
                             </div>
                           ) : null}

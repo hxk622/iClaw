@@ -55,6 +55,39 @@ export function resolveKnowledgeLibraryItemSourceContext(item: KnowledgeLibraryI
   };
 }
 
+export function buildGraphQueryMemoryRawMaterialInput(input: {
+  selectedItem: KnowledgeLibraryItem | null;
+  question: string;
+  answer: string;
+  queryType: 'query' | 'path_query' | 'explain';
+  sourceNodes?: string[];
+  savedPath?: string | null;
+}) {
+  const titlePrefix =
+    input.queryType === 'path_query'
+      ? '图路径沉淀'
+      : input.queryType === 'explain'
+        ? '节点解释沉淀'
+        : '图查询沉淀';
+  const title = `${titlePrefix}：${input.selectedItem?.title || '未命名对象'}`;
+  const answer = normalizeText(input.answer || '', 12000);
+  const question = normalizeText(input.question || '', 1200);
+  const sourceNodes = Array.isArray(input.sourceNodes) ? input.sourceNodes.filter(Boolean).slice(0, 8) : [];
+  return {
+    kind: 'chat' as const,
+    title,
+    excerpt: normalizeText(answer, 240),
+    content_text: `# ${title}\n\n## Question\n${question || '未记录'}\n\n## Answer\n${answer || '未记录'}${
+      sourceNodes.length > 0 ? `\n\n## Source Nodes\n${sourceNodes.map((node) => `- ${node}`).join('\n')}` : ''
+    }${input.savedPath ? `\n\n## Graphify Memory\n${input.savedPath}` : ''}`,
+    source_name: 'Graphify Query Memory',
+    source_type: 'chat' as const,
+    tags: ['Graphify', 'Query Memory', input.queryType === 'path_query' ? 'Path' : 'Query'],
+    note: question || null,
+    dedupe_key: `graphify-memory::${input.selectedItem?.id || 'unknown'}::${input.queryType}::${question.toLowerCase()}`,
+  };
+}
+
 export async function saveChatFeedbackAsRaw(input: {
   repository: KnowledgeLibraryRepository;
   activeTab: KnowledgeLibraryTab;

@@ -291,6 +291,29 @@ struct GraphifyQueryResultPayload {
     error: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphifySaveResultRequestInput {
+    graph_path: String,
+    question: String,
+    answer: String,
+    query_type: Option<String>,
+    source_nodes: Option<Vec<String>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphifySaveResultResultPayload {
+    backend: String,
+    available: bool,
+    executable: Option<String>,
+    graph_path: String,
+    saved_path: Option<String>,
+    stdout: Option<String>,
+    stderr: Option<String>,
+    error: Option<String>,
+}
+
 fn openclaw_main_agent_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = openclaw_state_dir(app)?
         .join("agents")
@@ -9480,6 +9503,100 @@ fn run_graphify_query(
 }
 
 #[tauri::command]
+fn run_graphify_save_result(
+    app: AppHandle,
+    input: GraphifySaveResultRequestInput,
+) -> Result<GraphifySaveResultResultPayload, String> {
+    let resolved_graph_path = resolve_graphify_output_path(&input.graph_path, &app)?;
+    let Some((command_name, command_args)) = detect_graphify_command() else {
+        return Ok(GraphifySaveResultResultPayload {
+            backend: String::from("graphify-v3-cli"),
+            available: false,
+            executable: None,
+            graph_path: resolved_graph_path.to_string_lossy().to_string(),
+            saved_path: None,
+            stdout: None,
+            stderr: None,
+            error: Some(String::from(
+                "graphify executable not found; install graphify or expose it on PATH",
+            )),
+        });
+    };
+
+    let output_dir = resolved_graph_path
+        .parent()
+        .ok_or_else(|| String::from("graphify graph path has no parent directory"))?;
+    let memory_dir = output_dir.join("memory");
+    fs::create_dir_all(&memory_dir).map_err(|e| {
+        format!(
+            "failed to create graphify memory dir {}: {e}",
+            memory_dir.to_string_lossy()
+        )
+    })?;
+
+    let mut command = Command::new(command_name);
+    command.args(&command_args);
+    command.arg("save-result");
+    command.arg("--question");
+    command.arg(input.question.trim());
+    command.arg("--answer");
+    command.arg(input.answer.trim());
+    command.arg("--type");
+    command.arg(input.query_type.unwrap_or_else(|| String::from("query")));
+    command.arg("--memory-dir");
+    command.arg(memory_dir.to_string_lossy().to_string());
+    if let Some(source_nodes) = input.source_nodes {
+        let cleaned = source_nodes
+            .into_iter()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .take(10)
+            .collect::<Vec<_>>();
+        if !cleaned.is_empty() {
+            command.arg("--nodes");
+            command.args(cleaned);
+        }
+    }
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    #[cfg(windows)]
+    configure_background_child_process(&mut command);
+
+    let output = command
+        .output()
+        .map_err(|e| format!("failed to run graphify save-result: {e}"))?;
+    let stdout = String::from_utf8(output.stdout).ok();
+    let stderr = String::from_utf8(output.stderr).ok();
+    let available = output.status.success();
+    let saved_path = stdout
+        .as_deref()
+        .and_then(|value| value.lines().find(|line| line.trim().starts_with("Saved to ")))
+        .map(|line| line.trim().trim_start_matches("Saved to ").to_string());
+    let error = if available {
+        None
+    } else {
+        Some(format!(
+            "graphify save-result failed (status={})",
+            output
+                .status
+                .code()
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| String::from("signal"))
+        ))
+    };
+
+    Ok(GraphifySaveResultResultPayload {
+        backend: String::from("graphify-v3-cli"),
+        available,
+        executable: Some(command_name.to_string()),
+        graph_path: resolved_graph_path.to_string_lossy().to_string(),
+        saved_path,
+        stdout,
+        stderr,
+        error,
+    })
+}
+
+#[tauri::command]
 fn read_graphify_output_text(app: AppHandle, path: String) -> Result<String, String> {
     let resolved = resolve_graphify_output_path(&path, &app)?;
     fs::read_to_string(&resolved)
@@ -9977,6 +10094,7 @@ fn main() {
             open_workspace_artifact,
             run_graphify_compile,
             run_graphify_query,
+            run_graphify_save_result,
             read_graphify_output_text,
             open_graphify_output_file,
             check_desktop_update,
