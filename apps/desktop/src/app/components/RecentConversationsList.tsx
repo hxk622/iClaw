@@ -143,7 +143,7 @@ export function RecentConversationsList({
       <div className="mb-2 flex items-center justify-between px-3">
         <div className="flex h-7 items-center gap-2">
           <span className="text-[13px] leading-none text-[var(--text-secondary)]">{title}</span>
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] text-[11px] font-medium leading-none text-[var(--text-secondary)]">
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[var(--sidebar-surface-border)] bg-[var(--sidebar-surface-bg)] text-[11px] font-medium leading-none text-[var(--text-secondary)]">
             {Math.min(visibleConversations.length, SIDEBAR_CONVERSATION_LIMIT)}
           </span>
         </div>

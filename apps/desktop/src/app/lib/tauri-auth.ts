@@ -1,9 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { ApiError, type AuthTokens } from '@iclaw/shared';
-
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
+import { isTauriRuntime } from './desktop-runtime';
 
 function normalizeInvokeError(error: unknown): Error {
   if (error instanceof Error) {

@@ -35,9 +35,6 @@ export const BRAND = {
   "storage": {
     "namespace": "caiclaw"
   },
-  "endpoints": {
-    "authBaseUrl": "https://caiclaw.aiyuanxi.com"
-  },
   "oauth": {
     "wechat": {
       "appId": "",
@@ -71,7 +68,7 @@ export const BRAND = {
       "bundleIdentifier": "ai.caiclaw.desktop",
       "artifactBaseName": "caiclaw",
       "buildId": "202604181535",
-      "sourceProfileHash": "9b944cb5c8d9d88179b68fdb74ea51b86d9e8eac9005c063d2c2f92c53676360"
+      "sourceProfileHash": "482b749fedb50efc8689d5fd2f2c20d8a2e1e7d31b5fd3ca7c3a4321474cb5a2"
     }
   }
 } as const;

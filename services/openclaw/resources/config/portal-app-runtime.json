@@ -1135,6 +1135,27 @@
         }
       }
     },
+    "financeCompliance": {
+      "enabled": true,
+      "classificationPolicy": "finance_v1",
+      "disclaimerPolicy": "finance_inline_small",
+      "disclaimerText": "本回答由AI生成，仅供参考，请仔细甄别，谨慎投资。",
+      "blockingPolicy": "research_only",
+      "showFor": [
+        "investment_view",
+        "actionable_advice"
+      ],
+      "hideFor": [
+        "market_data"
+      ],
+      "blockFor": [
+        "execution_request"
+      ],
+      "degradeFor": [
+        "advice_request",
+        "personalized_request"
+      ]
+    },
     "skill_bindings": [
       {
         "skill_slug": "a-share-data-toolkit",
@@ -2790,7 +2811,7 @@
   },
   "syncMeta": {
     "appName": "caiclaw",
-    "syncedAt": "2026-04-18T14:27:29.879Z",
+    "syncedAt": "2026-04-19T03:02:30.042Z",
     "copiedSkillDirs": [
       "A股数据工具包",
       "docx",
@@ -2938,7 +2959,7 @@
       "sec-edgar"
     ],
     "mcpConfigSha256": "0b7ea8e277280a53aeba579707247105e2f185568140aef9210a347df226496f",
-    "resolvedConfigSha256": "b7d848265a3940f1fe794281f780f6584ef2b76c19124e0956dc2a887b3d2e3e",
+    "resolvedConfigSha256": "971bc82d3c0dd09c6737aa6f975835ede7e22b4c2fea5bdc3a9f9a2a770f49dd",
     "skipRuntimeSkillSync": false,
     "bundledOnly": false,
     "incrementalSkillSync": true

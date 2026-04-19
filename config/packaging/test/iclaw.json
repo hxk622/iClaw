@@ -42,9 +42,6 @@
   "storage": {
     "namespace": "iclaw"
   },
-  "endpoints": {
-    "authBaseUrl": "https://iclaw.aiyuanxi.com"
-  },
   "oauth": {
     "wechat": {
       "appId": "",

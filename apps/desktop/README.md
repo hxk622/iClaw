@@ -53,7 +53,9 @@ pnpm dev:web
 
 ## Prod 打包注意事项
 
-- `.env.prod` 只用于环境级公共配置，例如 `APP_NAME`、`VITE_AUTH_BASE_URL`、`VITE_API_BASE_URL`
+- `.env.prod` 只用于环境级公共配置，例如 `APP_NAME`、`VITE_AUTH_BASE_URL`、`VITE_DESKTOP_AUTH_BASE_URL`、`VITE_API_BASE_URL`
+- `dev/test` 下 `VITE_DESKTOP_AUTH_BASE_URL` 通常指向本地 `http://127.0.0.1:2130`；`prod` 下必须指向线上 control-plane，不能写成本地回环地址
+- OEM brand packaging profile 只保留品牌静态信息，不能再写 control-plane / auth endpoint
 - 不允许在 `.env.prod` 中写入安装实例级 secret，例如本地 gateway token / password
 - 如果某个已发布安装包误把本地 gateway secret 编译进包，表现通常会是：
   - `ws://127.0.0.1:2126` 鉴权失败

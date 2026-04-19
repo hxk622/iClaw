@@ -3,7 +3,7 @@ param(
   [string]$ReleaseVersion = '',
   [string[]]$Channels = @('dev', 'prod'),
   [string[]]$Targets = @('x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'),
-  [int]$KeepVersions = $(if ($env:ICLAW_KEEP_VERSIONS) { [int]$env:ICLAW_KEEP_VERSIONS } else { 2 }),
+  [int]$KeepVersions = $(if ($env:ICLAW_KEEP_VERSIONS) { [int]$env:ICLAW_KEEP_VERSIONS } else { 3 }),
   [switch]$SkipUnsupportedTargets,
   [switch]$SkipBuild,
   [switch]$SkipPublish,

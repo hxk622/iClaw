@@ -44,6 +44,11 @@ function buildDesktopBrandStagingPaths(rootDir, brandId, buildId, runId) {
   };
 }
 
+function parsePositiveInteger(value, fallback) {
+  const numeric = Number.parseInt(trimString(value), 10);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
+}
+
 function resolveBuildId({ appVersion, releaseVersion }) {
   const explicitBuildId = trimString(process.env.BUILD_ID || process.env.ICLAW_BUILD_ID);
   if (explicitBuildId) {
@@ -153,5 +158,113 @@ export async function readActiveDesktopBrandStage(options = {}) {
     ...payload,
     currentPath,
     paths: buildDesktopBrandStagingPaths(rootDir, brandId, buildId, runId),
+  };
+}
+
+export async function pruneDesktopBrandStages(options = {}) {
+  const rootDir = options.rootDir ? path.resolve(options.rootDir) : defaultRootDir;
+  const brandId = resolveBrandId(options.brandId);
+  const keepStages = parsePositiveInteger(
+    options.keepStages ?? process.env.ICLAW_DESKTOP_STAGE_KEEP ?? process.env.ICLAW_KEEP_VERSIONS,
+    3,
+  );
+  const brandRoot = path.join(rootDir, '.build', 'desktop', brandId);
+  const protectedStageRoot = trimString(options.protectedStageRoot)
+    ? path.resolve(options.protectedStageRoot)
+    : '';
+  const protectedRoots = new Set(protectedStageRoot ? [protectedStageRoot] : []);
+
+  let buildEntries = [];
+  try {
+    buildEntries = await fs.readdir(brandRoot, { withFileTypes: true });
+  } catch {
+    return {
+      brandRoot,
+      keepStages,
+      protectedRoots: [...protectedRoots],
+      stagesSeen: 0,
+      stagesRemoved: 0,
+      buildDirsRemoved: 0,
+      removedStageRoots: [],
+    };
+  }
+
+  const stageEntries = [];
+  for (const buildEntry of buildEntries) {
+    if (!buildEntry.isDirectory()) {
+      continue;
+    }
+    const buildId = trimString(buildEntry.name);
+    if (!buildId) {
+      continue;
+    }
+    const buildRoot = path.join(brandRoot, buildId);
+    let runEntries = [];
+    try {
+      runEntries = await fs.readdir(buildRoot, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const runEntry of runEntries) {
+      if (!runEntry.isDirectory()) {
+        continue;
+      }
+      const runId = trimString(runEntry.name);
+      if (!runId) {
+        continue;
+      }
+      stageEntries.push({
+        buildId,
+        runId,
+        stageRoot: path.join(buildRoot, runId),
+        sortKey: `${buildId}/${runId}`,
+      });
+    }
+  }
+
+  stageEntries.sort((left, right) => right.sortKey.localeCompare(left.sortKey));
+  const keepRoots = new Set([...protectedRoots]);
+  for (const entry of stageEntries) {
+    if (keepRoots.size >= keepStages) {
+      break;
+    }
+    keepRoots.add(entry.stageRoot);
+  }
+
+  const removedStageRoots = [];
+  for (const entry of stageEntries) {
+    if (keepRoots.has(entry.stageRoot)) {
+      continue;
+    }
+    await fs.rm(entry.stageRoot, { recursive: true, force: true });
+    removedStageRoots.push(entry.stageRoot);
+  }
+
+  let buildDirsRemoved = 0;
+  for (const buildEntry of buildEntries) {
+    if (!buildEntry.isDirectory()) {
+      continue;
+    }
+    const buildRoot = path.join(brandRoot, buildEntry.name);
+    let remainingEntries = [];
+    try {
+      remainingEntries = await fs.readdir(buildRoot);
+    } catch {
+      continue;
+    }
+    if (remainingEntries.length === 0) {
+      await fs.rm(buildRoot, { recursive: true, force: true });
+      buildDirsRemoved += 1;
+    }
+  }
+
+  return {
+    brandRoot,
+    keepStages,
+    protectedRoots: [...protectedRoots],
+    stagesSeen: stageEntries.length,
+    stagesRemoved: removedStageRoots.length,
+    buildDirsRemoved,
+    removedStageRoots,
   };
 }

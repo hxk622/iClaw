@@ -17,6 +17,7 @@ ENV_GATEWAY_TOKEN="$(read_iclaw_env_value "$ROOT_DIR" "VITE_GATEWAY_TOKEN" "$TAR
 ENV_APP_NAME="$(read_iclaw_env_value "$ROOT_DIR" "APP_NAME" "$TARGET_ENV" || true)"
 ENV_API_BASE_URL="$(read_iclaw_env_value "$ROOT_DIR" "VITE_API_BASE_URL" "$TARGET_ENV" || true)"
 ENV_AUTH_BASE_URL="$(read_iclaw_env_value "$ROOT_DIR" "VITE_AUTH_BASE_URL" "$TARGET_ENV" || true)"
+ENV_DESKTOP_AUTH_BASE_URL="$(read_iclaw_env_value "$ROOT_DIR" "VITE_DESKTOP_AUTH_BASE_URL" "$TARGET_ENV" || true)"
 APP_NAME="${APP_NAME:-${ENV_APP_NAME:-}}"
 GATEWAY_TOKEN_FILE="$(resolve_gateway_token_file)"
 
@@ -30,6 +31,7 @@ echo "[web-dev] gateway token source: $GATEWAY_TOKEN_SOURCE"
 
 RESOLVED_API_BASE_URL="${VITE_API_BASE_URL:-${ENV_API_BASE_URL:-http://127.0.0.1:$API_PORT}}"
 RESOLVED_AUTH_BASE_URL="${VITE_AUTH_BASE_URL:-${ENV_AUTH_BASE_URL:-http://127.0.0.1:$AUTH_PORT}}"
+RESOLVED_DESKTOP_AUTH_BASE_URL="${VITE_DESKTOP_AUTH_BASE_URL:-${ENV_DESKTOP_AUTH_BASE_URL:-http://127.0.0.1:$AUTH_PORT}}"
 
 stop_existing_web() {
   local pids=""
@@ -79,8 +81,10 @@ EOF
 echo "[web-dev] Starting frontend on $WEB_HOST:$WEB_PORT"
 echo "[web-dev] VITE_API_BASE_URL=$RESOLVED_API_BASE_URL"
 echo "[web-dev] VITE_AUTH_BASE_URL=$RESOLVED_AUTH_BASE_URL"
+echo "[web-dev] VITE_DESKTOP_AUTH_BASE_URL=$RESOLVED_DESKTOP_AUTH_BASE_URL"
 VITE_API_BASE_URL="$RESOLVED_API_BASE_URL" \
 VITE_AUTH_BASE_URL="$RESOLVED_AUTH_BASE_URL" \
+VITE_DESKTOP_AUTH_BASE_URL="$RESOLVED_DESKTOP_AUTH_BASE_URL" \
 VITE_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
 ICLAW_PORTAL_APP_NAME="$APP_NAME" \
 pnpm --filter @iclaw/desktop dev --host "$WEB_HOST" --port "$WEB_PORT" --strictPort

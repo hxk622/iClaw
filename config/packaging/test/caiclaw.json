@@ -36,9 +36,6 @@
   "storage": {
     "namespace": "caiclaw"
   },
-  "endpoints": {
-    "authBaseUrl": "https://caiclaw.aiyuanxi.com"
-  },
   "oauth": {
     "wechat": {
       "appId": "",

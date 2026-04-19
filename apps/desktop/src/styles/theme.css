@@ -7,6 +7,23 @@
   --bg-card: #fcfbf8;
   --bg-elevated: #ffffff;
   --bg-hover: #f1eee8;
+  --sidebar-header-bg: linear-gradient(180deg, #221f1c 0%, #171411 100%);
+  --sidebar-brand-tile-bg: linear-gradient(180deg, #2a2622 0%, #1d1916 100%);
+  --sidebar-surface-bg: #f4f0e8;
+  --sidebar-surface-hover: #ece6db;
+  --sidebar-surface-border: rgba(110, 97, 82, 0.12);
+  --sidebar-subtle-bg: #efe9de;
+  --sidebar-subtle-hover: #e7dfd1;
+  --shell-header-bg: linear-gradient(180deg, #faf8f3 0%, #f3efe6 100%);
+  --shell-header-pill-bg: #f6f1e8;
+  --shell-header-pill-hover: #ede6d9;
+  --shell-header-pill-border: rgba(110, 97, 82, 0.14);
+  --shell-header-badge-bg: rgba(168, 140, 93, 0.14);
+  --shell-header-badge-text: #8f7751;
+  --shell-header-live-bg: #f7f2e8;
+  --shell-header-live-border: rgba(110, 97, 82, 0.14);
+  --shell-header-mode-bg: rgba(168, 140, 93, 0.14);
+  --shell-header-mode-text: #8f7751;
 
   --text-primary: #1a1a18;
   --text-secondary: #6b655d;
@@ -260,6 +277,23 @@
   --bg-card: #1b1917;
   --bg-elevated: #24211e;
   --bg-hover: #2c2824;
+  --sidebar-header-bg: linear-gradient(180deg, #181513 0%, #100f0e 100%);
+  --sidebar-brand-tile-bg: linear-gradient(180deg, #26211d 0%, #171411 100%);
+  --sidebar-surface-bg: rgba(255, 255, 255, 0.05);
+  --sidebar-surface-hover: rgba(255, 255, 255, 0.08);
+  --sidebar-surface-border: rgba(255, 255, 255, 0.07);
+  --sidebar-subtle-bg: rgba(255, 255, 255, 0.04);
+  --sidebar-subtle-hover: rgba(255, 255, 255, 0.07);
+  --shell-header-bg: linear-gradient(180deg, #1a1714 0%, #12100f 100%);
+  --shell-header-pill-bg: rgba(255, 255, 255, 0.06);
+  --shell-header-pill-hover: rgba(255, 255, 255, 0.1);
+  --shell-header-pill-border: rgba(255, 255, 255, 0.08);
+  --shell-header-badge-bg: rgba(180, 154, 112, 0.18);
+  --shell-header-badge-text: #e5d2ad;
+  --shell-header-live-bg: rgba(255, 255, 255, 0.06);
+  --shell-header-live-border: rgba(255, 255, 255, 0.08);
+  --shell-header-mode-bg: rgba(180, 154, 112, 0.18);
+  --shell-header-mode-text: #f0d7a7;
 
   --text-primary: #fbf7f0;
   --text-secondary: #d9d0c4;

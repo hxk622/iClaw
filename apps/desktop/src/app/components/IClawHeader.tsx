@@ -543,11 +543,11 @@ export const IClawHeader = memo(function IClawHeader({
   }, [feed.live, feed.updatedAt, resolvedConfig?.liveStatusLabel, resolvedConfig?.statusLabel]);
 
   return (
-    <header className="relative z-[1] border-b border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_96%,white_4%),color-mix(in_srgb,var(--bg-page)_94%,white_6%))] backdrop-blur-sm [contain:paint] [transform:translateZ(0)]">
+    <header className="relative z-[1] border-b border-[var(--border-default)] bg-[image:var(--shell-header-bg)] backdrop-blur-sm [contain:paint] [transform:translateZ(0)]">
       <div className="flex h-[56px] items-center justify-between gap-3.5 px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3.5">
           {resolvedConfig?.showLiveBadge !== false ? (
-            <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_76%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_84%,white_16%)] px-3 py-1 text-[12px] font-medium text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
+            <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--shell-header-live-border)] bg-[var(--shell-header-live-bg)] px-3 py-1 text-[12px] font-medium text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
               <Globe2 className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
               <span>{updatedLabel}</span>
             </div>
@@ -559,7 +559,7 @@ export const IClawHeader = memo(function IClawHeader({
                 {feed.quotes.map((quote) => (
                   <div
                     key={quote.id}
-                    className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent px-2.5 py-1 transition-colors duration-200 hover:border-[color-mix(in_srgb,var(--border-default)_88%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-card)_78%,white_22%)]"
+                    className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent px-2.5 py-1 transition-colors duration-200 hover:border-[var(--shell-header-pill-border)] hover:bg-[var(--shell-header-pill-hover)]"
                   >
                     <span className="text-[12px] font-medium text-[var(--text-secondary)]">{quote.label}</span>
                     <span className="text-[14px] font-semibold tabular-nums text-[var(--text-primary)]">{quote.value}</span>
@@ -576,7 +576,7 @@ export const IClawHeader = memo(function IClawHeader({
 
         {resolvedConfig?.showHeadlines !== false ? (
         <div className="hidden min-w-0 flex-[0_1_32rem] items-center justify-center lg:flex">
-          <div className="flex min-w-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_78%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_86%,white_14%)] px-3 py-1 shadow-[var(--shadow-sm)]">
+          <div className="flex min-w-0 items-center gap-2 rounded-full border border-[var(--shell-header-pill-border)] bg-[var(--shell-header-pill-bg)] px-3 py-1 shadow-[var(--shadow-sm)]">
             <Newspaper className="h-3.5 w-3.5 shrink-0 text-[var(--brand-primary)]" />
             <div className="min-w-0 truncate text-[13px] leading-6 text-[var(--text-secondary)]">
               {activeHeadline ? (
@@ -618,10 +618,10 @@ export const IClawHeader = memo(function IClawHeader({
               type="button"
               title="积分"
               aria-label="积分"
-              className="group inline-flex h-8.5 cursor-pointer items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_88%,white_12%)] px-3 shadow-[var(--shadow-sm)] transition-colors duration-200 hover:bg-[color-mix(in_srgb,var(--bg-hover)_94%,white_6%)]"
+              className="group inline-flex h-8.5 cursor-pointer items-center gap-2 rounded-full border border-[var(--shell-header-pill-border)] bg-[var(--shell-header-pill-bg)] px-3 shadow-[var(--shadow-sm)] transition-colors duration-200 hover:bg-[var(--shell-header-pill-hover)]"
               onClick={onCreditsClick}
             >
-              <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[rgba(245,158,11,0.14)] text-[#b45309]">
+              <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[var(--shell-header-badge-bg)] text-[var(--shell-header-badge-text)]">
                 <Coins className="h-3.5 w-3.5" />
               </span>
               <span className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{balanceText}</span>
@@ -631,10 +631,10 @@ export const IClawHeader = memo(function IClawHeader({
           {resolvedConfig?.showRechargeButton !== false ? (
             <button
               type="button"
-              className="group inline-flex h-8.5 cursor-pointer items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_88%,white_12%)] px-3 shadow-[var(--shadow-sm)] transition-colors duration-200 hover:bg-[color-mix(in_srgb,var(--bg-hover)_94%,white_6%)]"
+              className="group inline-flex h-8.5 cursor-pointer items-center gap-2 rounded-full border border-[var(--shell-header-pill-border)] bg-[var(--shell-header-pill-bg)] px-3 shadow-[var(--shadow-sm)] transition-colors duration-200 hover:bg-[var(--shell-header-pill-hover)]"
               onClick={onRechargeClick}
             >
-              <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[rgba(168,140,93,0.14)] text-[var(--brand-primary)]">
+              <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[var(--shell-header-badge-bg)] text-[var(--shell-header-badge-text)]">
                 <Crown className="h-3.5 w-3.5" />
               </span>
               <span className="hidden text-[13px] font-semibold text-[var(--text-primary)] sm:inline">
@@ -644,7 +644,7 @@ export const IClawHeader = memo(function IClawHeader({
           ) : null}
 
           {resolvedConfig?.showModeBadge !== false ? (
-            <div className="hidden items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--chip-brand-bg)_64%,var(--bg-card))] px-2.5 py-[3px] text-[12px] font-medium text-[var(--chip-brand-text)] xl:inline-flex">
+            <div className="hidden items-center gap-1 rounded-full bg-[var(--shell-header-mode-bg)] px-2.5 py-[3px] text-[12px] font-medium text-[var(--shell-header-mode-text)] xl:inline-flex">
               <Sparkles className="h-3.5 w-3.5" />
               {resolvedConfig?.modeBadgeLabel || '脉搏模式'}
             </div>

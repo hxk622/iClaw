@@ -1,3 +1,4 @@
+import { isTauriRuntime } from './desktop-runtime';
 import { loadOemRuntimeSnapshot, saveOemRuntimeSnapshot } from './tauri-runtime-config.ts';
 
 export type BrandRuntimeConfig = {
@@ -312,10 +313,6 @@ type PublicBrandConfigResponse = {
 
 function joinUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, '')}${path}`;
-}
-
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 function asObject(value: unknown): Record<string, unknown> {

@@ -173,7 +173,6 @@ function buildProfile(detail: PortalAppDetail, cachedAssets: Record<string, stri
     ...asObject(appConfig.brandMeta),
   };
   const storage = asObject(appConfig.storage);
-  const endpoints = asObject(appConfig.endpoints);
   const oauth = asObject(appConfig.oauth);
   const distribution = asObject(appConfig.distribution);
   const distributionDownloads = asObject(distribution.downloads);
@@ -217,9 +216,6 @@ function buildProfile(detail: PortalAppDetail, cachedAssets: Record<string, stri
     },
     storage: {
       namespace: trimString(storage.namespace || brandMeta.storage_namespace) || brandId,
-    },
-    endpoints: {
-      authBaseUrl: trimString(endpoints.authBaseUrl || endpoints.auth_base_url),
     },
     oauth: {
       wechat: {

@@ -166,13 +166,13 @@ const SidebarBrandHeader = memo(function SidebarBrandHeader({
   return (
     <div
       className={cn(
-        'relative flex items-center border-b border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_96%,white_4%),color-mix(in_srgb,var(--bg-page)_94%,white_6%))] backdrop-blur-sm',
+        'relative flex items-center border-b border-[var(--border-default)] bg-[image:var(--sidebar-header-bg)] backdrop-blur-sm',
         collapsed ? 'h-[56px] px-2 pr-10' : 'h-[56px] gap-3 px-3 pr-11',
       )}
     >
       <div
         className={cn(
-          'flex items-center justify-center overflow-hidden rounded-xl border border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_84%,white_16%),color-mix(in_srgb,var(--bg-page)_90%,white_10%))] shadow-[var(--shadow-sm)]',
+          'flex items-center justify-center overflow-hidden rounded-xl border border-[var(--sidebar-surface-border)] bg-[image:var(--sidebar-brand-tile-bg)] shadow-[var(--shadow-sm)]',
           collapsed ? 'h-7 w-7 rounded-[10px]' : 'h-10 w-10',
         )}
       >
@@ -224,7 +224,7 @@ const SidebarNewChatBar = memo(function SidebarNewChatBar({
               <Plus className="h-3.5 w-3.5" />
             </span>
           }
-          className="h-10 justify-center rounded-[13px] border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-card)_86%,var(--bg-page))] px-0 text-[0px] font-semibold text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[color-mix(in_srgb,var(--chip-brand-bg)_48%,var(--bg-card))] hover:text-[var(--text-primary)]"
+          className="h-10 justify-center rounded-[13px] border-[var(--sidebar-surface-border)] bg-[var(--sidebar-subtle-bg)] px-0 text-[0px] font-semibold text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[var(--sidebar-subtle-hover)] hover:text-[var(--text-primary)]"
         />
       </div>
     );
@@ -243,7 +243,7 @@ const SidebarNewChatBar = memo(function SidebarNewChatBar({
             <Plus className="h-3.5 w-3.5" />
           </span>
         }
-        className="h-10 justify-center rounded-[13px] border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-card)_86%,var(--bg-page))] px-3 text-[14px] font-semibold text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[color-mix(in_srgb,var(--chip-brand-bg)_48%,var(--bg-card))] hover:text-[var(--text-primary)]"
+        className="h-10 justify-center rounded-[13px] border-[var(--sidebar-surface-border)] bg-[var(--sidebar-subtle-bg)] px-3 text-[14px] font-semibold text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[var(--sidebar-subtle-hover)] hover:text-[var(--text-primary)]"
       >
         新建对话
       </Button>
@@ -281,8 +281,8 @@ function SidebarMenuGroup({
               item.active
                 ? 'border border-[var(--surface-active-border)] bg-[var(--surface-active-bg)] text-[var(--surface-active-text)] shadow-[var(--surface-active-shadow)]'
                 : collapsed
-                  ? 'border border-transparent hover:bg-[var(--bg-hover)]'
-                  : 'border border-transparent hover:translate-x-[4px] hover:scale-[1.015] hover:bg-[var(--bg-hover)]'
+                  ? 'border border-transparent hover:border-[var(--sidebar-surface-border)] hover:bg-[var(--sidebar-surface-hover)]'
+                  : 'border border-transparent hover:border-[var(--sidebar-surface-border)] hover:translate-x-[4px] hover:scale-[1.015] hover:bg-[var(--sidebar-surface-hover)]'
             } ${collapsed ? 'justify-center px-0 py-0 h-11' : 'gap-3 px-3 py-1.5 text-left'}`}
             style={{
               transitionTimingFunction: 'var(--motion-spring)',
@@ -294,8 +294,8 @@ function SidebarMenuGroup({
                 <span
                   className={`flex h-6 w-6 items-center justify-center transition-all duration-[var(--motion-panel)] ${
                     item.active
-                      ? 'border-[var(--surface-active-border)] bg-[color-mix(in_srgb,var(--chip-brand-bg-hover)_90%,white_10%)] shadow-[0_8px_18px_rgba(168,140,93,0.16)]'
-                      : 'group-hover:border-[rgba(168,140,93,0.18)] group-hover:bg-[rgba(168,140,93,0.08)]'
+                      ? 'border-[var(--surface-active-border)] bg-[var(--sidebar-subtle-hover)] shadow-[0_8px_18px_rgba(168,140,93,0.16)]'
+                      : 'group-hover:border-[var(--chip-brand-border)] group-hover:bg-[var(--sidebar-subtle-hover)]'
                   } ${item.iconWrapClass}`}
                   style={{ transitionTimingFunction: 'var(--motion-spring)' }}
                 >
@@ -480,10 +480,10 @@ const SidebarFooterAccount = memo(function SidebarFooterAccount({
         onClick={() => setMenuOpen((v) => !v)}
         title={collapsed ? resolveUserName(user) : undefined}
         className={cn(
-          'group flex w-full cursor-pointer rounded-xl bg-[var(--bg-elevated)] transition-all duration-[var(--motion-panel)] hover:bg-[var(--bg-hover)] active:scale-[0.992]',
+          'group flex w-full cursor-pointer border border-[var(--sidebar-surface-border)] bg-[var(--sidebar-surface-bg)] transition-all duration-[var(--motion-panel)] hover:bg-[var(--sidebar-surface-hover)] active:scale-[0.992]',
           collapsed
-            ? 'items-center justify-center px-0 py-1.5'
-            : 'items-center gap-3 px-2 py-1.5 text-left hover:translate-x-[2px] hover:scale-[1.01]',
+            ? 'items-center justify-center rounded-full px-0 py-1.5'
+            : 'items-center gap-3 rounded-full px-3 py-2 text-left hover:translate-x-[2px] hover:scale-[1.01]',
         )}
         style={{
           transitionTimingFunction: 'var(--motion-spring)',

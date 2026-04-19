@@ -1,9 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { AgentCatalogEntryData } from '@iclaw/sdk';
-
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
+import { isTauriRuntime } from './desktop-runtime';
 
 function readMetadataString(metadata: Record<string, unknown> | null | undefined, key: string): string | null {
   const value = metadata?.[key];

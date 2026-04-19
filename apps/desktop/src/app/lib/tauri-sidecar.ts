@@ -1,4 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
+import { isTauriRuntime } from './desktop-runtime';
+
+export { isTauriRuntime } from './desktop-runtime';
 
 export interface GatewayAuth {
   token?: string;
@@ -7,10 +10,6 @@ export interface GatewayAuth {
 
 export interface PortConflictStatus {
   occupied_ports: number[];
-}
-
-export function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 export async function loadGatewayAuth(): Promise<GatewayAuth | null> {

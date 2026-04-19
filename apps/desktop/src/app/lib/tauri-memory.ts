@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { isTauriRuntime } from './desktop-runtime';
 
 const MEMORY_DEV_ENDPOINT = '/__iclaw/memory';
 const MEMORY_SNAPSHOT_TIMEOUT_MS = 8000;
@@ -65,10 +66,6 @@ export interface MemoryRuntimeStatusSnapshot {
   archiveDir: string;
   cachedAt?: number | null;
   stale?: boolean;
-}
-
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {

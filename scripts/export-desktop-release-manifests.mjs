@@ -48,12 +48,10 @@ function parseArgs(argv) {
 
 function resolveControlPlaneBaseUrl(profile) {
   const explicit = trimString(process.env.ICLAW_CONTROL_PLANE_BASE_URL);
-  const fallback = trimString(profile?.endpoints?.authBaseUrl);
-  const baseUrl = explicit || fallback;
-  if (!baseUrl) {
-    throw new Error('Missing control-plane base URL. Set ICLAW_CONTROL_PLANE_BASE_URL or endpoints.authBaseUrl.');
+  if (!explicit) {
+    throw new Error('Missing control-plane base URL. Set ICLAW_CONTROL_PLANE_BASE_URL.');
   }
-  return baseUrl.replace(/\/+$/, '');
+  return explicit.replace(/\/+$/, '');
 }
 
 async function fetchManifest(baseUrl, brandId, channel, target) {

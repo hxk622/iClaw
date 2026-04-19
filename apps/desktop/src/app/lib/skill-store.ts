@@ -16,6 +16,7 @@ import type {
 } from './extension-setup';
 import {parseExtensionSetupSchema} from './extension-setup';
 import { canUseCacheStorage, readCacheJson, writeCacheJson } from './persistence/cache-store';
+import { isTauriRuntime } from './desktop-runtime';
 
 type ManagedSkillInstallInput = {
   slug: string;
@@ -164,10 +165,6 @@ type SkillStoreCatalogCacheSnapshot = {
 type SkillStoreCatalogQuery = {
   tagKeywords?: string[];
 };
-
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
 
 function canUseStorage(): boolean {
   return canUseCacheStorage();

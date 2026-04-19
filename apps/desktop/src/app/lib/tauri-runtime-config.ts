@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { isTauriRuntime } from './desktop-runtime';
 
 export interface RuntimeConfig {
   openai_api_key?: string | null;
@@ -93,10 +94,6 @@ export interface OemRuntimeSnapshot {
   brandId: string;
   publishedVersion: number;
   config: Record<string, unknown>;
-}
-
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 export function normalizeTauriError(error: unknown, fallback: string): Error {

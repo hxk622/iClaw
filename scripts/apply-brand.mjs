@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { loadDesktopBrandContext } from './lib/desktop-brand-context.mjs';
+import { loadDesktopBrandContext, pruneDesktopBrandStages } from './lib/desktop-brand-context.mjs';
 import { isFalsyEnv } from './lib/desktop-release-artifacts.mjs';
 import { spawnSync } from 'node:child_process';
 
@@ -265,7 +265,6 @@ function buildBrandTs(brand, appVersion, assetPaths, brandStamp) {
       storage: {
         namespace: brand.storage.namespace,
       },
-      endpoints: brand.endpoints,
       oauth: brand.oauth,
       website: brand.website,
       distribution: {
@@ -548,13 +547,12 @@ async function main() {
         productName: brand.productName,
         bundleIdentifier: brand.bundleIdentifier,
         authService: brand.authService,
-        endpoints: brand.endpoints,
         artifactBaseName,
-        storageNamespace: brand.storage.namespace,
-        build: {
-          version: appVersion,
-          stamp: brandStamp,
-        },
+      storageNamespace: brand.storage.namespace,
+      build: {
+        version: appVersion,
+        stamp: brandStamp,
+      },
       },
       null,
       2,
@@ -619,6 +617,17 @@ async function main() {
   await mirrorPathToTargets(brandGeneratedTsPath, [staging.brandGeneratedTsPath]);
   await mirrorPathToTargets(outputIconsDir, [staging.iconsGeneratedDir]);
   await mirrorPathToTargets(outputInstallerAssetsDir, [staging.installerGeneratedDir]);
+
+  const stagePruneResult = await pruneDesktopBrandStages({
+    rootDir,
+    brandId: brand.brandId,
+    protectedStageRoot: staging.root,
+  });
+  if (stagePruneResult.stagesRemoved > 0 || stagePruneResult.buildDirsRemoved > 0) {
+    process.stdout.write(
+      `[brand] pruned desktop staging for ${brand.brandId}: removed ${stagePruneResult.stagesRemoved} stages, ${stagePruneResult.buildDirsRemoved} empty build dirs; keep=${stagePruneResult.keepStages}\n`,
+    );
+  }
 
   process.stdout.write(`[brand] applied ${brand.brandId}\n`);
 }

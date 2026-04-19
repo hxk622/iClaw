@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { readCacheString, removeCacheKeys, writeCacheString } from '@/app/lib/persistence/cache-store';
+import { isTauriRuntime } from './desktop-runtime';
 import { ACCESS_TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY } from './storage';
 
 const LEGACY_ACCESS_TOKEN_KEY = 'iclaw_access_token';
@@ -10,10 +11,6 @@ const LEGACY_NAMESPACE_REFRESH_TOKEN_KEYS = ['iclaw:auth.refresh_token'];
 export interface StoredAuth {
   accessToken: string;
   refreshToken: string;
-}
-
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 function normalizeStoredAuth(input: Partial<StoredAuth> | null | undefined): StoredAuth | null {

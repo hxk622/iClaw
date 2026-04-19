@@ -30,11 +30,11 @@ import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvide
 import {
   detectPortConflicts,
   ensureOpenClawCliAvailable,
-  isTauriRuntime,
   loadGatewayAuth,
   startSidecar,
   stopSidecar,
 } from './lib/tauri-sidecar';
+import { isTauriRuntime } from './lib/desktop-runtime';
 import {
   clearPortalProviderAuth,
   diagnoseRuntime,
@@ -347,10 +347,11 @@ const CONFIGURED_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) ||
 const API_BASE_URL = IS_TAURI_RUNTIME ? LOCAL_API_BASE_URL : CONFIGURED_API_BASE_URL;
 const AUTH_BASE_URL = resolveDesktopAuthBaseUrl({
   envAuthBaseUrl: import.meta.env.VITE_AUTH_BASE_URL as string | undefined,
-  brandAuthBaseUrl: BRAND.endpoints.authBaseUrl,
+  envDesktopAuthBaseUrl: import.meta.env.VITE_DESKTOP_AUTH_BASE_URL as string | undefined,
   localAuthBaseUrl: LOCAL_AUTH_BASE_URL,
   isTauriRuntime: IS_TAURI_RUNTIME,
   locationHostname: typeof window !== 'undefined' ? window.location.hostname : null,
+  locationProtocol: typeof window !== 'undefined' ? window.location.protocol : null,
 });
 const DEFAULT_GATEWAY_WS_URL = API_BASE_URL.replace(/^http:\/\//, 'ws://').replace(/^https:\/\//, 'wss://');
 const GATEWAY_WS_URL =

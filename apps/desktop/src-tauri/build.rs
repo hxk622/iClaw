@@ -37,13 +37,13 @@ fn main() {
         .map(str::to_owned)
         .or_else(|| Some(format!("ai.{brand_id}.desktop")))
         .unwrap();
-    let auth_base_url = brand_json
-        .as_ref()
-        .and_then(|value| value.get("endpoints"))
-        .and_then(|entry| entry.get("authBaseUrl"))
-        .and_then(|entry| entry.as_str())
-        .map(str::to_owned)
-        .unwrap_or_default();
+    let auth_base_url = std::env::var("ICLAW_DESKTOP_AUTH_BASE_URL")
+        .ok()
+        .or_else(|| std::env::var("VITE_DESKTOP_AUTH_BASE_URL").ok())
+        .or_else(|| std::env::var("VITE_AUTH_BASE_URL").ok())
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| String::from("http://127.0.0.1:2130"));
     let bundle_identifier = brand_json
         .as_ref()
         .and_then(|value| value.get("bundleIdentifier"))

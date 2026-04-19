@@ -1,5 +1,6 @@
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { isTauriRuntime } from './desktop-runtime';
 
 export interface DesktopUpdateCheckResult {
   supported: boolean;
@@ -20,10 +21,6 @@ export interface DesktopUpdateProgress {
   downloaded_bytes: number | null;
   total_bytes: number | null;
   detail: string;
-}
-
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 export async function checkDesktopUpdate(input: {

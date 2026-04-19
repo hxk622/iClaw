@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DESKTOP_DIR="$ROOT_DIR/apps/desktop"
 OUT_DIR="$ROOT_DIR/dist/releases"
+KEEP_VERSIONS="${ICLAW_KEEP_VERSIONS:-3}"
 APP_VERSION="$(node -p "require('$ROOT_DIR/package.json').version")"
 PUBLIC_APP_VERSION="${APP_VERSION%%+*}"
 HOST_PLATFORM="$(node -p "process.platform")"
@@ -59,6 +60,11 @@ if [[ -n "${ICLAW_DESKTOP_CHANNELS:-}" ]]; then
 fi
 
 mkdir -p "$OUT_DIR"
+
+if ! [[ "$KEEP_VERSIONS" =~ ^[0-9]+$ ]] || [[ "$KEEP_VERSIONS" -lt 1 ]]; then
+  echo "Invalid ICLAW_KEEP_VERSIONS: $KEEP_VERSIONS" >&2
+  exit 1
+fi
 
 product_name() {
   local brand_id="${1:-}"
@@ -153,6 +159,60 @@ find_first_matching_file() {
     fi
   done
   return 1
+}
+
+remove_release_version_artifacts() {
+  local artifact_base_name="$1"
+  local release_version="$2"
+  local arch_label="$3"
+  local channel="$4"
+  local patterns=(
+    "$OUT_DIR/${artifact_base_name}_${release_version}_${arch_label}_${channel}.dmg"
+    "$OUT_DIR/${artifact_base_name}_${release_version}_${arch_label}_${channel}.exe"
+    "$OUT_DIR/${artifact_base_name}_${release_version}_${arch_label}_${channel}.app.tar.gz"
+    "$OUT_DIR/${artifact_base_name}_${release_version}_${arch_label}_${channel}.app.tar.gz.sig"
+    "$OUT_DIR/${artifact_base_name}_${release_version}_${arch_label}_${channel}.nsis.zip"
+    "$OUT_DIR/${artifact_base_name}_${release_version}_${arch_label}_${channel}.nsis.zip.sig"
+  )
+  local file_path=""
+  for file_path in "${patterns[@]}"; do
+    if [[ -f "$file_path" ]]; then
+      rm -f "$file_path"
+      echo "[local-prune] removed: $(basename "$file_path")"
+    fi
+  done
+}
+
+local_prune_release_versions() {
+  local artifact_base_name="$1"
+  local arch_label="$2"
+  local channel="$3"
+  local installer_ext="$4"
+  local files=()
+  shopt -s nullglob
+  files=("$OUT_DIR/${artifact_base_name}"_*_"${arch_label}"_"${channel}.${installer_ext}")
+  shopt -u nullglob
+  if (( ${#files[@]} <= KEEP_VERSIONS )); then
+    return 0
+  fi
+
+  local sorted=()
+  mapfile -t sorted < <(printf '%s\n' "${files[@]}" | sort -V)
+  local remove_count=$(( ${#sorted[@]} - KEEP_VERSIONS ))
+  local idx=0
+  local file_path=""
+  for file_path in "${sorted[@]}"; do
+    if (( idx >= remove_count )); then
+      break
+    fi
+    local file_name release_version
+    file_name="$(basename "$file_path")"
+    release_version="$(printf '%s\n' "$file_name" | sed -E "s/^${artifact_base_name}_(.+)_${arch_label}_${channel}\.${installer_ext}$/\\1/")"
+    if [[ -n "$release_version" && "$release_version" != "$file_name" ]]; then
+      remove_release_version_artifacts "$artifact_base_name" "$release_version" "$arch_label" "$channel"
+    fi
+    idx=$((idx + 1))
+  done
 }
 
 native_updater_enabled() {
@@ -278,6 +338,7 @@ build_one() {
         echo "saved: $updater_sig_out"
       fi
     fi
+    local_prune_release_versions "$current_artifact_base_name" "$arch_label" "$channel" "dmg"
     return
   fi
 
@@ -328,6 +389,7 @@ build_one() {
         echo "saved: $updater_sig_out"
       fi
     fi
+    local_prune_release_versions "$current_artifact_base_name" "$arch_label" "$channel" "exe"
     return
   fi
 
