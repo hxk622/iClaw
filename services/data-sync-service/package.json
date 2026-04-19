@@ -1,0 +1,23 @@
+{
+  "name": "@iclaw/data-sync-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch-path=src --experimental-strip-types src/server.ts",
+    "start": "node --experimental-strip-types src/server.ts"
+  },
+  "dependencies": {
+    "@iclaw/shared": "workspace:*",
+    "@types/node-cron": "^3.0.11",
+    "dotenv": "^17.4.2",
+    "node-cron": "^4.2.1",
+    "pg": "^8.16.3",
+    "redis": "^5.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "@types/pg": "^8.15.5",
+    "typescript": "^5.9.2"
+  }
+}

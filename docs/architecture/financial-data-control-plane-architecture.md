@@ -34,13 +34,24 @@
 
 ```text
 External Data Sources
-  -> Source Connectors
+  -> data-sync-service
+     -> Source Connectors
      -> Ingestion Scheduler / Async Enrich Queue
-        -> Canonical Data Layer
-           -> Projection / Serving Layer
-              -> Surface APIs
-                 -> Stock Market / Fund Market / Header / AI Research Entry
+     -> Canonical Data Layer
+        -> PostgreSQL
+
+Desktop / Web / admin-web
+  -> control-plane
+     -> Projection / Serving Layer
+        -> Surface APIs
+           -> Stock Market / Fund Market / Header / AI Research Entry
 ```
+
+推荐边界：
+
+- `control-plane` 负责读和管理面 API
+- `data-sync-service` 负责调度、抓取、补抓和入库
+- 前端不直接读取 `data-sync-service`
 
 ## 4. 五层模型
 

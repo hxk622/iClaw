@@ -127,14 +127,24 @@
 ## 3. 总体设计
 
 ```text
-Task Registry
-  -> Scheduler Layer
-     -> Task Runner
-        -> Execution Store
-        -> Source Connectors
-           -> Canonical Tables / Snapshot Tables
-              -> Surface APIs
+data-sync-service
+  -> Task Registry
+     -> Scheduler Layer
+        -> Task Runner
+           -> Execution Store
+           -> Source Connectors
+              -> Canonical Tables / Snapshot Tables
+
+control-plane
+  -> Surface APIs
+  -> Admin task query / trigger APIs
 ```
+
+当前迁移原则：
+
+- `control-plane` 保留 task admin 读口和触发口
+- 真正的 cron/scheduler 角色逐步迁到 `services/data-sync-service`
+- 在迁移期，embedded scheduler 仍可作为兼容路径，但长期目标是 data-sync-service 单独承担抓取职责
 
 ## 4. 任务分类
 
