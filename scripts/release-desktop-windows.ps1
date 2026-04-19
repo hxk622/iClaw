@@ -749,7 +749,7 @@ try {
           throw
         }
       }
-      Invoke-Checked -FilePath $node -Arguments @("$RootDir\scripts\generate-desktop-release-manifests.mjs", '--brand', $Brand, '--channel', $normalizedChannel, '--release-dir', $ReleaseDir, '--version', $publicAppVersion) -Environment $buildEnv -WorkingDirectory $RootDir
+      Invoke-Checked -FilePath $node -Arguments @("$RootDir\scripts\generate-desktop-release-manifests.mjs", '--brand', $Brand, '--channel', $normalizedChannel, '--release-dir', $ReleaseDir, '--version', $ReleaseVersion) -Environment $buildEnv -WorkingDirectory $RootDir
     }
   }
 
