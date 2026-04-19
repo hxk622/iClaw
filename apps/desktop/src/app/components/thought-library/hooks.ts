@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { KnowledgeLibraryRepository } from './repository';
 import type { CreateRawMaterialInput, RawMaterial } from './types';
+import type { OntologyDocument } from './ontology-types';
 
 export function useRawMaterials(input: {
   repository: KnowledgeLibraryRepository;
@@ -85,4 +86,73 @@ export function useCreateRawMaterial(repository: KnowledgeLibraryRepository) {
     }),
     [repository],
   );
+}
+
+export function useOntologyDocuments(input: {
+  repository: KnowledgeLibraryRepository;
+  query: string;
+  refreshKey?: number;
+}) {
+  const { repository, query, refreshKey = 0 } = input;
+  const [items, setItems] = useState<OntologyDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const nextItems = await repository.listOntologyDocuments({ query });
+      setItems(nextItems);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'failed_to_load_ontology_documents');
+    } finally {
+      setLoading(false);
+    }
+  }, [query, repository]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh, refreshKey]);
+
+  return { items, loading, error, refresh };
+}
+
+export function useOntologyDocumentDetail(input: {
+  repository: KnowledgeLibraryRepository;
+  ontologyDocumentId: string | null;
+  refreshKey?: number;
+}) {
+  const { repository, ontologyDocumentId, refreshKey = 0 } = input;
+  const [item, setItem] = useState<OntologyDocument | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!ontologyDocumentId) {
+      setItem(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    void repository
+      .getOntologyDocumentById(ontologyDocumentId)
+      .then((next) => {
+        if (!cancelled) setItem(next);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'failed_to_load_ontology_document');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ontologyDocumentId, refreshKey, repository]);
+
+  return { item, loading, error };
 }

@@ -8,6 +8,7 @@ import {
   WandSparkles,
 } from 'lucide-react';
 import type { RawMaterial } from './types';
+import type { GraphifyDocumentViewModel, OntologyDocument } from './ontology-types';
 
 export type ThoughtLibraryTab = 'materials' | 'graph' | 'artifacts';
 export type GraphViewMode = 'page' | 'graph';
@@ -24,6 +25,8 @@ export type ThoughtLibraryItem = {
   sourceUrl?: string | null;
   sourceLabel?: string | null;
   rawMaterial?: RawMaterial | null;
+  ontologyDocument?: OntologyDocument | null;
+  ontologyGraphView?: GraphifyDocumentViewModel | null;
 };
 
 export const THOUGHT_LIBRARY_TAB_CONFIG: Array<{

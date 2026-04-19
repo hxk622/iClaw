@@ -19,8 +19,9 @@ import { ThoughtLibraryEmbeddedChatSurface } from './ThoughtLibraryEmbeddedChatS
 import type { IClawClient } from '@iclaw/sdk';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
 import { createLocalKnowledgeLibraryRepository } from './repository';
-import { useCreateRawMaterial, useRawMaterialDetail, useRawMaterials } from './hooks';
+import { useCreateRawMaterial, useOntologyDocumentDetail, useOntologyDocuments, useRawMaterialDetail, useRawMaterials } from './hooks';
 import { mapRawMaterialToThoughtLibraryItem } from './raw-mappers';
+import { mapOntologyDocumentToThoughtLibraryItem } from './ontology-mappers';
 import {
   importBrowserCaptureBatch,
   importBrowserCapturePayload,
@@ -79,6 +80,7 @@ export function ThoughtLibraryView({
   const [query, setQuery] = useState('');
   const [graphViewMode, setGraphViewMode] = useState<GraphViewMode>('page');
   const [materialsRefreshKey, setMaterialsRefreshKey] = useState(0);
+  const [ontologyRefreshKey, setOntologyRefreshKey] = useState(0);
 
   const {
     items: rawMaterials,
@@ -88,10 +90,18 @@ export function ThoughtLibraryView({
     query: activeTab === 'materials' ? query : '',
     refreshKey: materialsRefreshKey,
   });
+  const { items: ontologyDocuments } = useOntologyDocuments({
+    repository,
+    query: activeTab === 'graph' ? query : '',
+    refreshKey: ontologyRefreshKey,
+  });
 
   const items = useMemo<ThoughtLibraryItem[]>(() => {
     if (activeTab === 'materials') {
       return rawMaterials.map(mapRawMaterialToThoughtLibraryItem);
+    }
+    if (activeTab === 'graph') {
+      return ontologyDocuments.map(mapOntologyDocumentToThoughtLibraryItem);
     }
     const source = getStaticThoughtLibraryItems(activeTab);
     const normalizedQuery = query.trim().toLowerCase();
@@ -99,7 +109,7 @@ export function ThoughtLibraryView({
     return source.filter((item) =>
       [item.title, item.subtitle, item.summary, ...item.tags].join(' ').toLowerCase().includes(normalizedQuery),
     );
-  }, [activeTab, query, rawMaterials]);
+  }, [activeTab, ontologyDocuments, query, rawMaterials]);
 
   const selectedId = selectedByTab[activeTab];
   const selectedItem = useMemo(() => items.find((item) => item.id === selectedId) || items[0] || null, [items, selectedId]);
@@ -108,11 +118,29 @@ export function ThoughtLibraryView({
     rawMaterialId: activeTab === 'materials' ? selectedItem?.id || null : null,
     refreshKey: materialsRefreshKey,
   });
+  const { item: selectedOntologyDocument } = useOntologyDocumentDetail({
+    repository,
+    ontologyDocumentId: activeTab === 'graph' ? selectedItem?.id || null : null,
+    refreshKey: ontologyRefreshKey,
+  });
   const selectedDisplayItem = useMemo<ThoughtLibraryItem | null>(() => {
     if (!selectedItem) return null;
     if (activeTab !== 'materials') return selectedItem;
     return selectedRawMaterial ? mapRawMaterialToThoughtLibraryItem(selectedRawMaterial) : selectedItem;
   }, [activeTab, selectedItem, selectedRawMaterial]);
+  const selectedOntologyDisplayItem = useMemo<ThoughtLibraryItem | null>(() => {
+    if (activeTab !== 'graph' || !selectedItem) return selectedDisplayItem;
+    return selectedOntologyDocument ? mapOntologyDocumentToThoughtLibraryItem(selectedOntologyDocument) : selectedItem;
+  }, [activeTab, selectedDisplayItem, selectedItem, selectedOntologyDocument]);
+  const effectiveSelectedItem = activeTab === 'graph' ? selectedOntologyDisplayItem : selectedDisplayItem;
+
+  useEffect(() => {
+    if (rawMaterials.length === 0) {
+      return;
+    }
+    void repository.compileRawMaterialsToOntology(rawMaterials);
+    setOntologyRefreshKey((current) => current + 1);
+  }, [rawMaterials, repository]);
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -210,14 +238,14 @@ export function ThoughtLibraryView({
   };
 
   const handleOpenContextChat = () => {
-    if (!selectedDisplayItem || !onOpenContextChat) {
+    if (!effectiveSelectedItem || !onOpenContextChat) {
       return;
     }
     onOpenContextChat({
-      title: selectedDisplayItem.title,
+      title: effectiveSelectedItem.title,
       prompt: buildThoughtLibraryContextPrompt({
         tab: activeTab,
-        item: selectedDisplayItem,
+        item: effectiveSelectedItem,
       }),
     });
   };
@@ -411,14 +439,14 @@ export function ThoughtLibraryView({
               <p className="mt-1 text-[13px] leading-6 text-[#64748B] dark:text-[#94A3B8]">{getThoughtLibraryPanelDescription(activeTab)}</p>
             </div>
 
-            {selectedDisplayItem ? (
+            {effectiveSelectedItem ? (
               <div className="space-y-4">
                 <div className="rounded-[18px] border border-[rgba(0,0,0,0.08)] bg-white px-5 py-5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#1E293B] dark:text-[#E8E8E3]">{selectedDisplayItem.title}</h2>
+                      <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#1E293B] dark:text-[#E8E8E3]">{effectiveSelectedItem.title}</h2>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {selectedDisplayItem.tags.map((tag) => (
+                        {effectiveSelectedItem.tags.map((tag) => (
                           <Chip key={tag} tone="accent" className="px-2.5 py-1 text-[11px]">
                             {tag}
                           </Chip>
@@ -429,16 +457,16 @@ export function ThoughtLibraryView({
                       variant="secondary"
                       size="sm"
                       onClick={() => {
-                        if (selectedDisplayItem.sourceUrl) {
-                          window.open(selectedDisplayItem.sourceUrl, '_blank', 'noopener,noreferrer');
+                        if (effectiveSelectedItem.sourceUrl) {
+                          window.open(effectiveSelectedItem.sourceUrl, '_blank', 'noopener,noreferrer');
                         }
                       }}
-                      disabled={!selectedDisplayItem.sourceUrl}
+                      disabled={!effectiveSelectedItem.sourceUrl}
                     >
                       查看来源
                     </Button>
                   </div>
-                  <p className="mt-4 text-[14px] leading-7 text-[#64748B] dark:text-[#94A3B8]">{selectedDisplayItem.summary}</p>
+                  <p className="mt-4 text-[14px] leading-7 text-[#64748B] dark:text-[#94A3B8]">{effectiveSelectedItem.summary}</p>
                 </div>
 
                 <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -471,21 +499,53 @@ export function ThoughtLibraryView({
                     {activeTab === 'graph' && graphViewMode === 'graph' ? (
                       <div className="relative h-[360px] overflow-hidden rounded-[16px] border border-[var(--border-primary)] bg-[radial-gradient(circle_at_top,rgba(180,154,112,0.10),transparent_46%),var(--bg-page)]">
                         <div className="absolute left-1/2 top-[20%] -translate-x-1/2 rounded-full border border-[rgba(180,154,112,0.35)] bg-[rgba(180,154,112,0.12)] px-4 py-2 text-[12px] text-[var(--text-primary)]">
-                          {selectedDisplayItem.title}
+                          {effectiveSelectedItem.title}
                         </div>
-                        <div className="absolute left-[18%] top-[52%] rounded-full border border-[var(--border-primary)] bg-[var(--bg-panel)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)]">
-                          关键关系 A
-                        </div>
-                        <div className="absolute right-[18%] top-[46%] rounded-full border border-[var(--border-primary)] bg-[var(--bg-panel)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)]">
-                          关键关系 B
-                        </div>
-                        <div className="absolute bottom-[16%] left-1/2 -translate-x-1/2 rounded-full border border-[var(--border-primary)] bg-[var(--bg-panel)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)]">
-                          证据来源
-                        </div>
+                        {(effectiveSelectedItem.ontologyGraphView?.nodes || []).slice(0, 5).map((node, index) => {
+                          const positions = [
+                            { left: '18%', top: '52%' },
+                            { right: '18%', top: '46%' },
+                            { left: '50%', bottom: '16%', transform: 'translateX(-50%)' },
+                            { left: '10%', top: '24%' },
+                            { right: '10%', bottom: '18%' },
+                          ];
+                          const pos = positions[index] || positions[0];
+                          return (
+                            <div
+                              key={node.id}
+                              className="absolute rounded-full px-3 py-1.5 text-[11px] shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
+                              style={{
+                                ...pos,
+                                backgroundColor: node.color,
+                                color: '#111827',
+                                transform: pos.transform,
+                              }}
+                            >
+                              {node.label}
+                            </div>
+                          );
+                        })}
                         <svg className="absolute inset-0 h-full w-full">
-                          <line x1="50%" y1="24%" x2="22%" y2="52%" stroke="rgba(180,154,112,0.35)" strokeWidth="1.5" />
-                          <line x1="50%" y1="24%" x2="78%" y2="46%" stroke="rgba(180,154,112,0.35)" strokeWidth="1.5" />
-                          <line x1="50%" y1="24%" x2="50%" y2="74%" stroke="rgba(180,154,112,0.25)" strokeWidth="1.5" />
+                          {(effectiveSelectedItem.ontologyGraphView?.edges || []).slice(0, 4).map((edge, index) => {
+                            const lines = [
+                              { x1: '50%', y1: '24%', x2: '22%', y2: '52%' },
+                              { x1: '50%', y1: '24%', x2: '78%', y2: '46%' },
+                              { x1: '50%', y1: '24%', x2: '50%', y2: '74%' },
+                              { x1: '50%', y1: '24%', x2: '12%', y2: '24%' },
+                            ];
+                            const line = lines[index] || lines[0];
+                            return (
+                              <line
+                                key={edge.id}
+                                x1={line.x1}
+                                y1={line.y1}
+                                x2={line.x2}
+                                y2={line.y2}
+                                stroke="rgba(180,154,112,0.35)"
+                                strokeWidth={Math.max(1, edge.width)}
+                              />
+                            );
+                          })}
                         </svg>
                       </div>
                     ) : activeTab === 'materials' ? (
@@ -554,7 +614,7 @@ export function ThoughtLibraryView({
         >
           <div className="flex items-center justify-between border-b border-[rgba(0,0,0,0.08)] px-4 py-3 dark:border-[rgba(255,255,255,0.08)]">
             <div className="text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">对话</div>
-            {selectedDisplayItem ? (
+            {effectiveSelectedItem ? (
               <button
                 type="button"
                 onClick={handleOpenContextChat}
@@ -565,7 +625,7 @@ export function ThoughtLibraryView({
             ) : null}
           </div>
           <ThoughtLibraryEmbeddedChatSurface
-            selectedItem={selectedDisplayItem}
+            selectedItem={effectiveSelectedItem}
             activeTab={activeTab}
             gatewayUrl={gatewayUrl}
             gatewayToken={gatewayToken}
