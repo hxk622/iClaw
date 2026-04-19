@@ -1,5 +1,5 @@
 import { Network } from 'lucide-react';
-import type { ThoughtLibraryItem } from './model';
+import type { KnowledgeLibraryItem } from './model';
 import type { OntologyDocument } from './ontology-types';
 import { mapOntologyDocumentToGraphifyView } from './ontology-pipeline';
 
@@ -13,7 +13,7 @@ function formatRelativeTime(timestamp: string): string {
   return `${Math.floor(diffSeconds / 86400)} 天前`;
 }
 
-export function mapOntologyDocumentToThoughtLibraryItem(document: OntologyDocument): ThoughtLibraryItem {
+export function mapOntologyDocumentToKnowledgeLibraryItem(document: OntologyDocument): KnowledgeLibraryItem {
   const graph = mapOntologyDocumentToGraphifyView(document);
   return {
     id: document.id,

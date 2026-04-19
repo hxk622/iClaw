@@ -4,11 +4,11 @@ import type { IClawClient } from '@iclaw/sdk';
 import { OpenClawChatSurface } from '@/app/components/OpenClawChatSurface';
 import { createScopedChatSessionKey } from '@/app/lib/chat-session';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
-import type { ThoughtLibraryItem, ThoughtLibraryTab } from './model';
+import type { KnowledgeLibraryItem, KnowledgeLibraryTab } from './model';
 
-type ThoughtLibraryEmbeddedChatSurfaceProps = {
-  selectedItem: ThoughtLibraryItem | null;
-  activeTab: ThoughtLibraryTab;
+type KnowledgeLibraryEmbeddedChatSurfaceProps = {
+  selectedItem: KnowledgeLibraryItem | null;
+  activeTab: KnowledgeLibraryTab;
   gatewayUrl: string;
   gatewayToken?: string;
   gatewayPassword?: string;
@@ -32,7 +32,7 @@ type ThoughtLibraryEmbeddedChatSurfaceProps = {
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
 };
 
-export const ThoughtLibraryEmbeddedChatSurface = forwardRef<HTMLDivElement, ThoughtLibraryEmbeddedChatSurfaceProps>(
+export const KnowledgeLibraryEmbeddedChatSurface = forwardRef<HTMLDivElement, KnowledgeLibraryEmbeddedChatSurfaceProps>(
   (
     {
       selectedItem,
@@ -90,4 +90,4 @@ export const ThoughtLibraryEmbeddedChatSurface = forwardRef<HTMLDivElement, Thou
   },
 );
 
-ThoughtLibraryEmbeddedChatSurface.displayName = 'ThoughtLibraryEmbeddedChatSurface';
+KnowledgeLibraryEmbeddedChatSurface.displayName = 'KnowledgeLibraryEmbeddedChatSurface';

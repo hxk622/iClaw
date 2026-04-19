@@ -1,5 +1,5 @@
 import type { KnowledgeLibraryRepository } from './repository';
-import type { ThoughtLibraryItem, ThoughtLibraryTab } from './model';
+import type { KnowledgeLibraryItem, KnowledgeLibraryTab } from './model';
 import type { OutputArtifact } from './output-types';
 import type { OntologyDocument } from './ontology-types';
 
@@ -30,7 +30,7 @@ export function extractChatFeedbackFromContainer(container: HTMLElement | null):
   };
 }
 
-function currentItemSourceRawIds(item: ThoughtLibraryItem | null): string[] {
+function currentItemSourceRawIds(item: KnowledgeLibraryItem | null): string[] {
   if (!item) return [];
   if (item.rawMaterial) return [item.rawMaterial.id];
   if (item.ontologyDocument) return item.ontologyDocument.source_raw_ids || [];
@@ -38,7 +38,7 @@ function currentItemSourceRawIds(item: ThoughtLibraryItem | null): string[] {
   return [];
 }
 
-function currentItemSourceOntologyIds(item: ThoughtLibraryItem | null): string[] {
+function currentItemSourceOntologyIds(item: KnowledgeLibraryItem | null): string[] {
   if (!item) return [];
   if (item.ontologyDocument) return [item.ontologyDocument.id];
   if (item.outputArtifact) return item.outputArtifact.source_ontology_ids || [];
@@ -47,8 +47,8 @@ function currentItemSourceOntologyIds(item: ThoughtLibraryItem | null): string[]
 
 export async function saveChatFeedbackAsRaw(input: {
   repository: KnowledgeLibraryRepository;
-  activeTab: ThoughtLibraryTab;
-  selectedItem: ThoughtLibraryItem | null;
+  activeTab: KnowledgeLibraryTab;
+  selectedItem: KnowledgeLibraryItem | null;
   feedback: ExtractedChatFeedback;
 }) {
   const content = normalizeText(input.feedback.latestAssistantText || input.feedback.latestUserText || '', 8000);
@@ -67,7 +67,7 @@ export async function saveChatFeedbackAsRaw(input: {
 
 export async function saveChatFeedbackAsOntologyClaim(input: {
   repository: KnowledgeLibraryRepository;
-  selectedItem: ThoughtLibraryItem | null;
+  selectedItem: KnowledgeLibraryItem | null;
   feedback: ExtractedChatFeedback;
 }): Promise<OntologyDocument | null> {
   const content = normalizeText(input.feedback.latestAssistantText || '', 8000);
@@ -88,7 +88,7 @@ export async function saveChatFeedbackAsOntologyClaim(input: {
 
 export async function saveChatFeedbackAsMemo(input: {
   repository: KnowledgeLibraryRepository;
-  selectedItem: ThoughtLibraryItem | null;
+  selectedItem: KnowledgeLibraryItem | null;
   feedback: ExtractedChatFeedback;
 }): Promise<OutputArtifact | null> {
   const content = normalizeText(input.feedback.latestAssistantText || '', 16000);

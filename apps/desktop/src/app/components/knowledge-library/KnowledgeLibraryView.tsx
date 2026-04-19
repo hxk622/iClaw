@@ -5,25 +5,25 @@ import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
 import { cn } from '@/app/lib/cn';
 import {
-  THOUGHT_LIBRARY_TAB_CONFIG,
-  getStaticThoughtLibraryItems,
-  getThoughtLibraryPanelDescription,
-  getThoughtLibraryPanelTitle,
-  type ThoughtLibraryItem,
+  KNOWLEDGE_LIBRARY_TAB_CONFIG,
+  getStaticKnowledgeLibraryItems,
+  getKnowledgeLibraryPanelDescription,
+  getKnowledgeLibraryPanelTitle,
+  type KnowledgeLibraryItem,
   type GraphViewMode,
-  type ThoughtLibraryTab,
+  type KnowledgeLibraryTab,
 } from './model';
-import { readThoughtLibraryState, writeThoughtLibraryState } from './persistence';
-import { buildThoughtLibraryContextPrompt } from './chat-context';
-import { ThoughtLibraryEmbeddedChatSurface } from './ThoughtLibraryEmbeddedChatSurface';
+import { readKnowledgeLibraryState, writeKnowledgeLibraryState } from './persistence';
+import { buildKnowledgeLibraryContextPrompt } from './chat-context';
+import { KnowledgeLibraryEmbeddedChatSurface } from './KnowledgeLibraryEmbeddedChatSurface';
 import type { IClawClient } from '@iclaw/sdk';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
 import { createLocalKnowledgeLibraryRepository } from './repository';
 import { useCreateRawMaterial, useOntologyDocumentDetail, useOntologyDocuments, useOutputArtifactDetail, useOutputArtifacts, useRawMaterialDetail, useRawMaterials } from './hooks';
-import { mapRawMaterialToThoughtLibraryItem } from './raw-mappers';
-import { mapOntologyDocumentToThoughtLibraryItem } from './ontology-mappers';
+import { mapRawMaterialToKnowledgeLibraryItem } from './raw-mappers';
+import { mapOntologyDocumentToKnowledgeLibraryItem } from './ontology-mappers';
 import { GraphifyOntologyGraphView } from './GraphifyOntologyGraphView';
-import { mapOutputArtifactToThoughtLibraryItem } from './output-mappers';
+import { mapOutputArtifactToKnowledgeLibraryItem } from './output-mappers';
 import {
   extractChatFeedbackFromContainer,
   saveChatFeedbackAsMemo,
@@ -39,7 +39,7 @@ import {
   type BrowserCapturePayload,
 } from './browser-capture';
 
-export function ThoughtLibraryView({
+export function KnowledgeLibraryView({
   title,
   onOpenContextChat,
   gatewayUrl,
@@ -79,12 +79,12 @@ export function ThoughtLibraryView({
   inputComposerConfig?: ResolvedInputComposerConfig | null;
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
 }) {
-  const initialState = useMemo(() => readThoughtLibraryState(), []);
+  const initialState = useMemo(() => readKnowledgeLibraryState(), []);
   const repository = useMemo(() => createLocalKnowledgeLibraryRepository(), []);
   const { create: createRawMaterialRecord } = useCreateRawMaterial(repository);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const embeddedChatRef = useRef<HTMLDivElement | null>(null);
-  const [activeTab, setActiveTab] = useState<ThoughtLibraryTab>(initialState.activeTab);
+  const [activeTab, setActiveTab] = useState<KnowledgeLibraryTab>(initialState.activeTab);
   const [selectedByTab, setSelectedByTab] = useState(initialState.selectedByTab);
   const [query, setQuery] = useState('');
   const [graphViewMode, setGraphViewMode] = useState<GraphViewMode>('page');
@@ -112,17 +112,17 @@ export function ThoughtLibraryView({
     refreshKey: outputRefreshKey,
   });
 
-  const items = useMemo<ThoughtLibraryItem[]>(() => {
+  const items = useMemo<KnowledgeLibraryItem[]>(() => {
     if (activeTab === 'materials') {
-      return rawMaterials.map(mapRawMaterialToThoughtLibraryItem);
+      return rawMaterials.map(mapRawMaterialToKnowledgeLibraryItem);
     }
     if (activeTab === 'graph') {
-      return ontologyDocuments.map(mapOntologyDocumentToThoughtLibraryItem);
+      return ontologyDocuments.map(mapOntologyDocumentToKnowledgeLibraryItem);
     }
     if (activeTab === 'artifacts') {
-      return outputArtifacts.map(mapOutputArtifactToThoughtLibraryItem);
+      return outputArtifacts.map(mapOutputArtifactToKnowledgeLibraryItem);
     }
-    const source = getStaticThoughtLibraryItems(activeTab);
+    const source = getStaticKnowledgeLibraryItems(activeTab);
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) return source;
     return source.filter((item) =>
@@ -147,18 +147,18 @@ export function ThoughtLibraryView({
     outputArtifactId: activeTab === 'artifacts' ? selectedItem?.id || null : null,
     refreshKey: outputRefreshKey,
   });
-  const selectedDisplayItem = useMemo<ThoughtLibraryItem | null>(() => {
+  const selectedDisplayItem = useMemo<KnowledgeLibraryItem | null>(() => {
     if (!selectedItem) return null;
     if (activeTab !== 'materials') return selectedItem;
-    return selectedRawMaterial ? mapRawMaterialToThoughtLibraryItem(selectedRawMaterial) : selectedItem;
+    return selectedRawMaterial ? mapRawMaterialToKnowledgeLibraryItem(selectedRawMaterial) : selectedItem;
   }, [activeTab, selectedItem, selectedRawMaterial]);
-  const selectedOntologyDisplayItem = useMemo<ThoughtLibraryItem | null>(() => {
+  const selectedOntologyDisplayItem = useMemo<KnowledgeLibraryItem | null>(() => {
     if (activeTab !== 'graph' || !selectedItem) return selectedDisplayItem;
-    return selectedOntologyDocument ? mapOntologyDocumentToThoughtLibraryItem(selectedOntologyDocument) : selectedItem;
+    return selectedOntologyDocument ? mapOntologyDocumentToKnowledgeLibraryItem(selectedOntologyDocument) : selectedItem;
   }, [activeTab, selectedDisplayItem, selectedItem, selectedOntologyDocument]);
-  const selectedOutputDisplayItem = useMemo<ThoughtLibraryItem | null>(() => {
+  const selectedOutputDisplayItem = useMemo<KnowledgeLibraryItem | null>(() => {
     if (activeTab !== 'artifacts' || !selectedItem) return selectedDisplayItem;
-    return selectedOutputArtifact ? mapOutputArtifactToThoughtLibraryItem(selectedOutputArtifact) : selectedItem;
+    return selectedOutputArtifact ? mapOutputArtifactToKnowledgeLibraryItem(selectedOutputArtifact) : selectedItem;
   }, [activeTab, selectedDisplayItem, selectedItem, selectedOutputArtifact]);
   const effectiveSelectedItem =
     activeTab === 'graph' ? selectedOntologyDisplayItem : activeTab === 'artifacts' ? selectedOutputDisplayItem : selectedDisplayItem;
@@ -184,7 +184,7 @@ export function ThoughtLibraryView({
   }, [activeTab, selectedItem]);
 
   useEffect(() => {
-    writeThoughtLibraryState({ activeTab, selectedByTab });
+    writeKnowledgeLibraryState({ activeTab, selectedByTab });
   }, [activeTab, selectedByTab]);
 
   useEffect(() => {
@@ -258,14 +258,14 @@ export function ThoughtLibraryView({
     };
   }, [repository]);
 
-  const handleSwitchTab = (nextTab: ThoughtLibraryTab) => {
+  const handleSwitchTab = (nextTab: KnowledgeLibraryTab) => {
     setActiveTab(nextTab);
     const nextItems =
       nextTab === 'materials'
-        ? rawMaterials.map(mapRawMaterialToThoughtLibraryItem)
+        ? rawMaterials.map(mapRawMaterialToKnowledgeLibraryItem)
         : nextTab === 'graph'
-          ? ontologyDocuments.map(mapOntologyDocumentToThoughtLibraryItem)
-          : outputArtifacts.map(mapOutputArtifactToThoughtLibraryItem);
+          ? ontologyDocuments.map(mapOntologyDocumentToKnowledgeLibraryItem)
+          : outputArtifacts.map(mapOutputArtifactToKnowledgeLibraryItem);
     setSelectedByTab((current) => ({
       ...current,
       [nextTab]: current[nextTab] || nextItems[0]?.id || null,
@@ -281,7 +281,7 @@ export function ThoughtLibraryView({
     }
     onOpenContextChat({
       title: effectiveSelectedItem.title,
-      prompt: buildThoughtLibraryContextPrompt({
+      prompt: buildKnowledgeLibraryContextPrompt({
         tab: activeTab,
         item: effectiveSelectedItem,
       }),
@@ -451,7 +451,7 @@ export function ThoughtLibraryView({
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <aside className="flex w-[300px] shrink-0 flex-col border-r border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#161616]">
           <div className="flex items-center gap-1 border-b border-[rgba(0,0,0,0.08)] px-3 py-2 dark:border-[rgba(255,255,255,0.08)]">
-            {THOUGHT_LIBRARY_TAB_CONFIG.map((tab) => {
+            {KNOWLEDGE_LIBRARY_TAB_CONFIG.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.id;
               return (
@@ -531,8 +531,8 @@ export function ThoughtLibraryView({
         <section className="min-w-0 flex-1 overflow-y-auto bg-[#F5F5F0] dark:bg-[#0F0F0F]">
           <div className="mx-auto flex h-full max-w-[960px] flex-col px-6 py-6">
             <div className="mb-4">
-              <div className="text-[20px] font-semibold text-[#1E293B] dark:text-[#E8E8E3]">{getThoughtLibraryPanelTitle(activeTab)}</div>
-              <p className="mt-1 text-[13px] leading-6 text-[#64748B] dark:text-[#94A3B8]">{getThoughtLibraryPanelDescription(activeTab)}</p>
+              <div className="text-[20px] font-semibold text-[#1E293B] dark:text-[#E8E8E3]">{getKnowledgeLibraryPanelTitle(activeTab)}</div>
+              <p className="mt-1 text-[13px] leading-6 text-[#64748B] dark:text-[#94A3B8]">{getKnowledgeLibraryPanelDescription(activeTab)}</p>
             </div>
 
             {effectiveSelectedItem ? (
@@ -727,7 +727,7 @@ export function ThoughtLibraryView({
               ) : null}
             </div>
           </div>
-          <ThoughtLibraryEmbeddedChatSurface
+          <KnowledgeLibraryEmbeddedChatSurface
             ref={embeddedChatRef}
             selectedItem={effectiveSelectedItem}
             activeTab={activeTab}

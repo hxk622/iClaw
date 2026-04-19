@@ -3,7 +3,7 @@ import { AlertCircle, Send, Sparkles } from 'lucide-react';
 
 import { Chip } from '@/app/components/ui/Chip';
 import { cn } from '@/app/lib/cn';
-import type { ThoughtLibraryItem } from './model';
+import type { KnowledgeLibraryItem } from './model';
 
 type ChatMessage = {
   id: string;
@@ -11,11 +11,11 @@ type ChatMessage = {
   content: string;
 };
 
-export function ThoughtLibraryChatShell({
+export function KnowledgeLibraryChatShell({
   selectedItem,
   onOpenContextChat,
 }: {
-  selectedItem: ThoughtLibraryItem | null;
+  selectedItem: KnowledgeLibraryItem | null;
   onOpenContextChat?: () => void;
 }) {
   const [message, setMessage] = useState('');

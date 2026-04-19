@@ -229,9 +229,9 @@ const InvestmentExpertsView = lazy(() =>
     default: module.InvestmentExpertsView,
   })),
 );
-const ThoughtLibraryView = lazy(() =>
-  import('./components/thought-library/ThoughtLibraryView').then((module) => ({
-    default: module.ThoughtLibraryView,
+const KnowledgeLibraryView = lazy(() =>
+  import('./components/knowledge-library/KnowledgeLibraryView').then((module) => ({
+    default: module.KnowledgeLibraryView,
   })),
 );
 const LobsterStoreView = lazy(() =>
@@ -4056,7 +4056,7 @@ function AuthedView({
     }));
   };
 
-  const handleOpenThoughtLibraryContextConversation = useCallback(
+  const handleOpenKnowledgeLibraryContextConversation = useCallback(
     (input: { title: string; prompt: string }) => {
       if (desktopUpdateNewRunBlockedReason) {
         setPrimaryView('chat');
@@ -4338,9 +4338,9 @@ function AuthedView({
     if (viewKey === 'knowledge-library') {
       return (
         <DeferredSurface title={viewLabel}>
-          <ThoughtLibraryView
+          <KnowledgeLibraryView
             title={viewLabel}
-            onOpenContextChat={handleOpenThoughtLibraryContextConversation}
+            onOpenContextChat={handleOpenKnowledgeLibraryContextConversation}
             gatewayUrl={GATEWAY_WS_URL}
             gatewayToken={gatewayAuth.token}
             gatewayPassword={gatewayAuth.password}

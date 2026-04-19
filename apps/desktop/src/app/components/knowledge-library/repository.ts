@@ -10,7 +10,7 @@ import { compileRawToOntology } from './ontology-pipeline';
 import { getOntologyDocumentById, listOntologyDocuments, upsertOntologyDocument } from './ontology-storage';
 import type { OntologyDocument } from './ontology-types';
 import { buildOutputArtifactsFromOntologyDocuments } from './output-pipeline';
-import { getOutputArtifactById, listOutputArtifacts, upsertOutputArtifact } from './output-storage';
+import { getOutputArtifactByDedupeKey, getOutputArtifactById, listOutputArtifacts, upsertOutputArtifact } from './output-storage';
 import type { CreateOutputArtifactInput, OutputArtifact } from './output-types';
 
 export interface KnowledgeLibraryRepository {
@@ -34,6 +34,7 @@ export interface KnowledgeLibraryRepository {
     limit?: number;
   }): Promise<OutputArtifact[]>;
   getOutputArtifactById(id: string): Promise<OutputArtifact | null>;
+  getOutputArtifactByDedupeKey(dedupeKey: string): Promise<OutputArtifact | null>;
   upsertOutputArtifact(input: CreateOutputArtifactInput & { id?: string }): Promise<OutputArtifact>;
   generateOutputArtifactsFromOntology(documents: OntologyDocument[]): Promise<OutputArtifact[]>;
 }
@@ -115,6 +116,9 @@ export function createLocalKnowledgeLibraryRepository(): KnowledgeLibraryReposit
     },
     async getOutputArtifactById(id) {
       return getOutputArtifactById(id);
+    },
+    async getOutputArtifactByDedupeKey(dedupeKey) {
+      return getOutputArtifactByDedupeKey(dedupeKey);
     },
     async upsertOutputArtifact(input) {
       return upsertOutputArtifact(input);

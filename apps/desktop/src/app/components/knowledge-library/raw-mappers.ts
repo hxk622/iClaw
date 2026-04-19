@@ -1,6 +1,6 @@
 import { FileAudio, FileText, Globe, Image as ImageIcon, Link2, Mic, Sparkles, Upload, Video } from 'lucide-react';
 import type { ComponentType } from 'react';
-import type { ThoughtLibraryItem } from './model';
+import type { KnowledgeLibraryItem } from './model';
 import type { RawMaterial } from './types';
 
 function formatRelativeTime(timestamp: string): string {
@@ -57,7 +57,7 @@ function buildTags(raw: RawMaterial): string[] {
   return Array.from(new Set(tags)).slice(0, 4);
 }
 
-export function mapRawMaterialToThoughtLibraryItem(raw: RawMaterial): ThoughtLibraryItem {
+export function mapRawMaterialToKnowledgeLibraryItem(raw: RawMaterial): KnowledgeLibraryItem {
   return {
     id: raw.id,
     title: raw.title,

@@ -1,8 +1,8 @@
-import type { ThoughtLibraryItem, ThoughtLibraryTab } from './model';
+import type { KnowledgeLibraryItem, KnowledgeLibraryTab } from './model';
 
-export function buildThoughtLibraryContextPrompt(input: {
-  tab: ThoughtLibraryTab;
-  item: ThoughtLibraryItem;
+export function buildKnowledgeLibraryContextPrompt(input: {
+  tab: KnowledgeLibraryTab;
+  item: KnowledgeLibraryItem;
 }): string {
   const layerLabel =
     input.tab === 'materials' ? '素材层' : input.tab === 'graph' ? '本体图谱层' : '成果层';

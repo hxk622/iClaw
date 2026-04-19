@@ -32,6 +32,15 @@ function normalizeStringArray(value: unknown, maxLength = 80): string[] {
   return Array.from(new Set(value.map((entry) => normalizeString(entry, maxLength)).filter(Boolean)));
 }
 
+function readMetadataDedupeKey(item: OutputArtifact | null | undefined): string | null {
+  if (!item?.metadata || typeof item.metadata !== 'object') {
+    return null;
+  }
+  const candidate = (item.metadata as Record<string, unknown>).dedupe_key;
+  const normalized = normalizeString(candidate, 240);
+  return normalized || null;
+}
+
 function parseStore(raw: unknown): OutputStore {
   if (!raw || typeof raw !== 'object') {
     return { version: 1, updated_at: nowIso(), items: [] };
@@ -83,6 +92,12 @@ export function getOutputArtifactById(id: string): OutputArtifact | null {
   const safeId = normalizeString(id, 120);
   if (!safeId) return null;
   return readStore().items.find((item) => item.id === safeId) || null;
+}
+
+export function getOutputArtifactByDedupeKey(dedupeKey: string): OutputArtifact | null {
+  const safeKey = normalizeString(dedupeKey, 240);
+  if (!safeKey) return null;
+  return readStore().items.find((item) => readMetadataDedupeKey(item) === safeKey) || null;
 }
 
 export function upsertOutputArtifact(input: CreateOutputArtifactInput & { id?: string }): OutputArtifact {

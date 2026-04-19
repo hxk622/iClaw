@@ -1,5 +1,5 @@
 import { FileText, Presentation, Sparkles, StickyNote } from 'lucide-react';
-import type { ThoughtLibraryItem } from './model';
+import type { KnowledgeLibraryItem } from './model';
 import type { OutputArtifact } from './output-types';
 
 function formatRelativeTime(timestamp: string): string {
@@ -42,7 +42,7 @@ function subtitle(type: OutputArtifact['type']) {
   }
 }
 
-export function mapOutputArtifactToThoughtLibraryItem(artifact: OutputArtifact): ThoughtLibraryItem {
+export function mapOutputArtifactToKnowledgeLibraryItem(artifact: OutputArtifact): KnowledgeLibraryItem {
   return {
     id: artifact.id,
     title: artifact.title,

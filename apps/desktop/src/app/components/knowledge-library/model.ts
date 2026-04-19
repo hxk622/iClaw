@@ -1,20 +1,19 @@
 import type { ComponentType } from 'react';
 import {
-  BookOpen,
   Brain,
   FileText,
+  Link2,
   Network,
   Sparkles,
-  WandSparkles,
 } from 'lucide-react';
 import type { RawMaterial } from './types';
 import type { GraphifyDocumentViewModel, OntologyDocument } from './ontology-types';
 import type { OutputArtifact } from './output-types';
 
-export type ThoughtLibraryTab = 'materials' | 'graph' | 'artifacts';
+export type KnowledgeLibraryTab = 'materials' | 'graph' | 'artifacts';
 export type GraphViewMode = 'page' | 'graph';
 
-export type ThoughtLibraryItem = {
+export type KnowledgeLibraryItem = {
   id: string;
   title: string;
   subtitle: string;
@@ -31,8 +30,8 @@ export type ThoughtLibraryItem = {
   outputArtifact?: OutputArtifact | null;
 };
 
-export const THOUGHT_LIBRARY_TAB_CONFIG: Array<{
-  id: ThoughtLibraryTab;
+export const KNOWLEDGE_LIBRARY_TAB_CONFIG: Array<{
+  id: KnowledgeLibraryTab;
   label: string;
   icon: ComponentType<{ className?: string }>;
 }> = [
@@ -41,7 +40,7 @@ export const THOUGHT_LIBRARY_TAB_CONFIG: Array<{
   { id: 'artifacts', label: 'Output / 成果', icon: Sparkles },
 ];
 
-const STATIC_THOUGHT_LIBRARY_ITEMS: Record<'graph', ThoughtLibraryItem[]> = {
+const STATIC_KNOWLEDGE_LIBRARY_ITEMS: Record<'graph', KnowledgeLibraryItem[]> = {
   graph: [
     {
       id: 'graph-1',
@@ -73,11 +72,11 @@ const STATIC_THOUGHT_LIBRARY_ITEMS: Record<'graph', ThoughtLibraryItem[]> = {
   ],
 };
 
-export function getStaticThoughtLibraryItems(tab: 'graph'): ThoughtLibraryItem[] {
-  return STATIC_THOUGHT_LIBRARY_ITEMS[tab];
+export function getStaticKnowledgeLibraryItems(tab: 'graph'): KnowledgeLibraryItem[] {
+  return STATIC_KNOWLEDGE_LIBRARY_ITEMS[tab];
 }
 
-export function getThoughtLibraryPanelTitle(tab: ThoughtLibraryTab): string {
+export function getKnowledgeLibraryPanelTitle(tab: KnowledgeLibraryTab): string {
   switch (tab) {
     case 'materials':
       return '素材详情';
@@ -88,7 +87,7 @@ export function getThoughtLibraryPanelTitle(tab: ThoughtLibraryTab): string {
   }
 }
 
-export function getThoughtLibraryPanelDescription(tab: ThoughtLibraryTab): string {
+export function getKnowledgeLibraryPanelDescription(tab: KnowledgeLibraryTab): string {
   switch (tab) {
     case 'materials':
       return '原始资料、Clip 和对话沉淀会先进入素材层，再被 AI 编译进图谱。';
