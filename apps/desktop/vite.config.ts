@@ -599,6 +599,15 @@ export default defineConfig(async () => {
       ],
     },
     server: {
+      host: '127.0.0.1',
+      port: 1520,
+      strictPort: true,
+      origin: 'http://127.0.0.1:1520',
+      hmr: {
+        host: '127.0.0.1',
+        clientPort: 1520,
+        protocol: 'ws',
+      },
       fs: {
         allow: [
           path.resolve(__dirname, '../../'),

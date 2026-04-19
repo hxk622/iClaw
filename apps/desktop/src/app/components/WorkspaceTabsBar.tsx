@@ -227,13 +227,13 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
   return (
     <div
       ref={railRef}
-      className="flex h-12 shrink-0 items-center gap-2 overflow-hidden border-b px-4 py-2"
+      className="flex h-11 shrink-0 items-center gap-2 overflow-hidden border-b px-4 py-1.5"
       style={{
         borderColor: 'var(--chat-surface-panel-border)',
         background: 'color-mix(in srgb, var(--chat-surface-header-bg) 92%, transparent)',
       }}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden pl-2">
       {visibleTabs.map((tab) => {
         const isActive = tab.id === props.activeTabId;
         const colorStyle = WORKSPACE_TAB_COLOR_STYLES[tab.color] || WORKSPACE_TAB_COLOR_STYLES.default;
@@ -551,7 +551,6 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
           更多
         </button>
       ) : null}
-      </div>
       <button
         type="button"
         className="inline-flex h-[31px] w-[31px] shrink-0 items-center justify-center rounded-[13px] border text-[18px] text-[var(--text-secondary)] transition hover:scale-[1.03] hover:bg-[var(--surface-panel-subtle-bg)] hover:text-[var(--text-primary)]"
@@ -566,6 +565,7 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
       >
         +
       </button>
+      </div>
       {portalReady && overflowMenuOpen && overflowTabs.length > 0
         ? createPortal(
             <div
