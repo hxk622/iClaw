@@ -37,13 +37,15 @@ import {
   saveChatFeedbackAsRaw,
 } from './chat-feedback';
 import {
-  importBrowserCaptureBatch,
-  importBrowserCapturePayload,
   KNOWLEDGE_LIBRARY_IMPORT_EVENT,
   KNOWLEDGE_LIBRARY_IMPORT_MESSAGE_TYPE,
   type BrowserCaptureBatchPayload,
   type BrowserCapturePayload,
 } from './browser-capture';
+import {
+  importBrowserCaptureBatchIntoKnowledgeFlywheel,
+  importBrowserCaptureIntoKnowledgeFlywheel,
+} from './flywheel-service';
 
 export function KnowledgeLibraryView({
   title,
@@ -191,18 +193,6 @@ export function KnowledgeLibraryView({
   );
 
   useEffect(() => {
-    if (rawMaterials.length === 0) {
-      return;
-    }
-    void repository.compileRawMaterialsToOntology(rawMaterials).then((documents) => {
-      setOntologyRefreshKey((current) => current + 1);
-      void repository.generateOutputArtifactsFromOntology(documents).then(() => {
-        setOutputRefreshKey((current) => current + 1);
-      });
-    });
-  }, [rawMaterials, repository]);
-
-  useEffect(() => {
     if (!selectedItem) return;
     setSelectedByTab((current) => {
       if (current[activeTab] === selectedItem.id) return current;
@@ -216,17 +206,23 @@ export function KnowledgeLibraryView({
 
   useEffect(() => {
     const importSingle = async (payload: BrowserCapturePayload) => {
-      const imported = await importBrowserCapturePayload(repository, payload);
+      const result = await importBrowserCaptureIntoKnowledgeFlywheel(repository, payload);
+      const imported = result.rawMaterials[0] || null;
       if (!imported) return;
       setMaterialsRefreshKey((current) => current + 1);
+      setOntologyRefreshKey((current) => current + 1);
+      setOutputRefreshKey((current) => current + 1);
       setActiveTab('materials');
       setSelectedByTab((current) => ({ ...current, materials: imported.id }));
     };
 
     const importBatch = async (payload: BrowserCaptureBatchPayload) => {
-      const imported = await importBrowserCaptureBatch(repository, payload);
+      const result = await importBrowserCaptureBatchIntoKnowledgeFlywheel(repository, payload);
+      const imported = result.rawMaterials;
       if (imported.length === 0) return;
       setMaterialsRefreshKey((current) => current + 1);
+      setOntologyRefreshKey((current) => current + 1);
+      setOutputRefreshKey((current) => current + 1);
       setActiveTab('materials');
       setSelectedByTab((current) => ({ ...current, materials: imported[0]?.id || current.materials }));
     };

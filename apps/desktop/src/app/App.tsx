@@ -49,12 +49,14 @@ import {
 } from './lib/tauri-extension-bridge';
 import { createLocalKnowledgeLibraryRepository } from './components/knowledge-library/repository';
 import {
-  importBrowserCaptureBatch,
-  importBrowserCapturePayload,
   KNOWLEDGE_LIBRARY_IMPORT_EVENT,
   type BrowserCaptureBatchPayload,
   type BrowserCapturePayload,
 } from './components/knowledge-library/browser-capture';
+import {
+  importBrowserCaptureBatchIntoKnowledgeFlywheel,
+  importBrowserCaptureIntoKnowledgeFlywheel,
+} from './components/knowledge-library/flywheel-service';
 import { listen } from '@tauri-apps/api/event';
 import { useDesktopStartupController } from './lib/use-desktop-startup-controller';
 import {
@@ -1249,12 +1251,14 @@ export default function App() {
       if (disposed) return;
       const payload = event.payload;
       const importWork = Array.isArray((payload as BrowserCaptureBatchPayload)?.items)
-        ? importBrowserCaptureBatch(knowledgeLibraryRepository, payload as BrowserCaptureBatchPayload)
-        : importBrowserCapturePayload(knowledgeLibraryRepository, payload as BrowserCapturePayload);
+        ? importBrowserCaptureBatchIntoKnowledgeFlywheel(knowledgeLibraryRepository, payload as BrowserCaptureBatchPayload)
+        : importBrowserCaptureIntoKnowledgeFlywheel(knowledgeLibraryRepository, payload as BrowserCapturePayload);
       void Promise.resolve(importWork).then((result) => {
         window.dispatchEvent(
           new CustomEvent(KNOWLEDGE_LIBRARY_IMPORT_EVENT, {
-            detail: Array.isArray(result) ? ({ version: 1, items: payload?.items || [] } as BrowserCaptureBatchPayload) : payload,
+            detail: Array.isArray((payload as BrowserCaptureBatchPayload)?.items)
+              ? ({ version: 1, items: (payload as BrowserCaptureBatchPayload).items || [] } as BrowserCaptureBatchPayload)
+              : payload,
           }),
         );
       });
