@@ -210,6 +210,10 @@ const MARKET_STOCK_DEFAULT_LIMIT = 120;
 const MARKET_STOCK_MAX_LIMIT = 500;
 const MARKET_FUND_DEFAULT_LIMIT = 120;
 const MARKET_FUND_MAX_LIMIT = 500;
+const MARKET_NEWS_DEFAULT_LIMIT = 40;
+const MARKET_NEWS_MAX_LIMIT = 200;
+const MARKET_OVERVIEW_DEFAULT_INDEX_LIMIT = 6;
+const MARKET_OVERVIEW_DEFAULT_HEADLINE_LIMIT = 8;
 const PAYMENT_PROVIDER_SECRET_FIELDS = ['api_v3_key', 'private_key_pem'] as const;
 const PAYMENT_PROVIDER_REQUIRED_CONFIG_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no'] as const;
 const EPAY_PAYMENT_GATEWAY_STATE_KEY = 'payment_gateway:epay';
@@ -396,6 +400,39 @@ function normalizeMarketFundLimit(limitInput?: number | null): number {
     return MARKET_FUND_DEFAULT_LIMIT;
   }
   return Math.min(normalized, MARKET_FUND_MAX_LIMIT);
+}
+
+function normalizeMarketNewsLimit(limitInput?: number | null): number {
+  if (typeof limitInput !== 'number' || !Number.isFinite(limitInput)) {
+    return MARKET_NEWS_DEFAULT_LIMIT;
+  }
+  const normalized = Math.floor(limitInput);
+  if (normalized <= 0) {
+    return MARKET_NEWS_DEFAULT_LIMIT;
+  }
+  return Math.min(normalized, MARKET_NEWS_MAX_LIMIT);
+}
+
+function normalizeMarketOverviewIndexLimit(limitInput?: number | null): number {
+  if (typeof limitInput !== 'number' || !Number.isFinite(limitInput)) {
+    return MARKET_OVERVIEW_DEFAULT_INDEX_LIMIT;
+  }
+  const normalized = Math.floor(limitInput);
+  if (normalized <= 0) {
+    return MARKET_OVERVIEW_DEFAULT_INDEX_LIMIT;
+  }
+  return Math.min(normalized, 20);
+}
+
+function normalizeMarketOverviewHeadlineLimit(limitInput?: number | null): number {
+  if (typeof limitInput !== 'number' || !Number.isFinite(limitInput)) {
+    return MARKET_OVERVIEW_DEFAULT_HEADLINE_LIMIT;
+  }
+  const normalized = Math.floor(limitInput);
+  if (normalized <= 0) {
+    return MARKET_OVERVIEW_DEFAULT_HEADLINE_LIMIT;
+  }
+  return Math.min(normalized, 20);
 }
 
 function normalizeImBotPlatformId(value: unknown): ImBotPlatformId {
