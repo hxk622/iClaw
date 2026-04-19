@@ -33,6 +33,7 @@
     "tauriIconsDir": "services/control-plane/assets/caiclaw/tauri-icons",
     "assistantAvatar": "services/control-plane/assets/caiclaw/favicon.png",
     "brandMark": "services/control-plane/assets/caiclaw/favicon.png",
+    "desktopLogo": "services/control-plane/assets/caiclaw/logo-master.png",
     "logoMaster": "services/control-plane/assets/caiclaw/logo-master.png",
     "homeLogo": "services/control-plane/assets/caiclaw/home-logo.jpg",
     "homeHeroArt": null,

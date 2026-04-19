@@ -33,6 +33,7 @@
     "tauriIconsDir": "services/control-plane/assets/iclaw/tauri-icons",
     "assistantAvatar": "services/control-plane/assets/iclaw/tauri-icons/icon.png",
     "brandMark": "services/control-plane/assets/iclaw/favicon.png",
+    "desktopLogo": "services/control-plane/assets/iclaw/favicon.png",
     "logoMaster": "services/control-plane/assets/iclaw/favicon.png",
     "homeLogo": "services/control-plane/assets/iclaw/favicon.png",
     "homeHeroArt": null,

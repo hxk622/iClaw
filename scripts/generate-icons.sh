@@ -22,8 +22,8 @@ BRAND_PATHS="$(
     const rootDir = process.argv[1];
     const brandId = process.argv[2];
     const {brandDir, profile} = await loadBrandProfile({rootDir, brandId});
-    const logoMaster = profile.assets.logoMaster || path.join(profile.assets.tauriIconsDir, 'icon.png');
-    console.log(path.resolve(brandDir, logoMaster));
+    const desktopLogo = profile.assets.desktopLogo;
+    console.log(path.resolve(brandDir, desktopLogo));
     console.log(path.resolve(brandDir, profile.assets.tauriIconsDir));
   " "$ROOT_DIR" "$BRAND_ID"
 )"

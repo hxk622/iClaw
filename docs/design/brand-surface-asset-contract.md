@@ -7,9 +7,11 @@ Separate desktop icon masters from in-product avatar/brand-mark assets, and requ
 ## Asset ownership
 
 - `assets.logoMaster`
+  - Untouched original brand-art master.
+  - Must not be mutated by desktop icon generation.
+- `assets.desktopLogo`
   - Source of truth for desktop icon generation only.
-  - Used by `scripts/generate-icons.sh` and installer/OS icon outputs.
-  - Transparent padding is allowed here.
+  - Can be a cropped or tuned derivative of `logoMaster`.
 - `assets.faviconPng`
   - Small square brand token for web/favicon usage.
 - `assets.brandMark`
@@ -25,6 +27,8 @@ Separate desktop icon masters from in-product avatar/brand-mark assets, and requ
 ## Surface mapping
 
 - Desktop app icon / installer icon / generated Tauri icons
+  - `desktopLogo`
+- Original brand-art master
   - `logoMaster`
 - Chat assistant avatar
   - `assistantAvatar`
@@ -37,10 +41,12 @@ Separate desktop icon masters from in-product avatar/brand-mark assets, and requ
 
 ## Rules
 
-- Every packaging profile must explicitly provide `assistantAvatar`, `brandMark`, `faviconPng`, `homeLogo`, and `logoMaster`.
+- Every packaging profile must explicitly provide `assistantAvatar`, `brandMark`, `faviconPng`, `homeLogo`, `desktopLogo`, and `logoMaster`.
 - No surface asset fallback is allowed inside the packaging/build pipeline.
 - `logoMaster` is never a substitute for `assistantAvatar`.
 - `logoMaster` is never a substitute for `brandMark`.
+- `desktopLogo` is the only asset allowed to drive desktop icon generation.
+- `logoMaster` must remain the untouched original.
 - `brand-mark.png` and `assistant-avatar.png` must be generated from their explicit owners, not from a fallback chain.
 
 ## Build enforcement
@@ -48,9 +54,10 @@ Separate desktop icon masters from in-product avatar/brand-mark assets, and requ
 - `scripts/lib/brand-asset-policy.mjs` is the shared contract resolver.
 - `scripts/lib/packaging-profile.mjs` validates hard requirements and rejects incomplete profiles.
 - `scripts/apply-brand.mjs` materializes generated assets using the explicit surface mapping only.
+- `scripts/generate-icons.sh` and `scripts/generate-desktop-icon-variants.sh` read `desktopLogo`, not `logoMaster`.
 - `scripts/release-guard.mjs` reports whether a brand matches the explicit asset contract.
 
 ## Current application
 
-- `iclaw` and `caiclaw` now declare `assets.brandMark` explicitly.
-- `caiclaw` keeps `assistantAvatar` explicit and separate from `logoMaster`, while `brandMark` is currently sourced from its favicon asset by configuration, not by fallback.
+- `iclaw` and `caiclaw` now declare `assets.brandMark` and `assets.desktopLogo` explicitly.
+- `logoMaster` remains available as the untouched original master asset instead of being the desktop-icon source by default.

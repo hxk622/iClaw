@@ -208,6 +208,7 @@ function buildProfile(detail: PortalAppDetail, cachedAssets: Record<string, stri
       tauriIconsDir: cachedAssets.tauriIconsDir,
       assistantAvatar: cachedAssets.assistantAvatar,
       brandMark: cachedAssets.brandMark,
+      desktopLogo: cachedAssets.desktopLogo,
       logoMaster: cachedAssets.logoMaster,
       homeLogo: cachedAssets.homeLogo,
       homeHeroArt: cachedAssets.homeHeroArt,
@@ -318,6 +319,13 @@ async function main() {
       detail,
       repoRoot,
       cacheRoot,
+      'desktopLogo',
+      `assets/desktop-logo${extname(findAsset(detail, 'desktopLogo')?.objectKey || '') || '.png'}`,
+    );
+    await writeAssetFile(
+      detail,
+      repoRoot,
+      cacheRoot,
       'logoMaster',
       `assets/logo-master${extname(findAsset(detail, 'logoMaster')?.objectKey || '') || '.png'}`,
     );
@@ -357,6 +365,10 @@ async function main() {
       brandMark: await relativePathIfExists(
         cacheRoot,
         `assets/brand-mark${extname(findAsset(detail, 'brandMark')?.objectKey || '') || '.png'}`,
+      ),
+      desktopLogo: await relativePathIfExists(
+        cacheRoot,
+        `assets/desktop-logo${extname(findAsset(detail, 'desktopLogo')?.objectKey || '') || '.png'}`,
       ),
       logoMaster: await relativePathIfExists(
         cacheRoot,

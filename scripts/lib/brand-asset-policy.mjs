@@ -10,6 +10,7 @@ export function inspectBrandAssetPolicy(profile) {
   const normalizedAssets = {
     assistantAvatar: trimString(assets.assistantAvatar),
     brandMark: trimString(assets.brandMark),
+    desktopLogo: trimString(assets.desktopLogo),
     faviconPng: trimString(assets.faviconPng),
     homeLogo: trimString(assets.homeLogo),
     logoMaster: trimString(assets.logoMaster),
@@ -30,8 +31,11 @@ export function inspectBrandAssetPolicy(profile) {
   if (!normalizedAssets.homeLogo) {
     errors.push('assets.homeLogo is required for home/marketing logo surfaces');
   }
+  if (!normalizedAssets.desktopLogo) {
+    errors.push('assets.desktopLogo is required for desktop icon generation');
+  }
   if (!normalizedAssets.logoMaster) {
-    errors.push('assets.logoMaster is required for desktop icon generation');
+    errors.push('assets.logoMaster is required as the untouched original logo master');
   }
 
   const selections = {
@@ -47,6 +51,10 @@ export function inspectBrandAssetPolicy(profile) {
       sourceKey: 'homeLogo',
       path: normalizedAssets.homeLogo,
     },
+    desktopLogo: {
+      sourceKey: 'desktopLogo',
+      path: normalizedAssets.desktopLogo,
+    },
     logoMaster: {
       sourceKey: 'logoMaster',
       path: normalizedAssets.logoMaster,
@@ -54,11 +62,11 @@ export function inspectBrandAssetPolicy(profile) {
   };
 
   if (
-    normalizedAssets.assistantAvatar &&
+    normalizedAssets.desktopLogo &&
     normalizedAssets.logoMaster &&
-    normalizedAssets.assistantAvatar === normalizedAssets.logoMaster
+    normalizedAssets.desktopLogo === normalizedAssets.logoMaster
   ) {
-    advisories.push('assets.assistantAvatar matches assets.logoMaster; verify the image is tightly cropped for circular chat surfaces');
+    advisories.push('assets.desktopLogo matches assets.logoMaster; keep them separate if desktop icon crops should not touch the original master');
   }
 
   return {
