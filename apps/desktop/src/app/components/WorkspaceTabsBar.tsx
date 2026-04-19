@@ -345,7 +345,7 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
                     </button>
                     <div className="my-1 h-px bg-[var(--border-default)]" />
                     <div className="px-3 pb-1 pt-1.5 text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">颜色</div>
-                    <div className="grid grid-cols-7 gap-1.5 px-2 pb-2 pt-1">
+                    <div className="grid grid-cols-7 gap-2 px-2 pb-2 pt-1">
                       {Object.keys(WORKSPACE_TAB_COLOR_STYLES).map((colorKey) => {
                         const optionColor = colorKey as WorkspaceTabRecord['color'];
                         const optionStyle = WORKSPACE_TAB_COLOR_STYLES[optionColor];
@@ -357,11 +357,15 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
                             data-testid="workspace-tab-menu-color"
                             data-workspace-tab-id={tab.id}
                             data-workspace-tab-color-option={optionColor}
-                            className="inline-flex h-6 w-6 items-center justify-center rounded-full border transition-transform hover:scale-[1.08]"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border transition-transform hover:scale-[1.06]"
                             style={{
-                              borderColor: selected ? 'var(--brand-primary)' : 'var(--border-default)',
-                              background: optionStyle.accent,
-                              boxShadow: selected ? '0 0 0 2px color-mix(in srgb, var(--brand-primary) 24%, transparent)' : 'none',
+                              borderColor: selected
+                                ? 'color-mix(in srgb, var(--brand-primary) 72%, white)'
+                                : 'color-mix(in srgb, var(--border-default) 92%, transparent)',
+                              backgroundColor: optionStyle.accent,
+                              boxShadow: selected
+                                ? '0 0 0 2px var(--bg-elevated), 0 0 0 4px color-mix(in srgb, var(--brand-primary) 52%, transparent)'
+                                : 'inset 0 0 0 1px color-mix(in srgb, black 10%, transparent)',
                             }}
                             onClick={() => {
                               props.onColorChange(tab.id, optionColor);
