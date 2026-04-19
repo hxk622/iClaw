@@ -123,6 +123,11 @@ function formatPrice(value: number | null | undefined, digits = 4): string {
   return value.toFixed(digits);
 }
 
+function formatPercentPoint(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '--';
+  return `${value.toFixed(2)}%`;
+}
+
 function resolveInstrumentLabel(fund: MarketFundData): string {
   if (fund.instrument_kind === 'etf') return 'ETF';
   if (fund.instrument_kind === 'qdii') return 'QDII';
@@ -195,6 +200,33 @@ function fundTagTone(tag: string): 'brand' | 'accent' | 'success' | 'warning' | 
   if (/成长|高波动|医药|军工|新能源|消费/.test(tag)) return 'warning';
   if (/主动管理/.test(tag)) return 'accent';
   return 'outline';
+}
+
+function resolveFundAllocationSnapshot(fund: FundItem): Array<{label: string; value: string}> {
+  const assetAllocation = fund.asset_allocation;
+  const categories = Array.isArray(assetAllocation?.categories) ? assetAllocation.categories : [];
+  const series = Array.isArray(assetAllocation?.series) ? assetAllocation.series : [];
+  const latestIndex = categories.length > 0 ? categories.length - 1 : -1;
+  if (latestIndex < 0) return [];
+
+  const takeSeriesValue = (keyword: string): number | null => {
+    const row = series.find((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const name = typeof (item as Record<string, unknown>).name === 'string' ? (item as Record<string, unknown>).name : '';
+      return name.includes(keyword);
+    }) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    const data = Array.isArray(row.data) ? row.data : [];
+    const value = data[latestIndex];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  };
+
+  return [
+    {label: '股票占净比', value: formatPercentPoint(takeSeriesValue('股票占净比'))},
+    {label: '债券占净比', value: formatPercentPoint(takeSeriesValue('债券占净比'))},
+    {label: '现金占净比', value: formatPercentPoint(takeSeriesValue('现金占净比'))},
+    {label: '净资产', value: formatScaleAmount(takeSeriesValue('净资产') === null ? null : Number(takeSeriesValue('净资产')) * 100000000)},
+  ].filter((item) => item.value !== '--');
 }
 
 function EmptyPanel({title, description}: {title: string; description: string}) {
@@ -493,6 +525,7 @@ function FundDrawer({
   onStartResearch?: (fund: FundMarketResearchTarget) => void;
 }) {
   if (!fund) return null;
+  const allocationSnapshot = resolveFundAllocationSnapshot(fund);
 
   return (
     <div className="pointer-events-none fixed inset-0 z-40">
@@ -584,6 +617,22 @@ function FundDrawer({
                 <div className="text-[11px] text-[var(--text-muted)]">重点跟踪</div>
                 <div className="mt-2 text-[15px] font-semibold text-[var(--text-primary)]">{fund.watchlisted ? '是' : '否'}</div>
               </div>
+            </div>
+          </section>
+
+          <section className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4">
+            <div className="text-[14px] font-semibold text-[var(--text-primary)]">资产配置</div>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {allocationSnapshot.length > 0 ? (
+                allocationSnapshot.map((item) => (
+                  <div key={item.label} className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-3 dark:bg-[rgba(255,255,255,0.02)]">
+                    <div className="text-[11px] text-[var(--text-muted)]">{item.label}</div>
+                    <div className="mt-2 text-[15px] font-semibold text-[var(--text-primary)]">{item.value}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-2 text-[13px] leading-6 text-[var(--text-secondary)]">当前还没有可用的资产配置快照。</div>
+              )}
             </div>
           </section>
 
