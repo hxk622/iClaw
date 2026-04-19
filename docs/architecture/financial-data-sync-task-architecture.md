@@ -38,6 +38,92 @@
 3. sync 与 async enrich 还没有统一边界
 4. 数据 freshness、任务优先级、降级策略没有被系统化表达
 
+## 2.1 当前实际依赖的数据源
+
+基于当前仓库代码，金融数据已经实际依赖以下来源：
+
+### A 股身份与初始目录
+
+- `CNInfo`
+  - `https://www.cninfo.com.cn/new/data/szse_stock.json`
+- `腾讯行情`
+  - `https://qt.gtimg.cn/q=...`
+
+用途：
+
+- `import-a-share-stocks.ts`
+- 生成 `market_stock_catalog`
+
+### A 股行情与基础面同步
+
+- `AKShare`
+  - 东方财富接口
+  - 新浪接口
+- `efinance`
+
+用途：
+
+- `fetch_stock_quotes.py`
+- `fetch-stock-basics.py`
+- `fetch_industry_concept.py`
+- `fetch-finance-data.py`
+
+### 基金市场
+
+- `东方财富 fundcode_search`
+  - `https://fund.eastmoney.com/js/fundcode_search.js`
+- `东方财富 pingzhongdata`
+  - `https://fund.eastmoney.com/pingzhongdata/{code}.js`
+- `东方财富 push2`
+  - `https://push2.eastmoney.com/api/qt/stock/get`
+
+用途：
+
+- `import-cn-funds.ts`
+- 生成 `market_fund_catalog`
+
+### 大盘指数
+
+- `AKShare`
+  - `stock_zh_index_spot_em`
+  - `stock_zh_index_spot_sina`
+
+用途：
+
+- `fetch_market_indices.py`
+- 生成 `market_index_snapshot`
+
+### 热点快讯 / 新闻
+
+- `AKShare` 封装的公开新闻源
+  - `stock_info_global_em` -> 东方财富快讯
+  - `stock_info_global_cls` -> 财联社电报
+  - `stock_info_global_sina` -> 新浪快讯
+
+用途：
+
+- `fetch_market_news.py`
+- 生成 `market_news_item`
+
+### 财务数据兜底
+
+- `Tushare`
+
+用途：
+
+- `fetch-finance-data.py`
+- 当前作为季度财务数据的后备源
+
+## 2.2 当前缺口
+
+虽然基础源已经能跑起来，但仍有明显缺口：
+
+- 基金新闻还没有 fund-specific 源，只是从通用 `market_news_item` 做前端匹配
+- 基金经理 / 持仓 / 公告还没有正式 sync task
+- 股票个股新闻正文、公告正文、研究材料还没有 async enrich
+- `baostock` 已在 `data-source-scheduler.ts` 类型里出现，但当前未真正接入
+- 各来源的 freshness / SLA / 字段覆盖能力还没有写成 source registry
+
 ## 3. 总体设计
 
 ```text
@@ -230,6 +316,7 @@ TypeScript 任务负责：
 
 - `sync:market-overview`
 - `sync:market-news`
+- 以及建议统一的 `run-sync-task.ts`
 
 这条方向也应该继续保留，并统一成标准模式。
 
@@ -238,6 +325,11 @@ TypeScript 任务负责：
 - cron 自动执行
 - 手工脚本执行
 - 后台管理触发
+
+建议统一入口：
+
+- `scripts/run-sync-task.ts --task <task-id>`
+- 后续 Admin API / XXL-JOB / K8s CronJob 都只调用这个 runner
 
 ## 10. Async Enrich 未来设计
 
