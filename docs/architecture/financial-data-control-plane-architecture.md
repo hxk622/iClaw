@@ -53,6 +53,12 @@ Desktop / Web / admin-web
 - `data-sync-service` 负责调度、抓取、补抓和入库
 - 前端不直接读取 `data-sync-service`
 
+当前迁移状态：
+
+- `control-plane` 内嵌 scheduler 已进入废弃路径
+- 自动 cron / warmup 的角色应由 `data-sync-service` 独自承担
+- `control-plane` 保留 admin 查询和手工触发接口
+
 ## 4. 五层模型
 
 ### 4.1 Source Connectors

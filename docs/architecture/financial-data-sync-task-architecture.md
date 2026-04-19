@@ -144,7 +144,8 @@ control-plane
 
 - `control-plane` 保留 task admin 读口和触发口
 - 真正的 cron/scheduler 角色逐步迁到 `services/data-sync-service`
-- 在迁移期，embedded scheduler 仍可作为兼容路径，但长期目标是 data-sync-service 单独承担抓取职责
+- 当前默认目标是：自动 scheduler 只在 `data-sync-service` 内运行
+- `control-plane` 中的 embedded scheduler 仅保留兼容性警告，不再作为推荐运行方式
 
 ## 4. 任务分类
 

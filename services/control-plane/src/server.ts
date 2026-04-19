@@ -102,22 +102,15 @@ import {
 import type {KeyValueCache} from './cache.ts';
 import type {ControlPlaneStore} from './store.ts';
 
-function isTruthyEnv(value: string | undefined): boolean {
-  return /^(1|true|yes|on)$/i.test((value || '').trim());
-}
-
-async function startOptionalSyncTasks(): Promise<void> {
-  if (!isTruthyEnv(process.env.ICLAW_ENABLE_SYNC_TASKS)) {
-    logInfo('market sync tasks disabled; set ICLAW_ENABLE_SYNC_TASKS=1 to enable');
+function maybeWarnEmbeddedSchedulerDeprecated(): void {
+  if (!/^(1|true|yes|on)$/i.test((process.env.ICLAW_ENABLE_SYNC_TASKS || '').trim())) {
     return;
   }
-  try {
-    const {startSyncTasks} = await import('./sync-tasks/index.ts');
-    startSyncTasks();
-    logInfo('market sync tasks started');
-  } catch (error) {
-    logWarn('market sync tasks failed to start; continuing without background sync', {error});
-  }
+  logWarn('embedded control-plane scheduler is deprecated; start data-sync-service instead', {
+    env: 'ICLAW_ENABLE_SYNC_TASKS',
+    recommended_service: 'data-sync-service',
+    recommended_env: 'DATA_SYNC_SERVICE_ENABLE_SCHEDULER=1',
+  });
 }
 
 if (!config.databaseUrl) {
@@ -2613,5 +2606,5 @@ server.listen(config.port, config.listenHost, () => {
       process.exit(1);
     });
   });
-  void startOptionalSyncTasks();
+  maybeWarnEmbeddedSchedulerDeprecated();
 });
