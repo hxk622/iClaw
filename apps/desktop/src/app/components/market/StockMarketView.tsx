@@ -25,6 +25,11 @@ const GROUP_DEFINITIONS = [
   {key: '强势异动', description: '短线涨幅较高，用来捕捉日内和近期异动', sort: 'change_percent_desc'},
 ] as const;
 
+const STOCK_PANEL_SECTION_CLASS =
+  'overflow-hidden rounded-xl border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)]';
+const STOCK_PANEL_SECTION_HEADER_CLASS =
+  'border-b border-[var(--drawer-shell-border)] bg-[var(--bg-card)] px-5 py-4';
+
 type StockGroupSection = {
   key: string;
   description: string;
@@ -288,10 +293,10 @@ function StockCard({
         'relative flex h-full cursor-pointer flex-col rounded-[18px] border p-4 text-left transition-all duration-200',
         SPRING_PRESSABLE,
         INTERACTIVE_FOCUS_RING,
-        'bg-white dark:bg-[#1A1A1A]',
+        'bg-[var(--bg-elevated)]',
         active
           ? 'border-[#2A4A6F] bg-[#EAF0F6] shadow-[0_12px_30px_rgba(42,74,111,0.14)] dark:bg-[#1E3A5F]/30 dark:border-[#3A5A8F]'
-          : 'border-[#E5E5E4] hover:border-[#2A4A6F] hover:shadow-[0_12px_28px_rgba(17,24,39,0.08)] dark:border-[#3A3A3A] dark:hover:border-[#3A5A8F]',
+          : 'border-[var(--drawer-shell-border)] hover:border-[#2A4A6F] hover:shadow-[0_12px_28px_rgba(17,24,39,0.08)] dark:hover:border-[#3A5A8F]',
       )}
     >
       <div className="flex items-start gap-3">
@@ -425,8 +430,15 @@ function StockDetailDrawer({
         onClick={onClose}
       />
 
-      <aside className="fixed right-0 top-0 bottom-0 z-50 flex w-[560px] max-w-[calc(100vw-20px)] flex-col bg-white shadow-2xl dark:bg-[#252525]">
-        <div className="border-b border-[#E5E5E4] px-6 py-5 dark:border-[#3A3A3A]">
+      <aside
+        className="fixed right-0 top-0 bottom-0 z-50 flex w-[560px] max-w-[calc(100vw-20px)] flex-col border-l"
+        style={{
+          borderColor: 'var(--drawer-shell-border)',
+          background: 'var(--drawer-shell-bg)',
+          boxShadow: 'var(--drawer-shell-shadow)',
+        }}
+      >
+        <div className="border-b border-[var(--drawer-shell-border)] px-6 py-5">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -482,7 +494,7 @@ function StockDetailDrawer({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#5C564E] transition-colors hover:bg-[#F0F0EF] dark:text-[#9B9B9A] dark:hover:bg-[#2A2A2A]"
+                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#5C564E] transition-colors hover:bg-[var(--bg-hover)] dark:text-[#9B9B9A]"
                 aria-label="加入跟踪"
               >
                 <BookmarkPlus className="h-5 w-5" />
@@ -490,7 +502,7 @@ function StockDetailDrawer({
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#5C564E] transition-colors hover:bg-[#F0F0EF] dark:text-[#9B9B9A] dark:hover:bg-[#2A2A2A]"
+                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#5C564E] transition-colors hover:bg-[var(--bg-hover)] dark:text-[#9B9B9A]"
                 aria-label="关闭详情抽屉"
               >
                 <X className="h-5 w-5" />
@@ -503,14 +515,14 @@ function StockDetailDrawer({
           {loading || !stock ? (
             <div className="space-y-3">
               {Array.from({length: 5}).map((_, index) => (
-                <div key={index} className="h-24 animate-pulse rounded-[18px] bg-[#F9F8F6] dark:bg-[#1A1A1A]" />
+                <div key={index} className="h-24 animate-pulse rounded-[18px] bg-[var(--bg-card)]" />
               ))}
             </div>
           ) : (
             <div className="space-y-6">
               <section>
                 <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">概览</h3>
-                <div className="rounded-lg bg-[#F9F8F6] p-4 dark:bg-[#1A1A1A]">
+                <div className="rounded-lg bg-[var(--bg-card)] p-4">
                   <p className="text-[14px] leading-7 text-[#3F3A34] dark:text-[#C7C2BA]">{buildCardSummary(stock)}</p>
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div>
@@ -550,7 +562,7 @@ function StockDetailDrawer({
                     {label: '成交额', value: formatCompactNumber(stock.amount), accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
                     {label: '涨跌额', value: `¥${formatPrice(stock.change_amount)}`, accent: positive ? 'text-[#059669] dark:text-[#10B981]' : 'text-[#DC2626] dark:text-[#EF4444]'},
                   ].map((item) => (
-                    <div key={item.label} className="rounded-lg bg-[#F9F8F6] p-3 dark:bg-[#1A1A1A]">
+                    <div key={item.label} className="rounded-lg bg-[var(--bg-card)] p-3">
                       <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">{item.label}</span>
                       <p className={cn('mt-1 text-[18px] font-medium', item.accent)}>{item.value}</p>
                     </div>
@@ -560,7 +572,7 @@ function StockDetailDrawer({
 
               <section>
                 <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">策略标签</h3>
-                <div className="flex flex-wrap gap-2 rounded-lg bg-[#F9F8F6] p-4 dark:bg-[#1A1A1A]">
+                <div className="flex flex-wrap gap-2 rounded-lg bg-[var(--bg-card)] p-4">
                   {stock.strategy_tags.length > 0 ? (
                     stock.strategy_tags.map((tag) => (
                       <span key={tag} className={cn('rounded px-2.5 py-1 text-[12px]', stockTagClasses(tag))}>
@@ -582,7 +594,7 @@ function StockDetailDrawer({
                     {label: '交易日期', value: formatDate(stock.quote_trade_date)},
                     {label: '基础面时间', value: formatDatetime(stock.fundamentals_updated_at)},
                   ].map((item) => (
-                    <div key={item.label} className="rounded-lg bg-[#F9F8F6] p-3 dark:bg-[#1A1A1A]">
+                    <div key={item.label} className="rounded-lg bg-[var(--bg-card)] p-3">
                       <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">{item.label}</span>
                       <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{item.value}</p>
                     </div>
@@ -616,7 +628,7 @@ function StockDetailDrawer({
 
               <section>
                 <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">公司画像</h3>
-                <div className="rounded-lg bg-[#F9F8F6] p-4 dark:bg-[#1A1A1A]">
+                <div className="rounded-lg bg-[var(--bg-card)] p-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">所属行业</span>
@@ -645,7 +657,7 @@ function StockDetailDrawer({
           )}
         </div>
 
-        <div className="border-t border-[#E5E5E4] bg-[#F7F3EC] px-6 py-4 dark:border-[#3A3A3A] dark:bg-[#252525]">
+        <div className="border-t border-[var(--drawer-shell-border)] bg-[var(--drawer-footer-bg)] px-6 py-4 backdrop-blur-[10px]">
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7B7368] dark:text-[#8C867E]">AI 研究操作</div>
           <div className="space-y-2">
             <MarketActionButton
@@ -656,7 +668,7 @@ function StockDetailDrawer({
               查看深度分析
             </MarketActionButton>
             <MarketActionButton
-              className="flex h-11 w-full border-[#D6CCBF] bg-white text-[#2F2A24] shadow-[0_8px_18px_rgba(36,30,20,0.06)] hover:border-[#C6B8A5] hover:bg-[#F5EFE6] dark:border-[#4A4640] dark:bg-[#1D1D1D] dark:text-[#F0ECE4] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] dark:hover:border-[#605B54] dark:hover:bg-[#242424]"
+              className="flex h-11 w-full border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] text-[#2F2A24] shadow-[0_8px_18px_rgba(36,30,20,0.06)] hover:border-[#C6B8A5] hover:bg-[var(--bg-card)] dark:text-[#F0ECE4]"
               disabled={!stock}
               onClick={() => stock && onStartResearch?.(stock)}
             >
@@ -677,8 +689,8 @@ function StockDetailDrawer({
 
 function SectionSkeleton() {
   return (
-    <section className="overflow-hidden rounded-xl border border-[#E5E5E4] bg-white dark:border-[#3A3A3A] dark:bg-[#252525]">
-      <div className="border-b border-[#E5E5E4] bg-[#FAFAF8] px-5 py-4 dark:border-[#3A3A3A] dark:bg-[#1A1A1A]">
+    <section className={STOCK_PANEL_SECTION_CLASS}>
+      <div className={STOCK_PANEL_SECTION_HEADER_CLASS}>
         <div className="h-4 w-28 animate-pulse rounded bg-[#E5E5E4] dark:bg-[#2A2A2A]" />
         <div className="mt-2 h-3 w-40 animate-pulse rounded bg-[#ECECEC] dark:bg-[#232323]" />
       </div>
@@ -897,7 +909,7 @@ export function StockMarketView({
             <select
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-              className="h-[42px] cursor-pointer rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[rgba(201,169,97,0.24)] dark:bg-[rgba(255,255,255,0.03)]"
+              className="h-[42px] cursor-pointer rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[rgba(201,169,97,0.24)]"
             >
               <option value="change_percent_desc">排序: 涨跌幅</option>
               <option value="market_cap_desc">排序: 总市值</option>
@@ -956,8 +968,8 @@ export function StockMarketView({
           </div>
         ) : showingSearchResults ? (
           <div className="mt-6 space-y-4">
-            <section className="overflow-hidden rounded-xl border border-[#E5E5E4] bg-white dark:border-[#3A3A3A] dark:bg-[#252525]">
-              <div className="border-b border-[#E5E5E4] bg-[#FAFAF8] px-5 py-4 dark:border-[#3A3A3A] dark:bg-[#1A1A1A]">
+            <section className={STOCK_PANEL_SECTION_CLASS}>
+              <div className={STOCK_PANEL_SECTION_HEADER_CLASS}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-[16px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">筛选结果</div>
@@ -984,9 +996,9 @@ export function StockMarketView({
             {sections.map((section) => (
               <section
                 key={section.key}
-                className="overflow-hidden rounded-xl border border-[#E5E5E4] bg-white dark:border-[#3A3A3A] dark:bg-[#252525]"
+                className={STOCK_PANEL_SECTION_CLASS}
               >
-                <div className="border-b border-[#E5E5E4] bg-[#FAFAF8] px-5 py-4 dark:border-[#3A3A3A] dark:bg-[#1A1A1A]">
+                <div className={STOCK_PANEL_SECTION_HEADER_CLASS}>
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-[16px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">{section.key}</div>

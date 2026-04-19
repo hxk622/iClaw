@@ -361,7 +361,7 @@ export function AccountPanel({
         className="relative flex h-full max-h-[920px] w-full max-w-7xl flex-col overflow-hidden rounded-[32px] border border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] shadow-[0_28px_90px_rgba(42,31,10,0.18)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[var(--border-default)] bg-white/78 px-6 py-3 backdrop-blur-[10px] dark:bg-[rgba(12,12,12,0.72)]">
+        <div className="flex items-center justify-between border-b border-[var(--border-default)] bg-[var(--drawer-eyebrow-bg)] px-6 py-3 backdrop-blur-[10px]">
           <Button
             onClick={onClose}
             variant="ghost"

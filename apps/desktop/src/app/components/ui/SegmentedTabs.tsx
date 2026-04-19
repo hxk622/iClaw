@@ -20,10 +20,12 @@ export function SegmentedTabs<T extends string>({
 }) {
   return (
     <div
-      className={cn(
-        'inline-flex flex-wrap items-center gap-1.5 rounded-[16px] border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-card)_82%,transparent)] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
-        className,
-      )}
+      className={cn('inline-flex flex-wrap items-center gap-1.5 rounded-[16px] border p-1.5', className)}
+      style={{
+        borderColor: 'var(--segmented-rail-border)',
+        background: 'var(--segmented-rail-bg)',
+        boxShadow: 'var(--segmented-rail-shadow)',
+      }}
     >
       {items.map((item) => {
         const active = item.id === activeId;
@@ -39,7 +41,7 @@ export function SegmentedTabs<T extends string>({
               INTERACTIVE_FOCUS_RING,
               active
                 ? 'border-[var(--surface-active-border)] bg-[var(--surface-active-bg)] text-[var(--surface-active-text)] shadow-[var(--surface-active-shadow)]'
-                : 'border-[color-mix(in_srgb,var(--border-default)_88%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_96%,transparent)] text-[var(--text-secondary)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] dark:bg-[color-mix(in_srgb,var(--bg-card)_88%,transparent)]',
+                : 'border-[var(--segmented-item-border)] bg-[var(--segmented-item-bg)] text-[var(--text-secondary)] shadow-[var(--segmented-item-shadow)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
             )}
           >
             <span>{item.label}</span>
@@ -48,8 +50,8 @@ export function SegmentedTabs<T extends string>({
                 className={cn(
                   'rounded-full px-2 py-0.5 text-[11px]',
                   active
-                    ? 'bg-[rgba(255,255,255,0.22)] text-[var(--surface-active-text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:bg-[rgba(255,255,255,0.10)]'
-                    : 'bg-[color-mix(in_srgb,var(--bg-elevated)_96%,transparent)] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] dark:bg-[rgba(255,255,255,0.06)]',
+                    ? 'bg-[var(--segmented-badge-active-bg)] text-[var(--surface-active-text)] shadow-[var(--segmented-badge-active-shadow)]'
+                    : 'bg-[var(--segmented-badge-bg)] text-[var(--text-secondary)] shadow-[var(--segmented-badge-shadow)]',
                 )}
               >
                 {item.badge}

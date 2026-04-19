@@ -68,7 +68,7 @@ export const BRAND = {
       "bundleIdentifier": "ai.caiclaw.desktop",
       "artifactBaseName": "caiclaw",
       "buildId": "202604181535",
-      "sourceProfileHash": "527b34c8d794ffdedfd4ec32356d79c525d4d7820945efb04289823f79f2890e"
+      "sourceProfileHash": "ebef91c55a54c0f115d02ac29d955641008b2d6254301211b3f404568136d640"
     }
   }
 } as const;

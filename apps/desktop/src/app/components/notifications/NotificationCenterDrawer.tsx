@@ -136,17 +136,22 @@ export function NotificationCenterDrawer({
   return (
     <div
       className={cn(
-        'fixed right-0 top-0 z-[60] flex h-full w-[420px] flex-col border-l border-[#e8e3de]/50 bg-white/95 shadow-2xl backdrop-blur-2xl transition-transform duration-300 ease-out dark:border-[#3a3835]/50 dark:bg-[#242220]/95',
+        'fixed right-0 top-0 z-[60] flex h-full w-[420px] flex-col border-l backdrop-blur-2xl transition-transform duration-300 ease-out',
         open ? 'translate-x-0' : 'translate-x-full',
       )}
+      style={{
+        borderColor: 'var(--drawer-shell-border)',
+        background: 'var(--drawer-shell-bg)',
+        boxShadow: 'var(--drawer-shell-shadow)',
+      }}
     >
-      <div className="border-b border-[#e8e3de]/50 px-5 pb-4 pt-5 dark:border-[#3a3835]/50">
+      <div className="border-b border-[var(--drawer-shell-border)] px-5 pb-4 pt-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-medium text-[#2c2826] dark:text-[#e8e5e1]">通知中心</h2>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#6b6662] transition-colors hover:bg-[#f5f3f0] dark:text-[#a39d98] dark:hover:bg-[#2d2b28]"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
             aria-label="关闭通知中心"
           >
             <X className="h-[18px] w-[18px]" />
@@ -162,8 +167,8 @@ export function NotificationCenterDrawer({
               className={cn(
                 'rounded-lg px-3 py-1.5 text-sm font-medium transition-all',
                 activeTab === tab.key
-                  ? 'bg-[#c5a028]/10 text-[#c5a028] dark:bg-[#d4af37]/15 dark:text-[#d4af37]'
-                  : 'text-[#6b6662] hover:bg-[#f5f3f0] dark:text-[#a39d98] dark:hover:bg-[#2d2b28]',
+                  ? 'bg-[var(--knowledge-tab-active-bg)] text-[var(--brand-primary)]'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
               )}
             >
               {tab.label}
@@ -178,7 +183,7 @@ export function NotificationCenterDrawer({
             placeholder="搜索通知..."
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            className="h-9 w-full rounded-lg border border-[#e8e3de]/50 bg-[#f5f3f0] pl-9 pr-3 text-sm text-[#2c2826] outline-none placeholder:text-[#a39d98] focus:ring-1 focus:ring-[#c5a028]/30 dark:border-[#3a3835]/50 dark:bg-[#1a1816] dark:text-[#e8e5e1] dark:placeholder:text-[#6b6662] dark:focus:ring-[#d4af37]/30"
+            className="h-9 w-full rounded-lg border border-[var(--drawer-shell-border)] bg-[var(--bg-hover)] pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:ring-1 focus:ring-[#c5a028]/30"
           />
         </div>
 
@@ -187,7 +192,7 @@ export function NotificationCenterDrawer({
             <button
               type="button"
               onClick={onMarkAllRead}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[#6b6662] transition-colors hover:bg-[#f5f3f0] dark:text-[#a39d98] dark:hover:bg-[#2d2b28]"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
             >
               <CheckCheck className="h-3.5 w-3.5" />
               全部已读
@@ -195,7 +200,7 @@ export function NotificationCenterDrawer({
             <button
               type="button"
               onClick={onClearAll}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[#6b6662] transition-colors hover:bg-[#f5f3f0] dark:text-[#a39d98] dark:hover:bg-[#2d2b28]"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
             >
               <Trash2 className="h-3.5 w-3.5" />
               清空通知
@@ -207,7 +212,7 @@ export function NotificationCenterDrawer({
       <div className="flex-1 overflow-y-auto">
         {!hasNotifications ? (
           <div className="flex h-full flex-col items-center justify-center px-8 pb-12">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#e8e3de]/50 bg-[#f5f3f0] dark:border-[#3a3835]/50 dark:bg-[#1a1816]">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--drawer-shell-border)] bg-[var(--bg-hover)]">
               <CheckCheck className="h-7 w-7 text-[#a39d98] dark:text-[#6b6662]" />
             </div>
             <p className="mb-1 text-sm font-medium text-[#2c2826] dark:text-[#e8e5e1]">暂无通知</p>

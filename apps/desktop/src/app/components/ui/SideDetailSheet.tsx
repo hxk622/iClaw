@@ -35,18 +35,21 @@ export function SideDetailSheet({
     >
       <aside
         className={cn(
-          'flex h-full w-full min-w-0 max-w-[560px] flex-col overflow-hidden border-l border-[var(--border-default)]',
-          'bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] shadow-[0_32px_90px_rgba(26,22,18,0.18)]',
-          'dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(25,23,21,0.98),rgba(17,16,15,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]',
+          'flex h-full w-full min-w-0 max-w-[560px] flex-col overflow-hidden border-l',
           panelClassName,
         )}
+        style={{
+          borderColor: 'var(--drawer-shell-border)',
+          background: 'var(--drawer-shell-bg)',
+          boxShadow: 'var(--drawer-shell-shadow)',
+        }}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-[var(--border-default)] px-6 py-[18px] dark:border-b-[rgba(255,255,255,0.08)]">
+        <div className="border-b border-[var(--drawer-shell-border)] px-6 py-[18px]">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               {eyebrow ? (
-                <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--border-default)] bg-white/72 px-3 py-1 text-[11px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+                <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--drawer-eyebrow-border)] bg-[var(--drawer-eyebrow-bg)] px-3 py-1 text-[11px] text-[var(--text-secondary)]">
                   {eyebrow}
                 </div>
               ) : null}
@@ -68,7 +71,7 @@ export function SideDetailSheet({
         </div>
 
         {footer ? (
-          <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-4 dark:border-t-[rgba(255,255,255,0.08)] dark:bg-[var(--bg-page)]">
+          <div className="border-t border-[var(--drawer-shell-border)] bg-[var(--drawer-footer-bg)] px-6 py-4 backdrop-blur-[10px]">
             {footer}
           </div>
         ) : null}

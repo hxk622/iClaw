@@ -163,7 +163,7 @@ export function HighRiskConfirmationModal({
         }
       }}
     >
-      <div className="relative flex max-h-[90vh] w-full max-w-[820px] flex-col overflow-hidden rounded-[28px] border border-[rgba(229,231,235,0.92)] bg-white shadow-[0_32px_90px_rgba(15,23,42,0.18)] dark:border-[rgba(39,39,42,0.92)] dark:bg-[rgb(10,10,11)] dark:shadow-[0_36px_100px_rgba(0,0,0,0.42)]">
+      <div className="relative flex max-h-[90vh] w-full max-w-[820px] flex-col overflow-hidden rounded-[28px] border border-[rgba(229,231,235,0.92)] bg-[var(--bg-card)] shadow-[0_32px_90px_rgba(15,23,42,0.18)] dark:border-[rgba(39,39,42,0.92)] dark:shadow-[0_36px_100px_rgba(0,0,0,0.42)]">
         <button
           type="button"
           className="absolute top-4 right-4 inline-flex h-10 w-10 items-center justify-center rounded-full text-[rgba(82,82,91,0.92)] transition hover:bg-[rgba(244,244,245,0.96)] hover:text-[rgb(24,24,27)] dark:text-[rgba(161,161,170,0.9)] dark:hover:bg-[rgba(39,39,42,0.96)] dark:hover:text-[rgb(244,244,245)]"
@@ -306,7 +306,7 @@ export function HighRiskConfirmationModal({
             <div className="flex items-center justify-end gap-3">
               <button
                 type="button"
-                className="inline-flex min-w-[100px] items-center justify-center rounded-[14px] border border-[rgba(212,212,216,0.96)] bg-white px-4 py-2.5 text-[14px] font-medium text-[rgb(39,39,42)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:bg-[rgba(244,244,245,0.96)] dark:border-[rgba(63,63,70,0.96)] dark:bg-[rgb(24,24,27)] dark:text-[rgb(228,228,231)] dark:hover:bg-[rgba(39,39,42,0.96)]"
+                className="inline-flex min-w-[100px] items-center justify-center rounded-[14px] border border-[var(--button-secondary-border)] bg-[var(--button-secondary-bg)] px-4 py-2.5 text-[14px] font-medium text-[var(--button-secondary-text)] shadow-[var(--button-secondary-shadow)] transition hover:border-[var(--button-secondary-border-hover)] hover:bg-[var(--button-secondary-bg-hover)]"
                 onClick={() => {
                   onCancel();
                   onOpenChange(false);

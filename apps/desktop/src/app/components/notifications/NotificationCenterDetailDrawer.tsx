@@ -42,14 +42,16 @@ export function NotificationCenterDetailDrawer({
   return (
     <div
       className={cn(
-        'fixed right-0 top-0 z-[70] flex h-full w-[520px] flex-col border-l border-[#e8e3de]/50 bg-white/98 shadow-2xl backdrop-blur-2xl transition-transform duration-300 ease-out dark:border-[#3a3835]/50 dark:bg-[#1a1816]/98',
+        'fixed right-0 top-0 z-[70] flex h-full w-[520px] flex-col border-l backdrop-blur-2xl transition-transform duration-300 ease-out',
         open ? 'translate-x-[-420px]' : 'translate-x-full',
       )}
       style={{
-        boxShadow: open ? '-8px 0 40px rgba(0, 0, 0, 0.12)' : 'none',
+        borderColor: 'var(--drawer-shell-border)',
+        background: 'var(--drawer-shell-bg)',
+        boxShadow: open ? 'var(--drawer-shell-shadow)' : 'none',
       }}
     >
-      <div className="border-b border-[#e8e3de]/50 px-6 pb-5 pt-6 dark:border-[#3a3835]/50">
+      <div className="border-b border-[var(--drawer-shell-border)] px-6 pb-5 pt-6">
         <div className="flex items-start gap-4">
           <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl', iconToneClasses)}>
             <Icon className="h-6 w-6" />
@@ -61,7 +63,7 @@ export function NotificationCenterDetailDrawer({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#6b6662] transition-colors hover:bg-[#f5f3f0] dark:text-[#a39d98] dark:hover:bg-[#2d2b28]"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
                 aria-label="关闭通知详情"
               >
                 <X className="h-[18px] w-[18px]" />
@@ -91,7 +93,7 @@ export function NotificationCenterDetailDrawer({
           <p className="text-sm leading-relaxed text-[#2c2826] dark:text-[#e8e5e1]">{notification.summary}</p>
         </div>
 
-        <div className="space-y-4 rounded-xl border border-[#e8e3de]/50 bg-[#faf9f7] p-5 dark:border-[#3a3835]/50 dark:bg-[#242220]">
+        <div className="space-y-4 rounded-xl border border-[var(--drawer-shell-border)] bg-[var(--bg-card)] p-5">
           <div>
             <div className="mb-1.5 text-xs font-medium text-[#a39d98] dark:text-[#6b6662]">任务名称</div>
             <div className="text-sm text-[#2c2826] dark:text-[#e8e5e1]">{detail.taskName}</div>
@@ -133,7 +135,7 @@ export function NotificationCenterDetailDrawer({
           ) : null}
 
           {detail.result || detail.errorReason ? (
-            <div className="border-t border-[#e8e3de]/50 dark:border-[#3a3835]/50" />
+            <div className="border-t border-[var(--drawer-shell-border)]" />
           ) : null}
 
           {detail.result ? (
@@ -163,7 +165,7 @@ export function NotificationCenterDetailDrawer({
         </div>
       </div>
 
-      <div className="border-t border-[#e8e3de]/50 px-6 py-5 dark:border-[#3a3835]/50">
+      <div className="border-t border-[var(--drawer-shell-border)] bg-[var(--drawer-footer-bg)] px-6 py-5 backdrop-blur-[10px]">
         <div className="flex gap-2">
           <button
             type="button"
@@ -180,7 +182,7 @@ export function NotificationCenterDetailDrawer({
           <button
             type="button"
             onClick={() => onSecondaryAction(notification)}
-            className="h-9 flex-1 rounded-lg bg-[#f5f3f0] px-3 text-sm font-medium text-[#2c2826] transition-colors hover:bg-[#e8e3de] dark:bg-[#2d2b28] dark:text-[#e8e5e1] dark:hover:bg-[#3a3835]"
+            className="h-9 flex-1 rounded-lg bg-[var(--bg-hover)] px-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-card)]"
           >
             前往任务中心
           </button>
@@ -189,7 +191,7 @@ export function NotificationCenterDetailDrawer({
             <button
               type="button"
               onClick={() => onMarkAsRead(notification.id)}
-              className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-[#f5f3f0] px-3 text-sm font-medium text-[#2c2826] transition-colors hover:bg-[#e8e3de] dark:bg-[#2d2b28] dark:text-[#e8e5e1] dark:hover:bg-[#3a3835]"
+              className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--bg-hover)] px-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-card)]"
             >
               <Eye className="h-3.5 w-3.5" />
               标记已读

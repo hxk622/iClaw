@@ -18,7 +18,7 @@ export function DrawerSection({
   return (
     <section
       className={cn(
-        'rounded-[24px] border border-[var(--border-default)] bg-white/76 p-[18px] shadow-[var(--pressable-card-rest-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]',
+        'rounded-[24px] border border-[var(--drawer-shell-border)] bg-[var(--bg-card)] p-[18px] shadow-[var(--pressable-card-rest-shadow)]',
         className,
       )}
       {...props}

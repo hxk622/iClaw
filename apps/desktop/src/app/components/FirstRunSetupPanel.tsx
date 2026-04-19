@@ -38,13 +38,13 @@ function panelThemeClasses(theme: ResolvedTheme, hasError: boolean) {
         'bg-[radial-gradient(circle_at_top,_rgba(180,154,112,0.18),transparent_28%),radial-gradient(circle_at_bottom,_rgba(42,31,10,0.22),transparent_40%),linear-gradient(180deg,#171513_0%,#11100f_58%,#090807_100%)]',
       title: 'text-white',
       subtitle: 'text-[#b9b0a5]',
-      card: 'border-[var(--border-default)] bg-[rgba(33,30,27,0.78)] shadow-[0_32px_120px_rgba(0,0,0,0.42)]',
+      card: 'border-[var(--drawer-shell-border)] bg-[var(--drawer-shell-bg)] shadow-[0_32px_120px_rgba(0,0,0,0.42)]',
       ringBase: 'border-[rgba(255,255,255,0.10)]',
       meta: hasError ? 'text-[#c46b6b]' : 'text-[var(--brand-primary)]',
       track: 'bg-[rgba(255,255,255,0.08)]',
       info: 'text-[var(--text-primary)]',
       detail: 'text-[var(--text-secondary)]',
-      stepCard: hasError ? 'border-[rgba(196,107,107,0.28)] bg-[rgba(196,107,107,0.08)]' : 'border-[var(--border-default)] bg-[rgba(0,0,0,0.18)]',
+      stepCard: hasError ? 'border-[rgba(196,107,107,0.28)] bg-[rgba(196,107,107,0.08)]' : 'border-[var(--drawer-shell-border)] bg-[var(--bg-card)]',
       errorBox: 'border-[rgba(196,107,107,0.28)] bg-[rgba(196,107,107,0.08)] text-[#ffd4d0]',
       particle: hasError ? 'bg-[#c46b6b]/26' : 'bg-[var(--brand-primary)]/22',
       scan: hasError ? 'via-[#c46b6b]/28' : 'via-[var(--brand-primary)]/24',
@@ -59,13 +59,13 @@ function panelThemeClasses(theme: ResolvedTheme, hasError: boolean) {
       'bg-[radial-gradient(circle_at_top,_rgba(255,147,81,0.22),transparent_26%),radial-gradient(circle_at_bottom,_rgba(255,236,214,0.9),transparent_44%),linear-gradient(180deg,#fffdf9_0%,#fff8f0_50%,#f6efe5_100%)]',
     title: 'text-[#171513]',
     subtitle: 'text-[#736a5d]',
-    card: 'border-[var(--border-default)] bg-[rgba(255,255,255,0.78)] shadow-[0_32px_120px_rgba(170,122,61,0.14)]',
+    card: 'border-[var(--drawer-shell-border)] bg-[var(--drawer-shell-bg)] shadow-[0_32px_120px_rgba(170,122,61,0.14)]',
     ringBase: 'border-[var(--border-default)]',
     meta: hasError ? 'text-[var(--state-error)]' : 'text-[var(--brand-primary)]',
     track: 'bg-[var(--bg-hover)]',
     info: 'text-[var(--text-primary)]',
     detail: 'text-[var(--text-secondary)]',
-    stepCard: hasError ? 'border-[rgba(184,79,79,0.22)] bg-[rgba(184,79,79,0.06)]' : 'border-[var(--border-default)] bg-[rgba(255,255,255,0.76)]',
+    stepCard: hasError ? 'border-[rgba(184,79,79,0.22)] bg-[rgba(184,79,79,0.06)]' : 'border-[var(--drawer-shell-border)] bg-[var(--bg-card)]',
     errorBox: 'border-[rgba(184,79,79,0.22)] bg-[rgba(184,79,79,0.06)] text-[#7d2f2a]',
     particle: hasError ? 'bg-[var(--state-error)]/18' : 'bg-[var(--brand-primary)]/22',
     scan: hasError ? 'via-[var(--state-error)]/24' : 'via-[var(--brand-primary)]/24',
@@ -202,7 +202,7 @@ export function FirstRunSetupPanel({
           <div className={`relative h-2 overflow-hidden rounded-full ${palette.track}`}>
             {!hasError && (
               <div
-                className="absolute inset-y-0 w-24 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)]"
+                className="absolute inset-y-0 w-24 bg-[linear-gradient(90deg,transparent,rgba(255,248,240,0.44),transparent)] dark:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)]"
                 style={{
                   left: `${Math.max(0, clampedProgress - 8)}%`,
                   animation: 'installer-progress-shimmer 1.8s ease-in-out infinite',

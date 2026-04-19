@@ -34,13 +34,18 @@ export function AddMcpSheet({ open, onClose }: {open: boolean; onClose: () => vo
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(26,22,18,0.18)] backdrop-blur-[3px] dark:bg-[rgba(0,0,0,0.34)]" onClick={onClose}>
       <aside
-        className="flex h-full w-full max-w-[560px] flex-col border-l border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] shadow-[0_32px_90px_rgba(26,22,18,0.18)] dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(25,23,21,0.98),rgba(17,16,15,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]"
+        className="flex h-full w-full max-w-[560px] flex-col border-l"
+        style={{
+          borderColor: 'var(--drawer-shell-border)',
+          background: 'var(--drawer-shell-bg)',
+          boxShadow: 'var(--drawer-shell-shadow)',
+        }}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-[var(--border-default)] px-6 py-[18px] dark:border-b-[rgba(255,255,255,0.08)]">
+        <div className="border-b border-[var(--drawer-shell-border)] px-6 py-[18px]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-white/72 px-3 py-1 text-[11px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--drawer-eyebrow-border)] bg-[var(--drawer-eyebrow-bg)] px-3 py-1 text-[11px] text-[var(--text-secondary)]">
                 添加MCP
               </div>
               <h2 className="mt-3.5 text-[22px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">预留用户自定义 MCP 能力</h2>

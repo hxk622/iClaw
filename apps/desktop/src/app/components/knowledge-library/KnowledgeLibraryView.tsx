@@ -57,6 +57,17 @@ import {
   importBrowserCaptureIntoKnowledgeFlywheel,
 } from './flywheel-service';
 import { useGraphCompilerJobs } from './graph-compiler-jobs';
+
+const KNOWLEDGE_CARD_CLASS =
+  'rounded-[18px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-card-bg)]';
+const KNOWLEDGE_SOFT_PANEL_CLASS =
+  'rounded-[16px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-soft-bg)]';
+const KNOWLEDGE_META_PANEL_CLASS =
+  'rounded-[14px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-soft-bg)]';
+const KNOWLEDGE_EMPTY_STATE_CLASS =
+  'rounded-[14px] border border-dashed border-[var(--knowledge-shell-border)] bg-[var(--knowledge-muted-card-bg)]';
+const KNOWLEDGE_ACTION_BUTTON_CLASS =
+  'inline-flex h-8 items-center justify-center rounded-[10px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-action-bg)] text-[11px] text-[var(--text-primary)] transition hover:border-[rgba(212,165,116,0.28)]';
 import { classifyGraphQueryIntent } from './graph-query-intent';
 import { findOntologyShortestPath, getOntologyEdgeDetail, getOntologyNodeDetail } from './graph-navigation';
 
@@ -800,17 +811,17 @@ export function KnowledgeLibraryView({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#F5F5F0] text-[#1E293B] dark:bg-[#0F0F0F] dark:text-[#E8E8E3]">
-      <div className="border-b border-[rgba(0,0,0,0.08)] bg-[#FFFFFF]/92 px-5 py-4 backdrop-blur dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]/92">
+    <div className="flex min-h-0 flex-1 flex-col bg-[var(--knowledge-page-bg)] text-[var(--text-primary)]">
+      <div className="border-b border-[var(--knowledge-shell-border)] bg-[var(--knowledge-header-bg)] px-5 py-4 backdrop-blur">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <h1 className="text-[24px] font-semibold tracking-[-0.04em] text-[#1E293B] dark:text-[#E8E8E3]">{title}</h1>
+              <h1 className="text-[24px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{title}</h1>
               <Chip tone="accent" className="px-2.5 py-1 text-[11px]">
                 知识飞轮
               </Chip>
             </div>
-            <p className="mt-1 text-[13px] leading-6 text-[#64748B] dark:text-[#94A3B8]">
+            <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">
               素材进入，AI 编译本体图谱，对话生成成果，成果再反哺本体图谱。
             </p>
           </div>
@@ -822,7 +833,7 @@ export function KnowledgeLibraryView({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="搜索素材、本体图谱、成果..."
-                className="h-10 w-full rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] pl-10 pr-4 text-[13px] text-[#1E293B] outline-none transition placeholder:text-[#64748B] focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#E8E8E3] dark:placeholder:text-[#94A3B8]"
+                className="h-10 w-full rounded-[12px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-soft-bg)] pl-10 pr-4 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)]"
               />
             </label>
             <Button variant="secondary" size="sm" leadingIcon={<RefreshCw className="h-4 w-4" />} onClick={() => void handleRefresh()}>
@@ -836,8 +847,8 @@ export function KnowledgeLibraryView({
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <aside className="flex w-[300px] shrink-0 flex-col border-r border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#161616]">
-          <div className="flex items-center gap-1 border-b border-[rgba(0,0,0,0.08)] px-3 py-2 dark:border-[rgba(255,255,255,0.08)]">
+        <aside className="flex w-[300px] shrink-0 flex-col border-r border-[var(--knowledge-shell-border)] bg-[var(--knowledge-sidebar-bg)]">
+          <div className="flex items-center gap-1 border-b border-[var(--knowledge-shell-border)] px-3 py-2">
             {KNOWLEDGE_LIBRARY_TAB_CONFIG.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.id;
@@ -849,8 +860,8 @@ export function KnowledgeLibraryView({
                   className={cn(
                     'inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] px-3 py-2 text-[13px] font-medium transition',
                     active
-                      ? 'bg-[rgba(212,165,116,0.16)] text-[#1E293B] dark:text-[#E8E8E3]'
-                      : 'text-[#64748B] hover:bg-[#F1F1EC] hover:text-[#1E293B] dark:text-[#94A3B8] dark:hover:bg-[#252525] dark:hover:text-[#E8E8E3]',
+                      ? 'bg-[var(--knowledge-tab-active-bg)] text-[var(--text-primary)]'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--knowledge-soft-strong-bg)] hover:text-[var(--text-primary)]',
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -861,12 +872,12 @@ export function KnowledgeLibraryView({
           </div>
           <div className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
             {activeTab === 'materials' && rawMaterialsLoading ? (
-              <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-white px-4 py-4 text-[12px] text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#94A3B8]">
+              <div className={cn(KNOWLEDGE_EMPTY_STATE_CLASS, 'border-solid px-4 py-4 text-[12px] text-[var(--text-secondary)]')}>
                 正在加载素材...
               </div>
             ) : null}
             {items.length === 0 ? (
-              <div className="rounded-[14px] border border-dashed border-[rgba(0,0,0,0.12)] bg-white/70 px-4 py-5 text-[12px] leading-6 text-[#64748B] dark:border-[rgba(255,255,255,0.12)] dark:bg-[#1A1A1A] dark:text-[#94A3B8]">
+              <div className={cn(KNOWLEDGE_EMPTY_STATE_CLASS, 'px-4 py-5 text-[12px] leading-6 text-[var(--text-secondary)]')}>
                 {activeTab === 'materials'
                   ? '还没有真实素材。你可以先点击右上角“上传”，把本地文件导入到 Raw / 素材。'
                   : '当前分类下还没有可显示对象。'}
@@ -888,17 +899,17 @@ export function KnowledgeLibraryView({
                   className={cn(
                     'w-full rounded-[14px] border px-3 py-3 text-left transition',
                     active
-                      ? 'border-[rgba(212,165,116,0.34)] bg-[rgba(212,165,116,0.10)]'
-                      : 'border-[rgba(0,0,0,0.08)] bg-white hover:border-[rgba(212,165,116,0.22)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]',
+                      ? 'border-[var(--knowledge-tab-active-border)] bg-[var(--knowledge-tab-active-bg)]'
+                      : 'border-[var(--knowledge-shell-border)] bg-[var(--knowledge-card-bg)] hover:border-[rgba(212,165,116,0.22)]',
                   )}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#F1F1EC] text-[#D4A574] dark:bg-[#252525]">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--knowledge-soft-strong-bg)] text-[#D4A574]">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">{item.title}</div>
-                      <div className="mt-1 text-[12px] text-[#64748B] dark:text-[#94A3B8]">{item.subtitle}</div>
+                      <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.title}</div>
+                      <div className="mt-1 text-[12px] text-[var(--text-secondary)]">{item.subtitle}</div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {item.tags.slice(0, 3).map((tag) => (
                           <Chip key={tag} tone="outline" className="px-2 py-0.5 text-[10px]">
@@ -906,7 +917,7 @@ export function KnowledgeLibraryView({
                           </Chip>
                         ))}
                       </div>
-                      <div className="mt-2 text-[11px] text-[#64748B] dark:text-[#94A3B8]">{item.meta}</div>
+                      <div className="mt-2 text-[11px] text-[var(--text-secondary)]">{item.meta}</div>
                     </div>
                   </div>
                 </button>
@@ -915,19 +926,19 @@ export function KnowledgeLibraryView({
           </div>
         </aside>
 
-        <section className="min-w-0 flex-1 overflow-y-auto bg-[#F5F5F0] dark:bg-[#0F0F0F]">
+        <section className="min-w-0 flex-1 overflow-y-auto bg-[var(--knowledge-page-bg)]">
           <div className="mx-auto flex h-full max-w-[960px] flex-col px-6 py-6">
             <div className="mb-4">
-              <div className="text-[20px] font-semibold text-[#1E293B] dark:text-[#E8E8E3]">{getKnowledgeLibraryPanelTitle(activeTab)}</div>
-              <p className="mt-1 text-[13px] leading-6 text-[#64748B] dark:text-[#94A3B8]">{getKnowledgeLibraryPanelDescription(activeTab)}</p>
+              <div className="text-[20px] font-semibold text-[var(--text-primary)]">{getKnowledgeLibraryPanelTitle(activeTab)}</div>
+              <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">{getKnowledgeLibraryPanelDescription(activeTab)}</p>
             </div>
 
             {effectiveSelectedItem ? (
               <div className="space-y-4">
-                <div className="rounded-[18px] border border-[rgba(0,0,0,0.08)] bg-white px-5 py-5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
+                <div className={cn(KNOWLEDGE_CARD_CLASS, 'px-5 py-5')}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[#1E293B] dark:text-[#E8E8E3]">{effectiveSelectedItem.title}</h2>
+                      <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">{effectiveSelectedItem.title}</h2>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {effectiveSelectedItem.tags.map((tag) => (
                           <Chip key={tag} tone="accent" className="px-2.5 py-1 text-[11px]">
@@ -949,12 +960,12 @@ export function KnowledgeLibraryView({
                       查看来源
                     </Button>
                   </div>
-                  <p className="mt-4 text-[14px] leading-7 text-[#64748B] dark:text-[#94A3B8]">{effectiveSelectedItem.summary}</p>
+                  <p className="mt-4 text-[14px] leading-7 text-[var(--text-secondary)]">{effectiveSelectedItem.summary}</p>
                 </div>
 
                 <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-                  <div className="rounded-[18px] border border-[rgba(0,0,0,0.08)] bg-white px-5 py-5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
-                    <div className="mb-3 text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">
+                  <div className={cn(KNOWLEDGE_CARD_CLASS, 'px-5 py-5')}>
+                    <div className="mb-3 text-[14px] font-medium text-[var(--text-primary)]">
                       {activeTab === 'graph' ? (graphViewMode === 'graph' ? '关系图谱视图' : '本体图谱页面视图') : '结构化内容视图'}
                     </div>
                     {activeTab === 'graph' ? (
@@ -971,8 +982,8 @@ export function KnowledgeLibraryView({
                             className={cn(
                               'rounded-full px-3 py-1.5 text-[12px] transition',
                               graphViewMode === mode
-                                ? 'bg-[rgba(212,165,116,0.16)] text-[#1E293B] dark:text-[#E8E8E3]'
-                                : 'bg-[#F1F1EC] text-[#64748B] dark:bg-[#252525] dark:text-[#94A3B8]',
+                                ? 'bg-[var(--knowledge-tab-active-bg)] text-[var(--text-primary)]'
+                                : 'bg-[var(--knowledge-soft-strong-bg)] text-[var(--text-secondary)]',
                             )}
                           >
                             {label}
@@ -988,13 +999,13 @@ export function KnowledgeLibraryView({
                           onSelectNode={setSelectedGraphNode}
                         />
                       ) : (
-                        <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
+                        <div className={cn(KNOWLEDGE_SOFT_PANEL_CLASS, 'px-4 py-4 text-[13px] leading-7 text-[var(--text-secondary)]')}>
                           当前本体图谱还没有可渲染的节点与关系。
                         </div>
                       )
                     ) : activeTab === 'graph' && graphViewMode === 'graphify' ? (
                       graphifyHtmlLoading ? (
-                        <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
+                        <div className={cn(KNOWLEDGE_SOFT_PANEL_CLASS, 'px-4 py-4 text-[13px] leading-7 text-[var(--text-secondary)]')}>
                           正在加载 graphify 原生视图...
                         </div>
                       ) : graphifyHtmlError ? (
@@ -1004,30 +1015,30 @@ export function KnowledgeLibraryView({
                       ) : graphifyHtmlContent ? (
                         <iframe
                           title={selectedOntologyDocument?.title || 'Graphify Graph'}
-                          className="h-[480px] w-full rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-white dark:border-[rgba(255,255,255,0.08)]"
+                          className="h-[480px] w-full rounded-[16px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-card-bg)]"
                           sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
                           srcDoc={graphifyHtmlContent}
                         />
                       ) : (
-                        <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
+                        <div className={cn(KNOWLEDGE_SOFT_PANEL_CLASS, 'px-4 py-4 text-[13px] leading-7 text-[var(--text-secondary)]')}>
                           当前图谱没有可显示的 graphify HTML。
                         </div>
                       )
                     ) : activeTab === 'materials' ? (
                       <div className="space-y-3">
-                        <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
+                        <div className={cn(KNOWLEDGE_SOFT_PANEL_CLASS, 'px-4 py-4 text-[13px] leading-7 text-[var(--text-secondary)]')}>
                           {selectedDisplayItem.bodyText?.trim() || selectedDisplayItem.summary}
                         </div>
                         <div className="grid gap-3 md:grid-cols-2">
-                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源类型</div>
-                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                          <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                            <div className="text-[12px] text-[var(--text-secondary)]">来源类型</div>
+                            <div className="mt-1 text-[14px] text-[var(--text-primary)]">
                               {selectedRawMaterial?.source_type || 'file'} · {selectedRawMaterial?.source_name || '本地素材'}
                             </div>
                           </div>
-                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">更新时间</div>
-                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                          <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                            <div className="text-[12px] text-[var(--text-secondary)]">更新时间</div>
+                            <div className="mt-1 text-[14px] text-[var(--text-primary)]">
                               {selectedRawMaterial?.updated_at ? new Date(selectedRawMaterial.updated_at).toLocaleString() : '刚刚'}
                             </div>
                           </div>
@@ -1035,49 +1046,49 @@ export function KnowledgeLibraryView({
                       </div>
                     ) : activeTab === 'artifacts' ? (
                       <div className="space-y-3">
-                        <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
+                        <div className={cn(KNOWLEDGE_SOFT_PANEL_CLASS, 'px-4 py-4 text-[13px] leading-7 text-[var(--text-secondary)]')}>
                           {effectiveSelectedItem.bodyText?.trim() || effectiveSelectedItem.summary}
                         </div>
                         <div className="grid gap-3 md:grid-cols-2">
-                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">成果类型</div>
-                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                          <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                            <div className="text-[12px] text-[var(--text-secondary)]">成果类型</div>
+                            <div className="mt-1 text-[14px] text-[var(--text-primary)]">
                               {selectedOutputArtifact?.type || 'artifact'} · {selectedOutputArtifact?.status || 'draft'}
                             </div>
                           </div>
-                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源本体图谱</div>
-                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                          <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                            <div className="text-[12px] text-[var(--text-secondary)]">来源本体图谱</div>
+                            <div className="mt-1 text-[14px] text-[var(--text-primary)]">
                               {(selectedOutputArtifact?.source_ontology_ids || []).length || 0} 个
                             </div>
                           </div>
                         </div>
                         {selectedOutputLineage ? (
-                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">Lineage</div>
+                          <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-4')}>
+                            <div className="text-[12px] text-[var(--text-secondary)]">Lineage</div>
                             <div className="mt-3 grid gap-3 md:grid-cols-2">
                               <div>
-                                <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源</div>
-                                <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                <div className="text-[12px] text-[var(--text-secondary)]">来源</div>
+                                <div className="mt-1 text-[14px] text-[var(--text-primary)]">
                                   {selectedOutputLineage.source}
                                   {selectedOutputSourceSurface ? ` · ${selectedOutputSourceSurface}` : ''}
                                 </div>
                               </div>
                               <div>
-                                <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源 turn</div>
-                                <div className="mt-1 break-all text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                <div className="text-[12px] text-[var(--text-secondary)]">来源 turn</div>
+                                <div className="mt-1 break-all text-[14px] text-[var(--text-primary)]">
                                   {selectedOutputLineage.turn_id || '未记录'}
                                 </div>
                               </div>
                               <div>
-                                <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源对话</div>
-                                <div className="mt-1 break-all text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                <div className="text-[12px] text-[var(--text-secondary)]">来源对话</div>
+                                <div className="mt-1 break-all text-[14px] text-[var(--text-primary)]">
                                   {selectedOutputLineage.conversation_id || '未记录'}
                                 </div>
                               </div>
                               <div>
-                                <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">执行产物</div>
-                                <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                <div className="text-[12px] text-[var(--text-secondary)]">执行产物</div>
+                                <div className="mt-1 text-[14px] text-[var(--text-primary)]">
                                   {selectedOutputLineage.artifact_kinds.length > 0
                                     ? selectedOutputLineage.artifact_kinds.join(' / ')
                                     : '未记录'}
@@ -1085,7 +1096,7 @@ export function KnowledgeLibraryView({
                               </div>
                             </div>
                             {selectedOutputLineage.prompt_excerpt ? (
-                              <div className="mt-3 rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 text-[12px] leading-6 text-[#475569] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#CBD5E1]">
+                              <div className="mt-3 rounded-[12px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-muted-card-bg)] px-3 py-3 text-[12px] leading-6 text-[var(--text-secondary)]">
                                 {selectedOutputLineage.prompt_excerpt}
                               </div>
                             ) : null}
@@ -1113,23 +1124,23 @@ export function KnowledgeLibraryView({
                             </div>
                             {selectedOutputLineage.artifact_refs.length > 0 ? (
                               <div className="mt-4 space-y-2">
-                                <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源文件</div>
+                                <div className="text-[12px] text-[var(--text-secondary)]">来源文件</div>
                                 {selectedOutputLineage.artifact_refs.map((artifactRef, index) => (
                                   <div
                                     key={`${artifactRef.kind}:${artifactRef.path || artifactRef.title || index}`}
-                                    className="rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]"
+                                    className="rounded-[12px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-muted-card-bg)] px-3 py-3"
                                   >
                                     <div className="flex items-start justify-between gap-3">
                                       <div className="min-w-0">
-                                        <div className="text-[13px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">
+                                        <div className="text-[13px] font-medium text-[var(--text-primary)]">
                                           {artifactRef.title || artifactRef.kind}
                                         </div>
-                                        <div className="mt-1 text-[12px] text-[#64748B] dark:text-[#94A3B8]">
+                                        <div className="mt-1 text-[12px] text-[var(--text-secondary)]">
                                           {artifactRef.kind}
                                           {artifactRef.previewKind ? ` · ${artifactRef.previewKind}` : ''}
                                         </div>
                                         {artifactRef.path ? (
-                                          <div className="mt-1 break-all text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                          <div className="mt-1 break-all text-[11px] text-[var(--text-secondary)]">
                                             {artifactRef.path}
                                           </div>
                                         ) : null}
@@ -1198,24 +1209,24 @@ export function KnowledgeLibraryView({
                         ) : null}
                       </div>
                     ) : (
-                      <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
+                      <div className={cn(KNOWLEDGE_SOFT_PANEL_CLASS, 'px-4 py-4 text-[13px] leading-7 text-[var(--text-secondary)]')}>
                         AI 会在这里展示当前对象的正文、摘要、来源结构、关键摘录，以及可被引用的压缩知识块。对于本体图谱对象，页面视图会优先展示关系说明和来源证据。
                       </div>
                     )}
                   </div>
 
-                  <div className="rounded-[18px] border border-[rgba(0,0,0,0.08)] bg-white px-5 py-5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
-                    <div className="mb-3 text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">状态与关系</div>
+                  <div className={cn(KNOWLEDGE_CARD_CLASS, 'px-5 py-5')}>
+                    <div className="mb-3 text-[14px] font-medium text-[var(--text-primary)]">状态与关系</div>
                     <div className="space-y-3">
-                      <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                        <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">当前层级</div>
-                        <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                      <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                        <div className="text-[12px] text-[var(--text-secondary)]">当前层级</div>
+                        <div className="mt-1 text-[14px] text-[var(--text-primary)]">
                           {activeTab === 'materials' ? '素材输入层' : activeTab === 'graph' ? '本体图谱编译层' : '成果产出层'}
                         </div>
                       </div>
-                      <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                        <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">推荐动作</div>
-                        <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                      <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                        <div className="text-[12px] text-[var(--text-secondary)]">推荐动作</div>
+                        <div className="mt-1 text-[14px] text-[var(--text-primary)]">
                           {activeTab === 'materials'
                             ? '加入图谱 / 继续提炼'
                             : activeTab === 'graph'
@@ -1225,15 +1236,15 @@ export function KnowledgeLibraryView({
                       </div>
                       {activeTab === 'graph' ? (
                         <>
-                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">编译后端</div>
-                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                          <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                            <div className="text-[12px] text-[var(--text-secondary)]">编译后端</div>
+                            <div className="mt-1 text-[14px] text-[var(--text-primary)]">
                               {selectedOntologyGraphifyBackend || 'local-fallback'}
                             </div>
                           </div>
-                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">最近编译任务</div>
-                            <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                          <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                            <div className="text-[12px] text-[var(--text-secondary)]">最近编译任务</div>
+                            <div className="mt-1 text-[14px] text-[var(--text-primary)]">
                               {selectedOntologyLatestJob
                                 ? `${selectedOntologyLatestJob.status} · ${selectedOntologyLatestJob.backend}`
                                 : '暂无任务记录'}
@@ -1245,9 +1256,9 @@ export function KnowledgeLibraryView({
                             ) : null}
                           </div>
                           {selectedOntologyGraphifyReportArtifact ? (
-                            <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                              <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">Graphify 导航摘要</div>
-                              <div className="mt-2 text-[12px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                            <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                              <div className="text-[12px] text-[var(--text-secondary)]">Graphify 导航摘要</div>
+                              <div className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
                                 {selectedOntologyGraphifyReportArtifact.summary}
                               </div>
                               <div className="mt-3 flex flex-wrap gap-2">
@@ -1268,26 +1279,26 @@ export function KnowledgeLibraryView({
                             </div>
                           ) : null}
                           {selectedGraphNodeDetail ? (
-                            <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                              <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">节点详情</div>
-                              <div className="mt-2 text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">
+                            <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                              <div className="text-[12px] text-[var(--text-secondary)]">节点详情</div>
+                              <div className="mt-2 text-[14px] font-medium text-[var(--text-primary)]">
                                 {selectedGraphNodeDetail.node.label}
                               </div>
-                              <div className="mt-1 text-[12px] text-[#64748B] dark:text-[#94A3B8]">
+                              <div className="mt-1 text-[12px] text-[var(--text-secondary)]">
                                 {selectedGraphNodeDetail.node.node_type} · degree {selectedGraphNodeDetail.degree}
                               </div>
-                              <div className="mt-2 text-[12px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                              <div className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
                                 {selectedGraphNodeDetail.node.summary}
                               </div>
                               {selectedGraphNodeDetail.node.metadata?.source_file ? (
-                                <div className="mt-2 break-all text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                <div className="mt-2 break-all text-[11px] text-[var(--text-secondary)]">
                                   {String(selectedGraphNodeDetail.node.metadata.source_file)}
                                   {selectedGraphNodeDetail.node.metadata?.source_location
                                     ? ` · ${String(selectedGraphNodeDetail.node.metadata.source_location)}`
                                     : ''}
                                 </div>
                               ) : null}
-                              <div className="mt-3 text-[12px] text-[#64748B] dark:text-[#94A3B8]">相邻节点</div>
+                              <div className="mt-3 text-[12px] text-[var(--text-secondary)]">相邻节点</div>
                               <div className="mt-2 flex flex-wrap gap-2">
                                 {selectedGraphNodeDetail.neighbors.slice(0, 8).map((neighbor) => (
                                   <button
@@ -1300,7 +1311,7 @@ export function KnowledgeLibraryView({
                                         type: neighbor.node.node_type,
                                       })
                                     }
-                                    className="rounded-full border border-[rgba(0,0,0,0.08)] bg-white px-3 py-1 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                                    className="rounded-full border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-card-bg)] px-3 py-1 text-[11px] text-[var(--text-primary)] transition hover:border-[rgba(212,165,116,0.28)]"
                                   >
                                     {neighbor.node.label}
                                   </button>
@@ -1316,13 +1327,13 @@ export function KnowledgeLibraryView({
                                 </Button>
                               </div>
                               {selectedGraphNodeDetail.node.evidence_links.length > 0 ? (
-                                <div className="mt-3 rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
-                                  <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">节点证据</div>
+                                <div className="mt-3 rounded-[12px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-muted-card-bg)] px-3 py-3">
+                                  <div className="text-[12px] text-[var(--text-secondary)]">节点证据</div>
                                   <div className="mt-2 space-y-2">
                                     {selectedGraphNodeDetail.node.evidence_links.slice(0, 6).map((link, index) => (
-                                      <div key={`${link.raw_id}:${link.chunk_id || 'none'}:${index}`} className="text-[11px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                                      <div key={`${link.raw_id}:${link.chunk_id || 'none'}:${index}`} className="text-[11px] leading-6 text-[var(--text-secondary)]">
                                         <div>{link.excerpt || '无摘要证据'}</div>
-                                        <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                        <div className="text-[11px] text-[var(--text-secondary)]">
                                           {link.raw_id}
                                           {link.chunk_id ? ` · ${link.chunk_id}` : ''}
                                         </div>
@@ -1333,8 +1344,8 @@ export function KnowledgeLibraryView({
                               ) : null}
                             </div>
                           ) : null}
-                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">Graphify 图查询</div>
+                          <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                            <div className="text-[12px] text-[var(--text-secondary)]">Graphify 图查询</div>
                             {selectedGraphNode ? (
                               <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full border border-[rgba(212,165,116,0.28)] bg-[rgba(212,165,116,0.10)] px-3 py-1 text-[11px] text-[#1E293B] dark:text-[#E8E8E3]">
                                 <span className="truncate">当前节点：{selectedGraphNode.label}</span>
@@ -1344,9 +1355,9 @@ export function KnowledgeLibraryView({
                               value={graphifyQueryText}
                               onChange={(event) => setGraphifyQueryText(event.target.value)}
                               placeholder={selectedGraphNode ? `围绕「${selectedGraphNode.label}」继续提问...` : '例如：什么连接资本开支和现金流？'}
-                              className="mt-3 min-h-[88px] w-full resize-none rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white px-3 py-3 text-[12px] text-[#1E293B] outline-none transition placeholder:text-[#64748B] focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3] dark:placeholder:text-[#94A3B8]"
+                              className="mt-3 min-h-[88px] w-full resize-none rounded-[12px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-card-bg)] px-3 py-3 text-[12px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)]"
                             />
-                            <label className="mt-3 flex items-center gap-2 text-[12px] text-[#64748B] dark:text-[#94A3B8]">
+                            <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
                               <input
                                 type="checkbox"
                                 checked={graphifyQueryUseDfs}
@@ -1407,21 +1418,21 @@ export function KnowledgeLibraryView({
                               </div>
                             ) : null}
                             {graphifyQueryResult ? (
-                              <pre className="mt-3 max-h-[240px] overflow-auto rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 text-[11px] leading-6 text-[#334155] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#CBD5E1]">
+                              <pre className="mt-3 max-h-[240px] overflow-auto rounded-[12px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-muted-card-bg)] px-3 py-3 text-[11px] leading-6 text-[var(--text-secondary)]">
                                 {graphifyQueryResult}
                               </pre>
                             ) : null}
                           </div>
                           {selectedGraphNode ? (
-                            <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
-                              <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">最短路径</div>
-                              <div className="mt-2 text-[12px] text-[#64748B] dark:text-[#94A3B8]">
+                            <div className={cn(KNOWLEDGE_META_PANEL_CLASS, 'px-4 py-3')}>
+                              <div className="text-[12px] text-[var(--text-secondary)]">最短路径</div>
+                              <div className="mt-2 text-[12px] text-[var(--text-secondary)]">
                                 起点：{selectedGraphNode.label}
                               </div>
                               <select
                                 value={graphPathTargetNodeId || ''}
                                 onChange={(event) => setGraphPathTargetNodeId(event.target.value || null)}
-                                className="mt-3 h-10 w-full rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white px-3 text-[12px] text-[#1E293B] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                                className="mt-3 h-10 w-full rounded-[12px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-card-bg)] px-3 text-[12px] text-[var(--text-primary)] outline-none"
                               >
                                 <option value="">选择目标节点</option>
                                 {(selectedOntologyDocument?.nodes || [])
@@ -1467,7 +1478,7 @@ export function KnowledgeLibraryView({
                                 </Button>
                               </div>
                               {graphPathResult ? (
-                                <pre className="mt-3 max-h-[180px] overflow-auto rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 text-[11px] leading-6 text-[#334155] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#CBD5E1]">
+                                <pre className="mt-3 max-h-[180px] overflow-auto rounded-[12px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-muted-card-bg)] px-3 py-3 text-[11px] leading-6 text-[var(--text-secondary)]">
                                   {graphPathResult}
                                 </pre>
                               ) : null}
@@ -1481,8 +1492,8 @@ export function KnowledgeLibraryView({
                                       className={cn(
                                         'rounded-full border px-3 py-1 text-[11px] transition',
                                         selectedGraphEdgeId === edge.id
-                                          ? 'border-[rgba(212,165,116,0.48)] bg-[rgba(212,165,116,0.14)] text-[#1E293B] dark:text-[#E8E8E3]'
-                                          : 'border-[rgba(0,0,0,0.08)] bg-white text-[#1E293B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]',
+                                          ? 'border-[rgba(212,165,116,0.48)] bg-[rgba(212,165,116,0.14)] text-[var(--text-primary)]'
+                                          : 'border-[var(--knowledge-shell-border)] bg-[var(--knowledge-card-bg)] text-[var(--text-primary)]',
                                       )}
                                     >
                                       {edge.relation_type}
@@ -1491,9 +1502,9 @@ export function KnowledgeLibraryView({
                                 </div>
                               ) : null}
                               {selectedGraphEdgeDetail ? (
-                                <div className="mt-3 rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
-                                  <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">边详情</div>
-                                  <div className="mt-2 text-[11px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                                <div className="mt-3 rounded-[12px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-muted-card-bg)] px-3 py-3">
+                                  <div className="text-[12px] text-[var(--text-secondary)]">边详情</div>
+                                  <div className="mt-2 text-[11px] leading-6 text-[var(--text-secondary)]">
                                     {selectedGraphEdgeDetail.sourceNode?.label || selectedGraphEdgeDetail.edge.from_node_id}
                                     {' -> '}
                                     {selectedGraphEdgeDetail.targetNode?.label || selectedGraphEdgeDetail.edge.to_node_id}
@@ -1503,9 +1514,9 @@ export function KnowledgeLibraryView({
                                   {selectedGraphEdgeDetail.edge.evidence_links.length > 0 ? (
                                     <div className="mt-2 space-y-2">
                                       {selectedGraphEdgeDetail.edge.evidence_links.slice(0, 6).map((link, index) => (
-                                        <div key={`${link.raw_id}:${link.chunk_id || 'none'}:${index}`} className="text-[11px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                                        <div key={`${link.raw_id}:${link.chunk_id || 'none'}:${index}`} className="text-[11px] leading-6 text-[var(--text-secondary)]">
                                           <div>{link.excerpt || '无摘要证据'}</div>
-                                          <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                          <div className="text-[11px] text-[var(--text-secondary)]">
                                             {link.raw_id}
                                             {link.chunk_id ? ` · ${link.chunk_id}` : ''}
                                           </div>
@@ -1514,7 +1525,7 @@ export function KnowledgeLibraryView({
                                     </div>
                                   ) : null}
                                   {(selectedGraphEdgeDetail.edge.metadata?.source_file || selectedGraphEdgeDetail.edge.metadata?.source_location) ? (
-                                    <div className="mt-2 text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                    <div className="mt-2 text-[11px] text-[var(--text-secondary)]">
                                       {String(selectedGraphEdgeDetail.edge.metadata?.source_file || 'unknown')}
                                       {selectedGraphEdgeDetail.edge.metadata?.source_location
                                         ? ` · ${String(selectedGraphEdgeDetail.edge.metadata.source_location)}`
@@ -1524,17 +1535,17 @@ export function KnowledgeLibraryView({
                                 </div>
                               ) : null}
                               {graphPathResult && selectedGraphNodeDetail?.neighbors.length ? (
-                                <div className="mt-3 rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
-                                  <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">路径相关证据</div>
+                                <div className="mt-3 rounded-[12px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-muted-card-bg)] px-3 py-3">
+                                  <div className="text-[12px] text-[var(--text-secondary)]">路径相关证据</div>
                                   <div className="mt-2 space-y-2">
                                     {selectedGraphNodeDetail.neighbors.slice(0, 6).map((neighbor) => (
-                                      <div key={`${neighbor.direction}:${neighbor.edge.id}`} className="text-[11px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                                      <div key={`${neighbor.direction}:${neighbor.edge.id}`} className="text-[11px] leading-6 text-[var(--text-secondary)]">
                                         <div>
                                           {neighbor.direction === 'outgoing'
                                             ? `${selectedGraphNodeDetail.node.label} -> ${neighbor.node.label}`
                                             : `${neighbor.node.label} -> ${selectedGraphNodeDetail.node.label}`} · {neighbor.edge.relation_type}
                                         </div>
-                                        <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                        <div className="text-[11px] text-[var(--text-secondary)]">
                                           {String(neighbor.edge.metadata?.source_file || 'unknown')}
                                           {neighbor.edge.metadata?.source_location ? ` · ${String(neighbor.edge.metadata.source_location)}` : ''}
                                         </div>
@@ -1552,7 +1563,7 @@ export function KnowledgeLibraryView({
                 </div>
               </div>
             ) : (
-              <div className="rounded-[18px] border border-dashed border-[rgba(0,0,0,0.12)] bg-white/70 px-5 py-6 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.12)] dark:bg-[#1A1A1A] dark:text-[#94A3B8]">
+              <div className={cn(KNOWLEDGE_EMPTY_STATE_CLASS, 'px-5 py-6 text-[13px] leading-7 text-[var(--text-secondary)]')}>
                 {activeTab === 'materials'
                   ? '还没有可展示的素材详情。先从右上角上传一个本地文件，知识库会把它写入 Raw / 素材。'
                   : '当前对象视图将在后续阶段继续真实化。'}
@@ -1562,21 +1573,21 @@ export function KnowledgeLibraryView({
         </section>
 
         <div
-          className="flex shrink-0 flex-col border-l border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#161616]"
+          className="flex shrink-0 flex-col border-l border-[var(--knowledge-shell-border)] bg-[var(--knowledge-sidebar-bg)]"
           style={{ width: 'clamp(360px, 31vw, 420px)' }}
         >
-          <div className="flex items-center justify-between border-b border-[rgba(0,0,0,0.08)] px-4 py-3 dark:border-[rgba(255,255,255,0.08)]">
+          <div className="flex items-center justify-between border-b border-[var(--knowledge-shell-border)] px-4 py-3">
             <div>
-              <div className="text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">对话</div>
+              <div className="text-[14px] font-medium text-[var(--text-primary)]">对话</div>
               {activeTab === 'graph' ? (
-                <div className="mt-1 text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
                   {embeddedAutoGraphQueryEnabled ? '自动图查询已开启' : '自动图查询已关闭'}
                 </div>
               ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {activeTab === 'graph' ? (
-                <label className="inline-flex h-8 items-center gap-2 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-3 text-[11px] text-[#1E293B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]">
+                <label className="inline-flex h-8 items-center gap-2 rounded-[10px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-action-bg)] px-3 text-[11px] text-[var(--text-primary)]">
                   <input
                     type="checkbox"
                     checked={embeddedAutoGraphQueryEnabled}
@@ -1592,7 +1603,7 @@ export function KnowledgeLibraryView({
                     type="button"
                     onClick={() => void handleSaveFeedbackAsRaw()}
                     disabled={feedbackBusy !== null}
-                    className="inline-flex h-8 items-center justify-center gap-1 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-2.5 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] disabled:cursor-not-allowed disabled:opacity-60 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                    className={cn(KNOWLEDGE_ACTION_BUTTON_CLASS, 'gap-1 px-2.5 disabled:cursor-not-allowed disabled:opacity-60')}
                   >
                     <FilePlus2 className="h-3.5 w-3.5" />
                     <span>{feedbackBusy === 'raw' ? '沉淀中' : '存为 Raw'}</span>
@@ -1601,7 +1612,7 @@ export function KnowledgeLibraryView({
                     type="button"
                     onClick={() => void handleSaveFeedbackAsClaim()}
                     disabled={feedbackBusy !== null}
-                    className="inline-flex h-8 items-center justify-center gap-1 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-2.5 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] disabled:cursor-not-allowed disabled:opacity-60 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                    className={cn(KNOWLEDGE_ACTION_BUTTON_CLASS, 'gap-1 px-2.5 disabled:cursor-not-allowed disabled:opacity-60')}
                   >
                     <BookPlus className="h-3.5 w-3.5" />
                     <span>{feedbackBusy === 'claim' ? '沉淀中' : '存为 Claim'}</span>
@@ -1610,7 +1621,7 @@ export function KnowledgeLibraryView({
                     type="button"
                     onClick={() => void handleSaveFeedbackAsMemo()}
                     disabled={feedbackBusy !== null}
-                    className="inline-flex h-8 items-center justify-center gap-1 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-2.5 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] disabled:cursor-not-allowed disabled:opacity-60 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                    className={cn(KNOWLEDGE_ACTION_BUTTON_CLASS, 'gap-1 px-2.5 disabled:cursor-not-allowed disabled:opacity-60')}
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     <span>{feedbackBusy === 'memo' ? '沉淀中' : '存为 Memo'}</span>
@@ -1618,14 +1629,14 @@ export function KnowledgeLibraryView({
                   <button
                     type="button"
                     onClick={handleOpenContextChat}
-                    className="inline-flex h-8 items-center justify-center rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-3 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                    className={cn(KNOWLEDGE_ACTION_BUTTON_CLASS, 'px-3')}
                   >
                     在主对话中打开
                   </button>
                   <button
                     type="button"
                     onClick={handleInjectCurrentContextIntoEmbeddedChat}
-                    className="inline-flex h-8 items-center justify-center rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white px-3 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                    className={cn(KNOWLEDGE_ACTION_BUTTON_CLASS, 'px-3')}
                   >
                     注入右侧对话
                   </button>

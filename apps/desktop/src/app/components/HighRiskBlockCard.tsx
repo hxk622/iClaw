@@ -12,7 +12,7 @@ export function HighRiskBlockCard({
   onModifyQuestion,
 }: HighRiskBlockCardProps) {
   return (
-    <div className="mx-auto max-w-lg overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div className="mx-auto max-w-lg overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] shadow-sm">
       <div className="border-b border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 px-5 py-3 dark:border-orange-900/30 dark:from-orange-950/30 dark:to-amber-950/30">
         <div className="flex items-center gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/40">
@@ -39,7 +39,7 @@ export function HighRiskBlockCard({
             等执行性操作。
           </p>
 
-          <div className="rounded-md bg-slate-50 px-4 py-3 dark:bg-slate-800/50">
+          <div className="rounded-md bg-[var(--bg-hover)] px-4 py-3">
             <p className="text-[13px] leading-[1.6] text-slate-700 dark:text-slate-300">
               理财客当前仅支持<strong className="font-medium">研究分析与信息查询</strong>，
               暂不提供直接执行性结论或操作指令。此类决策需结合您的风险承受能力、资产状况与投资目标，由您本人或持牌顾问完成。
@@ -63,12 +63,12 @@ export function HighRiskBlockCard({
         </div>
       </div>
 
-      <div className="border-t border-slate-200 bg-slate-50/50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/30">
+      <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-hover)]/60 px-5 py-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
           <button
             type="button"
             onClick={onContinueResearch}
-            className="group flex flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-[13px] font-medium text-slate-700 transition-all hover:border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-700"
+            className="group flex flex-1 items-center justify-center gap-2 rounded-md border border-[var(--button-secondary-border)] bg-[var(--button-secondary-bg)] px-4 py-2.5 text-[13px] font-medium text-[var(--button-secondary-text)] transition-all hover:border-[var(--button-secondary-border-hover)] hover:bg-[var(--button-secondary-bg-hover)]"
           >
             <span>查看研究分析版本</span>
             <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />

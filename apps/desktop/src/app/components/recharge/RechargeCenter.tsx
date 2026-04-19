@@ -43,7 +43,7 @@ const PRIMARY_ACTION_BUTTON_CLASS =
   'bg-[#111827] !text-white hover:bg-[#0B1220] dark:border dark:border-[#DDE3EA] dark:bg-[#F7F9FC] dark:!text-[#0F172A] dark:hover:bg-[#ECF1F6]';
 
 const SECONDARY_ACTION_BUTTON_CLASS =
-  'border border-[#E5E7EB] bg-white text-[#374151] hover:bg-[#F9FAFB] dark:border-[#3A3A3A] dark:bg-transparent dark:text-[#E5E7EB] dark:hover:bg-[#1A1A1A]';
+  'border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] text-[#374151] hover:bg-[var(--bg-card)] dark:bg-[var(--bg-card)] dark:text-[#E5E7EB]';
 
 function formatPaymentDeadline(value: string | null): string | null {
   if (!value) {
@@ -142,7 +142,7 @@ function PaymentMethodLogo({
   return (
     <div
       className={cn(
-        'flex items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-white',
+        'flex items-center justify-center overflow-hidden rounded-md border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] shadow-sm',
         className,
       )}
     >
@@ -159,7 +159,7 @@ function PaymentBrandLogo({paymentMethod}: {paymentMethod: PaymentMethod}) {
   return (
     <PaymentMethodLogo
       paymentMethod={paymentMethod}
-      className="h-14 w-14 rounded-md border-white/80 bg-white shadow-[0_6px_18px_rgba(15,23,42,0.12)]"
+      className="h-14 w-14 rounded-md border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] shadow-[0_6px_18px_rgba(15,23,42,0.12)]"
       imageClassName={paymentMethod === 'wechat_qr' ? 'p-2.5' : 'p-1.5'}
     />
   );
@@ -248,18 +248,18 @@ function getPackageCardMeta(item: RechargePackage) {
     icon: <Sparkles className="h-5 w-5" />,
     badgeText: neutralBadgeText,
     badgeClassName: neutralBadgeText
-      ? 'border border-[rgba(148,163,184,0.24)] bg-[rgba(255,255,255,0.82)] text-slate-700 shadow-[0_6px_18px_rgba(15,23,42,0.06)] dark:border-[rgba(148,163,184,0.24)] dark:bg-[rgba(30,41,59,0.82)] dark:text-slate-100 dark:shadow-[0_8px_18px_rgba(0,0,0,0.18)]'
+      ? 'border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] text-slate-700 shadow-[0_6px_18px_rgba(15,23,42,0.06)] dark:text-slate-100 dark:shadow-[0_8px_18px_rgba(0,0,0,0.18)]'
       : '',
     accentClassName:
-      'border-gray-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(249,250,251,0.98)_100%)] shadow-[0_10px_30px_rgba(15,23,42,0.06)] dark:border-[#2F3742] dark:bg-[linear-gradient(180deg,rgba(26,26,26,0.98)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.26)]',
+      'border-[var(--drawer-shell-border)] bg-[var(--drawer-shell-bg)] shadow-[0_10px_30px_rgba(15,23,42,0.06)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.26)]',
     iconWrapClassName: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
     eyebrowText: neutralEyebrowText,
     eyebrowClassName:
-      'border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-[#1E1E1E] dark:text-gray-300',
+      'border border-[var(--drawer-shell-border)] bg-[var(--bg-card)] text-gray-600 dark:text-gray-300',
     promoText: neutralPromoText,
     priceGlowClassName: 'text-gray-900 dark:text-gray-50',
     ctaClassName:
-      'border border-gray-200 bg-white text-gray-700 shadow-[0_4px_14px_rgba(15,23,42,0.04)] hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 dark:border-[#3A3A3A] dark:bg-transparent dark:text-[#E5E7EB] dark:shadow-none dark:hover:bg-[#1A1A1A]',
+      'border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] text-gray-700 shadow-[0_4px_14px_rgba(15,23,42,0.04)] hover:border-gray-300 hover:bg-[var(--bg-card)] hover:text-gray-900 dark:text-[#E5E7EB] dark:shadow-none',
   };
 }
 
@@ -277,7 +277,7 @@ function BrandedPaymentQr({
   const methodTheme = getPaymentMethodTheme(paymentMethod);
   return (
     <div
-      className="relative rounded-lg border border-gray-200/80 bg-white p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
+      className="relative rounded-lg border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
       data-testid={expired ? 'recharge-qr-card-expired' : 'recharge-qr-card'}
     >
       <div
@@ -298,7 +298,7 @@ function BrandedPaymentQr({
         </div>
         {expired ? (
           <div
-            className="absolute inset-0 flex items-center justify-center bg-white/95 backdrop-blur-sm dark:bg-gray-900/95"
+            className="absolute inset-0 flex items-center justify-center bg-[rgba(252,251,248,0.95)] backdrop-blur-sm dark:bg-[rgba(20,18,16,0.92)]"
             data-testid="recharge-qr-expired-mask"
           >
             <button
@@ -716,7 +716,7 @@ function PackageSelectionView({
   return (
     <div
       className={cn(
-        'mx-auto w-full overflow-hidden rounded-[28px] border border-gray-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-[#2A3442] dark:bg-[linear-gradient(180deg,rgba(18,20,24,0.98)_0%,rgba(15,15,15,0.98)_100%)] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]',
+        'mx-auto w-full overflow-hidden rounded-[28px] border border-[var(--drawer-shell-border)] bg-[var(--drawer-shell-bg)] shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]',
         wideLayout ? 'p-6 md:p-8' : 'p-8 md:p-12',
       )}
       style={{maxWidth: `min(calc(100vw - 32px), ${modalMaxWidth})`}}
@@ -742,7 +742,7 @@ function PackageSelectionView({
             <span className="inline-flex items-center rounded-full border border-[rgba(168,85,247,0.16)] bg-[rgba(168,85,247,0.08)] px-3 py-1 text-[12px] font-medium text-[#7E22CE] dark:border-[rgba(168,85,247,0.22)] dark:bg-[rgba(168,85,247,0.12)] dark:text-[#D8B4FE]">
               支持微信 / 支付宝
             </span>
-            <span className="inline-flex items-center rounded-full border border-gray-200 bg-white/80 px-3 py-1 text-[12px] font-medium text-gray-600 dark:border-gray-700 dark:bg-[#181818] dark:text-gray-300">
+            <span className="inline-flex items-center rounded-full border border-[var(--drawer-eyebrow-border)] bg-[var(--drawer-eyebrow-bg)] px-3 py-1 text-[12px] font-medium text-gray-600 dark:text-gray-300">
               一次性充值，不会自动续费
             </span>
           </div>
@@ -809,7 +809,7 @@ function PackageSelectionView({
                   meta.accentClassName,
                 )}
               >
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0)_100%)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0)_100%)]" />
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(255,244,226,0.22)_0%,rgba(255,244,226,0)_100%)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0)_100%)]" />
 
                 <div className={cn('flex items-start justify-between gap-3', wideLayout ? 'mb-4' : 'mb-5')}>
                   <div className="flex items-center gap-2.5">
@@ -1120,7 +1120,7 @@ function PaymentView({
 
   return (
     <div
-      className="relative h-[calc(100vh-32px)] max-h-[720px] w-[1040px] max-w-[calc(100vw-32px)] overflow-hidden rounded-[28px] border border-gray-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] shadow-[0_24px_80px_rgba(15,23,42,0.24)] dark:border-[#253042] dark:bg-[linear-gradient(180deg,rgba(18,20,24,0.98)_0%,rgba(15,15,15,0.98)_100%)] dark:shadow-[0_24px_90px_rgba(0,0,0,0.48)]"
+      className="relative h-[calc(100vh-32px)] max-h-[720px] w-[1040px] max-w-[calc(100vw-32px)] overflow-hidden rounded-[28px] border border-[var(--drawer-shell-border)] bg-[var(--drawer-shell-bg)] shadow-[0_24px_80px_rgba(15,23,42,0.24)] dark:shadow-[0_24px_90px_rgba(0,0,0,0.48)]"
       data-testid="recharge-payment-view"
       onClick={onPanelClick}
     >
@@ -1129,13 +1129,13 @@ function PaymentView({
       <button
         onClick={onClose}
         data-testid="recharge-payment-close"
-        className="absolute right-5 top-5 z-10 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-gray-200/80 bg-white/80 text-gray-400 shadow-sm backdrop-blur-sm transition-colors hover:bg-gray-100 hover:text-gray-600 dark:border-gray-700 dark:bg-[#191919]/80 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+        className="absolute right-5 top-5 z-10 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-[var(--drawer-eyebrow-border)] bg-[var(--drawer-eyebrow-bg)] text-gray-400 shadow-sm backdrop-blur-sm transition-colors hover:bg-[var(--bg-hover)] hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
       >
         <X className="h-4 w-4" />
       </button>
 
       <div className="flex h-full min-h-0">
-        <div className="relative flex w-[60%] min-h-0 flex-col border-r border-gray-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(241,245,249,0.94)_100%)] p-7 dark:border-[#263241] dark:bg-[linear-gradient(180deg,rgba(10,10,10,0.98)_0%,rgba(14,18,24,0.98)_100%)]">
+        <div className="relative flex w-[60%] min-h-0 flex-col border-r border-[var(--drawer-shell-border)] bg-[var(--bg-card)] p-7">
           <div className="mb-5">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center rounded-full border border-[rgba(59,130,246,0.18)] bg-[rgba(59,130,246,0.08)] px-3 py-1 text-[12px] font-medium text-[#2563EB] dark:border-[rgba(96,165,250,0.22)] dark:bg-[rgba(59,130,246,0.12)] dark:text-[#93C5FD]">
@@ -1160,7 +1160,7 @@ function PaymentView({
             >
               <PaymentMethodLogo
                 paymentMethod={paymentMethod}
-                className="h-4 w-4 rounded-[4px] border-white/80 bg-white shadow-none dark:border-white/80"
+                className="h-4 w-4 rounded-[4px] border-[var(--drawer-eyebrow-border)] bg-[var(--bg-elevated)] shadow-none"
                 imageClassName={paymentMethod === 'wechat_qr' ? 'p-[2px]' : 'p-px'}
               />
               {getPaymentMethodLabel(paymentMethod, currentPaymentMethodConfig?.label)}
@@ -1179,11 +1179,11 @@ function PaymentView({
                     qrUrl={transitionSnapshot!.qrUrl}
                   />
                   <div
-                    className="absolute inset-0 flex items-center justify-center rounded-lg bg-[rgba(255,255,255,0.74)] backdrop-blur-[2px] dark:bg-[rgba(10,10,10,0.68)]"
+                    className="absolute inset-0 flex items-center justify-center rounded-lg bg-[rgba(252,251,248,0.74)] backdrop-blur-[2px] dark:bg-[rgba(10,10,10,0.68)]"
                     data-testid="recharge-qr-transition-mask"
                     data-transition-kind={transitionSnapshot?.kind || 'refresh'}
                   >
-                    <div className="flex flex-col items-center gap-2 rounded-2xl border border-white/80 bg-white/90 px-5 py-4 text-center shadow-[0_12px_32px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-[#151515]/92 dark:shadow-[0_12px_32px_rgba(0,0,0,0.42)]">
+                    <div className="flex flex-col items-center gap-2 rounded-2xl border border-[var(--drawer-eyebrow-border)] bg-[rgba(252,251,248,0.9)] px-5 py-4 text-center shadow-[0_12px_32px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-[#151515]/92 dark:shadow-[0_12px_32px_rgba(0,0,0,0.42)]">
                       <LoaderCircle className="h-6 w-6 animate-spin text-gray-700 dark:text-gray-200" />
                       <div
                         className="text-[14px] font-semibold text-gray-900 dark:text-gray-100"
@@ -1198,7 +1198,7 @@ function PaymentView({
                   </div>
                 </div>
               ) : creatingOrder ? (
-                <div className="rounded-lg border border-gray-200/80 bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
+                <div className="rounded-lg border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
                   <div className="flex h-[min(280px,32vh)] w-[min(280px,32vh)] items-center justify-center rounded-md bg-gray-50 dark:bg-[#101010]">
                     <LoaderCircle className="h-7 w-7 animate-spin text-gray-600 dark:text-gray-400" />
                   </div>
@@ -1208,7 +1208,7 @@ function PaymentView({
               ) : shouldShowQr ? (
                 <BrandedPaymentQr paymentMethod={paymentMethod} qrUrl={resolvedQrUrl!} />
               ) : (
-                <div className="rounded-lg border border-gray-200/80 bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
+                <div className="rounded-lg border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
                   <div className="flex h-[min(280px,32vh)] w-[min(280px,32vh)] flex-col items-center justify-center rounded-md bg-gray-50 dark:bg-[#101010]">
                     <Clock3 className="h-10 w-10 text-gray-300 dark:text-gray-600" />
                     <p className="mt-3 text-sm font-medium text-gray-500 dark:text-gray-400">正在准备收款码</p>
@@ -1218,7 +1218,7 @@ function PaymentView({
 
               {isPaid ? (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="rounded-lg border border-green-200 bg-white p-8 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:border-green-900 dark:bg-[#1A1A1A] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+                  <div className="rounded-lg border border-green-200 bg-[var(--bg-elevated)] p-8 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:border-green-900 dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
                     <div className="flex flex-col items-center gap-3">
                       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/40">
                         <CheckCircle2 className="h-9 w-9 text-green-600 dark:text-green-500" />
@@ -1234,7 +1234,7 @@ function PaymentView({
 
               {isFailed ? (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="rounded-lg border border-red-200 bg-white p-8 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:border-red-900 dark:bg-[#1A1A1A] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+                  <div className="rounded-lg border border-red-200 bg-[var(--bg-elevated)] p-8 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:border-red-900 dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
                     <div className="flex flex-col items-center gap-3">
                       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/40">
                         <AlertCircle className="h-9 w-9 text-red-600 dark:text-red-500" />
@@ -1262,15 +1262,15 @@ function PaymentView({
           </div>
         </div>
 
-        <div className="flex w-[40%] min-h-0 flex-col bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(248,250,252,0.96)_100%)] p-6 pt-16 dark:bg-[linear-gradient(180deg,rgba(20,20,20,0.98)_0%,rgba(17,17,17,0.98)_100%)]">
+        <div className="flex w-[40%] min-h-0 flex-col bg-[var(--bg-card)] p-6 pt-16">
           <div className="mb-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">订单信息</h3>
-              <span className="inline-flex rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:border-gray-700 dark:bg-[#1A1A1A] dark:text-gray-300">
+              <span className="inline-flex rounded-full border border-[var(--drawer-eyebrow-border)] bg-[var(--drawer-eyebrow-bg)] px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:text-gray-300">
                 {currentPackage.badgeLabel || currentPackage.packageName}
               </span>
             </div>
-            <div className="space-y-3 rounded-[20px] border border-gray-200/70 bg-white/90 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]">
+            <div className="space-y-3 rounded-[20px] border border-[var(--drawer-shell-border)] bg-[rgba(252,251,248,0.9)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] dark:bg-[var(--bg-elevated)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]">
               <div className="flex items-center justify-between text-[13px]">
                 <span className="text-gray-500 dark:text-gray-400">套餐</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">{currentPackage.packageName}</span>
@@ -1312,7 +1312,7 @@ function PaymentView({
                       creatingOrder || switchingPaymentMethod || isPaid ? 'cursor-not-allowed opacity-60' : '',
                       selected
                         ? optionTheme.optionSelectedClassName
-                        : 'border-gray-200 bg-white hover:border-gray-300 dark:border-[#31343A] dark:bg-[#1A1A1A] dark:hover:border-[#4B5563]',
+                        : 'border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] hover:border-gray-300 dark:hover:border-[#4B5563]',
                     )}
                   >
                     <div
@@ -1334,7 +1334,7 @@ function PaymentView({
                           optionTheme.optionSelectedDotClassName,
                         )}
                       >
-                        <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                        <div className="h-1.5 w-1.5 rounded-full bg-[var(--bg-elevated)]" />
                       </div>
                     ) : null}
                   </button>
@@ -1354,7 +1354,7 @@ function PaymentView({
             {expiryLabel && !isPaid ? <p className="mt-2 text-[12px] text-gray-500 dark:text-gray-400">有效至 {expiryLabel}</p> : null}
           </div>
 
-          <div className="mb-4 mt-auto space-y-1.5 rounded-[20px] border border-gray-200/70 bg-white/90 p-3.5 text-[12px] text-gray-500 shadow-[0_8px_24px_rgba(15,23,42,0.05)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:text-gray-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+          <div className="mb-4 mt-auto space-y-1.5 rounded-[20px] border border-[var(--drawer-shell-border)] bg-[rgba(252,251,248,0.9)] p-3.5 text-[12px] text-gray-500 shadow-[0_8px_24px_rgba(15,23,42,0.05)] dark:bg-[var(--bg-elevated)] dark:text-gray-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
             <div className="flex items-start gap-2">
               <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-400" />
               <span>官方扫码通道，安全可靠</span>

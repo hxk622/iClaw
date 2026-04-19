@@ -259,7 +259,7 @@ function FundCard({
         SPRING_PRESSABLE,
         INTERACTIVE_FOCUS_RING,
         active
-          ? 'border-[rgba(42,74,111,0.28)] bg-[rgba(255,255,255,0.96)] shadow-[0_20px_46px_rgba(42,74,111,0.14)] dark:bg-[rgba(255,255,255,0.04)]'
+          ? 'border-[rgba(42,74,111,0.28)] bg-[var(--bg-elevated)] shadow-[0_20px_46px_rgba(42,74,111,0.14)]'
           : 'border-[var(--border-default)] bg-[var(--bg-elevated)] hover:border-[rgba(42,74,111,0.18)] hover:shadow-[0_20px_40px_rgba(18,24,36,0.08)]',
       )}
     >
@@ -296,7 +296,7 @@ function FundCard({
           {label: '申购费率', value: formatFeeRate(fund.fee_rate)},
           {label: '规模', value: formatScaleAmount(fund.scale_amount)},
         ].map((metric) => (
-          <div key={metric.label} className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-3 py-3 dark:bg-[rgba(255,255,255,0.02)]">
+          <div key={metric.label} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-3">
             <div className="text-[11px] text-[var(--text-muted)]">{metric.label}</div>
             <div className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">{metric.value}</div>
           </div>
@@ -364,7 +364,7 @@ function WatchlistPanel({
       <div className="mt-4 space-y-3">
         {funds.length > 0 ? (
           funds.map((fund) => (
-            <div key={fund.id} className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] p-3 dark:bg-[rgba(255,255,255,0.02)]">
+            <div key={fund.id} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="truncate text-[14px] font-semibold text-[var(--text-primary)]">{fund.companyName}</div>
@@ -388,7 +388,7 @@ function WatchlistPanel({
             </div>
           ))
         ) : (
-          <div className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-4 text-[12px] leading-6 text-[var(--text-secondary)] dark:bg-[rgba(255,255,255,0.02)]">
+          <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-4 text-[12px] leading-6 text-[var(--text-secondary)]">
             当前还没有命中自选标记的基金。
           </div>
         )}
@@ -410,7 +410,7 @@ function AIInsightsPanel() {
           {title: '红利适合防守', text: '红利策略更适合作为波动缓冲器，不能只看高股息率，还要看可持续性。'},
           {title: 'QDII 要看汇率', text: '海外基金除了行业景气，还要一起看美元、估值和申赎容量。'},
         ].map((item) => (
-          <div key={item.title} className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-3 dark:bg-[rgba(255,255,255,0.02)]">
+          <div key={item.title} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3">
             <div className="text-[13px] font-semibold text-[var(--text-primary)]">{item.title}</div>
             <div className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">{item.text}</div>
           </div>
@@ -468,7 +468,7 @@ function ThemeSpotlights({
               </div>
               <div className="mt-4 text-[16px] font-semibold text-[var(--text-primary)]">{theme.title}</div>
               <div className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{theme.summary}</div>
-              <div className="mt-4 rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-3 text-[12px] leading-6 text-[var(--text-secondary)] dark:bg-[rgba(255,255,255,0.02)]">
+              <div className="mt-4 rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 text-[12px] leading-6 text-[var(--text-secondary)]">
                 代表基金：<span className="font-semibold text-[var(--text-primary)]">{fund.companyName}</span>
               </div>
               <div className="mt-4">
@@ -588,11 +588,11 @@ function FundDrawer({
           <section className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4">
             <div className="text-[14px] font-semibold text-[var(--text-primary)]">基金画像</div>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-3 dark:bg-[rgba(255,255,255,0.02)]">
+              <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3">
                 <div className="text-[11px] text-[var(--text-muted)]">主题分组</div>
                 <div className="mt-2 text-[15px] font-semibold text-[var(--text-primary)]">{fund.theme_key || '--'}</div>
               </div>
-              <div className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-3 dark:bg-[rgba(255,255,255,0.02)]">
+              <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3">
                 <div className="text-[11px] text-[var(--text-muted)]">重点跟踪</div>
                 <div className="mt-2 text-[15px] font-semibold text-[var(--text-primary)]">{fund.watchlisted ? '是' : '否'}</div>
               </div>
@@ -604,7 +604,7 @@ function FundDrawer({
             <div className="mt-3 grid grid-cols-2 gap-3">
               {allocationSnapshot.length > 0 ? (
                 allocationSnapshot.map((item) => (
-                  <div key={item.label} className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-3 dark:bg-[rgba(255,255,255,0.02)]">
+                  <div key={item.label} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3">
                     <div className="text-[11px] text-[var(--text-muted)]">{item.label}</div>
                     <div className="mt-2 text-[15px] font-semibold text-[var(--text-primary)]">{item.value}</div>
                   </div>
@@ -633,7 +633,7 @@ function FundDrawer({
             <div className="mt-3 space-y-3">
               {relatedNews.length > 0 ? (
                 relatedNews.map((item) => (
-                  <div key={item.news_id} className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-3 dark:bg-[rgba(255,255,255,0.02)]">
+                  <div key={item.news_id} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3">
                     <div className="text-[13px] font-semibold leading-6 text-[var(--text-primary)]">{item.title}</div>
                     <div className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">{item.summary || '暂无摘要。'}</div>
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-muted)]">

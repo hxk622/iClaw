@@ -50,7 +50,7 @@ export function DesktopUpdateCard({
   return (
     <section
       className={cn(
-        'mb-3 overflow-hidden rounded-[18px] border border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] text-[var(--text-primary)] shadow-[var(--pressable-card-rest-shadow)] dark:bg-[linear-gradient(180deg,rgba(31,29,27,0.98),rgba(22,20,18,0.96))]',
+        'mb-3 overflow-hidden rounded-[18px] border border-[var(--drawer-shell-border)] bg-[var(--drawer-shell-bg)] text-[var(--text-primary)] shadow-[var(--pressable-card-rest-shadow)]',
         'transition-[transform,opacity] duration-[var(--motion-panel)]',
       )}
       style={{ transitionTimingFunction: 'var(--motion-spring)' }}
@@ -76,7 +76,7 @@ export function DesktopUpdateCard({
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-[var(--border-default)] bg-[rgba(255,255,255,0.28)] px-3 py-2.5 dark:bg-[rgba(255,255,255,0.03)]">
+      <div className="flex items-center justify-end gap-2 border-t border-[var(--drawer-shell-border)] bg-[var(--drawer-footer-bg)] px-3 py-2.5">
         {status === 'available' && !hint.mandatory && onSkip ? (
           <Button
             variant="secondary"

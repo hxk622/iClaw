@@ -20,7 +20,7 @@ export function CreditBalancePill({ balance, loading = false, onClick }: CreditB
       className={`pointer-events-auto inline-flex min-w-[148px] items-center justify-between gap-3 rounded-full border px-4 py-2.5 text-left shadow-[0_16px_36px_rgba(15,23,42,0.12)] backdrop-blur ${
         lowBalance
           ? 'border-[rgba(217,119,6,0.22)] bg-[rgba(255,247,237,0.94)] dark:border-[rgba(245,158,11,0.28)] dark:bg-[rgba(96,56,15,0.26)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.28)]'
-          : 'border-[rgba(15,23,42,0.08)] bg-[rgba(255,255,255,0.94)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.05)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.24)]'
+          : 'border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.24)]'
       }`}
     >
       <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(251,191,36,0.18)] text-[#b45309] dark:bg-[rgba(214,190,151,0.16)] dark:text-[#e9cc96]">

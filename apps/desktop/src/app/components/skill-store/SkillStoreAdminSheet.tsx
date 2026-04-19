@@ -119,10 +119,15 @@ export function SkillStoreAdminSheet({
       onClick={onClose}
     >
       <aside
-        className="flex h-full w-full max-w-[520px] flex-col border-l border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] shadow-[0_32px_80px_rgba(26,22,18,0.2)] dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]"
+        className="flex h-full w-full max-w-[520px] flex-col border-l"
+        style={{
+          borderColor: 'var(--drawer-shell-border)',
+          background: 'var(--drawer-shell-bg)',
+          boxShadow: 'var(--drawer-shell-shadow)',
+        }}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-[var(--border-default)] px-6 py-[18px] dark:border-b-[rgba(255,255,255,0.08)]">
+        <div className="border-b border-[var(--drawer-shell-border)] px-6 py-[18px]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">
@@ -339,7 +344,7 @@ export function SkillStoreAdminSheet({
           ) : null}
         </div>
 
-        <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-5 dark:border-t-[rgba(255,255,255,0.08)] dark:bg-[rgba(12,12,12,0.86)]">
+        <div className="border-t border-[var(--drawer-shell-border)] bg-[var(--drawer-footer-bg)] px-6 py-5 backdrop-blur-[10px]">
           <div className="flex items-center justify-between gap-3">
             <Button
               variant="ghost"

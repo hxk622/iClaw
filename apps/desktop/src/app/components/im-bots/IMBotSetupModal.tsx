@@ -104,8 +104,8 @@ const completionChecklist = [
 const SECTION_LABEL =
   'text-[12px] font-semibold uppercase tracking-[0.14em] text-[#9B9691] dark:text-[#6B6863]';
 const MODAL_INPUT_CLASS =
-  'min-h-[44px] w-full rounded-[14px] border border-[#E8E6E3] bg-white px-4 text-[14px] text-[#1A1916] outline-none transition placeholder:text-[#A8A39D] focus:border-[#C9B896] focus:ring-2 focus:ring-[#C9B896]/20 dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#F5F4F2] dark:placeholder:text-[#726C66] dark:focus:border-[#9D8B6F] dark:focus:ring-[#9D8B6F]/20';
-const MODAL_READONLY_INPUT_CLASS = 'bg-[#F5F4F2] dark:bg-[#1C1B19]';
+  'min-h-[44px] w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 text-[14px] text-[#1A1916] outline-none transition placeholder:text-[#A8A39D] focus:border-[#C9B896] focus:ring-2 focus:ring-[#C9B896]/20 dark:text-[#F5F4F2] dark:placeholder:text-[#726C66] dark:focus:border-[#9D8B6F] dark:focus:ring-[#9D8B6F]/20';
+const MODAL_READONLY_INPUT_CLASS = 'bg-[var(--bg-card)]';
 
 export function IMBotSetupModal({
   platform,
@@ -270,11 +270,11 @@ export function IMBotSetupModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,12,20,0.36)] px-5 py-5 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.48)]">
-      <div className="relative flex h-full max-h-[840px] w-full max-w-[1000px] flex-col overflow-hidden rounded-2xl border border-[#E8E6E3] bg-[#F9F8F6] shadow-[0_8px_40px_rgba(0,0,0,0.12)] dark:border-[#2D2C2A] dark:bg-[#1C1B19] dark:shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
-        <div className="border-b border-[#E8E6E3] px-10 pb-6 pt-8 dark:border-[#2D2C2A]">
+      <div className="relative flex h-full max-h-[840px] w-full max-w-[1000px] flex-col overflow-hidden rounded-2xl border border-[var(--drawer-shell-border)] bg-[var(--drawer-shell-bg)] shadow-[0_8px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
+        <div className="border-b border-[var(--drawer-shell-border)] px-10 pb-6 pt-8">
           <div className="flex items-start justify-between gap-6">
             <div className="flex min-w-0 items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#E8E6E3] bg-white shadow-sm dark:border-[#2D2C2A] dark:bg-[#242320]">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] shadow-sm">
                 <img
                   src={platform.logo}
                   alt={platform.label}
@@ -308,7 +308,7 @@ export function IMBotSetupModal({
           </div>
         </div>
 
-        <div className="border-b border-[#E8E6E3] px-10 py-6 dark:border-[#2D2C2A]">
+        <div className="border-b border-[var(--drawer-shell-border)] px-10 py-6">
           <WizardStepper steps={wizardSteps} />
         </div>
 
@@ -334,7 +334,7 @@ export function IMBotSetupModal({
                   <div className="mt-4 space-y-3">
                     {platform.introSteps.map((step, index) => (
                       <div key={step} className="flex items-start gap-3">
-                        <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#f3f0ea] text-[11px] text-[#6b6863] dark:bg-[rgba(255,255,255,0.06)] dark:text-[#a39f9a]">
+                        <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--bg-hover)] text-[11px] text-[#6b6863] dark:text-[#a39f9a]">
                           {index + 1}
                         </div>
                         <p className="text-[13px] leading-relaxed text-[#3D3A36] dark:text-[#D4D2CE]">{step}</p>
@@ -490,7 +490,7 @@ export function IMBotSetupModal({
                               {preflightResult.checks.map((check) => (
                                 <div
                                   key={check.id}
-                                  className="rounded-[12px] border border-[#E8E6E3] bg-white/80 px-3 py-2 dark:border-[#2D2C2A] dark:bg-[#242320]"
+                                  className="rounded-[12px] border border-[var(--drawer-shell-border)] bg-[var(--bg-card)] px-3 py-2"
                                 >
                                   <div className="flex items-center justify-between gap-3">
                                     <div className="text-[12px] font-medium text-[#1A1916] dark:text-[#F5F4F2]">
@@ -625,10 +625,10 @@ export function IMBotSetupModal({
                   这个机器人现在会出现在 IM机器人视图区的已创建列表里。平台凭据已经完成真实预检，接下来你可以进入详情页继续绑定默认助手、会话策略和消息模板。
                 </p>
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                  <span className="rounded-full border border-[#E8E6E3] bg-white px-3 py-1 text-[12px] text-[#6B6863] dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#A39F9A]">
+                  <span className="rounded-full border border-[var(--drawer-eyebrow-border)] bg-[var(--drawer-eyebrow-bg)] px-3 py-1 text-[12px] text-[#6B6863] dark:text-[#A39F9A]">
                     触发方式：{triggerModeOptions.find((item) => item.value === triggerMode)?.label}
                   </span>
-                  <span className="rounded-full border border-[#E8E6E3] bg-white px-3 py-1 text-[12px] text-[#6B6863] dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#A39F9A]">
+                  <span className="rounded-full border border-[var(--drawer-eyebrow-border)] bg-[var(--drawer-eyebrow-bg)] px-3 py-1 text-[12px] text-[#6B6863] dark:text-[#A39F9A]">
                     回复格式：{replyFormatOptions.find((item) => item.value === replyFormat)?.label}
                   </span>
                 </div>
@@ -642,7 +642,7 @@ export function IMBotSetupModal({
           </aside>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#E8E6E3] px-10 py-5 dark:border-[#2D2C2A]">
+        <div className="flex items-center justify-between border-t border-[var(--drawer-shell-border)] bg-[var(--drawer-footer-bg)] px-10 py-5 backdrop-blur-[10px]">
           <div className="text-[13px] text-[#9B9691] dark:text-[#6B6863]">
             {currentStep < 4 ? `步骤 ${currentStep} / 4` : '接入已准备完成'}
           </div>

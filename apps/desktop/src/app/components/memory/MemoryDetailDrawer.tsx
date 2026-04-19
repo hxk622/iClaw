@@ -82,12 +82,23 @@ export function MemoryDetailDrawer({
       />
       <aside
         className={cn(
-          'fixed right-0 top-0 z-50 h-full w-[624px] border-l border-[#ECE7DE] bg-[#FCFBF8] transition-transform duration-300 ease-out dark:border-[rgba(255,255,255,0.08)] dark:bg-[#151412]',
+          'fixed right-0 top-0 z-50 h-full w-[624px] border-l transition-transform duration-300 ease-out',
           open ? 'translate-x-0' : 'translate-x-full',
         )}
+        style={{
+          borderColor: 'var(--drawer-shell-border)',
+          background: 'var(--drawer-shell-bg)',
+          boxShadow: 'var(--drawer-shell-shadow)',
+        }}
       >
         {!entry || !view ? (
-          <div className="flex h-full items-center justify-center border-l border-[#ECE7DE] bg-[#FCFBF8] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#151412]">
+          <div
+            className="flex h-full items-center justify-center border-l"
+            style={{
+              borderColor: 'var(--drawer-shell-border)',
+              background: 'var(--drawer-shell-bg)',
+            }}
+          >
             <div className="px-8 text-center">
               <Archive size={48} strokeWidth={1} className="mb-4 text-[#DED7CC] dark:text-[#4F4A43]" />
               <p className="text-[13px] text-[#9A9288] dark:text-[#8F887D]">选择一条记忆查看详情</p>
@@ -95,13 +106,13 @@ export function MemoryDetailDrawer({
           </div>
         ) : (
           <div className="flex h-full flex-col">
-            <div className="flex items-center justify-between border-b border-[#ECE7DE] px-6 py-4 dark:border-[rgba(255,255,255,0.08)]">
+            <div className="flex items-center justify-between border-b border-[var(--drawer-shell-border)] px-6 py-4">
               <h3 className="text-[13px] text-[#1A1A18] dark:text-[#F1ECE3]" style={{ fontWeight: 500 }}>
                 记忆详情
               </h3>
               <button
                 onClick={onClose}
-                className="cursor-pointer rounded-md p-1.5 text-[#9A9288] transition-all duration-200 hover:bg-[#F8F4ED] hover:text-[#1A1A18] dark:text-[#8F887D] dark:hover:bg-[rgba(255,255,255,0.06)] dark:hover:text-[#F1ECE3]"
+                className="cursor-pointer rounded-md p-1.5 text-[#9A9288] transition-all duration-200 hover:bg-[var(--bg-hover)] hover:text-[#1A1A18] dark:text-[#8F887D] dark:hover:text-[#F1ECE3]"
               >
                 <X size={15} strokeWidth={1.5} />
               </button>
@@ -117,14 +128,14 @@ export function MemoryDetailDrawer({
                         onDraftChange((current) => (current ? { ...current, title: event.target.value } : current))
                       }
                       placeholder="记忆标题"
-                      className="w-full rounded-lg border border-[#DED7CC] bg-white px-4 py-3 text-[13px] text-[#1A1A18] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[#F1ECE3]"
+                      className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[#1A1A18] outline-none dark:text-[#F1ECE3]"
                     />
                     <textarea
                       value={draft.content}
                       onChange={(event) =>
                         onDraftChange((current) => (current ? { ...current, content: event.target.value } : current))
                       }
-                      className="min-h-[180px] w-full rounded-lg border border-[#DED7CC] bg-white px-4 py-3 text-[13px] leading-relaxed text-[#1A1A18] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[#F1ECE3]"
+                      className="min-h-[180px] w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] leading-relaxed text-[#1A1A18] outline-none dark:text-[#F1ECE3]"
                     />
                   </div>
                 ) : (
@@ -190,7 +201,7 @@ export function MemoryDetailDrawer({
                         }
                       }}
                       placeholder="新增标签"
-                      className="flex-1 rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[#F1ECE3]"
+                      className="flex-1 rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-[13px] text-[#1A1A18] outline-none dark:text-[#F1ECE3]"
                     />
                     <Button
                       onClick={onAddTag}
@@ -230,7 +241,7 @@ export function MemoryDetailDrawer({
               <DrawerBlock label="来源与状态">
                 {editing && draft ? (
                   <div className="space-y-3">
-                    <div className="rounded-lg border border-[#ECE7DE] bg-white px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+                    <div className="rounded-lg border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] px-4 py-3">
                       <div className="mb-1 text-[11px] text-[#9A9288] dark:text-[#8F887D]">来源类型</div>
                       <div className="text-[13px] text-[#1A1A18] dark:text-[#F1ECE3]">{entry.sourceType}</div>
                     </div>
@@ -241,7 +252,7 @@ export function MemoryDetailDrawer({
                         onChange={(event) =>
                           onDraftChange((current) => (current ? { ...current, sourceLabel: event.target.value } : current))
                         }
-                        className="w-full rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[#F1ECE3]"
+                        className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-[13px] text-[#1A1A18] outline-none dark:text-[#F1ECE3]"
                       />
                     </label>
                     <SelectField
@@ -279,7 +290,7 @@ export function MemoryDetailDrawer({
                 <DrawerBlock label={`使用记录 (${entry.recallCount} 次)`}>
                   <div className="space-y-2">
                     {recallRecords.map((record) => (
-                      <div key={record.date} className="rounded-lg border border-[#ECE7DE] bg-white p-3.5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+                      <div key={record.date} className="rounded-lg border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] p-3.5">
                         <div className="mb-1 text-[11px] text-[#9A9288] dark:text-[#8F887D]">{record.date}</div>
                         <div className="text-[12px] text-[#1A1A18] dark:text-[#F1ECE3]">{record.context}</div>
                       </div>
@@ -295,7 +306,7 @@ export function MemoryDetailDrawer({
                       <button
                         key={item.id}
                         onClick={() => onSelectRelated(item.id)}
-                        className="w-full cursor-pointer rounded-lg border border-[#ECE7DE] bg-white p-3.5 text-left transition-all duration-200 hover:border-[#DED7CC] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:hover:border-[rgba(214,190,151,0.18)]"
+                        className="w-full cursor-pointer rounded-lg border border-[var(--drawer-shell-border)] bg-[var(--bg-elevated)] p-3.5 text-left transition-all duration-200 hover:border-[var(--border-default)]"
                       >
                         <p className="mb-1.5 line-clamp-2 text-[12px] text-[#1A1A18] dark:text-[#F1ECE3]">{item.summary}</p>
                         <div className="flex gap-1.5">
@@ -304,7 +315,7 @@ export function MemoryDetailDrawer({
                       </button>
                     ))
                   ) : (
-                    <div className="rounded-lg border border-dashed border-[#ECE7DE] px-4 py-4 text-[12px] text-[#6B655D] dark:border-[rgba(255,255,255,0.1)] dark:text-[#B7AEA2]">
+                    <div className="rounded-lg border border-dashed border-[var(--drawer-shell-border)] px-4 py-4 text-[12px] text-[#6B655D] dark:text-[#B7AEA2]">
                       当前没有足够接近的候选记忆。
                     </div>
                   )}
@@ -312,7 +323,7 @@ export function MemoryDetailDrawer({
               </DrawerBlock>
             </div>
 
-            <div className="space-y-2.5 border-t border-[#ECE7DE] bg-white px-6 py-5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+            <div className="space-y-2.5 border-t border-[var(--drawer-shell-border)] bg-[var(--drawer-footer-bg)] px-6 py-5 backdrop-blur-[10px]">
               {editing ? (
                 <div className="flex gap-2.5">
                   <Button
@@ -443,7 +454,7 @@ function SelectField({
           value: option,
           label: option,
         }))}
-        triggerClassName="w-full rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none shadow-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[#F1ECE3]"
+        triggerClassName="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-[13px] text-[#1A1A18] outline-none shadow-none dark:text-[#F1ECE3]"
       />
     </label>
   );
