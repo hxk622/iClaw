@@ -14,7 +14,7 @@ import {
   type KnowledgeLibraryTab,
 } from './model';
 import { readKnowledgeLibraryState, writeKnowledgeLibraryState } from './persistence';
-import { buildKnowledgeLibraryContextPrompt } from './chat-context';
+import { buildKnowledgeLibraryContextPrompt, buildKnowledgeLibraryGraphQueryPrompt } from './chat-context';
 import { KnowledgeLibraryEmbeddedChatSurface } from './KnowledgeLibraryEmbeddedChatSurface';
 import type { IClawClient } from '@iclaw/sdk';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
@@ -31,6 +31,7 @@ import {
 } from './output-types';
 import { openWorkspaceArtifact } from '@/app/lib/tauri-artifact-preview';
 import { openGraphifyOutputFile, readGraphifyOutputText } from '@/app/lib/tauri-graphify-output';
+import { runGraphifyQuery } from '@/app/lib/tauri-graphify';
 import { getOutputArtifactByDedupeKey } from './output-storage';
 import type { RawMaterial } from './types';
 import {
@@ -116,6 +117,11 @@ export function KnowledgeLibraryView({
   const [graphifyHtmlContent, setGraphifyHtmlContent] = useState<string | null>(null);
   const [graphifyHtmlLoading, setGraphifyHtmlLoading] = useState(false);
   const [graphifyHtmlError, setGraphifyHtmlError] = useState<string | null>(null);
+  const [graphifyQueryText, setGraphifyQueryText] = useState('');
+  const [graphifyQueryUseDfs, setGraphifyQueryUseDfs] = useState(false);
+  const [graphifyQueryLoading, setGraphifyQueryLoading] = useState(false);
+  const [graphifyQueryResult, setGraphifyQueryResult] = useState<string | null>(null);
+  const [graphifyQueryError, setGraphifyQueryError] = useState<string | null>(null);
   const graphCompilerJobs = useGraphCompilerJobs(ontologyRefreshKey + outputRefreshKey + materialsRefreshKey);
 
   const {
@@ -201,6 +207,10 @@ export function KnowledgeLibraryView({
   );
   const selectedOntologyGraphifyHtmlPath = useMemo(
     () => selectedOntologyDocument?.metadata?.graphify_html_path || null,
+    [selectedOntologyDocument],
+  );
+  const selectedOntologyGraphifyGraphPath = useMemo(
+    () => selectedOntologyDocument?.metadata?.graphify_graph_json_path || null,
     [selectedOntologyDocument],
   );
   const selectedOntologyGraphifyReportArtifact = useMemo(
@@ -420,6 +430,13 @@ export function KnowledgeLibraryView({
     };
   }, [activeTab, graphViewMode, selectedOntologyGraphifyHtmlPath]);
 
+  useEffect(() => {
+    setGraphifyQueryResult(null);
+    setGraphifyQueryError(null);
+    setGraphifyQueryText('');
+    setGraphifyQueryUseDfs(false);
+  }, [selectedOntologyDocument?.id]);
+
   const handleRefresh = async () => {
     if (activeTab === 'materials') {
       setMaterialsRefreshKey((current) => current + 1);
@@ -553,6 +570,51 @@ export function KnowledgeLibraryView({
     } finally {
       setFeedbackBusy(null);
     }
+  };
+
+  const handleRunGraphifyQuery = async () => {
+    if (!selectedOntologyGraphifyGraphPath || !graphifyQueryText.trim()) {
+      return;
+    }
+    setGraphifyQueryLoading(true);
+    setGraphifyQueryError(null);
+    setGraphifyQueryResult(null);
+    try {
+      const result = await runGraphifyQuery({
+        graphPath: selectedOntologyGraphifyGraphPath,
+        question: graphifyQueryText.trim(),
+        useDfs: graphifyQueryUseDfs,
+        budget: 1600,
+      });
+      if (!result) {
+        setGraphifyQueryError('当前环境不支持 graphify 查询。');
+        return;
+      }
+      if (!result.available || result.error) {
+        setGraphifyQueryError(result.error || result.stderr || 'graphify query 失败。');
+        return;
+      }
+      setGraphifyQueryResult((result.stdout || '').trim() || 'graphify query 没有返回结果。');
+    } catch (error) {
+      setGraphifyQueryError(error instanceof Error ? error.message : 'graphify query 失败。');
+    } finally {
+      setGraphifyQueryLoading(false);
+    }
+  };
+
+  const handleOpenGraphifyQueryInChat = () => {
+    if (!effectiveSelectedItem || !onOpenContextChat || !graphifyQueryResult || !graphifyQueryText.trim()) {
+      return;
+    }
+    onOpenContextChat({
+      title: `${effectiveSelectedItem.title} · Graph Query`,
+      prompt: buildKnowledgeLibraryGraphQueryPrompt({
+        tab: activeTab,
+        item: effectiveSelectedItem,
+        question: graphifyQueryText.trim(),
+        queryResult: graphifyQueryResult,
+      }),
+    });
   };
 
   return (
@@ -1012,6 +1074,52 @@ export function KnowledgeLibraryView({
                               </div>
                             </div>
                           ) : null}
+                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">Graphify 图查询</div>
+                            <textarea
+                              value={graphifyQueryText}
+                              onChange={(event) => setGraphifyQueryText(event.target.value)}
+                              placeholder="例如：什么连接资本开支和现金流？"
+                              className="mt-3 min-h-[88px] w-full resize-none rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white px-3 py-3 text-[12px] text-[#1E293B] outline-none transition placeholder:text-[#64748B] focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3] dark:placeholder:text-[#94A3B8]"
+                            />
+                            <label className="mt-3 flex items-center gap-2 text-[12px] text-[#64748B] dark:text-[#94A3B8]">
+                              <input
+                                type="checkbox"
+                                checked={graphifyQueryUseDfs}
+                                onChange={(event) => setGraphifyQueryUseDfs(event.target.checked)}
+                                className="h-3.5 w-3.5 rounded border-[rgba(0,0,0,0.18)] accent-[#D4A574]"
+                              />
+                              <span>使用 DFS 深挖单条路径</span>
+                            </label>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => void handleRunGraphifyQuery()}
+                                disabled={!selectedOntologyGraphifyGraphPath || !graphifyQueryText.trim() || graphifyQueryLoading}
+                              >
+                                {graphifyQueryLoading ? '查询中' : '运行 Graph Query'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={handleOpenGraphifyQueryInChat}
+                                disabled={!graphifyQueryResult || !onOpenContextChat}
+                              >
+                                在主对话中继续
+                              </Button>
+                            </div>
+                            {graphifyQueryError ? (
+                              <div className="mt-3 text-[12px] leading-6 text-[#B45309] dark:text-[#EBCB8B]">
+                                {graphifyQueryError}
+                              </div>
+                            ) : null}
+                            {graphifyQueryResult ? (
+                              <pre className="mt-3 max-h-[240px] overflow-auto rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 text-[11px] leading-6 text-[#334155] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#CBD5E1]">
+                                {graphifyQueryResult}
+                              </pre>
+                            ) : null}
+                          </div>
                         </>
                       ) : null}
                     </div>

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildKnowledgeLibraryContextPrompt } from './chat-context.ts';
+import { buildKnowledgeLibraryContextPrompt, buildKnowledgeLibraryGraphQueryPrompt } from './chat-context.ts';
 import { upsertOutputArtifact } from './output-storage.ts';
 
 function installStorageShim(): void {
@@ -81,4 +81,38 @@ test('buildKnowledgeLibraryContextPrompt includes graphify report summary for on
 
   assert.match(prompt, /Graphify 导航摘要/);
   assert.match(prompt, /图谱报告正文/);
+});
+
+test('buildKnowledgeLibraryGraphQueryPrompt appends graph query result', () => {
+  installStorageShim();
+  const prompt = buildKnowledgeLibraryGraphQueryPrompt({
+    tab: 'graph',
+    item: {
+      id: 'ontology_1',
+      title: '宁德时代图谱',
+      subtitle: '本体图谱',
+      summary: '图谱摘要',
+      tags: ['图谱'],
+      icon: (() => null) as never,
+      meta: '刚刚编译',
+      ontologyDocument: {
+        id: 'ontology_1',
+        title: '宁德时代图谱',
+        summary: '图谱摘要',
+        source_raw_ids: ['raw_1'],
+        status: 'compiled',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        nodes: [],
+        edges: [],
+        metadata: null,
+      },
+    },
+    question: '什么连接资本开支和现金流？',
+    queryResult: 'Traversal: BFS | Start: [资本开支] | 4 nodes',
+  });
+
+  assert.match(prompt, /Graphify 查询问题/);
+  assert.match(prompt, /资本开支和现金流/);
+  assert.match(prompt, /Traversal: BFS/);
 });

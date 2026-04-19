@@ -32,6 +32,24 @@ export type GraphifyCompileResult = {
   error: string | null;
 };
 
+export type GraphifyQueryRequest = {
+  graphPath: string;
+  question: string;
+  useDfs?: boolean;
+  budget?: number;
+};
+
+export type GraphifyQueryResult = {
+  backend: 'graphify-v3-cli';
+  available: boolean;
+  executable: string | null;
+  graphPath: string;
+  question: string;
+  stdout: string | null;
+  stderr: string | null;
+  error: string | null;
+};
+
 export async function runGraphifyCompile(
   input: GraphifyCompileRequest,
 ): Promise<GraphifyCompileResult | null> {
@@ -39,4 +57,13 @@ export async function runGraphifyCompile(
     return null;
   }
   return invoke<GraphifyCompileResult>('run_graphify_compile', { input });
+}
+
+export async function runGraphifyQuery(
+  input: GraphifyQueryRequest,
+): Promise<GraphifyQueryResult | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+  return invoke<GraphifyQueryResult>('run_graphify_query', { input });
 }

@@ -269,6 +269,28 @@ struct GraphifyCompileResultPayload {
     error: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphifyQueryRequestInput {
+    graph_path: String,
+    question: String,
+    use_dfs: Option<bool>,
+    budget: Option<i64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphifyQueryResultPayload {
+    backend: String,
+    available: bool,
+    executable: Option<String>,
+    graph_path: String,
+    question: String,
+    stdout: Option<String>,
+    stderr: Option<String>,
+    error: Option<String>,
+}
+
 fn openclaw_main_agent_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = openclaw_state_dir(app)?
         .join("agents")
@@ -9389,6 +9411,75 @@ fn run_graphify_compile(
 }
 
 #[tauri::command]
+fn run_graphify_query(
+    app: AppHandle,
+    input: GraphifyQueryRequestInput,
+) -> Result<GraphifyQueryResultPayload, String> {
+    let resolved_graph_path = resolve_graphify_output_path(&input.graph_path, &app)?;
+    let Some((command_name, command_args)) = detect_graphify_command() else {
+        return Ok(GraphifyQueryResultPayload {
+            backend: String::from("graphify-v3-cli"),
+            available: false,
+            executable: None,
+            graph_path: resolved_graph_path.to_string_lossy().to_string(),
+            question: input.question,
+            stdout: None,
+            stderr: None,
+            error: Some(String::from(
+                "graphify executable not found; install graphify or expose it on PATH",
+            )),
+        });
+    };
+
+    let mut command = Command::new(command_name);
+    command.args(&command_args);
+    command.arg("query");
+    command.arg(input.question.trim());
+    command.arg("--graph");
+    command.arg(resolved_graph_path.to_string_lossy().to_string());
+    if input.use_dfs.unwrap_or(false) {
+        command.arg("--dfs");
+    }
+    if let Some(budget) = input.budget.filter(|value| *value > 0) {
+        command.arg("--budget");
+        command.arg(budget.to_string());
+    }
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    #[cfg(windows)]
+    configure_background_child_process(&mut command);
+
+    let output = command
+        .output()
+        .map_err(|e| format!("failed to run graphify query: {e}"))?;
+    let stdout = String::from_utf8(output.stdout).ok();
+    let stderr = String::from_utf8(output.stderr).ok();
+    let available = output.status.success();
+    let error = if available {
+        None
+    } else {
+        Some(format!(
+            "graphify query failed (status={})",
+            output
+                .status
+                .code()
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| String::from("signal"))
+        ))
+    };
+
+    Ok(GraphifyQueryResultPayload {
+        backend: String::from("graphify-v3-cli"),
+        available,
+        executable: Some(command_name.to_string()),
+        graph_path: resolved_graph_path.to_string_lossy().to_string(),
+        question: input.question,
+        stdout,
+        stderr,
+        error,
+    })
+}
+
+#[tauri::command]
 fn read_graphify_output_text(app: AppHandle, path: String) -> Result<String, String> {
     let resolved = resolve_graphify_output_path(&path, &app)?;
     fs::read_to_string(&resolved)
@@ -9885,6 +9976,7 @@ fn main() {
             read_workspace_artifact_base64,
             open_workspace_artifact,
             run_graphify_compile,
+            run_graphify_query,
             read_graphify_output_text,
             open_graphify_output_file,
             check_desktop_update,
