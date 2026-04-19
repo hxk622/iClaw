@@ -1,16 +1,17 @@
 {
-  "project": "iClaw Unified Desktop Updater Rollout",
-  "branchName": "ralph/unified-desktop-updater",
-  "description": "Unify macOS and Windows desktop updates under one control-plane policy model with a native-updater-first execution path and installer fallback.",
+  "project": "iClaw Graphify Knowledge Flywheel Completion",
+  "branchName": "ralph/graphify-knowledge-flywheel",
+  "description": "Complete the graphify-driven knowledge flywheel so Raw and Output both compile into revisioned ontology assets, graph reasoning can persist across chat turns via memory bridges, and graph query feedback loops back into the system safely.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Standardize desktop release metadata for updater-first targets",
-      "description": "As a release pipeline, I want macOS and Windows targets to publish the same installer, updater, signature, and policy metadata shape so that runtime update logic can stay platform-agnostic.",
+      "title": "Replace graphify compile stub with a real compiler runner",
+      "description": "As the knowledge compiler, I want desktop graph builds to call a real graphify pipeline runner instead of assuming an unsupported `graphify <path>` CLI entry so that graph.json, GRAPH_REPORT.md, and graph.html are produced reliably.",
       "acceptanceCriteria": [
-        "Formal desktop release metadata stores installer, updater, signature, and release policy for both darwin and windows targets",
-        "Target manifest generation keeps installer artifact_url while embedding updater url and signature when signed updater artifacts exist",
-        "Release metadata remains keyed by platform and arch without introducing platform-specific schema branches",
+        "Desktop graph compilation no longer assumes `graphify <path>` as a valid package CLI entrypoint",
+        "A real runner produces graphify assets for a corpus by invoking supported graphify module capabilities or a repo-local runner script",
+        "Graph compile returns graph.json, GRAPH_REPORT.md, and graph.html paths plus stdout/stderr when graphify succeeds",
+        "Fallback compiler remains available when graphify is missing or runner execution fails",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -20,12 +21,12 @@
     },
     {
       "id": "US-002",
-      "title": "Tighten publish and doctor validation for signed updater artifacts",
-      "description": "As a release engineer, I want publish validation to catch incomplete updater bundles before release so that updater-first rollout does not ship broken manifests.",
+      "title": "Persist ontology revisions and latest pointers",
+      "description": "As the ontology store, I want every compile to create a revisioned graph asset record so that chat, memory, and UI can tell which graph version they are using.",
       "acceptanceCriteria": [
-        "Desktop publish validation fails when updater and signature are not both present for a target expected to ship signed native updater artifacts",
-        "Release doctor output explicitly reports missing updater or signature files per platform and arch",
-        "Windows and macOS validation rules are driven from one shared updater expectation instead of divergent ad hoc checks",
+        "Ontology persistence records revision_id, compiled_at, compiler_backend, and source_signature for each imported graph",
+        "The store exposes a latest pointer per ontology identity without deleting prior revisions",
+        "UI-facing ontology reads can resolve both latest revision and explicit revision lookups",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -35,12 +36,13 @@
     },
     {
       "id": "US-003",
-      "title": "Preserve unified policy payloads on update hint and updater routes",
-      "description": "As a desktop client, I want update-hint and updater responses to carry the same enforcement semantics on both platforms so that the shell can decide blocking behavior without platform-specific policy branches.",
+      "title": "Import graphify assets by revision into ontology and output stores",
+      "description": "As the importer, I want graph.json, GRAPH_REPORT.md, and graph.html to map into revision-aware OntologyDocument and OutputArtifact records so that graphify outputs become first-class iClaw objects.",
       "acceptanceCriteria": [
-        "Update hint payload includes latestVersion, mandatory, enforcementState, blockNewRuns, reasonCode, reasonMessage, manifestUrl, and artifactUrl",
-        "Native updater route includes mandatory, enforcement_state, block_new_runs, reason_code, reason_message, and external_download_url alongside version, url, and signature",
-        "Managed release resolution uses the same policy source for macOS and Windows requests",
+        "graph.json import maps into a revision-aware OntologyDocument with graphify metadata paths",
+        "GRAPH_REPORT.md import upserts a revision-aware OutputArtifact with stable dedupe_key and artifact refs",
+        "graph.html path is attached to the same revision metadata and is available to the ontology view",
+        "Import paths do not duplicate output records across repeated compiles of the same revision",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -50,15 +52,14 @@
     },
     {
       "id": "US-004",
-      "title": "Switch desktop upgrade execution to updater-first with installer fallback",
-      "description": "As a desktop user, I want both macOS and Windows to try the signed native updater first and fall back to the installer only when native update is unavailable or fails.",
+      "title": "Record revision-aware graph compiler jobs",
+      "description": "As a user, I want graph compile jobs to expose queued/running/succeeded/fallback/failed state with revision details so that the flywheel feels observable instead of silent.",
       "acceptanceCriteria": [
-        "executeDesktopUpdateUpgrade attempts checkDesktopUpdate before any installer launch on both macOS and Windows Tauri runtimes",
-        "A supported and available signed native update triggers downloadAndInstallDesktopUpdate",
-        "When native updater is unsupported, returns no update payload, or install start fails, the flow resolves installer artifactUrl and falls back to downloadAndLaunchDesktopInstaller",
-        "Non-Tauri or browser contexts continue to open the external installer or manifest URL",
+        "Graph compiler jobs persist status, backend, source ids, ontology revision ids, and error details",
+        "Jobs transition through running to succeeded, fallback, or failed for raw_ingest and output_feedback triggers",
+        "Ontology status panel shows latest compiler job state and linked revision identifiers",
         "Typecheck passes",
-        "Tests pass"
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
       "passes": false,
@@ -66,12 +67,12 @@
     },
     {
       "id": "US-005",
-      "title": "Persist upgrade scene snapshots for both native and installer paths",
-      "description": "As a desktop user, I want the app to restore my pre-upgrade page after either native updater or installer-driven upgrades so that forced updates do not drop my working context.",
+      "title": "Auto-run graphify update after save-result memory writes",
+      "description": "As the feedback loop, I want graph query memory written by `graphify save-result` to trigger an automatic graphify update so that the next ontology revision reflects what the user just explored.",
       "acceptanceCriteria": [
-        "The desktop shell writes a scene snapshot before starting either native updater installation or installer fallback",
-        "Scene snapshot records targetVersion, primaryView, and overlayView for forced-update restore",
-        "On restart, matching targetVersion restores the saved scene and clears the snapshot",
+        "Successful graphify save-result writes trigger a follow-up graphify update for the same corpus",
+        "The update path produces a new ontology revision instead of mutating the previous revision in place",
+        "Updated graphify report and html assets are re-imported after the save-result update completes",
         "Typecheck passes",
         "Tests pass"
       ],
@@ -81,12 +82,12 @@
     },
     {
       "id": "US-006",
-      "title": "Unify desktop update progress and blocking UI across platforms",
-      "description": "As a desktop user, I want one consistent upgrade experience regardless of platform so that recommended updates, deferred forced updates, and restart-ready states behave the same on macOS and Windows.",
+      "title": "Persist graph reasoning session state for ontology exploration",
+      "description": "As the knowledge-library chat surface, I want focused node, active path, and recent graph query results to persist as graph reasoning session state so that users can keep exploring without restarting from scratch each turn.",
       "acceptanceCriteria": [
-        "Desktop update progress messaging covers native download, installer fallback, installer started, and ready-to-restart states without platform-specific copy branches",
-        "DesktopUpdateGuard continues to honor recommended, required_after_run, and required_now enforcement states after the updater-first rollout",
-        "Settings or in-app update surfaces reflect the active action state during native updater and installer fallback flows",
+        "Ontology exploration stores focused node id, selected edge id, active path target, and latest graph query result in a revision-aware session state object",
+        "Reloading or switching between graph and page view preserves the current graph reasoning state for the active ontology revision",
+        "Embedded chat automation reads this session state when deciding whether to run automatic graph queries",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
@@ -96,16 +97,61 @@
     },
     {
       "id": "US-007",
-      "title": "Cover updater-first rollout with desktop update regression tests",
-      "description": "As an engineer, I want automated tests for the unified updater-first flow so that future changes do not silently break fallback, enforcement, or restart behavior on one platform.",
+      "title": "Write graph context cards into OpenClaw memory after graph interactions",
+      "description": "As the chat system, I want completed graph queries and shortest-path explorations to emit compact graph context cards into OpenClaw memory so that later turns can reuse graph reasoning without copying the whole graph.",
       "acceptanceCriteria": [
-        "Desktop upgrade tests cover macOS native updater success and Windows native updater success",
-        "Desktop upgrade tests cover fallback to installer when native updater is unsupported or install start fails",
-        "Control-plane tests cover updater payload and hint payload policy fields for managed desktop releases",
+        "Successful graph query and shortest-path actions write graph_context cards containing ontology_id, revision_id, focused node ids, query summary, and source output ids",
+        "Memory cards store only compressed graph context and never copy the full graph.json payload",
+        "Graph context write paths can be disabled or skipped cleanly when memory is unavailable",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Inject valid graph context memory into chat with revision checks",
+      "description": "As a user, I want embedded and main chat to reuse stored graph context only when it matches the current ontology revision so that graph-guided answers stay relevant and stale memory does not drift.",
+      "acceptanceCriteria": [
+        "Chat injection reads graph_context cards and checks ontology revision before using them",
+        "Revision mismatches downgrade stale graph context to non-authoritative hints or skip it entirely",
+        "Embedded auto-graph-query and main-chat graph prompt injection both honor the same revision validation logic",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Expose node and edge evidence as dedicated detail panels",
+      "description": "As a user, I want dedicated node and edge evidence panels with raw/chunk/source metadata so that graph navigation explains why a node or edge exists instead of only showing summaries.",
+      "acceptanceCriteria": [
+        "Selecting a node shows a dedicated evidence panel with raw ids, chunk ids, excerpts, and graphify source metadata",
+        "Selecting an edge shows a dedicated evidence panel with relation type, source/target nodes, evidence links, and source_file/source_location",
+        "Evidence panels support navigating from a node or edge to neighboring nodes without losing the current selection state",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Promote graph query and path results to first-class output artifacts",
+      "description": "As the flywheel, I want graph query notes and path explanations to be storable as explicit output artifacts so that high-value graph reasoning can be reused, exported, and recompiled like other成果.",
+      "acceptanceCriteria": [
+        "Graph query and shortest-path actions can save a first-class output artifact with stable dedupe_key and lineage metadata",
+        "Saved graph reasoning outputs appear under Output / 成果 and remain linked to the originating ontology revision",
+        "Saving a graph reasoning output triggers the normal output_feedback compiler path",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
       "passes": false,
       "notes": ""
     }

@@ -1,5 +1,5 @@
 Ralph Progress
 ==============
 
-Project: iClaw Unified Desktop Updater Rollout
-Branch: ralph/unified-desktop-updater
+Project: iClaw Graphify Knowledge Flywheel Completion
+Branch: ralph/graphify-knowledge-flywheel
