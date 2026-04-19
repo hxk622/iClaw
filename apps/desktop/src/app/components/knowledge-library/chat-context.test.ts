@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildKnowledgeLibraryContextPrompt, buildKnowledgeLibraryGraphQueryPrompt } from './chat-context.ts';
+import {
+  buildKnowledgeLibraryContextPrompt,
+  buildKnowledgeLibraryGraphQueryPrompt,
+  buildKnowledgeLibraryNodeFocusPrompt,
+  buildKnowledgeLibraryShortestPathPrompt,
+} from './chat-context.ts';
 import { upsertOutputArtifact } from './output-storage.ts';
 
 function installStorageShim(): void {
@@ -115,4 +120,72 @@ test('buildKnowledgeLibraryGraphQueryPrompt appends graph query result', () => {
   assert.match(prompt, /Graphify 查询问题/);
   assert.match(prompt, /资本开支和现金流/);
   assert.match(prompt, /Traversal: BFS/);
+});
+
+test('buildKnowledgeLibraryNodeFocusPrompt includes node summary and neighbors', () => {
+  installStorageShim();
+  const prompt = buildKnowledgeLibraryNodeFocusPrompt({
+    tab: 'graph',
+    item: {
+      id: 'ontology_1',
+      title: '宁德时代图谱',
+      subtitle: '本体图谱',
+      summary: '图谱摘要',
+      tags: ['图谱'],
+      icon: (() => null) as never,
+      meta: '刚刚编译',
+      ontologyDocument: {
+        id: 'ontology_1',
+        title: '宁德时代图谱',
+        summary: '图谱摘要',
+        source_raw_ids: ['raw_1'],
+        status: 'compiled',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        nodes: [],
+        edges: [],
+        metadata: null,
+      },
+    },
+    nodeLabel: '资本开支',
+    nodeSummary: '资本开支节点摘要',
+    neighbors: ['现金流', '产能扩张'],
+  });
+
+  assert.match(prompt, /当前聚焦节点：资本开支/);
+  assert.match(prompt, /现金流、产能扩张/);
+});
+
+test('buildKnowledgeLibraryShortestPathPrompt includes path explanation context', () => {
+  installStorageShim();
+  const prompt = buildKnowledgeLibraryShortestPathPrompt({
+    tab: 'graph',
+    item: {
+      id: 'ontology_1',
+      title: '宁德时代图谱',
+      subtitle: '本体图谱',
+      summary: '图谱摘要',
+      tags: ['图谱'],
+      icon: (() => null) as never,
+      meta: '刚刚编译',
+      ontologyDocument: {
+        id: 'ontology_1',
+        title: '宁德时代图谱',
+        summary: '图谱摘要',
+        source_raw_ids: ['raw_1'],
+        status: 'compiled',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        nodes: [],
+        edges: [],
+        metadata: null,
+      },
+    },
+    fromLabel: '资本开支',
+    toLabel: '现金流',
+    pathText: '资本开支 --mentions--> 产能扩张 --supports--> 现金流',
+  });
+
+  assert.match(prompt, /从「资本开支」到「现金流」/);
+  assert.match(prompt, /产能扩张/);
 });

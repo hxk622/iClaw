@@ -41,3 +41,32 @@ export function buildKnowledgeLibraryGraphQueryPrompt(input: {
     6000,
   )}\n\n请基于这份图查询结果继续分析，优先引用图中的节点、关系、confidence 和 source location，不要脱离图结构发挥。`;
 }
+
+export function buildKnowledgeLibraryNodeFocusPrompt(input: {
+  tab: KnowledgeLibraryTab;
+  item: KnowledgeLibraryItem;
+  nodeLabel: string;
+  nodeSummary: string;
+  neighbors: string[];
+}): string {
+  return `${buildKnowledgeLibraryContextPrompt({
+    tab: input.tab,
+    item: input.item,
+  })}\n\n当前聚焦节点：${normalizeText(input.nodeLabel, 160)}\n节点摘要：${normalizeText(input.nodeSummary, 1200)}\n相邻节点：${input.neighbors.join('、') || '暂无'}\n\n请围绕这个节点解释它的作用、它与相邻节点的关系、以及下一步最值得继续追问的方向。`;
+}
+
+export function buildKnowledgeLibraryShortestPathPrompt(input: {
+  tab: KnowledgeLibraryTab;
+  item: KnowledgeLibraryItem;
+  fromLabel: string;
+  toLabel: string;
+  pathText: string;
+}): string {
+  return `${buildKnowledgeLibraryContextPrompt({
+    tab: input.tab,
+    item: input.item,
+  })}\n\n路径问题：从「${normalizeText(input.fromLabel, 160)}」到「${normalizeText(input.toLabel, 160)}」\n\n最短路径结果：\n${normalizeText(
+    input.pathText,
+    2400,
+  )}\n\n请解释这条路径说明了什么、其中每一跳关系的含义、以及可能的证据缺口。`;
+}

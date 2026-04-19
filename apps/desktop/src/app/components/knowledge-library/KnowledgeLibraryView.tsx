@@ -14,7 +14,12 @@ import {
   type KnowledgeLibraryTab,
 } from './model';
 import { readKnowledgeLibraryState, writeKnowledgeLibraryState } from './persistence';
-import { buildKnowledgeLibraryContextPrompt, buildKnowledgeLibraryGraphQueryPrompt } from './chat-context';
+import {
+  buildKnowledgeLibraryContextPrompt,
+  buildKnowledgeLibraryGraphQueryPrompt,
+  buildKnowledgeLibraryNodeFocusPrompt,
+  buildKnowledgeLibraryShortestPathPrompt,
+} from './chat-context';
 import { KnowledgeLibraryEmbeddedChatSurface } from './KnowledgeLibraryEmbeddedChatSurface';
 import type { IClawClient } from '@iclaw/sdk';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
@@ -52,6 +57,7 @@ import {
 } from './flywheel-service';
 import { useGraphCompilerJobs } from './graph-compiler-jobs';
 import { classifyGraphQueryIntent } from './graph-query-intent';
+import { findOntologyShortestPath, getOntologyNodeDetail } from './graph-navigation';
 
 export function KnowledgeLibraryView({
   title,
@@ -124,6 +130,8 @@ export function KnowledgeLibraryView({
   const [graphifyQueryResult, setGraphifyQueryResult] = useState<string | null>(null);
   const [graphifyQueryError, setGraphifyQueryError] = useState<string | null>(null);
   const [selectedGraphNode, setSelectedGraphNode] = useState<{ id: string; label: string; type: string } | null>(null);
+  const [graphPathTargetNodeId, setGraphPathTargetNodeId] = useState<string | null>(null);
+  const [graphPathResult, setGraphPathResult] = useState<string | null>(null);
   const [embeddedChatSeedPrompt, setEmbeddedChatSeedPrompt] = useState<string | null>(null);
   const [embeddedChatSeedPromptKey, setEmbeddedChatSeedPromptKey] = useState<string | null>(null);
   const [embeddedAutoGraphQueryEnabled, setEmbeddedAutoGraphQueryEnabled] = useState(true);
@@ -234,6 +242,17 @@ export function KnowledgeLibraryView({
       graphCompilerJobs.find((job) => job.ontologyDocumentIds.includes(selectedOntologyDocument.id)) ?? null
     );
   }, [graphCompilerJobs, selectedOntologyDocument]);
+  const selectedGraphNodeDetail = useMemo(
+    () => (selectedOntologyDocument ? getOntologyNodeDetail(selectedOntologyDocument, selectedGraphNode?.id) : null),
+    [selectedGraphNode?.id, selectedOntologyDocument],
+  );
+  const graphPathTargetNode = useMemo(
+    () =>
+      selectedOntologyDocument && graphPathTargetNodeId
+        ? selectedOntologyDocument.nodes.find((node) => node.id === graphPathTargetNodeId) || null
+        : null,
+    [graphPathTargetNodeId, selectedOntologyDocument],
+  );
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -450,6 +469,8 @@ export function KnowledgeLibraryView({
     setGraphifyQueryText('');
     setGraphifyQueryUseDfs(false);
     setSelectedGraphNode(null);
+    setGraphPathTargetNodeId(null);
+    setGraphPathResult(null);
   }, [selectedOntologyDocument?.id]);
 
   const handleRefresh = async () => {
@@ -621,6 +642,27 @@ export function KnowledgeLibraryView({
     }
   };
 
+  const handleRunShortestPath = () => {
+    if (!selectedOntologyDocument || !selectedGraphNode?.id || !graphPathTargetNodeId) {
+      return;
+    }
+    const result = findOntologyShortestPath(selectedOntologyDocument, selectedGraphNode.id, graphPathTargetNodeId);
+    if (!result) {
+      setGraphPathResult('当前两个节点之间没有找到路径。');
+      return;
+    }
+    const text = result.nodes
+      .map((node, index) => {
+        if (index === result.nodes.length - 1) {
+          return node.label;
+        }
+        const edge = result.edges[index];
+        return `${node.label} --${edge?.relation_type || 'related_to'}--> `;
+      })
+      .join('');
+    setGraphPathResult(text);
+  };
+
   const handleOpenGraphifyQueryInChat = () => {
     if (!effectiveSelectedItem || !onOpenContextChat || !graphifyQueryResult || !graphifyQueryText.trim()) {
       return;
@@ -658,6 +700,36 @@ export function KnowledgeLibraryView({
         item: effectiveSelectedItem,
         question: graphifyQueryText.trim(),
         queryResult: graphifyQueryResult,
+      }),
+    );
+  };
+
+  const handleInjectSelectedNodeIntoEmbeddedChat = () => {
+    if (!effectiveSelectedItem || !selectedGraphNodeDetail) {
+      return;
+    }
+    handleInjectPromptIntoEmbeddedChat(
+      buildKnowledgeLibraryNodeFocusPrompt({
+        tab: activeTab,
+        item: effectiveSelectedItem,
+        nodeLabel: selectedGraphNodeDetail.node.label,
+        nodeSummary: selectedGraphNodeDetail.node.summary,
+        neighbors: selectedGraphNodeDetail.neighbors.map((item) => item.node.label).slice(0, 8),
+      }),
+    );
+  };
+
+  const handleInjectShortestPathIntoEmbeddedChat = () => {
+    if (!effectiveSelectedItem || !selectedGraphNode || !graphPathTargetNode || !graphPathResult) {
+      return;
+    }
+    handleInjectPromptIntoEmbeddedChat(
+      buildKnowledgeLibraryShortestPathPrompt({
+        tab: activeTab,
+        item: effectiveSelectedItem,
+        fromLabel: selectedGraphNode.label,
+        toLabel: graphPathTargetNode.label,
+        pathText: graphPathResult,
       }),
     );
   };
@@ -1130,6 +1202,56 @@ export function KnowledgeLibraryView({
                               </div>
                             </div>
                           ) : null}
+                          {selectedGraphNodeDetail ? (
+                            <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                              <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">节点详情</div>
+                              <div className="mt-2 text-[14px] font-medium text-[#1E293B] dark:text-[#E8E8E3]">
+                                {selectedGraphNodeDetail.node.label}
+                              </div>
+                              <div className="mt-1 text-[12px] text-[#64748B] dark:text-[#94A3B8]">
+                                {selectedGraphNodeDetail.node.node_type} · degree {selectedGraphNodeDetail.degree}
+                              </div>
+                              <div className="mt-2 text-[12px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                                {selectedGraphNodeDetail.node.summary}
+                              </div>
+                              {selectedGraphNodeDetail.node.metadata?.source_file ? (
+                                <div className="mt-2 break-all text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                  {String(selectedGraphNodeDetail.node.metadata.source_file)}
+                                  {selectedGraphNodeDetail.node.metadata?.source_location
+                                    ? ` · ${String(selectedGraphNodeDetail.node.metadata.source_location)}`
+                                    : ''}
+                                </div>
+                              ) : null}
+                              <div className="mt-3 text-[12px] text-[#64748B] dark:text-[#94A3B8]">相邻节点</div>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {selectedGraphNodeDetail.neighbors.slice(0, 8).map((neighbor) => (
+                                  <button
+                                    key={`${neighbor.direction}:${neighbor.node.id}:${neighbor.edge.id}`}
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedGraphNode({
+                                        id: neighbor.node.id,
+                                        label: neighbor.node.label,
+                                        type: neighbor.node.node_type,
+                                      })
+                                    }
+                                    className="rounded-full border border-[rgba(0,0,0,0.08)] bg-white px-3 py-1 text-[11px] text-[#1E293B] transition hover:border-[rgba(212,165,116,0.28)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                                  >
+                                    {neighbor.node.label}
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={handleInjectSelectedNodeIntoEmbeddedChat}
+                                >
+                                  送到右侧对话
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
                           <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
                             <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">Graphify 图查询</div>
                             {selectedGraphNode ? (
@@ -1189,6 +1311,52 @@ export function KnowledgeLibraryView({
                               </pre>
                             ) : null}
                           </div>
+                          {selectedGraphNode ? (
+                            <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                              <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">最短路径</div>
+                              <div className="mt-2 text-[12px] text-[#64748B] dark:text-[#94A3B8]">
+                                起点：{selectedGraphNode.label}
+                              </div>
+                              <select
+                                value={graphPathTargetNodeId || ''}
+                                onChange={(event) => setGraphPathTargetNodeId(event.target.value || null)}
+                                className="mt-3 h-10 w-full rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white px-3 text-[12px] text-[#1E293B] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]"
+                              >
+                                <option value="">选择目标节点</option>
+                                {(selectedOntologyDocument?.nodes || [])
+                                  .filter((node) => node.id !== selectedGraphNode.id)
+                                  .slice(0, 80)
+                                  .map((node) => (
+                                    <option key={node.id} value={node.id}>
+                                      {node.label}
+                                    </option>
+                                  ))}
+                              </select>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={handleRunShortestPath}
+                                  disabled={!graphPathTargetNodeId}
+                                >
+                                  计算路径
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={handleInjectShortestPathIntoEmbeddedChat}
+                                  disabled={!graphPathResult}
+                                >
+                                  送到右侧对话
+                                </Button>
+                              </div>
+                              {graphPathResult ? (
+                                <pre className="mt-3 max-h-[180px] overflow-auto rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 text-[11px] leading-6 text-[#334155] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#CBD5E1]">
+                                  {graphPathResult}
+                                </pre>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </>
                       ) : null}
                     </div>
