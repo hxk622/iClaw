@@ -202,8 +202,6 @@ PostgreSQL dump 不落本地长期目录，长期保存在对端 MinIO 的固定
   - `iclaw-cross-backup-aliyun-prod-iclaw-user-assets/data/`
 - `iclaw-prod`
   - `iclaw-cross-backup-aliyun-prod-iclaw-prod/data/`
-- `licaiclaw-prod`
-  - `iclaw-cross-backup-aliyun-prod-licaiclaw-prod/data/`
 - `caiclaw-prod`
   - `iclaw-cross-backup-aliyun-prod-caiclaw-prod/data/`
 - `openalpha-files`
@@ -219,8 +217,6 @@ PostgreSQL dump 不落本地长期目录，长期保存在对端 MinIO 的固定
   - `iclaw-cross-backup-aliyun-dev-iclaw-user-assets/data/`
 - `iclaw-prod`
   - `iclaw-cross-backup-aliyun-dev-iclaw-prod/data/`
-- `licaiclaw-prod`
-  - `iclaw-cross-backup-aliyun-dev-licaiclaw-prod/data/`
 - `caiclaw-prod`
   - `iclaw-cross-backup-aliyun-dev-caiclaw-prod/data/`
 - `openalpha-files`

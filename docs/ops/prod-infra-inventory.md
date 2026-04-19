@@ -1,6 +1,6 @@
 # Prod Infra Inventory
 
-更新时间：2026-04-18
+更新时间：2026-04-20
 
 ## 主机角色
 
@@ -30,7 +30,7 @@
     - Endpoint: `http://39.106.110.149:9000`
     - 目标 bucket:
       - `iclaw-prod`
-      - `licaiclaw-prod`
+      - `caiclaw-prod`
       - `iclaw-files`
       - `licaiclaw-files`
       - `iclaw-user-assets`
@@ -57,6 +57,7 @@
   - PostgreSQL / OEM system state / 品牌资产桶：`47.93.231.197`
   - 公网入口：`113.44.132.75`
   - 旧 prod 下载/runtime 桶：历史上位于 `115.191.6.179`，若无法恢复需从本地 `dist/releases` / runtime artifact 重新发布
+  - `licaiclaw-prod` 已于 `2026-04-20` 开始退役，不再作为当前 prod 下载桶
 
 ## 常用校验
 
