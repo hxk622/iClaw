@@ -31,6 +31,7 @@ import {
 } from './output-types';
 import { openWorkspaceArtifact } from '@/app/lib/tauri-artifact-preview';
 import { openGraphifyOutputFile, readGraphifyOutputText } from '@/app/lib/tauri-graphify-output';
+import { getOutputArtifactByDedupeKey } from './output-storage';
 import type { RawMaterial } from './types';
 import {
   extractChatFeedbackFromContainer,
@@ -200,6 +201,10 @@ export function KnowledgeLibraryView({
   );
   const selectedOntologyGraphifyHtmlPath = useMemo(
     () => selectedOntologyDocument?.metadata?.graphify_html_path || null,
+    [selectedOntologyDocument],
+  );
+  const selectedOntologyGraphifyReportArtifact = useMemo(
+    () => (selectedOntologyDocument ? getOutputArtifactByDedupeKey(`graphify-report::${selectedOntologyDocument.id}`) : null),
     [selectedOntologyDocument],
   );
   const selectedOntologyGraphifyBackend = useMemo(
@@ -984,6 +989,29 @@ export function KnowledgeLibraryView({
                               </div>
                             ) : null}
                           </div>
+                          {selectedOntologyGraphifyReportArtifact ? (
+                            <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                              <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">Graphify 导航摘要</div>
+                              <div className="mt-2 text-[12px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                                {selectedOntologyGraphifyReportArtifact.summary}
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => {
+                                    setActiveTab('artifacts');
+                                    setSelectedByTab((current) => ({
+                                      ...current,
+                                      artifacts: selectedOntologyGraphifyReportArtifact.id,
+                                    }));
+                                  }}
+                                >
+                                  打开 Graphify Report
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
                         </>
                       ) : null}
                     </div>
