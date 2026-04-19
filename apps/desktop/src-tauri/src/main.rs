@@ -314,6 +314,15 @@ struct GraphifySaveResultResultPayload {
     error: Option<String>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphifyDoctorResultPayload {
+    available: bool,
+    python: Option<String>,
+    missing_modules: Vec<String>,
+    details: serde_json::Value,
+}
+
 fn openclaw_main_agent_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = openclaw_state_dir(app)?
         .join("agents")
@@ -9496,6 +9505,67 @@ fn run_graphify_compile(
 }
 
 #[tauri::command]
+fn run_graphify_doctor(app: AppHandle) -> Result<GraphifyDoctorResultPayload, String> {
+    let Some(python_command) = detect_graphify_python().or(Some("python3")) else {
+        return Ok(GraphifyDoctorResultPayload {
+            available: false,
+            python: None,
+            missing_modules: vec![String::from("graphify"), String::from("networkx")],
+            details: serde_json::json!({}),
+        });
+    };
+
+    let mut command = Command::new(python_command);
+    command.arg(graphify_compile_runner_path(&app));
+    command.arg("--doctor");
+    if let Ok(path) = env::var("ICLAW_GRAPHIFY_PYTHONPATH") {
+        command.env("PYTHONPATH", path);
+    }
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    #[cfg(windows)]
+    configure_background_child_process(&mut command);
+
+    let output = command
+        .output()
+        .map_err(|e| format!("failed to run graphify doctor: {e}"))?;
+    let stdout = String::from_utf8(output.stdout).unwrap_or_default();
+    let parsed = stdout
+        .lines()
+        .rev()
+        .find(|line| !line.trim().is_empty())
+        .and_then(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+
+    let details = parsed
+        .get("details")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let missing_modules = parsed
+        .get("missing_modules")
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str().map(|value| value.to_string()))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    Ok(GraphifyDoctorResultPayload {
+        available: parsed
+            .get("available")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false),
+        python: parsed
+            .get("python")
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string()),
+        missing_modules,
+        details,
+    })
+}
+
+#[tauri::command]
 fn run_graphify_query(
     app: AppHandle,
     input: GraphifyQueryRequestInput,
@@ -10155,6 +10225,7 @@ fn main() {
             read_workspace_artifact_base64,
             open_workspace_artifact,
             run_graphify_compile,
+            run_graphify_doctor,
             run_graphify_query,
             run_graphify_save_result,
             read_graphify_output_text,

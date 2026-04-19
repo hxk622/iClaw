@@ -69,6 +69,13 @@ export type GraphifySaveResultResult = {
   error: string | null;
 };
 
+export type GraphifyDoctorResult = {
+  available: boolean;
+  python: string | null;
+  missing_modules: string[];
+  details: Record<string, string>;
+};
+
 export async function runGraphifyCompile(
   input: GraphifyCompileRequest,
 ): Promise<GraphifyCompileResult | null> {
@@ -94,4 +101,11 @@ export async function runGraphifySaveResult(
     return null;
   }
   return invoke<GraphifySaveResultResult>('run_graphify_save_result', { input });
+}
+
+export async function runGraphifyDoctor(): Promise<GraphifyDoctorResult | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+  return invoke<GraphifyDoctorResult>('run_graphify_doctor');
 }

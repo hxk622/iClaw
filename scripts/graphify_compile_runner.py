@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path
 
 
@@ -121,23 +122,60 @@ def _build_community_labels(graph, communities: dict[int, list[str]]) -> dict[in
     return labels
 
 
-def run_compile(corpus_root: Path, output_dir: Path, no_viz: bool = False) -> dict:
+def _relative_from_root(path: str, root: Path) -> str:
+    try:
+        return str(Path(path).resolve().relative_to(root.resolve()))
+    except Exception:
+        return str(Path(path))
+
+
+def _changed_files_from_detection(detection: dict) -> dict[str, list[str]]:
+    return detection.get("new_files") or detection.get("files") or {}
+
+
+def _remove_nodes_for_source_files(graph, source_files: set[str]) -> None:
+    to_remove = [
+        node_id
+        for node_id, data in graph.nodes(data=True)
+        if str(data.get("source_file", "")) in source_files
+    ]
+    if to_remove:
+        graph.remove_nodes_from(to_remove)
+
+
+def run_compile(corpus_root: Path, output_dir: Path, no_viz: bool = False, update: bool = False) -> dict:
     from graphify.analyze import god_nodes, surprising_connections, suggest_questions
     from graphify.build import build
     from graphify.cluster import cluster, score_all
-    from graphify.detect import detect
+    from graphify.detect import detect, detect_incremental, save_manifest
     from graphify.export import to_html, to_json
     from graphify.extract import extract
     from graphify.report import generate
+    from networkx.readwrite import json_graph
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    detection = detect(corpus_root)
-    code_paths = [Path(path) for path in detection.get("files", {}).get("code", [])]
-    doc_paths = [Path(path) for path in detection.get("files", {}).get("document", [])]
-    paper_paths = [Path(path) for path in detection.get("files", {}).get("paper", [])]
-    image_paths = [Path(path) for path in detection.get("files", {}).get("image", [])]
-    video_paths = [Path(path) for path in detection.get("files", {}).get("video", [])]
+    manifest_path = output_dir / "manifest.json"
+    graph_json_path = output_dir / "graph.json"
+    report_path = output_dir / "GRAPH_REPORT.md"
+    html_path = output_dir / "graph.html"
+
+    detection = (
+        detect_incremental(corpus_root, manifest_path=str(manifest_path))
+        if update and manifest_path.exists()
+        else detect(corpus_root)
+    )
+    extraction_source = _changed_files_from_detection(detection)
+    code_source = (
+        detection.get("files", {}).get("code", [])
+        if update and extraction_source.get("code")
+        else extraction_source.get("code", [])
+    )
+    code_paths = [Path(path) for path in code_source]
+    doc_paths = [Path(path) for path in extraction_source.get("document", [])]
+    paper_paths = [Path(path) for path in extraction_source.get("paper", [])]
+    image_paths = [Path(path) for path in extraction_source.get("image", [])]
+    video_paths = [Path(path) for path in extraction_source.get("video", [])]
 
     extractions: list[dict] = []
     if code_paths:
@@ -151,13 +189,33 @@ def run_compile(corpus_root: Path, output_dir: Path, no_viz: bool = False) -> di
     if video_paths:
         extractions.append(_document_extraction(video_paths, "video", corpus_root))
 
-    if not extractions:
+    if not extractions and not (update and graph_json_path.exists()):
         return {
             "available": False,
             "error": "graphify runner found no supported files in corpus",
         }
 
-    graph = build(extractions, directed=True)
+    if update and graph_json_path.exists():
+        raw_existing = json.loads(graph_json_path.read_text(encoding="utf-8"))
+        try:
+            graph = json_graph.node_link_graph(raw_existing, edges="links")
+        except TypeError:
+            graph = json_graph.node_link_graph(raw_existing)
+        affected_files = {
+            _relative_from_root(path, corpus_root)
+            for paths in extraction_source.values()
+            for path in paths
+        }
+        affected_files.update(
+            _relative_from_root(path, corpus_root) for path in detection.get("deleted_files", [])
+        )
+        _remove_nodes_for_source_files(graph, affected_files)
+        if extractions:
+            delta_graph = build(extractions, directed=True)
+            graph.update(delta_graph)
+    else:
+        graph = build(extractions, directed=True)
+
     communities = cluster(graph)
     cohesion_scores = score_all(graph, communities)
     community_labels = _build_community_labels(graph, communities)
@@ -180,12 +238,9 @@ def run_compile(corpus_root: Path, output_dir: Path, no_viz: bool = False) -> di
         suggested_questions=questions,
     )
 
-    graph_json_path = output_dir / "graph.json"
-    report_path = output_dir / "GRAPH_REPORT.md"
-    html_path = output_dir / "graph.html"
-
     to_json(graph, communities, str(graph_json_path))
     report_path.write_text(report, encoding="utf-8")
+    save_manifest(detection.get("files", {}), manifest_path=str(manifest_path))
 
     html_error = None
     if not no_viz:
@@ -206,13 +261,39 @@ def run_compile(corpus_root: Path, output_dir: Path, no_viz: bool = False) -> di
     }
 
 
+def run_doctor() -> dict:
+    missing: list[str] = []
+    details: dict[str, str] = {}
+    for module_name in ["graphify", "networkx"]:
+        try:
+            __import__(module_name)
+            details[module_name] = "ok"
+        except Exception as exc:  # noqa: BLE001
+            missing.append(module_name)
+            details[module_name] = str(exc)
+    return {
+        "available": len(missing) == 0,
+        "python": sys.executable,
+        "missing_modules": missing,
+        "details": details,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Repo-local graphify compile runner")
-    parser.add_argument("--corpus", required=True, help="Corpus directory")
-    parser.add_argument("--output", required=True, help="graphify-out directory")
+    parser.add_argument("--corpus", help="Corpus directory")
+    parser.add_argument("--output", help="graphify-out directory")
     parser.add_argument("--update", action="store_true", help="Incremental compile hint; currently rebuilds whole corpus")
     parser.add_argument("--no-viz", action="store_true", help="Skip HTML generation")
+    parser.add_argument("--doctor", action="store_true", help="Report graphify/python dependency health")
     args = parser.parse_args()
+
+    if args.doctor:
+        print(json.dumps(run_doctor()))
+        return 0
+
+    if not args.corpus or not args.output:
+        parser.error("the following arguments are required: --corpus, --output")
 
     corpus_root = Path(args.corpus).resolve()
     output_dir = Path(args.output).resolve()
@@ -221,7 +302,7 @@ def main() -> int:
         return 1
 
     try:
-        result = run_compile(corpus_root, output_dir, no_viz=args.no_viz)
+        result = run_compile(corpus_root, output_dir, no_viz=args.no_viz, update=args.update)
     except Exception as exc:  # noqa: BLE001
         print(json.dumps({"available": False, "error": str(exc)}))
         return 1
