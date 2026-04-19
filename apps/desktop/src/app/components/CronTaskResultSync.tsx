@@ -9,7 +9,9 @@ import {
 } from '@/app/lib/chat-turns';
 import {
   buildHeuristicFinanceComplianceEnvelope,
+  resolveDisplayFinanceComplianceSnapshot,
   softenFinanceSummaryForChannel,
+  toFinanceOemCompliancePolicy,
 } from '@/app/lib/finance-compliance';
 import { recordFinanceComplianceEvents } from '@/app/lib/finance-compliance-events';
 import type { ResolvedFinanceComplianceConfig } from '@/app/lib/oem-runtime';
@@ -205,28 +207,16 @@ export function CronTaskResultSync({
           const turn = persistedCronTurnsByJobIdRef.current[jobId] ?? null;
           const summary = resolveRunSummary(job, turn);
           const status = resolveTurnStatus(job, turn);
-          const financeCompliance =
-            buildHeuristicFinanceComplianceEnvelope({
-              appName: 'licaiclaw',
-              channel: 'cron',
-              title: job.name ?? turn?.title ?? '定时任务',
-              prompt: job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text,
-              answer: summary,
-              usedModel: turn?.model ?? null,
-              oemPolicy: financeComplianceConfig
-                ? {
-                    complianceEnabled: financeComplianceConfig.enabled,
-                    classificationPolicy: financeComplianceConfig.classificationPolicy,
-                    disclaimerPolicy: financeComplianceConfig.disclaimerPolicy,
-                    disclaimerText: financeComplianceConfig.disclaimerText,
-                    blockingPolicy: financeComplianceConfig.blockingPolicy,
-                    showFor: financeComplianceConfig.showFor,
-                    hideFor: financeComplianceConfig.hideFor,
-                    blockFor: financeComplianceConfig.blockFor,
-                    degradeFor: financeComplianceConfig.degradeFor,
-                  }
-                : null,
-            })?.compliance ?? null;
+          const financeCompliance = resolveDisplayFinanceComplianceSnapshot({
+            snapshot: turn?.financeCompliance ?? null,
+            appName: 'licaiclaw',
+            channel: 'cron',
+            title: job.name ?? turn?.title ?? '定时任务',
+            prompt: job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text,
+            answer: summary,
+            usedModel: turn?.model ?? null,
+            oemPolicy: toFinanceOemCompliancePolicy(financeComplianceConfig || null),
+          });
           const displaySummary = softenFinanceSummaryForChannel({
             text: summary,
             channel: 'cron',

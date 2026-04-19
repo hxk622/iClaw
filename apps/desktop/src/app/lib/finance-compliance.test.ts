@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import {
   buildHeuristicFinanceComplianceEnvelope,
   hasExplicitFinanceComplianceSnapshot,
+  resolveDisplayFinanceComplianceSnapshot,
+  resolveDisplayFinanceDisclaimer,
   resolveEffectiveFinanceComplianceSnapshot,
   resolveEffectiveFinanceDisclaimer,
   resolveFinanceDisclaimerFromSnapshot,
@@ -200,4 +202,50 @@ test('resolveEffectiveFinanceComplianceSnapshot prefers explicit snapshot over h
   const effective = resolveEffectiveFinanceComplianceSnapshot({ snapshot, heuristic });
   assert.deepEqual(effective, snapshot);
   assert.equal(resolveEffectiveFinanceDisclaimer({ snapshot, heuristic }), null);
+});
+
+test('resolveDisplayFinanceDisclaimer uses explicit snapshot before heuristic', () => {
+  const snapshot = {
+    domain: 'finance' as const,
+    inputClassification: 'research_request' as const,
+    outputClassification: 'research_summary' as const,
+    riskLevel: 'medium' as const,
+    showDisclaimer: true,
+    disclaimerText: '显式 disclaimer',
+    requiresRiskSection: false,
+    blocked: false,
+    degraded: false,
+    reasons: ['explicit'],
+    usedCapabilities: [],
+    usedModel: null,
+    sourceAttributionRequired: false,
+    timestampRequired: false,
+  };
+
+  const result = resolveDisplayFinanceDisclaimer({
+    snapshot,
+    appName: 'licaiclaw',
+    channel: 'notification',
+    title: '晨报',
+    prompt: null,
+    answer: '建议买入并加仓。',
+    usedModel: null,
+  });
+
+  assert.equal(result, '显式 disclaimer');
+});
+
+test('resolveDisplayFinanceComplianceSnapshot falls back to heuristic when no snapshot exists', () => {
+  const result = resolveDisplayFinanceComplianceSnapshot({
+    snapshot: null,
+    appName: 'licaiclaw',
+    channel: 'cron',
+    title: '晨报',
+    prompt: '请生成一份晨报',
+    answer: '建议关注高股息方向并控制仓位。',
+    usedModel: null,
+  });
+
+  assert.equal(result?.domain, 'finance');
+  assert.equal(result?.outputClassification, 'actionable_advice');
 });

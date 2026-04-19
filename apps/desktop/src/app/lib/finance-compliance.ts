@@ -47,6 +47,18 @@ export interface FinanceOemCompliancePolicy {
   degradeFor: FinanceInputClassification[];
 }
 
+export interface FinanceOemComplianceConfigShape {
+  enabled: boolean;
+  classificationPolicy: string;
+  disclaimerPolicy: string;
+  disclaimerText: string;
+  blockingPolicy: string;
+  showFor: FinanceOutputClassification[];
+  hideFor: FinanceOutputClassification[];
+  blockFor: FinanceInputClassification[];
+  degradeFor: FinanceInputClassification[];
+}
+
 export interface ComplianceEnvelope {
   answer: string;
   compliance: {
@@ -186,6 +198,25 @@ export function resolveFinanceDisclaimerText(input: {
   return input.capabilityPolicies && input.capabilityPolicies.length > 0 ? DEFAULT_DISCLAIMER_TEXT : null;
 }
 
+export function toFinanceOemCompliancePolicy(
+  config: FinanceOemComplianceConfigShape | null | undefined,
+): FinanceOemCompliancePolicy | null {
+  if (!config) {
+    return null;
+  }
+  return {
+    complianceEnabled: config.enabled,
+    classificationPolicy: config.classificationPolicy,
+    disclaimerPolicy: config.disclaimerPolicy,
+    disclaimerText: config.disclaimerText,
+    blockingPolicy: config.blockingPolicy,
+    showFor: config.showFor,
+    hideFor: config.hideFor,
+    blockFor: config.blockFor,
+    degradeFor: config.degradeFor,
+  };
+}
+
 export function hasExplicitFinanceComplianceSnapshot(
   snapshot: FinanceComplianceSnapshot | null | undefined,
 ): snapshot is FinanceComplianceSnapshot {
@@ -220,6 +251,56 @@ export function resolveEffectiveFinanceDisclaimer(input: {
 }): string | null {
   const effective = resolveEffectiveFinanceComplianceSnapshot(input);
   return resolveFinanceDisclaimerFromSnapshot(effective);
+}
+
+export function resolveDisplayFinanceDisclaimer(input: {
+  snapshot?: FinanceComplianceSnapshot | null;
+  appName: string;
+  channel: FinanceComplianceChannel;
+  title?: string | null;
+  prompt?: string | null;
+  answer: string;
+  usedModel?: string | null;
+  oemPolicy?: FinanceOemCompliancePolicy | null;
+}): string | null {
+  const heuristic = buildHeuristicFinanceComplianceEnvelope({
+    appName: input.appName,
+    channel: input.channel,
+    title: input.title,
+    prompt: input.prompt,
+    answer: input.answer,
+    usedModel: input.usedModel,
+    oemPolicy: input.oemPolicy,
+  });
+  return resolveEffectiveFinanceDisclaimer({
+    snapshot: input.snapshot,
+    heuristic,
+  });
+}
+
+export function resolveDisplayFinanceComplianceSnapshot(input: {
+  snapshot?: FinanceComplianceSnapshot | null;
+  appName: string;
+  channel: FinanceComplianceChannel;
+  title?: string | null;
+  prompt?: string | null;
+  answer: string;
+  usedModel?: string | null;
+  oemPolicy?: FinanceOemCompliancePolicy | null;
+}): FinanceComplianceSnapshot | null {
+  const heuristic = buildHeuristicFinanceComplianceEnvelope({
+    appName: input.appName,
+    channel: input.channel,
+    title: input.title,
+    prompt: input.prompt,
+    answer: input.answer,
+    usedModel: input.usedModel,
+    oemPolicy: input.oemPolicy,
+  });
+  return resolveEffectiveFinanceComplianceSnapshot({
+    snapshot: input.snapshot,
+    heuristic,
+  });
 }
 
 export function resolveFinanceComplianceEnvelope(
