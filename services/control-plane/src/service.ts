@@ -277,13 +277,17 @@ const FINANCE_INPUT_CLASSIFICATIONS = new Set<FinanceInputClassification>([
   'advice_request',
   'personalized_request',
   'execution_request',
+  'unknown',
 ]);
 const FINANCE_OUTPUT_CLASSIFICATIONS = new Set<FinanceOutputClassification>([
   'market_data',
   'research_summary',
   'investment_view',
   'actionable_advice',
+  'unknown',
 ]);
+const FINANCE_COMPLIANCE_CONFIDENCE_LEVELS = new Set(['low', 'medium', 'high']);
+const FINANCE_COMPLIANCE_DECISION_SOURCES = new Set(['plugin', 'server', 'heuristic_fallback']);
 
 type ImBotPlatformId =
   | 'feishu-china'
@@ -1162,6 +1166,10 @@ function toAdminFinanceComplianceEventView(record: FinanceComplianceEventRecord)
     degraded: record.degraded,
     blocked: record.blocked,
     reasons: record.reasons,
+    matched_rules: record.matchedRules,
+    confidence: record.confidence,
+    classifier_version: record.classifierVersion,
+    decision_source: record.decisionSource,
     used_capabilities: record.usedCapabilities,
     used_model: record.usedModel,
     metadata: record.metadata,
@@ -1201,6 +1209,8 @@ function buildAdminFinanceComplianceSummary(
   let disclaimerCount = 0;
   let degradedCount = 0;
   let blockedCount = 0;
+  let heuristicFallbackCount = 0;
+  let unknownOutputCount = 0;
 
   items.forEach((item) => {
     byChannel.set(item.channel, (byChannel.get(item.channel) || 0) + 1);
@@ -1218,6 +1228,12 @@ function buildAdminFinanceComplianceSummary(
     }
     if (item.blocked) {
       blockedCount += 1;
+    }
+    if (item.decisionSource === 'heuristic_fallback') {
+      heuristicFallbackCount += 1;
+    }
+    if (item.outputClassification === 'unknown' || item.outputClassification == null) {
+      unknownOutputCount += 1;
     }
 
     const dateKey = String(item.createdAt || '').slice(0, 10);
@@ -1237,6 +1253,8 @@ function buildAdminFinanceComplianceSummary(
     degraded_count: degradedCount,
     blocked_count: blockedCount,
     disclaimer_rate: items.length > 0 ? Math.round((disclaimerCount / items.length) * 1000) / 10 : 0,
+    heuristic_fallback_count: heuristicFallbackCount,
+    unknown_output_count: unknownOutputCount,
     by_channel: Array.from(byChannel.entries())
       .sort((left, right) => right[1] - left[1])
       .map(([channel, count]) => ({ channel, count })),
@@ -5111,6 +5129,14 @@ export class ControlPlaneService {
         ) {
           throw new HttpError(400, 'BAD_REQUEST', 'invalid finance output_classification');
         }
+        const confidence = String(item.confidence || '').trim().toLowerCase();
+        if (confidence && !FINANCE_COMPLIANCE_CONFIDENCE_LEVELS.has(confidence)) {
+          throw new HttpError(400, 'BAD_REQUEST', 'invalid finance compliance confidence');
+        }
+        const decisionSource = String(item.decision_source || '').trim().toLowerCase();
+        if (decisionSource && !FINANCE_COMPLIANCE_DECISION_SOURCES.has(decisionSource)) {
+          throw new HttpError(400, 'BAD_REQUEST', 'invalid finance compliance decision_source');
+        }
         return this.store.createFinanceComplianceEvent({
           id: normalizeOptionalCatalogString(item.id, 'id', {allowNull: true, trimToNull: true}) || randomUUID(),
           app_name: appName,
@@ -5140,6 +5166,16 @@ export class ControlPlaneService {
           reasons_json: Array.isArray(item.reasons_json)
             ? item.reasons_json.filter((value): value is string => typeof value === 'string')
             : [],
+          matched_rules_json: Array.isArray(item.matched_rules_json)
+            ? item.matched_rules_json.filter((value): value is string => typeof value === 'string')
+            : [],
+          confidence: (confidence || null) as 'low' | 'medium' | 'high' | null,
+          classifier_version:
+            normalizeOptionalCatalogString(item.classifier_version, 'classifier_version', {
+              allowNull: true,
+              trimToNull: true,
+            }) ?? null,
+          decision_source: (decisionSource || null) as 'plugin' | 'server' | 'heuristic_fallback' | null,
           used_capabilities_json: Array.isArray(item.used_capabilities_json)
             ? item.used_capabilities_json.filter((value): value is string => typeof value === 'string')
             : [],

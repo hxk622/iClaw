@@ -1896,6 +1896,12 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       degraded: input.degraded === true,
       blocked: input.blocked === true,
       reasons: Array.isArray(input.reasons_json) ? input.reasons_json.filter((item) => typeof item === 'string') : [],
+      matchedRules: Array.isArray(input.matched_rules_json)
+        ? input.matched_rules_json.filter((item) => typeof item === 'string')
+        : [],
+      confidence: input.confidence || 'low',
+      classifierVersion: input.classifier_version || null,
+      decisionSource: input.decision_source || 'heuristic_fallback',
       usedCapabilities: Array.isArray(input.used_capabilities_json)
         ? input.used_capabilities_json.filter((item) => typeof item === 'string')
         : [],

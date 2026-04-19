@@ -903,6 +903,10 @@ export type AdminFinanceComplianceEventView = {
   degraded: boolean;
   blocked: boolean;
   reasons: string[];
+  matched_rules: string[];
+  confidence: FinanceComplianceConfidence;
+  classifier_version: string | null;
+  decision_source: FinanceComplianceDecisionSource;
   used_capabilities: string[];
   used_model: string | null;
   metadata: Record<string, unknown>;
@@ -938,6 +942,8 @@ export type AdminFinanceComplianceSummaryView = {
   degraded_count: number;
   blocked_count: number;
   disclaimer_rate: number;
+  heuristic_fallback_count: number;
+  unknown_output_count: number;
   by_channel: AdminFinanceComplianceChannelSummaryView[];
   by_output_classification: AdminFinanceComplianceOutputSummaryView[];
   top_reasons: AdminFinanceComplianceReasonSummaryView[];

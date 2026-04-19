@@ -890,12 +890,14 @@ type FinanceComplianceEventRow = {
     | 'advice_request'
     | 'personalized_request'
     | 'execution_request'
+    | 'unknown'
     | null;
   output_classification:
     | 'market_data'
     | 'research_summary'
     | 'investment_view'
     | 'actionable_advice'
+    | 'unknown'
     | null;
   risk_level: 'low' | 'medium' | 'high';
   show_disclaimer: boolean;
@@ -903,6 +905,10 @@ type FinanceComplianceEventRow = {
   degraded: boolean;
   blocked: boolean;
   reasons_json: unknown[] | null;
+  matched_rules_json: unknown[] | null;
+  confidence: 'low' | 'medium' | 'high' | null;
+  classifier_version: string | null;
+  decision_source: 'plugin' | 'server' | 'heuristic_fallback' | null;
   used_capabilities_json: unknown[] | null;
   used_model: string | null;
   metadata_json: Record<string, unknown> | null;
@@ -1407,6 +1413,15 @@ function mapFinanceComplianceEventRow(row: FinanceComplianceEventRow): FinanceCo
     reasons: Array.isArray(row.reasons_json)
       ? row.reasons_json.filter((item): item is string => typeof item === 'string')
       : [],
+    matchedRules: Array.isArray(row.matched_rules_json)
+      ? row.matched_rules_json.filter((item): item is string => typeof item === 'string')
+      : [],
+    confidence: row.confidence === 'low' || row.confidence === 'high' ? row.confidence : 'medium',
+    classifierVersion: row.classifier_version,
+    decisionSource:
+      row.decision_source === 'plugin' || row.decision_source === 'server' || row.decision_source === 'heuristic_fallback'
+        ? row.decision_source
+        : 'heuristic_fallback',
     usedCapabilities: Array.isArray(row.used_capabilities_json)
       ? row.used_capabilities_json.filter((item): item is string => typeof item === 'string')
       : [],
@@ -4572,19 +4587,22 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         insert into finance_compliance_events (
           id, app_name, session_key, conversation_id, channel, source_surface,
           input_classification, output_classification, risk_level, show_disclaimer,
-          disclaimer_text, degraded, blocked, reasons_json, used_capabilities_json,
+          disclaimer_text, degraded, blocked, reasons_json, matched_rules_json,
+          confidence, classifier_version, decision_source, used_capabilities_json,
           used_model, metadata_json, created_at
         )
         values (
           $1, $2, $3, $4, $5, $6,
           $7, $8, $9, $10,
           $11, $12, $13, $14::jsonb, $15::jsonb,
-          $16, $17::jsonb, $18
+          $16, $17, $18, $19::jsonb,
+          $20, $21::jsonb, $22
         )
         returning
           id, app_name, session_key, conversation_id, channel, source_surface,
           input_classification, output_classification, risk_level, show_disclaimer,
-          disclaimer_text, degraded, blocked, reasons_json, used_capabilities_json,
+          disclaimer_text, degraded, blocked, reasons_json, matched_rules_json,
+          confidence, classifier_version, decision_source, used_capabilities_json,
           used_model, metadata_json, created_at
       `,
       [
@@ -4602,6 +4620,10 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         input.degraded === true,
         input.blocked === true,
         JSON.stringify(input.reasons_json || []),
+        JSON.stringify(input.matched_rules_json || []),
+        input.confidence || 'low',
+        input.classifier_version || null,
+        input.decision_source || 'heuristic_fallback',
         JSON.stringify(input.used_capabilities_json || []),
         input.used_model || null,
         JSON.stringify(input.metadata_json || {}),
