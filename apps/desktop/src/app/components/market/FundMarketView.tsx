@@ -117,6 +117,15 @@ function formatDataSource(value: string | null | undefined): string {
   return normalized;
 }
 
+function formatPrice(value: number | null | undefined, digits = 4): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '--';
+  return value.toFixed(digits);
+}
+
+function resolvePriceLabel(fund: FundItem): string {
+  return fund.instrument_kind === 'fund' && fund.exchange === 'otc' ? '最新净值' : '场内价格';
+}
+
 function resolveInstrumentLabel(fund: MarketFundData): string {
   if (fund.instrument_kind === 'etf') return 'ETF';
   if (fund.instrument_kind === 'qdii') return 'QDII';
@@ -263,15 +272,19 @@ function FundCard({
           </div>
         </div>
         <div className="rounded-[18px] border border-[rgba(42,74,111,0.12)] bg-[rgba(42,74,111,0.06)] px-3 py-2 text-right">
-          <div className="text-[11px] text-[var(--text-muted)]">近一年</div>
-          <div className={cn('mt-1 text-[18px] font-semibold', (fund.return_1y ?? 0) >= 0 ? 'text-[rgb(21,128,61)]' : 'text-[rgb(185,28,28)]')}>
-            {formatSignedPercent(fund.return_1y)}
+          <div className="text-[11px] text-[var(--text-muted)]">{resolvePriceLabel(fund)}</div>
+          <div className="mt-1 text-[18px] font-semibold text-[var(--text-primary)]">
+            {formatPrice(fund.current_price ?? fund.nav_price)}
+          </div>
+          <div className={cn('mt-1 text-[12px] font-semibold', (fund.change_percent ?? 0) >= 0 ? 'text-[rgb(21,128,61)]' : 'text-[rgb(185,28,28)]')}>
+            {formatSignedPercent(fund.change_percent, 2)}
           </div>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
+          {label: '近一年', value: formatSignedPercent(fund.return_1y)},
           {label: '近一月', value: formatSignedPercent(fund.return_1m)},
           {label: '最大回撤', value: formatSignedPercent(fund.max_drawdown)},
           {label: '申购费率', value: formatFeeRate(fund.fee_rate)},
@@ -502,10 +515,13 @@ function FundDrawer({
               {fund.quote_is_delayed ? <Chip tone="warning">延迟快照</Chip> : null}
             </div>
             <div className="mt-4 flex items-end gap-3">
-              <div className="text-[30px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{formatSignedPercent(fund.return_1y)}</div>
-              <div className="mb-1 inline-flex items-center gap-1 text-[14px] font-semibold text-[rgb(21,128,61)]">
-                <TrendingUp className="h-4 w-4" />
-                近一年收益
+              <div>
+                <div className="text-[11px] text-[var(--text-muted)]">{resolvePriceLabel(fund)}</div>
+                <div className="mt-1 text-[30px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{formatPrice(fund.current_price ?? fund.nav_price)}</div>
+              </div>
+              <div className={cn('mb-1 inline-flex items-center gap-1 text-[14px] font-semibold', (fund.change_percent ?? 0) >= 0 ? 'text-[rgb(21,128,61)]' : 'text-[rgb(185,28,28)]')}>
+                {(fund.change_percent ?? 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                {formatSignedPercent(fund.change_percent, 2)}
               </div>
             </div>
           </div>
@@ -537,7 +553,10 @@ function FundDrawer({
               {label: '管理规模', value: formatScaleAmount(fund.scale_amount)},
               {label: '申购费率', value: formatFeeRate(fund.fee_rate)},
               {label: '分红方式', value: fund.dividend_mode || '--'},
+              {label: '最新净值', value: formatPrice(fund.nav_price)},
+              {label: '场内价格', value: formatPrice(fund.current_price)},
               {label: '近一月', value: formatSignedPercent(fund.return_1m)},
+              {label: '当日涨跌', value: formatSignedPercent(fund.change_percent, 2)},
               {label: '最大回撤', value: formatSignedPercent(fund.max_drawdown)},
               {label: '净值日期', value: formatDate(fund.latest_nav_date)},
               {label: '经理任期', value: fund.manager_work_time || '--'},
