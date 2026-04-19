@@ -7,6 +7,7 @@ export { startSyncTasks } from '../../../services/control-plane/src/sync-tasks/i
 export { executeRegisteredSyncTask } from '../../../services/control-plane/src/sync-tasks/runner.ts';
 export { executeSyncTaskWithRuntime } from './runner.ts';
 export { filterWarmupTasks, listTaskIds } from './registry.ts';
+export { startScheduledSyncTasks } from './scheduler.ts';
 
 export type {
   SyncTaskCategory,
@@ -19,3 +20,8 @@ export type {
   SyncTaskExecutionStore,
   SyncTaskLogger,
 } from './runner.ts';
+
+export type {
+  SyncTaskExecutor,
+  SyncTaskSchedulerLogger,
+} from './scheduler.ts';
