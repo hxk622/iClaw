@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildHeuristicFinanceComplianceEnvelope,
+  classifyFinanceOutputDetailed,
   hasExplicitFinanceComplianceSnapshot,
   resolveDisplayFinanceComplianceSnapshot,
   resolveDisplayFinanceDisclaimer,
@@ -100,7 +101,20 @@ test('buildHeuristicFinanceComplianceEnvelope detects finance advice text', () =
   assert.ok(result);
   assert.equal(result?.compliance.domain, 'finance');
   assert.equal(result?.compliance.showDisclaimer, true);
-  assert.equal(result?.compliance.outputClassification, 'actionable_advice');
+  assert.equal(result?.compliance.outputClassification, 'investment_view');
+  assert.match((result?.compliance.reasons || []).join(' '), /output:portfolio_view_hint|output:investment_view_hint|output:action_verb_without_directive/);
+});
+
+test('classifyFinanceOutputDetailed keeps directional views below actionable threshold', () => {
+  const result = classifyFinanceOutputDetailed('当前A股估值分化较大，建议关注高股息方向，控制仓位。');
+  assert.equal(result.classification, 'investment_view');
+  assert.deepEqual(result.reasons.includes('portfolio_view_hint') || result.reasons.includes('action_verb_without_directive'), true);
+});
+
+test('classifyFinanceOutputDetailed escalates explicit action directives to actionable_advice', () => {
+  const result = classifyFinanceOutputDetailed('当前回调后建议买入沪深300ETF，并在后续继续加仓。');
+  assert.equal(result.classification, 'actionable_advice');
+  assert.deepEqual(result.reasons.includes('strong_actionable_phrase') || result.reasons.includes('action_structure'), true);
 });
 
 test('softenFinanceSummaryForChannel degrades actionable cron summary', () => {
@@ -248,7 +262,7 @@ test('resolveDisplayFinanceComplianceSnapshot falls back to heuristic when no sn
   });
 
   assert.equal(result?.domain, 'finance');
-  assert.equal(result?.outputClassification, 'actionable_advice');
+  assert.equal(result?.outputClassification, 'investment_view');
 });
 
 test('resolveSurfaceFinanceCompliance returns explicit disclaimer when snapshot exists', () => {

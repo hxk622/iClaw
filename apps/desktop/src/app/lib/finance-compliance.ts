@@ -139,8 +139,34 @@ const FINANCE_KEYWORDS = [
 ];
 
 const ACTIONABLE_HINTS = ['买入', '卖出', '加仓', '减仓', '建仓', '清仓', '止盈', '止损', '仓位'];
+const DIRECT_ACTION_VERBS = ['买入', '卖出', '加仓', '减仓', '建仓', '清仓', '止盈', '止损'];
+const PORTFOLIO_VIEW_HINTS = ['仓位', '配置', '配仓', '风险暴露'];
 const PERSONALIZED_HINTS = ['我有', '我想投', '我该怎么配', '适合我', '我的持仓', '我的风险偏好'];
 const EXECUTION_HINTS = ['帮我卖', '帮我买', '替我买', '替我卖', '直接下单', '执行交易'];
+const STRONG_ACTIONABLE_PHRASES = [
+  '建议买入',
+  '建议卖出',
+  '建议加仓',
+  '建议减仓',
+  '建议建仓',
+  '建议清仓',
+  '建议止盈',
+  '建议止损',
+  '现在可以买',
+  '现在可以卖',
+  '可以上车',
+  '可以介入',
+  '适合买入',
+  '适合加仓',
+];
+const ACTIONABLE_STRUCTURE_HINTS = ['建议', '可以', '可考虑', '优先', '适合', '操作', '仓位'];
+const INVESTMENT_VIEW_HINTS = ['关注', '估值', '配置', '判断', '风险', '赔率', '胜率', '逻辑', '周期', '流动性'];
+const RESEARCH_SUMMARY_HINTS = ['总结', '摘要', '晨报', '复盘', '公告', '财报', '纪要', '提要'];
+
+type ClassifiedResult<T> = {
+  classification: T | null;
+  reasons: string[];
+};
 
 function containsKeyword(text: string, keywords: string[]): boolean {
   const normalized = text.trim().toLowerCase();
@@ -329,38 +355,79 @@ export function looksLikeFinanceContent(input: string): boolean {
 }
 
 export function classifyFinanceInputFromText(input: string): FinanceInputClassification | null {
-  if (!looksLikeFinanceContent(input)) {
-    return null;
-  }
-  if (containsKeyword(input, EXECUTION_HINTS)) {
-    return 'execution_request';
-  }
-  if (containsKeyword(input, PERSONALIZED_HINTS)) {
-    return 'personalized_request';
-  }
-  if (containsKeyword(input, ACTIONABLE_HINTS)) {
-    return 'advice_request';
-  }
-  if (containsKeyword(input, ['分析', '估值', '怎么看', '复盘', '研究'])) {
-    return 'research_request';
-  }
-  return 'market_info';
+  return classifyFinanceInputDetailed(input).classification;
 }
 
 export function classifyFinanceOutputFromText(input: string): FinanceOutputClassification | null {
+  return classifyFinanceOutputDetailed(input).classification;
+}
+
+export function classifyFinanceInputDetailed(input: string): ClassifiedResult<FinanceInputClassification> {
+  const reasons: string[] = [];
   if (!looksLikeFinanceContent(input)) {
-    return null;
+    return { classification: null, reasons };
   }
-  if (containsKeyword(input, ACTIONABLE_HINTS)) {
-    return 'actionable_advice';
+  reasons.push('finance_keyword_hit');
+  if (containsKeyword(input, EXECUTION_HINTS)) {
+    reasons.push('execution_hint');
+    return { classification: 'execution_request', reasons };
   }
-  if (containsKeyword(input, ['建议', '关注', '估值', '配置', '判断', '风险'])) {
-    return 'investment_view';
+  if (containsKeyword(input, PERSONALIZED_HINTS)) {
+    reasons.push('personalized_hint');
+    return { classification: 'personalized_request', reasons };
   }
-  if (containsKeyword(input, ['总结', '摘要', '晨报', '复盘', '公告', '财报'])) {
-    return 'research_summary';
+  if (containsKeyword(input, ACTIONABLE_HINTS) || containsKeyword(input, ['能买吗', '该买', '该卖', '怎么配仓'])) {
+    reasons.push('advice_request_hint');
+    return { classification: 'advice_request', reasons };
   }
-  return 'market_data';
+  if (containsKeyword(input, ['分析', '估值', '怎么看', '复盘', '研究', '拆解'])) {
+    reasons.push('research_request_hint');
+    return { classification: 'research_request', reasons };
+  }
+  reasons.push('market_info_fallback');
+  return { classification: 'market_info', reasons };
+}
+
+export function classifyFinanceOutputDetailed(input: string): ClassifiedResult<FinanceOutputClassification> {
+  const reasons: string[] = [];
+  if (!looksLikeFinanceContent(input)) {
+    return { classification: null, reasons };
+  }
+  reasons.push('finance_keyword_hit');
+  const hasStrongActionablePhrase = containsKeyword(input, STRONG_ACTIONABLE_PHRASES);
+  const hasActionVerb = containsKeyword(input, DIRECT_ACTION_VERBS);
+  const hasPortfolioViewHint = containsKeyword(input, PORTFOLIO_VIEW_HINTS);
+  const hasActionStructure = containsKeyword(input, ACTIONABLE_STRUCTURE_HINTS);
+  const hasViewHints = containsKeyword(input, INVESTMENT_VIEW_HINTS);
+  const hasSummaryHints = containsKeyword(input, RESEARCH_SUMMARY_HINTS);
+
+  if (hasStrongActionablePhrase) {
+    reasons.push('strong_actionable_phrase');
+    return { classification: 'actionable_advice', reasons };
+  }
+  if (hasActionVerb && hasActionStructure) {
+    reasons.push('action_verb');
+    reasons.push('action_structure');
+    return { classification: 'actionable_advice', reasons };
+  }
+  if (hasActionVerb) {
+    reasons.push('action_verb_without_directive');
+    return { classification: 'investment_view', reasons };
+  }
+  if (hasPortfolioViewHint) {
+    reasons.push('portfolio_view_hint');
+    return { classification: 'investment_view', reasons };
+  }
+  if (hasViewHints) {
+    reasons.push('investment_view_hint');
+    return { classification: 'investment_view', reasons };
+  }
+  if (hasSummaryHints) {
+    reasons.push('research_summary_hint');
+    return { classification: 'research_summary', reasons };
+  }
+  reasons.push('market_data_fallback');
+  return { classification: 'market_data', reasons };
 }
 
 export function buildHeuristicFinanceComplianceEnvelope(input: {
@@ -377,17 +444,27 @@ export function buildHeuristicFinanceComplianceEnvelope(input: {
   if (!looksLikeFinanceContent(joined)) {
     return null;
   }
-  return resolveFinanceComplianceEnvelope({
+  const inputDecision = classifyFinanceInputDetailed([input.title, input.prompt].filter(Boolean).join('\n'));
+  const outputDecision = classifyFinanceOutputDetailed(input.answer);
+  const result = resolveFinanceComplianceEnvelope({
     appName: input.appName,
     channel: input.channel,
     answer: input.answer,
-    inputClassification: classifyFinanceInputFromText([input.title, input.prompt].filter(Boolean).join('\n')),
-    outputClassification: classifyFinanceOutputFromText(input.answer),
+    inputClassification: inputDecision.classification,
+    outputClassification: outputDecision.classification,
     capabilityPolicies: [],
     oemPolicy: input.oemPolicy || DEFAULT_FINANCE_OEM_POLICY,
     usedCapabilities: input.usedCapabilities,
     usedModel: input.usedModel,
   });
+  result.compliance.reasons = Array.from(
+    new Set([
+      ...result.compliance.reasons,
+      ...inputDecision.reasons.map((reason) => `input:${reason}`),
+      ...outputDecision.reasons.map((reason) => `output:${reason}`),
+    ]),
+  );
+  return result;
 }
 
 export function resolveDisplayFinanceComplianceSnapshot(input: {
