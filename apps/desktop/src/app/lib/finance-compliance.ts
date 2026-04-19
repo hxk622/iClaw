@@ -354,18 +354,6 @@ export function resolveFinanceComplianceEnvelope(
   };
 }
 
-export function looksLikeFinanceContent(input: string): boolean {
-  return looksLikeFinanceContentCore(input);
-}
-
-export function classifyFinanceInputFromText(input: string): FinanceInputClassification | null {
-  return classifyFinanceInputDetailed(input).classification;
-}
-
-export function classifyFinanceOutputFromText(input: string): FinanceOutputClassification | null {
-  return classifyFinanceOutputDetailed(input).classification;
-}
-
 export function classifyFinanceInputDetailed(input: string): ClassifiedResult<FinanceInputClassification> {
   return classifyFinanceInputDetailedCore(input);
 }
@@ -385,7 +373,7 @@ export function buildHeuristicFinanceComplianceEnvelope(input: {
   oemPolicy?: FinanceOemCompliancePolicy | null;
 }): ResolveFinanceComplianceResult | null {
   const joined = [input.title, input.prompt, input.answer].filter(Boolean).join('\n');
-  if (!looksLikeFinanceContent(joined)) {
+  if (!looksLikeFinanceContentCore(joined)) {
     return null;
   }
   const inputDecision = classifyFinanceInputDetailed([input.title, input.prompt].filter(Boolean).join('\n'));

@@ -91,6 +91,7 @@ import {
   resolveUserAvatarUrl,
   type AppUserAvatarSource,
 } from '../lib/user-avatar';
+import { resolveAssistantAvatarAssetSrc } from '../lib/brand-assets';
 import {
   buildChatSessionPressureSnapshot,
   canonicalizeChatSessionKey,
@@ -122,11 +123,7 @@ import {
   type ChatTurnArtifact,
   useChatTurns,
 } from '../lib/chat-turns';
-import {
-  buildHeuristicFinanceComplianceEnvelope,
-  resolveHeuristicFinanceComplianceEnvelope,
-  resolveEffectiveFinanceComplianceSnapshot,
-} from '../lib/finance-compliance';
+import { resolveHeuristicFinanceComplianceEnvelope, resolveEffectiveFinanceComplianceSnapshot } from '../lib/finance-compliance';
 import { recordFinanceComplianceEvents } from '../lib/finance-compliance-events';
 import {
   findChatConversationBySessionKey,
@@ -475,7 +472,7 @@ type SelectionMenuState = {
   label: string;
 };
 
-const ASSISTANT_AVATAR_SRC = '/favicon.png';
+const ASSISTANT_AVATAR_SRC = resolveAssistantAvatarAssetSrc();
 const OPENCLAW_CONTROL_SETTINGS_KEY = 'openclaw.control.settings.v1';
 const OPENCLAW_CONTROL_TOKEN_PREFIX = 'openclaw.control.token.v1';
 const OPENCLAW_DEVICE_AUTH_KEY = 'openclaw.device.auth.v1';
@@ -9333,6 +9330,30 @@ export function OpenClawChatSurface({
       }
     };
 
+    const normalizeGroupAvatarClass = (group: HTMLElement) => {
+      const avatar = group.querySelector(':scope > .chat-avatar');
+      if (!(avatar instanceof HTMLElement)) {
+        return;
+      }
+
+      avatar.classList.remove('assistant', 'user', 'other', 'tool');
+
+      if (group.classList.contains('user')) {
+        avatar.classList.add('user');
+        return;
+      }
+      if (group.classList.contains('tool')) {
+        avatar.classList.add('tool');
+        return;
+      }
+      if (group.classList.contains('other')) {
+        avatar.classList.add('other');
+        return;
+      }
+
+      avatar.classList.add('assistant');
+    };
+
     const ensureUserCopyButton = (group: HTMLElement) => {
       const text = extractChatGroupText(group);
       let button = group.querySelector(':scope > .iclaw-chat-user-copy') as HTMLButtonElement | null;
@@ -9795,6 +9816,7 @@ export function OpenClawChatSurface({
 
       groups.forEach((group) => {
         normalizeUserGroupClass(group);
+        normalizeGroupAvatarClass(group);
         normalizeToolCards(group);
         normalizeApprovalActionCard(group);
         normalizeToolCollapseDefaults(group);
