@@ -54,6 +54,8 @@ export function FinanceCompliancePage() {
   const degradedCount = summary?.degradedCount ?? 0;
   const blockedCount = summary?.blockedCount ?? 0;
   const disclaimerRate = summary ? `${summary.disclaimerRate}%` : '—';
+  const heuristicFallbackCount = summary?.heuristicFallbackCount ?? 0;
+  const unknownOutputCount = summary?.unknownOutputCount ?? 0;
   const eventsByChannel = summary?.byChannel ?? [];
   const eventsByOutputClassification = summary?.byOutputClassification ?? [];
   const topReasons = summary?.topReasons ?? [];
@@ -120,6 +122,8 @@ export function FinanceCompliancePage() {
             <div className="fig-meta-card"><span>免责声明命中率</span><strong>{disclaimerRate}</strong></div>
             <div className="fig-meta-card"><span>降级</span><strong>{String(degradedCount)}</strong></div>
             <div className="fig-meta-card"><span>拦截</span><strong>{String(blockedCount)}</strong></div>
+            <div className="fig-meta-card"><span>heuristic fallback</span><strong>{String(heuristicFallbackCount)}</strong></div>
+            <div className="fig-meta-card"><span>unknown 输出</span><strong>{String(unknownOutputCount)}</strong></div>
           </div>
         </section>
 
@@ -131,11 +135,11 @@ export function FinanceCompliancePage() {
             </div>
             <div className="fig-list">
               {eventsByChannel.length ? (
-                eventsByChannel.map(([entryChannel, count]) => (
-                  <article key={entryChannel} className="fig-list-item">
+                eventsByChannel.map((item) => (
+                  <article key={item.channel} className="fig-list-item">
                     <div className="fig-list-item__body">
-                      <div className="fig-list-item__title">{entryChannel}</div>
-                      <div className="fig-list-item__meta">{`${count} 条事件`}</div>
+                      <div className="fig-list-item__title">{item.channel}</div>
+                      <div className="fig-list-item__meta">{`${item.count} 条事件`}</div>
                     </div>
                   </article>
                 ))
@@ -152,11 +156,11 @@ export function FinanceCompliancePage() {
             </div>
             <div className="fig-list">
               {eventsByOutputClassification.length ? (
-                eventsByOutputClassification.map(([classification, count]) => (
-                  <article key={classification} className="fig-list-item">
+                eventsByOutputClassification.map((item) => (
+                  <article key={item.outputClassification} className="fig-list-item">
                     <div className="fig-list-item__body">
-                      <div className="fig-list-item__title">{classification}</div>
-                      <div className="fig-list-item__meta">{`${count} 条事件`}</div>
+                      <div className="fig-list-item__title">{item.outputClassification}</div>
+                      <div className="fig-list-item__meta">{`${item.count} 条事件`}</div>
                     </div>
                   </article>
                 ))
@@ -173,11 +177,11 @@ export function FinanceCompliancePage() {
             </div>
             <div className="fig-list">
               {topReasons.length ? (
-                topReasons.map(([reason, count]) => (
-                  <article key={reason} className="fig-list-item">
+                topReasons.map((item) => (
+                  <article key={item.reason} className="fig-list-item">
                     <div className="fig-list-item__body">
-                      <div className="fig-list-item__title">{reason}</div>
-                      <div className="fig-list-item__meta">{`${count} 次`}</div>
+                      <div className="fig-list-item__title">{item.reason}</div>
+                      <div className="fig-list-item__meta">{`${item.count} 次`}</div>
                     </div>
                   </article>
                 ))
@@ -271,7 +275,7 @@ export function FinanceCompliancePage() {
                           {`${formatDateTime(item.createdAt)} · ${item.appName} · ${item.sessionKey}`}
                         </div>
                         <div className="fig-list-item__meta">
-                          {`input=${item.inputClassification || 'n/a'} · output=${item.outputClassification || 'n/a'} · disclaimer=${item.showDisclaimer ? 'yes' : 'no'} · degraded=${item.degraded ? 'yes' : 'no'} · blocked=${item.blocked ? 'yes' : 'no'}`}
+                          {`input=${item.inputClassification || 'n/a'} · output=${item.outputClassification || 'n/a'} · confidence=${item.confidence} · source=${item.decisionSource}`}
                         </div>
                       </div>
                     </article>
@@ -293,6 +297,8 @@ export function FinanceCompliancePage() {
                 <div className="fig-meta-cards">
                   <div className="fig-meta-card"><span>渠道</span><strong>{selectedEvent.channel}</strong></div>
                   <div className="fig-meta-card"><span>风险等级</span><strong>{selectedEvent.riskLevel}</strong></div>
+                  <div className="fig-meta-card"><span>置信度</span><strong>{selectedEvent.confidence}</strong></div>
+                  <div className="fig-meta-card"><span>来源</span><strong>{selectedEvent.decisionSource}</strong></div>
                   <div className="fig-meta-card"><span>免责声明</span><strong>{selectedEvent.showDisclaimer ? 'yes' : 'no'}</strong></div>
                   <div className="fig-meta-card"><span>降级 / 拦截</span><strong>{selectedEvent.degraded ? 'degraded' : selectedEvent.blocked ? 'blocked' : 'none'}</strong></div>
                 </div>
@@ -300,13 +306,20 @@ export function FinanceCompliancePage() {
                 <div className="fig-list-item__meta">{formatDateTime(selectedEvent.createdAt)}</div>
                 <div className="fig-list-item__meta">{`app=${selectedEvent.appName} · session=${selectedEvent.sessionKey}`}</div>
                 <div className="fig-list-item__meta">
-                  {`input=${selectedEvent.inputClassification || 'n/a'} · output=${selectedEvent.outputClassification || 'n/a'} · model=${selectedEvent.usedModel || 'n/a'}`}
+                  {`input=${selectedEvent.inputClassification || 'n/a'} · output=${selectedEvent.outputClassification || 'n/a'} · model=${selectedEvent.usedModel || 'n/a'} · classifier=${selectedEvent.classifierVersion || 'n/a'}`}
                 </div>
 
                 <div>
                   <div className="fig-list-item__title">命中规则</div>
                   <div className="fig-list-item__meta">
                     {selectedEvent.reasons.length ? selectedEvent.reasons.join(' | ') : '无规则命中明细'}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="fig-list-item__title">matched rules</div>
+                  <div className="fig-list-item__meta">
+                    {selectedEvent.matchedRules.length ? selectedEvent.matchedRules.join(' | ') : '无 matched rule'}
                   </div>
                 </div>
 

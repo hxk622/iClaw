@@ -755,6 +755,10 @@ export type FinanceComplianceEventRecord = {
   degraded: boolean;
   blocked: boolean;
   reasons: string[];
+  matchedRules: string[];
+  confidence: 'low' | 'medium' | 'high';
+  classifierVersion: string | null;
+  decisionSource: 'plugin' | 'server' | 'heuristic_fallback';
   usedCapabilities: string[];
   usedModel: string | null;
   metadata: Record<string, unknown>;
@@ -767,6 +771,8 @@ export type FinanceComplianceSummaryData = {
   degradedCount: number;
   blockedCount: number;
   disclaimerRate: number;
+  heuristicFallbackCount: number;
+  unknownOutputCount: number;
   byChannel: Array<{
     channel: 'chat' | 'cron' | 'notification' | 'report';
     count: number;

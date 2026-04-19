@@ -1421,6 +1421,10 @@ export async function loadFinanceComplianceEvents(input: {
     degraded: Boolean(item.degraded),
     blocked: Boolean(item.blocked),
     reasons: toArray<string>(item.reasons).filter((value) => typeof value === 'string'),
+    matchedRules: toArray<string>(item.matched_rules || item.matchedRules).filter((value) => typeof value === 'string'),
+    confidence: (stringValue(item.confidence) || 'medium') as FinanceComplianceEventRecord['confidence'],
+    classifierVersion: stringValue(item.classifier_version || item.classifierVersion) || null,
+    decisionSource: (stringValue(item.decision_source || item.decisionSource) || 'heuristic_fallback') as FinanceComplianceEventRecord['decisionSource'],
     usedCapabilities: toArray<string>(item.used_capabilities || item.usedCapabilities).filter(
       (value) => typeof value === 'string',
     ),
@@ -1453,6 +1457,8 @@ export async function loadFinanceComplianceSummary(input: {
     degradedCount: numberValue(root.degraded_count),
     blockedCount: numberValue(root.blocked_count),
     disclaimerRate: numberValue(root.disclaimer_rate),
+    heuristicFallbackCount: numberValue(root.heuristic_fallback_count),
+    unknownOutputCount: numberValue(root.unknown_output_count),
     byChannel: toArray<Record<string, unknown>>(root.by_channel).map((item) => ({
       channel: (stringValue(item.channel) || 'chat') as FinanceComplianceSummaryData['byChannel'][number]['channel'],
       count: numberValue(item.count),
