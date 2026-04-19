@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { findOntologyShortestPath, getOntologyNodeDetail } from './graph-navigation.ts';
+import { findOntologyShortestPath, getOntologyEdgeDetail, getOntologyNodeDetail } from './graph-navigation.ts';
 import type { OntologyDocument } from './ontology-types.ts';
 
 const documentFixture: OntologyDocument = {
@@ -36,4 +36,11 @@ test('findOntologyShortestPath returns ordered nodes and edges', () => {
   assert.ok(path);
   assert.deepEqual(path?.nodeIds, ['a', 'b', 'c']);
   assert.deepEqual(path?.edges.map((edge) => edge.id), ['e1', 'e2']);
+});
+
+test('getOntologyEdgeDetail returns source and target nodes', () => {
+  const detail = getOntologyEdgeDetail(documentFixture, 'e1');
+  assert.ok(detail);
+  assert.equal(detail?.sourceNode?.label, 'A');
+  assert.equal(detail?.targetNode?.label, 'B');
 });

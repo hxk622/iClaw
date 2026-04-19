@@ -58,7 +58,7 @@ import {
 } from './flywheel-service';
 import { useGraphCompilerJobs } from './graph-compiler-jobs';
 import { classifyGraphQueryIntent } from './graph-query-intent';
-import { findOntologyShortestPath, getOntologyNodeDetail } from './graph-navigation';
+import { findOntologyShortestPath, getOntologyEdgeDetail, getOntologyNodeDetail } from './graph-navigation';
 
 export function KnowledgeLibraryView({
   title,
@@ -135,6 +135,7 @@ export function KnowledgeLibraryView({
   const [selectedGraphNode, setSelectedGraphNode] = useState<{ id: string; label: string; type: string } | null>(null);
   const [graphPathTargetNodeId, setGraphPathTargetNodeId] = useState<string | null>(null);
   const [graphPathResult, setGraphPathResult] = useState<string | null>(null);
+  const [selectedGraphEdgeId, setSelectedGraphEdgeId] = useState<string | null>(null);
   const [embeddedChatSeedPrompt, setEmbeddedChatSeedPrompt] = useState<string | null>(null);
   const [embeddedChatSeedPromptKey, setEmbeddedChatSeedPromptKey] = useState<string | null>(null);
   const [embeddedAutoGraphQueryEnabled, setEmbeddedAutoGraphQueryEnabled] = useState(true);
@@ -255,6 +256,10 @@ export function KnowledgeLibraryView({
         ? selectedOntologyDocument.nodes.find((node) => node.id === graphPathTargetNodeId) || null
         : null,
     [graphPathTargetNodeId, selectedOntologyDocument],
+  );
+  const selectedGraphEdgeDetail = useMemo(
+    () => (selectedOntologyDocument ? getOntologyEdgeDetail(selectedOntologyDocument, selectedGraphEdgeId) : null),
+    [selectedGraphEdgeId, selectedOntologyDocument],
   );
 
   useEffect(() => {
@@ -474,6 +479,7 @@ export function KnowledgeLibraryView({
     setSelectedGraphNode(null);
     setGraphPathTargetNodeId(null);
     setGraphPathResult(null);
+    setSelectedGraphEdgeId(null);
     setGraphifyQuerySaveBusy(null);
     setGraphifyQuerySaveMessage(null);
   }, [selectedOntologyDocument?.id]);
@@ -656,6 +662,7 @@ export function KnowledgeLibraryView({
     if (!result) {
       setGraphPathResult('当前两个节点之间没有找到路径。');
       setGraphifyQuerySaveMessage(null);
+      setSelectedGraphEdgeId(null);
       return;
     }
     const text = result.nodes
@@ -668,6 +675,7 @@ export function KnowledgeLibraryView({
       })
       .join('');
     setGraphPathResult(text);
+    setSelectedGraphEdgeId(result.edges[0]?.id || null);
     setGraphifyQuerySaveMessage(null);
   };
 
@@ -1462,6 +1470,58 @@ export function KnowledgeLibraryView({
                                 <pre className="mt-3 max-h-[180px] overflow-auto rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 text-[11px] leading-6 text-[#334155] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#CBD5E1]">
                                   {graphPathResult}
                                 </pre>
+                              ) : null}
+                              {selectedGraphNode && graphPathTargetNode && selectedOntologyDocument ? (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {findOntologyShortestPath(selectedOntologyDocument, selectedGraphNode.id, graphPathTargetNode.id)?.edges.map((edge) => (
+                                    <button
+                                      key={edge.id}
+                                      type="button"
+                                      onClick={() => setSelectedGraphEdgeId(edge.id)}
+                                      className={cn(
+                                        'rounded-full border px-3 py-1 text-[11px] transition',
+                                        selectedGraphEdgeId === edge.id
+                                          ? 'border-[rgba(212,165,116,0.48)] bg-[rgba(212,165,116,0.14)] text-[#1E293B] dark:text-[#E8E8E3]'
+                                          : 'border-[rgba(0,0,0,0.08)] bg-white text-[#1E293B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#E8E8E3]',
+                                      )}
+                                    >
+                                      {edge.relation_type}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {selectedGraphEdgeDetail ? (
+                                <div className="mt-3 rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">
+                                  <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">边详情</div>
+                                  <div className="mt-2 text-[11px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                                    {selectedGraphEdgeDetail.sourceNode?.label || selectedGraphEdgeDetail.edge.from_node_id}
+                                    {' -> '}
+                                    {selectedGraphEdgeDetail.targetNode?.label || selectedGraphEdgeDetail.edge.to_node_id}
+                                    {' · '}
+                                    {selectedGraphEdgeDetail.edge.relation_type}
+                                  </div>
+                                  {selectedGraphEdgeDetail.edge.evidence_links.length > 0 ? (
+                                    <div className="mt-2 space-y-2">
+                                      {selectedGraphEdgeDetail.edge.evidence_links.slice(0, 6).map((link, index) => (
+                                        <div key={`${link.raw_id}:${link.chunk_id || 'none'}:${index}`} className="text-[11px] leading-6 text-[#475569] dark:text-[#CBD5E1]">
+                                          <div>{link.excerpt || '无摘要证据'}</div>
+                                          <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                            {link.raw_id}
+                                            {link.chunk_id ? ` · ${link.chunk_id}` : ''}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                  {(selectedGraphEdgeDetail.edge.metadata?.source_file || selectedGraphEdgeDetail.edge.metadata?.source_location) ? (
+                                    <div className="mt-2 text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                      {String(selectedGraphEdgeDetail.edge.metadata?.source_file || 'unknown')}
+                                      {selectedGraphEdgeDetail.edge.metadata?.source_location
+                                        ? ` · ${String(selectedGraphEdgeDetail.edge.metadata.source_location)}`
+                                        : ''}
+                                    </div>
+                                  ) : null}
+                                </div>
                               ) : null}
                               {graphPathResult && selectedGraphNodeDetail?.neighbors.length ? (
                                 <div className="mt-3 rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]">

@@ -18,6 +18,12 @@ export interface OntologyShortestPathResult {
   edges: OntologyEdge[];
 }
 
+export interface OntologyEdgeDetail {
+  edge: OntologyEdge;
+  sourceNode: OntologyNode | null;
+  targetNode: OntologyNode | null;
+}
+
 function uniqueById<T extends { id: string }>(items: T[]): T[] {
   const seen = new Set<string>();
   const result: T[] = [];
@@ -71,6 +77,24 @@ export function getOntologyNodeDetail(document: OntologyDocument, nodeId: string
       ({ id: _id, ...rest }) => rest,
     ),
     degree: neighbors.length,
+  };
+}
+
+export function getOntologyEdgeDetail(
+  document: OntologyDocument,
+  edgeId: string | null | undefined,
+): OntologyEdgeDetail | null {
+  if (!edgeId) {
+    return null;
+  }
+  const edge = document.edges.find((item) => item.id === edgeId) || null;
+  if (!edge) {
+    return null;
+  }
+  return {
+    edge,
+    sourceNode: getOntologyNodeById(document, edge.from_node_id),
+    targetNode: getOntologyNodeById(document, edge.to_node_id),
   };
 }
 
