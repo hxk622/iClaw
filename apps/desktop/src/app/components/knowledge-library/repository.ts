@@ -4,14 +4,14 @@ import {
   getRawMaterialById,
   listRawMaterials,
   upsertRawMaterial,
-} from './raw-storage';
-import type { CreateRawMaterialInput, RawMaterial } from './types';
-import { compileRawToOntology } from './ontology-pipeline';
-import { getOntologyDocumentById, listOntologyDocuments, upsertOntologyDocument } from './ontology-storage';
-import type { OntologyDocument } from './ontology-types';
-import { buildOutputArtifactsFromOntologyDocuments } from './output-pipeline';
-import { getOutputArtifactByDedupeKey, getOutputArtifactById, listOutputArtifacts, upsertOutputArtifact } from './output-storage';
-import type { CreateOutputArtifactInput, OutputArtifact } from './output-types';
+} from './raw-storage.ts';
+import type { CreateRawMaterialInput, RawMaterial } from './types.ts';
+import { compileRawToOntology } from './ontology-pipeline.ts';
+import { getOntologyDocumentById, listOntologyDocuments, upsertOntologyDocument } from './ontology-storage.ts';
+import type { OntologyDocument } from './ontology-types.ts';
+import { buildOutputArtifactsFromOntologyDocuments } from './output-pipeline.ts';
+import { getOutputArtifactByDedupeKey, getOutputArtifactById, listOutputArtifacts, upsertOutputArtifact } from './output-storage.ts';
+import type { CreateOutputArtifactInput, OutputArtifact } from './output-types.ts';
 
 export interface KnowledgeLibraryRepository {
   listRawMaterials(input?: {

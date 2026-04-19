@@ -119,6 +119,7 @@ import {
   readChatTurns,
   setChatTurnFinanceCompliance,
   startChatTurn,
+  type ChatTurnArtifact,
   useChatTurns,
 } from '../lib/chat-turns';
 import {
@@ -164,6 +165,8 @@ import {
   type RichChatComposerHandle,
 } from './RichChatComposer';
 import { loadMemorySnapshot, saveMemoryEntry, type MemoryEntryRecord } from '@/app/lib/tauri-memory';
+import { promoteChatTurnToOutputArtifact } from './knowledge-library/chat-output-promotion';
+import type { ChatOutputArtifactRef } from './knowledge-library/chat-output-bridge';
 
 declare global {
   interface Window {
@@ -658,6 +661,15 @@ type ArtifactPreviewState = {
   openPath: string | null;
   actionLabel: string | null;
   actionError: string | null;
+  sourceTurnId: string | null;
+  sourcePromptText: string | null;
+  sourceAnswerText: string | null;
+};
+
+type ArtifactPromotionState = {
+  status: 'idle' | 'saving' | 'saved' | 'error';
+  message: string | null;
+  artifactToken: string | null;
 };
 
 type ChatSessionSnapshot = {
@@ -2755,6 +2767,96 @@ function extractChatGroupText(group: HTMLElement | null): string {
   return textBlocks.join('\n\n').trim();
 }
 
+function normalizeComparableChatText(value: string | null | undefined): string {
+  return String(value || '')
+    .replace(/\[\[(?:引用|图片|PDF|视频|附件):[\s\S]*?\]\]/g, ' ')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractArtifactKindFromPreviewPath(path: string | null | undefined): ChatTurnArtifact | null {
+  const extension = extractArtifactExtension(path ?? null);
+  if (!extension) {
+    return null;
+  }
+  if (extension === 'ppt' || extension === 'pptx' || extension === 'key') {
+    return 'ppt';
+  }
+  if (extension === 'html' || extension === 'htm') {
+    return 'webpage';
+  }
+  if (extension === 'pdf') {
+    return 'pdf';
+  }
+  if (extension === 'xls' || extension === 'xlsx' || extension === 'csv') {
+    return 'sheet';
+  }
+  if (extension === 'md' || extension === 'markdown' || extension === 'txt' || extension === 'doc' || extension === 'docx') {
+    return 'report';
+  }
+  return null;
+}
+
+function findPreviousUserGroup(group: HTMLElement | null): HTMLElement | null {
+  let current = group?.previousElementSibling ?? null;
+  while (current) {
+    if (current instanceof HTMLElement && current.classList.contains('chat-group') && current.classList.contains('user')) {
+      return current;
+    }
+    current = current.previousElementSibling;
+  }
+  return null;
+}
+
+function resolveArtifactSourceTurnFromCard(input: {
+  card: HTMLElement;
+  conversationId: string | null;
+}): {
+  turnId: string | null;
+  promptText: string | null;
+  answerText: string | null;
+} {
+  const assistantGroup = input.card.closest('.chat-group.assistant') as HTMLElement | null;
+  const userGroup = findPreviousUserGroup(assistantGroup);
+  const promptText = normalizeComparableChatText(extractChatGroupText(userGroup)) || null;
+  const answerText = normalizeComparableChatText(extractChatGroupText(assistantGroup)) || null;
+  const artifactKind = extractArtifactKindFromPreviewPath(extractArtifactPathFromCard(input.card));
+  const turns = readChatTurns()
+    .filter((turn) => turn.source === 'chat')
+    .filter((turn) => (input.conversationId ? turn.conversationId === input.conversationId : true))
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+
+  const exactPromptMatch =
+    promptText &&
+    turns.find((turn) => normalizeComparableChatText(turn.prompt) === promptText);
+  if (exactPromptMatch) {
+    return {
+      turnId: exactPromptMatch.id,
+      promptText,
+      answerText,
+    };
+  }
+
+  const artifactMatch =
+    artifactKind &&
+    turns.find((turn) => turn.status === 'completed' && Array.isArray(turn.artifacts) && turn.artifacts.includes(artifactKind));
+  if (artifactMatch) {
+    return {
+      turnId: artifactMatch.id,
+      promptText: promptText || artifactMatch.prompt,
+      answerText,
+    };
+  }
+
+  const latestCompleted = turns.find((turn) => turn.status === 'completed') ?? turns[0] ?? null;
+  return {
+    turnId: latestCompleted?.id || null,
+    promptText: promptText || latestCompleted?.prompt || null,
+    answerText,
+  };
+}
+
 function extractMessageText(message: unknown): string {
   const normalized = normalizeMessage(message);
   return normalized.content
@@ -4686,6 +4788,11 @@ export function OpenClawChatSurface({
   const [pendingSettlementCount, setPendingSettlementCount] = useState(0);
   const [queuedMessages, setQueuedMessages] = useState<QueuedComposerMessage[]>([]);
   const [artifactPreview, setArtifactPreview] = useState<ArtifactPreviewState | null>(null);
+  const [artifactPromotionState, setArtifactPromotionState] = useState<ArtifactPromotionState>({
+    status: 'idle',
+    message: null,
+    artifactToken: null,
+  });
   const [hasArtifactWorkbench, setHasArtifactWorkbench] = useState(false);
   const [creditEstimate, setCreditEstimate] = useState<ComposerCreditEstimateState>({
     loading: false,
@@ -4924,6 +5031,11 @@ export function OpenClawChatSurface({
   const closeArtifactPreview = useCallback(() => {
     artifactPreviewRequestSeqRef.current += 1;
     setArtifactPreview(null);
+    setArtifactPromotionState({
+      status: 'idle',
+      message: null,
+      artifactToken: null,
+    });
   }, []);
 
   const handleOpenArtifactSourceFile = useCallback(async (path: string | null) => {
@@ -4996,8 +5108,18 @@ export function OpenClawChatSurface({
       const previewPath = path ?? 'artifact';
       const previewKind = resolveArtifactPreviewKind(path);
       const title = buildArtifactPreviewTitle(previewPath);
+      const sourceTurn = resolveArtifactSourceTurnFromCard({
+        card,
+        conversationId,
+      });
+      const artifactToken = [sourceTurn.turnId || 'unknown', previewPath].join('::');
       const requestSeq = artifactPreviewRequestSeqRef.current + 1;
       artifactPreviewRequestSeqRef.current = requestSeq;
+      setArtifactPromotionState({
+        status: 'idle',
+        message: null,
+        artifactToken,
+      });
 
       if (!path && inlineContent) {
         setArtifactPreview({
@@ -5011,6 +5133,9 @@ export function OpenClawChatSurface({
           openPath: null,
           actionLabel: null,
           actionError: null,
+          sourceTurnId: sourceTurn.turnId,
+          sourcePromptText: sourceTurn.promptText,
+          sourceAnswerText: sourceTurn.answerText || inlineContent,
         });
         return true;
       }
@@ -5027,6 +5152,9 @@ export function OpenClawChatSurface({
           openPath: null,
           actionLabel: null,
           actionError: null,
+          sourceTurnId: sourceTurn.turnId,
+          sourcePromptText: sourceTurn.promptText,
+          sourceAnswerText: sourceTurn.answerText,
         });
         return false;
       }
@@ -5042,6 +5170,9 @@ export function OpenClawChatSurface({
         openPath: null,
         actionLabel: null,
         actionError: null,
+        sourceTurnId: sourceTurn.turnId,
+        sourcePromptText: sourceTurn.promptText,
+        sourceAnswerText: sourceTurn.answerText,
       });
 
       const workspaceDir = await ensureArtifactPreviewWorkspaceDir();
@@ -5082,6 +5213,9 @@ export function OpenClawChatSurface({
             openPath: null,
             actionLabel: null,
             actionError: null,
+            sourceTurnId: sourceTurn.turnId,
+            sourcePromptText: sourceTurn.promptText,
+            sourceAnswerText: sourceTurn.answerText,
           });
           return false;
         }
@@ -5097,6 +5231,9 @@ export function OpenClawChatSurface({
           openPath: resolvedPdfPath ?? path,
           actionLabel: buildArtifactOpenActionLabel(resolvedPdfPath ?? path),
           actionError: null,
+          sourceTurnId: sourceTurn.turnId,
+          sourcePromptText: sourceTurn.promptText,
+          sourceAnswerText: sourceTurn.answerText,
         });
         return true;
       }
@@ -5134,6 +5271,9 @@ export function OpenClawChatSurface({
             openPath: null,
             actionLabel: null,
             actionError: null,
+            sourceTurnId: sourceTurn.turnId,
+            sourcePromptText: sourceTurn.promptText,
+            sourceAnswerText: sourceTurn.answerText,
           });
           return false;
         }
@@ -5149,6 +5289,9 @@ export function OpenClawChatSurface({
           openPath: resolvedOfficePath,
           actionLabel: buildArtifactOpenActionLabel(resolvedOfficePath),
           actionError: null,
+          sourceTurnId: sourceTurn.turnId,
+          sourcePromptText: sourceTurn.promptText,
+          sourceAnswerText: sourceTurn.answerText,
         });
         return true;
       }
@@ -5183,6 +5326,9 @@ export function OpenClawChatSurface({
           openPath: resolvedUnsupportedPath,
           actionLabel: resolvedUnsupportedPath ? buildArtifactOpenActionLabel(resolvedUnsupportedPath) : null,
           actionError: null,
+          sourceTurnId: sourceTurn.turnId,
+          sourcePromptText: sourceTurn.promptText,
+          sourceAnswerText: sourceTurn.answerText,
         });
         return false;
       }
@@ -5221,6 +5367,9 @@ export function OpenClawChatSurface({
           openPath: null,
           actionLabel: null,
           actionError: null,
+          sourceTurnId: sourceTurn.turnId,
+          sourcePromptText: sourceTurn.promptText,
+          sourceAnswerText: sourceTurn.answerText,
         });
         return false;
       }
@@ -5236,10 +5385,13 @@ export function OpenClawChatSurface({
         openPath: resolvedName ?? path,
         actionLabel: null,
         actionError: null,
+        sourceTurnId: sourceTurn.turnId,
+        sourcePromptText: sourceTurn.promptText,
+        sourceAnswerText: sourceTurn.answerText || resolvedContent,
       });
       return true;
     },
-    [ensureArtifactPreviewWorkspaceDir],
+    [conversationId, ensureArtifactPreviewWorkspaceDir],
   );
 
   useEffect(() => {
@@ -8996,7 +9148,75 @@ export function OpenClawChatSurface({
   const artifactPreviewSizeLabel = formatArtifactFileSize(artifactPreview?.sizeBytes ?? null);
   const artifactPreviewOfficeLabel = resolveArtifactOfficeLabel(artifactPreviewExtension);
   const artifactPreviewOpenVerb = resolveArtifactOpenVerb(artifactPreviewExtension);
+  const activeArtifactPromotionToken = artifactPreview
+    ? [artifactPreview.sourceTurnId || 'unknown', artifactPreview.path || 'artifact'].join('::')
+    : null;
+  const activeArtifactPromotionMessage =
+    activeArtifactPromotionToken && artifactPromotionState.artifactToken === activeArtifactPromotionToken
+      ? artifactPromotionState.message
+      : null;
   const artifactWorkbenchVisible = hasArtifactWorkbench || Boolean(artifactPreview);
+
+  const handlePromoteArtifactToKnowledgeLibrary = useCallback(async () => {
+    if (!artifactPreview) {
+      return;
+    }
+    const artifactToken = [artifactPreview.sourceTurnId || 'unknown', artifactPreview.path || 'artifact'].join('::');
+    setArtifactPromotionState({
+      status: 'saving',
+      message: '正在沉淀到知识库成果...',
+      artifactToken,
+    });
+
+    const turns = readChatTurns()
+      .filter((turn) => turn.source === 'chat')
+      .filter((turn) => (conversationId ? turn.conversationId === conversationId : true))
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+    const turn =
+      (artifactPreview.sourceTurnId
+        ? turns.find((item) => item.id === artifactPreview.sourceTurnId) ?? null
+        : null) ?? turns[0] ?? null;
+
+    if (!turn) {
+      setArtifactPromotionState({
+        status: 'error',
+        message: '没有解析到对应的对话 turn，暂时无法沉淀到知识库。',
+        artifactToken,
+      });
+      return;
+    }
+
+    try {
+      const kind = extractArtifactKindFromPreviewPath(artifactPreview.openPath ?? artifactPreview.path) ?? turn.artifacts[0] ?? 'report';
+      const artifactRef: ChatOutputArtifactRef = {
+        kind,
+        path: artifactPreview.openPath ?? artifactPreview.path,
+        title: artifactPreview.title,
+        previewKind: artifactPreview.kind,
+      };
+      const saved = await promoteChatTurnToOutputArtifact({
+        turn,
+        answer:
+          artifactPreview.sourceAnswerText ||
+          (artifactPreview.kind === 'text' || artifactPreview.kind === 'markdown' ? artifactPreview.content || '' : '') ||
+          turn.summary,
+        artifactRef,
+        financeCompliance: turn.financeCompliance,
+        sourceSurface: 'chat',
+      });
+      setArtifactPromotionState({
+        status: 'saved',
+        message: `已沉淀到知识库成果：${saved.title}`,
+        artifactToken,
+      });
+    } catch (error) {
+      setArtifactPromotionState({
+        status: 'error',
+        message: error instanceof Error ? error.message : '沉淀到知识库失败。',
+        artifactToken,
+      });
+    }
+  }, [artifactPreview, conversationId]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -10029,8 +10249,24 @@ export function OpenClawChatSurface({
                         {artifactPreview.actionError ? (
                           <div className="iclaw-artifact-preview-pane__action-error">{artifactPreview.actionError}</div>
                         ) : null}
+                        {activeArtifactPromotionMessage ? (
+                          <div className="iclaw-artifact-preview-pane__action-error">{activeArtifactPromotionMessage}</div>
+                        ) : null}
                       </div>
                       <div className="iclaw-artifact-preview-pane__actions">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          leadingIcon={<ScrollText className="h-4 w-4" />}
+                          onClick={() => {
+                            void handlePromoteArtifactToKnowledgeLibrary();
+                          }}
+                          disabled={artifactPromotionState.status === 'saving'}
+                        >
+                          {artifactPromotionState.status === 'saving' && activeArtifactPromotionMessage
+                            ? '沉淀中'
+                            : '沉淀到知识库'}
+                        </Button>
                         {artifactPreview.openPath && artifactPreview.actionLabel ? (
                           <Button
                             size="sm"

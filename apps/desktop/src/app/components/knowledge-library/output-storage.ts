@@ -1,6 +1,6 @@
-import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
-import { buildStorageKey } from '@/app/lib/storage';
-import type { CreateOutputArtifactInput, OutputArtifact } from './output-types';
+import { readCacheJson, writeCacheJson } from '../../lib/persistence/cache-store.ts';
+import { buildStorageKey } from '../../lib/storage.ts';
+import type { CreateOutputArtifactInput, OutputArtifact } from './output-types.ts';
 
 const OUTPUT_STORAGE_KEY = buildStorageKey('knowledge-library.output.v1');
 
