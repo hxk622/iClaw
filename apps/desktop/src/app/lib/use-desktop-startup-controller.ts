@@ -331,6 +331,33 @@ export function useDesktopStartupController(
       setRuntimeChecking(true);
       setRuntimeInstallError(null);
       try {
+        try {
+          await healthCheck();
+          if (cancelled) {
+            return;
+          }
+          setRuntimeReady(true);
+          logStartupEvent('runtime_check_fast_path_healthy');
+          void diagnoseRuntime()
+            .then((diagnosis) => {
+              if (cancelled) {
+                return;
+              }
+              applyRuntimeDiagnosis(diagnosis);
+              logStartupEvent('runtime_check_fast_path_diagnosis_refreshed', {
+                runtimeFound: diagnosis?.runtime_found ?? false,
+                skillsReady: diagnosis?.skills_dir_ready ?? false,
+                mcpReady: diagnosis?.mcp_config_ready ?? false,
+              });
+            })
+            .catch((error) => {
+              console.warn('[desktop] background runtime diagnosis refresh failed', error);
+            });
+          return;
+        } catch {
+          // Fall through to the slower runtime diagnosis/install path.
+        }
+
         const diagnosis = await diagnoseRuntime();
         const ready = applyRuntimeDiagnosis(diagnosis);
         if (ready || !diagnosis?.runtime_installable || diagnosis.runtime_found) {
@@ -445,13 +472,6 @@ export function useDesktopStartupController(
         runtimeChecking,
         runtimeInstalling,
       });
-      if (isTauriRuntime) {
-        try {
-          await ensureOpenClawCliAvailable();
-        } catch (error) {
-          console.warn('[desktop] failed to ensure openclaw cli launcher', error);
-        }
-      }
       const healthyNow = await check({
         blocking: true,
         suppressError: isTauriRuntime,
@@ -465,6 +485,11 @@ export function useDesktopStartupController(
           sidecarArgs,
           sidecarBootHealthcheckTimeoutMs,
         });
+        try {
+          await ensureOpenClawCliAvailable();
+        } catch (error) {
+          console.warn('[desktop] failed to ensure openclaw cli launcher', error);
+        }
         try {
           await startSidecarWithTimeout(
             startSidecar,
