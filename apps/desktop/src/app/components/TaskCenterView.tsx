@@ -23,10 +23,7 @@ import {
   formatChatTurnRelativeTime,
   useChatTurns,
 } from '@/app/lib/chat-turns';
-import {
-  buildHeuristicFinanceComplianceEnvelope,
-  resolveEffectiveFinanceDisclaimer,
-} from '@/app/lib/finance-compliance';
+import { resolveSurfaceFinanceCompliance } from '@/app/lib/finance-compliance-surface';
 
 type ConversationFilter = 'all' | ChatTurnRecord['status'];
 
@@ -619,18 +616,15 @@ function mapConversationToViewModel(params: {
 }
 
 function resolveConversationFinanceDisclaimer(turn: ChatTurnRecord): string | null {
-  const heuristic = buildHeuristicFinanceComplianceEnvelope({
+  return resolveSurfaceFinanceCompliance({
     appName: 'licaiclaw',
     channel: turn.source === 'cron' ? 'cron' : 'chat',
+    snapshot: turn.financeCompliance,
     title: turn.title,
     prompt: turn.prompt,
     answer: turn.summary,
     usedModel: turn.model || null,
-  });
-  if (!heuristic?.compliance.showDisclaimer) {
-    return resolveEffectiveFinanceDisclaimer({ snapshot: turn.financeCompliance, heuristic: null });
-  }
-  return resolveEffectiveFinanceDisclaimer({ snapshot: turn.financeCompliance, heuristic });
+  }).disclaimerText;
 }
 
 function buildStatusMessage(turn: ChatTurnRecord, resultTypes: string[]): string {

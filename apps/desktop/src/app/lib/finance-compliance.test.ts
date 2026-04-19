@@ -15,6 +15,7 @@ import {
   type FinanceCapabilityPolicy,
   type FinanceOemCompliancePolicy,
 } from './finance-compliance.ts';
+import { resolveFinanceSummaryPresentation, resolveSurfaceFinanceCompliance } from './finance-compliance-surface.ts';
 
 const baseCapabilityPolicy: FinanceCapabilityPolicy = {
   domain: 'finance',
@@ -248,4 +249,50 @@ test('resolveDisplayFinanceComplianceSnapshot falls back to heuristic when no sn
 
   assert.equal(result?.domain, 'finance');
   assert.equal(result?.outputClassification, 'actionable_advice');
+});
+
+test('resolveSurfaceFinanceCompliance returns explicit disclaimer when snapshot exists', () => {
+  const result = resolveSurfaceFinanceCompliance({
+    snapshot: {
+      domain: 'finance',
+      inputClassification: 'research_request',
+      outputClassification: 'investment_view',
+      riskLevel: 'medium',
+      showDisclaimer: true,
+      disclaimerText: '显式 disclaimer',
+      requiresRiskSection: false,
+      blocked: false,
+      degraded: false,
+      reasons: ['explicit'],
+      usedCapabilities: [],
+      usedModel: null,
+      sourceAttributionRequired: false,
+      timestampRequired: false,
+    },
+    appName: 'licaiclaw',
+    channel: 'chat',
+    title: '标题',
+    prompt: '提示',
+    answer: '建议关注高股息方向',
+    usedModel: null,
+  });
+
+  assert.equal(result.disclaimerText, '显式 disclaimer');
+  assert.equal(result.financeCompliance?.outputClassification, 'investment_view');
+});
+
+test('resolveFinanceSummaryPresentation softens actionable cron summaries', () => {
+  const result = resolveFinanceSummaryPresentation({
+    snapshot: null,
+    appName: 'licaiclaw',
+    channel: 'cron',
+    title: '晨报',
+    prompt: '请生成晨报',
+    answer: '建议买入并控制仓位。',
+    usedModel: null,
+  });
+
+  assert.ok(result.financeCompliance);
+  assert.equal(result.financeCompliance?.outputClassification, 'actionable_advice');
+  assert.match(result.displayText, /关注|风险暴露|可进一步研究/);
 });

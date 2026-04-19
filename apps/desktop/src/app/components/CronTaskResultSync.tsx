@@ -8,12 +8,10 @@ import {
   upsertCronTaskTurn,
 } from '@/app/lib/chat-turns';
 import {
-  buildHeuristicFinanceComplianceEnvelope,
-  resolveDisplayFinanceComplianceSnapshot,
   softenFinanceSummaryForChannel,
-  toFinanceOemCompliancePolicy,
 } from '@/app/lib/finance-compliance';
 import { recordFinanceComplianceEvents } from '@/app/lib/finance-compliance-events';
+import { resolveFinanceSummaryPresentation } from '@/app/lib/finance-compliance-surface';
 import type { ResolvedFinanceComplianceConfig } from '@/app/lib/oem-runtime';
 import { pushAppNotification } from '@/app/lib/task-notifications';
 import {
@@ -207,7 +205,7 @@ export function CronTaskResultSync({
           const turn = persistedCronTurnsByJobIdRef.current[jobId] ?? null;
           const summary = resolveRunSummary(job, turn);
           const status = resolveTurnStatus(job, turn);
-          const financeCompliance = resolveDisplayFinanceComplianceSnapshot({
+          const { financeCompliance, displayText: displaySummary } = resolveFinanceSummaryPresentation({
             snapshot: turn?.financeCompliance ?? null,
             appName: 'licaiclaw',
             channel: 'cron',
@@ -215,12 +213,7 @@ export function CronTaskResultSync({
             prompt: job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text,
             answer: summary,
             usedModel: turn?.model ?? null,
-            oemPolicy: toFinanceOemCompliancePolicy(financeComplianceConfig || null),
-          });
-          const displaySummary = softenFinanceSummaryForChannel({
-            text: summary,
-            channel: 'cron',
-            compliance: financeCompliance,
+            financeComplianceConfig,
           });
 
           upsertCronTaskTurn({
