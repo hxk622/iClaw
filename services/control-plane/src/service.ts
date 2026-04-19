@@ -5280,6 +5280,40 @@ export class ControlPlaneService {
     if (!task) {
       throw new HttpError(404, 'NOT_FOUND', 'sync task not found');
     }
+    if (config.dataSyncServiceBaseUrl) {
+      const response = await fetch(`${config.dataSyncServiceBaseUrl.replace(/\/+$/, '')}/internal/sync-tasks/run`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(config.dataSyncServiceInternalToken
+            ? {
+                'x-iclaw-internal-token': config.dataSyncServiceInternalToken,
+              }
+            : {}),
+        },
+        body: JSON.stringify({
+          task_id: task.id,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        success?: boolean;
+        data?: Record<string, unknown>;
+        error?: { code?: string; message?: string };
+      };
+      if (!response.ok || payload.success === false || !payload.data) {
+        throw new HttpError(
+          502,
+          'UPSTREAM_ERROR',
+          payload.error?.message || 'data-sync-service trigger failed',
+        );
+      }
+      return {
+        run_id: String(payload.data.run_id || ''),
+        task_id: task.id,
+        trigger_type: 'manual',
+        status: (String(payload.data.status || 'running') || 'running') as AdminSyncTaskRunTriggerView['status'],
+      };
+    }
     const result = await executeRegisteredSyncTask(task, 'manual');
     return {
       run_id: result.runId,

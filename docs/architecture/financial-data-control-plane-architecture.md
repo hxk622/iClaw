@@ -58,6 +58,7 @@ Desktop / Web / admin-web
 - `control-plane` 内嵌 scheduler 已进入废弃路径
 - 自动 cron / warmup 的角色应由 `data-sync-service` 独自承担
 - `control-plane` 保留 admin 查询和手工触发接口
+- `control-plane` 的手工触发应优先代理到 `data-sync-service` 的内部 API，再由后者执行 runner
 
 ## 4. 五层模型
 

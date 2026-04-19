@@ -158,6 +158,8 @@ export const config = {
   port,
   listenHost,
   databaseUrl: process.env.DATABASE_URL || '',
+  dataSyncServiceBaseUrl: (process.env.DATA_SYNC_SERVICE_BASE_URL || '').trim(),
+  dataSyncServiceInternalToken: (process.env.DATA_SYNC_SERVICE_INTERNAL_TOKEN || '').trim(),
   appName: brandDefaults.appName,
   s3Endpoint: process.env.S3_ENDPOINT || 'http://127.0.0.1:9000',
   s3Region: process.env.S3_REGION || 'us-east-1',

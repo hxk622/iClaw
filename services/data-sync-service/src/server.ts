@@ -26,6 +26,7 @@ const listenHost = (process.env.DATA_SYNC_SERVICE_HOST || DEFAULT_HOST).trim() |
 const schedulerEnabled = !['0', 'false', 'off', 'no'].includes(
   (process.env.DATA_SYNC_SERVICE_ENABLE_SCHEDULER || 'true').trim().toLowerCase(),
 );
+const internalToken = (process.env.DATA_SYNC_SERVICE_INTERNAL_TOKEN || '').trim();
 
 function sendJson(res: ServerResponse, statusCode: number, payload: Record<string, unknown>) {
   res.statusCode = statusCode;
@@ -67,6 +68,19 @@ async function bootstrap() {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${listenHost}:${port}`);
 
+  if (url.pathname.startsWith('/internal/') && internalToken) {
+    const headerToken = String(req.headers['x-iclaw-internal-token'] || '').trim();
+    if (!headerToken || headerToken !== internalToken) {
+      return sendJson(res, 401, {
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'internal token is invalid',
+        },
+      });
+    }
+  }
+
   if (req.method === 'GET' && url.pathname === '/health') {
     return sendJson(res, 200, {
       success: true,
@@ -74,6 +88,7 @@ const server = createServer(async (req, res) => {
         status: 'ok',
         service: 'data-sync-service',
         scheduler_enabled: schedulerEnabled,
+        internal_auth_enabled: Boolean(internalToken),
         database_configured: Boolean(controlPlaneConfig.databaseUrl),
         tasks: MARKET_SYNC_TASKS.map((task) => ({
           id: task.id,
