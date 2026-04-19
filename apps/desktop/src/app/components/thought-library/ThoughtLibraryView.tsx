@@ -22,6 +22,7 @@ import { createLocalKnowledgeLibraryRepository } from './repository';
 import { useCreateRawMaterial, useOntologyDocumentDetail, useOntologyDocuments, useRawMaterialDetail, useRawMaterials } from './hooks';
 import { mapRawMaterialToThoughtLibraryItem } from './raw-mappers';
 import { mapOntologyDocumentToThoughtLibraryItem } from './ontology-mappers';
+import { GraphifyOntologyGraphView } from './GraphifyOntologyGraphView';
 import {
   importBrowserCaptureBatch,
   importBrowserCapturePayload,
@@ -497,57 +498,13 @@ export function ThoughtLibraryView({
                       </div>
                     ) : null}
                     {activeTab === 'graph' && graphViewMode === 'graph' ? (
-                      <div className="relative h-[360px] overflow-hidden rounded-[16px] border border-[var(--border-primary)] bg-[radial-gradient(circle_at_top,rgba(180,154,112,0.10),transparent_46%),var(--bg-page)]">
-                        <div className="absolute left-1/2 top-[20%] -translate-x-1/2 rounded-full border border-[rgba(180,154,112,0.35)] bg-[rgba(180,154,112,0.12)] px-4 py-2 text-[12px] text-[var(--text-primary)]">
-                          {effectiveSelectedItem.title}
+                      effectiveSelectedItem.ontologyGraphView ? (
+                        <GraphifyOntologyGraphView graph={effectiveSelectedItem.ontologyGraphView} />
+                      ) : (
+                        <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
+                          当前本体图谱还没有可渲染的节点与关系。
                         </div>
-                        {(effectiveSelectedItem.ontologyGraphView?.nodes || []).slice(0, 5).map((node, index) => {
-                          const positions = [
-                            { left: '18%', top: '52%' },
-                            { right: '18%', top: '46%' },
-                            { left: '50%', bottom: '16%', transform: 'translateX(-50%)' },
-                            { left: '10%', top: '24%' },
-                            { right: '10%', bottom: '18%' },
-                          ];
-                          const pos = positions[index] || positions[0];
-                          return (
-                            <div
-                              key={node.id}
-                              className="absolute rounded-full px-3 py-1.5 text-[11px] shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
-                              style={{
-                                ...pos,
-                                backgroundColor: node.color,
-                                color: '#111827',
-                                transform: pos.transform,
-                              }}
-                            >
-                              {node.label}
-                            </div>
-                          );
-                        })}
-                        <svg className="absolute inset-0 h-full w-full">
-                          {(effectiveSelectedItem.ontologyGraphView?.edges || []).slice(0, 4).map((edge, index) => {
-                            const lines = [
-                              { x1: '50%', y1: '24%', x2: '22%', y2: '52%' },
-                              { x1: '50%', y1: '24%', x2: '78%', y2: '46%' },
-                              { x1: '50%', y1: '24%', x2: '50%', y2: '74%' },
-                              { x1: '50%', y1: '24%', x2: '12%', y2: '24%' },
-                            ];
-                            const line = lines[index] || lines[0];
-                            return (
-                              <line
-                                key={edge.id}
-                                x1={line.x1}
-                                y1={line.y1}
-                                x2={line.x2}
-                                y2={line.y2}
-                                stroke="rgba(180,154,112,0.35)"
-                                strokeWidth={Math.max(1, edge.width)}
-                              />
-                            );
-                          })}
-                        </svg>
-                      </div>
+                      )
                     ) : activeTab === 'materials' ? (
                       <div className="space-y-3">
                         <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
