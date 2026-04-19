@@ -68,7 +68,8 @@
     "dev:desktop": "node scripts/apply-brand.mjs && node scripts/run-with-env.mjs dev pnpm --filter @iclaw/desktop dev --host 0.0.0.0 --port 1520 --strictPort",
     "build:desktop": "node scripts/run-with-env.mjs prod pnpm --filter @iclaw/desktop build",
     "tauri:dev": "node scripts/apply-brand.mjs && node scripts/run-with-env.mjs dev pnpm --filter @iclaw/desktop tauri:dev",
-    "tauri:build": "node scripts/run-with-env.mjs dev node scripts/build-desktop-package.mjs"
+    "tauri:build": "node scripts/run-with-env.mjs dev node scripts/build-desktop-package.mjs",
+    "smoke:knowledge-bridge": "node scripts/knowledge-library-bridge-import-smoke.mjs"
   },
   "devDependencies": {
     "semver": "6.3.1"
