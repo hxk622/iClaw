@@ -1,6 +1,6 @@
 import { FileText, Presentation, Sparkles, StickyNote } from 'lucide-react';
 import type { KnowledgeLibraryItem } from './model';
-import type { OutputArtifact } from './output-types';
+import { parseOutputArtifactLineage, parseOutputArtifactSourceSurface, type OutputArtifact } from './output-types';
 
 function formatRelativeTime(timestamp: string): string {
   const parsed = Date.parse(timestamp);
@@ -43,12 +43,22 @@ function subtitle(type: OutputArtifact['type']) {
 }
 
 export function mapOutputArtifactToKnowledgeLibraryItem(artifact: OutputArtifact): KnowledgeLibraryItem {
+  const lineage = parseOutputArtifactLineage(artifact.metadata || null);
+  const sourceSurface = parseOutputArtifactSourceSurface(artifact.metadata || null);
   return {
     id: artifact.id,
     title: artifact.title,
     subtitle: subtitle(artifact.type),
     summary: artifact.summary,
-    tags: [artifact.type, artifact.status, ...(artifact.publish_targets || [])].filter(Boolean).slice(0, 4),
+    tags: [
+      artifact.type,
+      artifact.status,
+      sourceSurface ? `from:${sourceSurface}` : null,
+      lineage?.source ? `lineage:${lineage.source}` : null,
+      ...(artifact.publish_targets || []),
+    ]
+      .filter(Boolean)
+      .slice(0, 4) as string[],
     icon: resolveIcon(artifact.type),
     meta: `${formatRelativeTime(artifact.updated_at)}生成`,
     bodyText: artifact.content,

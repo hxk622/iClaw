@@ -7,6 +7,8 @@ import {
   createWorkspaceTabRecord,
   readPersistedWorkspaceTabsSnapshot,
   reorderWorkspaceTabs,
+  setWorkspaceTabPinned,
+  sortWorkspaceTabsByPinned,
   writePersistedWorkspaceTabsSnapshot,
 } from './workspace-tabs.ts';
 import { readCacheJson } from './persistence/cache-store.ts';
@@ -179,4 +181,227 @@ test('reorderWorkspaceTabs returns original array when source or target is missi
   const tabs = [tab];
   assert.equal(reorderWorkspaceTabs(tabs, 'missing', 'tab-a'), tabs);
   assert.equal(reorderWorkspaceTabs(tabs, 'tab-a', 'missing'), tabs);
+});
+
+test('reorderWorkspaceTabs blocks dragging across pinned boundary', () => {
+  const pinnedTab = createWorkspaceTabRecord({
+    id: 'tab-a',
+    title: 'Pinned',
+    pinned: true,
+    route: {
+      conversationId: 'conv-a',
+      sessionKey: 'agent:main:a',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const freeTab = createWorkspaceTabRecord({
+    id: 'tab-b',
+    title: 'Free',
+    route: {
+      conversationId: 'conv-b',
+      sessionKey: 'agent:main:b',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const tabs = [pinnedTab, freeTab];
+
+  assert.equal(reorderWorkspaceTabs(tabs, 'tab-b', 'tab-a'), tabs);
+});
+
+test('setWorkspaceTabPinned moves pinned tabs into the left pinned section', () => {
+  const tabA = createWorkspaceTabRecord({
+    id: 'tab-a',
+    title: 'A',
+    route: {
+      conversationId: 'conv-a',
+      sessionKey: 'agent:main:a',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const tabB = createWorkspaceTabRecord({
+    id: 'tab-b',
+    title: 'B',
+    route: {
+      conversationId: 'conv-b',
+      sessionKey: 'agent:main:b',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const tabC = createWorkspaceTabRecord({
+    id: 'tab-c',
+    title: 'C',
+    pinned: true,
+    route: {
+      conversationId: 'conv-c',
+      sessionKey: 'agent:main:c',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+
+  const tabs = [tabA, tabB, tabC];
+  const next = setWorkspaceTabPinned(tabs, 'tab-b', true);
+
+  assert.deepEqual(
+    next.map((tab) => [tab.id, tab.pinned]),
+    [
+      ['tab-c', true],
+      ['tab-b', true],
+      ['tab-a', false],
+    ],
+  );
+});
+
+test('setWorkspaceTabPinned moves unpinned tabs back into the normal section', () => {
+  const tabA = createWorkspaceTabRecord({
+    id: 'tab-a',
+    title: 'A',
+    pinned: true,
+    route: {
+      conversationId: 'conv-a',
+      sessionKey: 'agent:main:a',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const tabB = createWorkspaceTabRecord({
+    id: 'tab-b',
+    title: 'B',
+    pinned: true,
+    route: {
+      conversationId: 'conv-b',
+      sessionKey: 'agent:main:b',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const tabC = createWorkspaceTabRecord({
+    id: 'tab-c',
+    title: 'C',
+    route: {
+      conversationId: 'conv-c',
+      sessionKey: 'agent:main:c',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+
+  const tabs = [tabA, tabB, tabC];
+  const next = setWorkspaceTabPinned(tabs, 'tab-a', false);
+
+  assert.deepEqual(
+    next.map((tab) => [tab.id, tab.pinned]),
+    [
+      ['tab-b', true],
+      ['tab-a', false],
+      ['tab-c', false],
+    ],
+  );
+});
+
+test('sortWorkspaceTabsByPinned keeps pinned tabs before normal tabs', () => {
+  const tabA = createWorkspaceTabRecord({
+    id: 'tab-a',
+    title: 'A',
+    route: {
+      conversationId: 'conv-a',
+      sessionKey: 'agent:main:a',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const tabB = createWorkspaceTabRecord({
+    id: 'tab-b',
+    title: 'B',
+    pinned: true,
+    route: {
+      conversationId: 'conv-b',
+      sessionKey: 'agent:main:b',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+  const tabC = createWorkspaceTabRecord({
+    id: 'tab-c',
+    title: 'C',
+    route: {
+      conversationId: 'conv-c',
+      sessionKey: 'agent:main:c',
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    },
+  });
+
+  const next = sortWorkspaceTabsByPinned([tabA, tabB, tabC]);
+  assert.deepEqual(next.map((tab) => tab.id), ['tab-b', 'tab-a', 'tab-c']);
 });

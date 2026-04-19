@@ -43,6 +43,7 @@ type WorkspaceTabsBarProps = {
   onNew: () => void;
   onRename: (tabId: string, title: string) => void;
   onColorChange: (tabId: string, color: WorkspaceTabRecord['color']) => void;
+  onSetPinned: (tabId: string, pinned: boolean) => void;
   onCloseOthers: (tabId: string) => void;
   onCloseToRight: (tabId: string) => void;
   onReorder: (fromTabId: string, toTabId: string) => void;
@@ -142,6 +143,8 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
         const renaming = renamingTabId === tab.id;
         const tabIndex = props.tabs.findIndex((item) => item.id === tab.id);
         const hasTabsToRight = tabIndex >= 0 && tabIndex < props.tabs.length - 1;
+        const nextTab = tabIndex >= 0 ? props.tabs[tabIndex + 1] : undefined;
+        const boundaryAfterPinned = tab.pinned && nextTab && !nextTab.pinned;
         const showDraft = runtime.hasUnsavedDraft && !runtime.busy;
         const showRecovering = runtime.recovering && !runtime.busy;
         return (
@@ -175,6 +178,7 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
               transform: isActive ? 'scale(1.03)' : 'scale(1)',
               filter: isActive ? 'brightness(1.06) saturate(1.03)' : 'none',
               zIndex: isActive || menuOpen ? 2 : 1,
+              marginRight: boundaryAfterPinned ? 10 : undefined,
             }}
             draggable={!renaming}
             onClick={() => {
@@ -326,6 +330,18 @@ export function WorkspaceTabsBar(props: WorkspaceTabsBarProps) {
                       onClick={() => handleStartRename(tab.id, tab.title)}
                     >
                       重命名
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="workspace-tab-menu-pin"
+                      data-workspace-tab-id={tab.id}
+                      className="flex w-full items-center rounded-[10px] px-3 py-2 text-left text-[12px] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+                      onClick={() => {
+                        props.onSetPinned(tab.id, !tab.pinned);
+                        setMenuTabId(null);
+                      }}
+                    >
+                      {tab.pinned ? '取消固定' : '固定到左侧'}
                     </button>
                     <div className="my-1 h-px bg-[var(--border-default)]" />
                     <div className="px-3 pb-1 pt-1.5 text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">颜色</div>

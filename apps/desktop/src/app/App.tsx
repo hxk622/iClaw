@@ -47,6 +47,15 @@ import {
   resolveExtensionGrantRequest,
   type ExtensionGrantRequestPayload,
 } from './lib/tauri-extension-bridge';
+import { createLocalKnowledgeLibraryRepository } from './components/knowledge-library/repository';
+import {
+  importBrowserCaptureBatch,
+  importBrowserCapturePayload,
+  KNOWLEDGE_LIBRARY_IMPORT_EVENT,
+  type BrowserCaptureBatchPayload,
+  type BrowserCapturePayload,
+} from './components/knowledge-library/browser-capture';
+import { listen } from '@tauri-apps/api/event';
 import { useDesktopStartupController } from './lib/use-desktop-startup-controller';
 import {
   ensureDesktopRuntimeReadyForChatRecovery,
@@ -179,6 +188,8 @@ import {
   MAX_WORKSPACE_TABS,
   readPersistedWorkspaceTabsSnapshot,
   reorderWorkspaceTabs,
+  setWorkspaceTabPinned,
+  sortWorkspaceTabsByPinned,
   writePersistedWorkspaceTabsSnapshot,
   type WorkspaceTabRecord,
   type WorkspaceTabRuntimeStatus,
@@ -1160,6 +1171,7 @@ export default function App() {
   const [installerFaultReportOpen, setInstallerFaultReportOpen] = useState(false);
   const [globalException, setGlobalException] = useState<GlobalExceptionState | null>(null);
   const [extensionGrantRequest, setExtensionGrantRequest] = useState<ExtensionGrantRequestPayload | null>(null);
+  const knowledgeLibraryRepository = useMemo(() => createLocalKnowledgeLibraryRepository(), []);
   const [transientToasts, setTransientToasts] = useState<AppNotificationRecord[]>([]);
   const lastAutoDiagnosticFingerprintRef = useRef('');
   const launchStartTrackedRef = useRef(false);
@@ -1226,6 +1238,38 @@ export default function App() {
     }
     applyChatPersistenceUserScope(currentUser);
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!IS_TAURI_RUNTIME) {
+      return;
+    }
+    let disposed = false;
+    let cleanup = () => {};
+    void listen<BrowserCapturePayload | BrowserCaptureBatchPayload>('knowledge-library-raw-import', (event) => {
+      if (disposed) return;
+      const payload = event.payload;
+      const importWork = Array.isArray((payload as BrowserCaptureBatchPayload)?.items)
+        ? importBrowserCaptureBatch(knowledgeLibraryRepository, payload as BrowserCaptureBatchPayload)
+        : importBrowserCapturePayload(knowledgeLibraryRepository, payload as BrowserCapturePayload);
+      void Promise.resolve(importWork).then((result) => {
+        window.dispatchEvent(
+          new CustomEvent(KNOWLEDGE_LIBRARY_IMPORT_EVENT, {
+            detail: Array.isArray(result) ? ({ version: 1, items: payload?.items || [] } as BrowserCaptureBatchPayload) : payload,
+          }),
+        );
+      });
+    }).then((unlisten) => {
+      if (disposed) {
+        unlisten();
+        return;
+      }
+      cleanup = unlisten;
+    });
+    return () => {
+      disposed = true;
+      cleanup();
+    };
+  }, [IS_TAURI_RUNTIME, knowledgeLibraryRepository]);
 
   useEffect(() => {
     if (!IS_TAURI_RUNTIME) {
@@ -2952,6 +2996,10 @@ function AuthedView({
       ),
     [chatSurfaceRuntimeState, surfaceCache.state.records, workspaceTabs],
   );
+  const orderedWorkspaceTabs = useMemo(
+    () => sortWorkspaceTabsByPinned(workspaceTabs),
+    [workspaceTabs],
+  );
 
   useEffect(() => {
     if (selectedNotificationId && !selectedNotification) {
@@ -3537,6 +3585,10 @@ function AuthedView({
     );
   }, []);
 
+  const handleSetWorkspaceTabPinned = useCallback((tabId: string, pinned: boolean) => {
+    setWorkspaceTabs((current) => setWorkspaceTabPinned(current, tabId, pinned));
+  }, []);
+
   const handleCloseOtherWorkspaceTabs = useCallback(
     (tabId: string) => {
       const target = workspaceTabsRef.current.find((tab) => tab.id === tabId);
@@ -4081,6 +4133,33 @@ function AuthedView({
     [desktopUpdateNewRunBlockedReason, openWorkspaceTabForRoute, setPrimaryView],
   );
 
+  const handleOpenKnowledgeLibrarySourceTurn = useCallback(
+    (input: {
+      conversationId: string;
+      sessionKey: string;
+      turnId: string;
+      title: string;
+    }) => {
+      openWorkspaceTabForRoute(
+        buildConversationBackedChatRoute({
+          sessionKey: input.sessionKey,
+          conversationId: input.conversationId,
+          kind: 'general',
+          title: input.title,
+          focusedTurnId: input.turnId,
+          focusedTurnKey: `knowledge-output:${input.turnId}`,
+        }),
+        {
+          title: input.title,
+          reuseByConversation: true,
+          reuseBySessionKey: true,
+        },
+      );
+      setPrimaryView('chat');
+    },
+    [openWorkspaceTabForRoute, setPrimaryView],
+  );
+
   const handleStartNewChat = useCallback(() => {
     if (desktopUpdateNewRunBlockedReason) {
       setPrimaryView('chat');
@@ -4341,6 +4420,7 @@ function AuthedView({
           <KnowledgeLibraryView
             title={viewLabel}
             onOpenContextChat={handleOpenKnowledgeLibraryContextConversation}
+            onOpenSourceTurn={handleOpenKnowledgeLibrarySourceTurn}
             gatewayUrl={GATEWAY_WS_URL}
             gatewayToken={gatewayAuth.token}
             gatewayPassword={gatewayAuth.password}
@@ -4684,7 +4764,7 @@ function AuthedView({
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden [contain:layout_paint_style]">
           {resolvedShellSnapshot.resolvedPrimaryView === 'chat' ? (
             <WorkspaceTabsBar
-              tabs={workspaceTabs}
+              tabs={orderedWorkspaceTabs}
               activeTabId={activeWorkspaceTabId}
               runtimeByTabId={workspaceTabRuntimeById}
               onSelect={activateWorkspaceTab}
@@ -4692,6 +4772,7 @@ function AuthedView({
               onNew={handleStartNewChat}
               onRename={handleRenameWorkspaceTab}
               onColorChange={handleChangeWorkspaceTabColor}
+              onSetPinned={handleSetWorkspaceTabPinned}
               onCloseOthers={handleCloseOtherWorkspaceTabs}
               onCloseToRight={handleCloseWorkspaceTabsToRight}
               onReorder={handleReorderWorkspaceTabs}

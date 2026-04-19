@@ -218,10 +218,12 @@ export function readPersistedWorkspaceTabsSnapshot(): WorkspaceTabsSnapshot | nu
     return null;
   }
 
-  const tabs = snapshot.tabs
+  const tabs = sortWorkspaceTabsByPinned(
+    snapshot.tabs
     .map((tab) => normalizeWorkspaceTabRecord(tab))
     .filter((tab): tab is WorkspaceTabRecord => Boolean(tab))
-    .slice(0, MAX_WORKSPACE_TABS);
+    .slice(0, MAX_WORKSPACE_TABS),
+  );
 
   const activeTabId = normalizeOptionalText(snapshot.activeTabId);
   const validActiveTabId = activeTabId && tabs.some((tab) => tab.id === activeTabId) ? activeTabId : tabs[0]?.id || null;
@@ -256,9 +258,46 @@ export function reorderWorkspaceTabs(
   if (fromIndex < 0 || toIndex < 0) {
     return tabs;
   }
+  if (tabs[fromIndex].pinned !== tabs[toIndex].pinned) {
+    return tabs;
+  }
 
   const nextTabs = [...tabs];
   const [movedTab] = nextTabs.splice(fromIndex, 1);
   nextTabs.splice(toIndex, 0, movedTab);
+  return nextTabs;
+}
+
+export function sortWorkspaceTabsByPinned(tabs: WorkspaceTabRecord[]): WorkspaceTabRecord[] {
+  const pinnedTabs = tabs.filter((tab) => tab.pinned);
+  const unpinnedTabs = tabs.filter((tab) => !tab.pinned);
+  return [...pinnedTabs, ...unpinnedTabs];
+}
+
+export function setWorkspaceTabPinned(
+  tabs: WorkspaceTabRecord[],
+  tabId: string,
+  pinned: boolean,
+): WorkspaceTabRecord[] {
+  const nextTabs = sortWorkspaceTabsByPinned([...tabs]);
+  const sourceIndex = nextTabs.findIndex((tab) => tab.id === tabId);
+  if (sourceIndex < 0) {
+    return tabs;
+  }
+
+  const sourceTab = nextTabs[sourceIndex];
+  if (sourceTab.pinned === pinned) {
+    return tabs;
+  }
+
+  const [movedTab] = nextTabs.splice(sourceIndex, 1);
+  const updatedTab: WorkspaceTabRecord = {
+    ...movedTab,
+    pinned,
+    updatedAt: new Date().toISOString(),
+  };
+  const pinnedCount = nextTabs.filter((tab) => tab.pinned).length;
+  const targetIndex = pinned ? pinnedCount : pinnedCount;
+  nextTabs.splice(targetIndex, 0, updatedTab);
   return nextTabs;
 }

@@ -25,6 +25,11 @@ import { mapOntologyDocumentToKnowledgeLibraryItem } from './ontology-mappers';
 import { GraphifyOntologyGraphView } from './GraphifyOntologyGraphView';
 import { mapOutputArtifactToKnowledgeLibraryItem } from './output-mappers';
 import {
+  parseOutputArtifactFinanceCompliance,
+  parseOutputArtifactLineage,
+  parseOutputArtifactSourceSurface,
+} from './output-types';
+import {
   extractChatFeedbackFromContainer,
   saveChatFeedbackAsMemo,
   saveChatFeedbackAsOntologyClaim,
@@ -42,6 +47,7 @@ import {
 export function KnowledgeLibraryView({
   title,
   onOpenContextChat,
+  onOpenSourceTurn,
   gatewayUrl,
   gatewayToken,
   gatewayPassword,
@@ -57,6 +63,12 @@ export function KnowledgeLibraryView({
 }: {
   title: string;
   onOpenContextChat?: (input: { title: string; prompt: string }) => void;
+  onOpenSourceTurn?: (input: {
+    conversationId: string;
+    sessionKey: string;
+    turnId: string;
+    title: string;
+  }) => void;
   gatewayUrl: string;
   gatewayToken?: string;
   gatewayPassword?: string;
@@ -162,6 +174,18 @@ export function KnowledgeLibraryView({
   }, [activeTab, selectedDisplayItem, selectedItem, selectedOutputArtifact]);
   const effectiveSelectedItem =
     activeTab === 'graph' ? selectedOntologyDisplayItem : activeTab === 'artifacts' ? selectedOutputDisplayItem : selectedDisplayItem;
+  const selectedOutputLineage = useMemo(
+    () => parseOutputArtifactLineage(selectedOutputArtifact?.metadata || null),
+    [selectedOutputArtifact],
+  );
+  const selectedOutputSourceSurface = useMemo(
+    () => parseOutputArtifactSourceSurface(selectedOutputArtifact?.metadata || null),
+    [selectedOutputArtifact],
+  );
+  const selectedOutputFinanceCompliance = useMemo(
+    () => parseOutputArtifactFinanceCompliance(selectedOutputArtifact?.metadata || null),
+    [selectedOutputArtifact],
+  );
 
   useEffect(() => {
     if (rawMaterials.length === 0) {
@@ -285,6 +309,21 @@ export function KnowledgeLibraryView({
         tab: activeTab,
         item: effectiveSelectedItem,
       }),
+    });
+  };
+
+  const handleOpenSourceTurn = () => {
+    if (!selectedOutputArtifact || !selectedOutputLineage || !onOpenSourceTurn) {
+      return;
+    }
+    if (!selectedOutputLineage.conversation_id || !selectedOutputLineage.session_key || !selectedOutputLineage.turn_id) {
+      return;
+    }
+    onOpenSourceTurn({
+      conversationId: selectedOutputLineage.conversation_id,
+      sessionKey: selectedOutputLineage.session_key,
+      turnId: selectedOutputLineage.turn_id,
+      title: selectedOutputArtifact.title,
     });
   };
 
@@ -639,6 +678,100 @@ export function KnowledgeLibraryView({
                             </div>
                           </div>
                         </div>
+                        {selectedOutputLineage ? (
+                          <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                            <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">Lineage</div>
+                            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                              <div>
+                                <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源</div>
+                                <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                  {selectedOutputLineage.source}
+                                  {selectedOutputSourceSurface ? ` · ${selectedOutputSourceSurface}` : ''}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源 turn</div>
+                                <div className="mt-1 break-all text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                  {selectedOutputLineage.turn_id || '未记录'}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">来源对话</div>
+                                <div className="mt-1 break-all text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                  {selectedOutputLineage.conversation_id || '未记录'}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">执行产物</div>
+                                <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                  {selectedOutputLineage.artifact_kinds.length > 0
+                                    ? selectedOutputLineage.artifact_kinds.join(' / ')
+                                    : '未记录'}
+                                </div>
+                              </div>
+                            </div>
+                            {selectedOutputLineage.prompt_excerpt ? (
+                              <div className="mt-3 rounded-[12px] border border-[rgba(0,0,0,0.08)] bg-white/70 px-3 py-3 text-[12px] leading-6 text-[#475569] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A] dark:text-[#CBD5E1]">
+                                {selectedOutputLineage.prompt_excerpt}
+                              </div>
+                            ) : null}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={handleOpenSourceTurn}
+                                disabled={
+                                  !selectedOutputLineage.conversation_id ||
+                                  !selectedOutputLineage.session_key ||
+                                  !selectedOutputLineage.turn_id ||
+                                  !onOpenSourceTurn
+                                }
+                              >
+                                回到来源对话
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+                        {selectedOutputFinanceCompliance ? (
+                          <div className="rounded-[14px] border border-[rgba(212,165,116,0.28)] bg-[rgba(212,165,116,0.10)] px-4 py-4 dark:border-[rgba(212,165,116,0.2)] dark:bg-[rgba(212,165,116,0.08)]">
+                            <div className="text-[12px] text-[#8A5A14] dark:text-[#EBCB8B]">金融合规快照</div>
+                            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                              <div>
+                                <div className="text-[12px] text-[#8A5A14] dark:text-[#DDBB74]">风险等级</div>
+                                <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                  {selectedOutputFinanceCompliance.riskLevel}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[12px] text-[#8A5A14] dark:text-[#DDBB74]">输出分类</div>
+                                <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                  {selectedOutputFinanceCompliance.outputClassification || '未记录'}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[12px] text-[#8A5A14] dark:text-[#DDBB74]">免责声明</div>
+                                <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                  {selectedOutputFinanceCompliance.showDisclaimer ? '已要求展示' : '未要求展示'}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[12px] text-[#8A5A14] dark:text-[#DDBB74]">处理动作</div>
+                                <div className="mt-1 text-[14px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                  {selectedOutputFinanceCompliance.blocked
+                                    ? '拦截'
+                                    : selectedOutputFinanceCompliance.degraded
+                                      ? '降级'
+                                      : '直出'}
+                                </div>
+                              </div>
+                            </div>
+                            {selectedOutputFinanceCompliance.disclaimerText ? (
+                              <div className="mt-3 text-[12px] leading-6 text-[#8A5A14] dark:text-[#EBCB8B]">
+                                {selectedOutputFinanceCompliance.disclaimerText}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     ) : (
                       <div className="rounded-[16px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-4 text-[13px] leading-7 text-[#64748B] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525] dark:text-[#94A3B8]">
