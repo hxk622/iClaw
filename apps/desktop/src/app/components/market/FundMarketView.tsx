@@ -20,6 +20,7 @@ import {Button} from '@/app/components/ui/Button';
 import {Chip} from '@/app/components/ui/Chip';
 import {PageContent, PageHeader, PageSurface} from '@/app/components/ui/PageLayout';
 import {cn} from '@/app/lib/cn';
+import { resolveFundAllocationSnapshot } from '@/app/lib/fund-allocation-display';
 import { resolveFundPriceLabel, resolveFundPrimaryPrice } from '@/app/lib/fund-market-display';
 import {INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE} from '@/app/lib/ui-interactions';
 import {InstrumentIdentityBadge, WorkspaceFilterPill, WorkspaceMetricGrid, WorkspaceSearchControls, WorkspaceSectionCard} from './MarketWorkspaceShared';
@@ -123,11 +124,6 @@ function formatPrice(value: number | null | undefined, digits = 4): string {
   return value.toFixed(digits);
 }
 
-function formatPercentPoint(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return '--';
-  return `${value.toFixed(2)}%`;
-}
-
 function resolveInstrumentLabel(fund: MarketFundData): string {
   if (fund.instrument_kind === 'etf') return 'ETF';
   if (fund.instrument_kind === 'qdii') return 'QDII';
@@ -200,33 +196,6 @@ function fundTagTone(tag: string): 'brand' | 'accent' | 'success' | 'warning' | 
   if (/成长|高波动|医药|军工|新能源|消费/.test(tag)) return 'warning';
   if (/主动管理/.test(tag)) return 'accent';
   return 'outline';
-}
-
-function resolveFundAllocationSnapshot(fund: FundItem): Array<{label: string; value: string}> {
-  const assetAllocation = fund.asset_allocation;
-  const categories = Array.isArray(assetAllocation?.categories) ? assetAllocation.categories : [];
-  const series = Array.isArray(assetAllocation?.series) ? assetAllocation.series : [];
-  const latestIndex = categories.length > 0 ? categories.length - 1 : -1;
-  if (latestIndex < 0) return [];
-
-  const takeSeriesValue = (keyword: string): number | null => {
-    const row = series.find((item) => {
-      if (!item || typeof item !== 'object') return false;
-      const name = typeof (item as Record<string, unknown>).name === 'string' ? (item as Record<string, unknown>).name : '';
-      return name.includes(keyword);
-    }) as Record<string, unknown> | undefined;
-    if (!row) return null;
-    const data = Array.isArray(row.data) ? row.data : [];
-    const value = data[latestIndex];
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
-  };
-
-  return [
-    {label: '股票占净比', value: formatPercentPoint(takeSeriesValue('股票占净比'))},
-    {label: '债券占净比', value: formatPercentPoint(takeSeriesValue('债券占净比'))},
-    {label: '现金占净比', value: formatPercentPoint(takeSeriesValue('现金占净比'))},
-    {label: '净资产', value: formatScaleAmount(takeSeriesValue('净资产') === null ? null : Number(takeSeriesValue('净资产')) * 100000000)},
-  ].filter((item) => item.value !== '--');
 }
 
 function EmptyPanel({title, description}: {title: string; description: string}) {
@@ -525,7 +494,7 @@ function FundDrawer({
   onStartResearch?: (fund: FundMarketResearchTarget) => void;
 }) {
   if (!fund) return null;
-  const allocationSnapshot = resolveFundAllocationSnapshot(fund);
+  const allocationSnapshot = resolveFundAllocationSnapshot(fund.asset_allocation);
 
   return (
     <div className="pointer-events-none fixed inset-0 z-40">
