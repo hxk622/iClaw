@@ -23,7 +23,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
-use std::sync::{mpsc, Mutex};
+use std::sync::{mpsc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{
@@ -68,7 +68,6 @@ const DESKTOP_SIDE_CAR_ARGS: &str = match option_env!("VITE_SIDE_CAR_ARGS") {
 const LOCAL_CONTROL_PLANE_URL: &str = "http://127.0.0.1:2130";
 const AUTH_ACCESS_KEY: &str = "access_token";
 const AUTH_REFRESH_KEY: &str = "refresh_token";
-const AUTH_GATEWAY_TOKEN_KEY: &str = "gateway_token";
 const SHARED_GATEWAY_TOKEN_DIR: &str = ".openclaw";
 const SHARED_GATEWAY_TOKEN_FILE: &str = "gateway-token";
 const DESKTOP_GATEWAY_ALLOWED_ORIGINS: &str =
@@ -1041,6 +1040,7 @@ struct RuntimePaths {
 }
 
 #[derive(Serialize, Deserialize)]
+#[derive(Clone)]
 struct StoredAuthTokens {
     access_token: String,
     refresh_token: String,
@@ -1198,6 +1198,9 @@ struct StoredGatewayAuth {
     token: Option<String>,
     password: Option<String>,
 }
+
+static GATEWAY_TOKEN_CACHE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+static AUTH_TOKENS_CACHE: OnceLock<Mutex<Option<StoredAuthTokens>>> = OnceLock::new();
 
 #[derive(Serialize)]
 struct PortConflictStatus {
@@ -4990,18 +4993,49 @@ fn write_gateway_token_file(path: &Path, token: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn sync_gateway_token_keyring(token: &str) -> Result<(), String> {
-    let entry = Entry::new(AUTH_SERVICE, AUTH_GATEWAY_TOKEN_KEY).map_err(|e| e.to_string())?;
-    match entry.get_password() {
-        Ok(current) if current.trim() == token.trim() => Ok(()),
-        Ok(_) | Err(keyring::Error::NoEntry) => entry
-            .set_password(token.trim())
-            .map_err(|e| format!("failed to sync gateway token keyring: {e}")),
-        Err(e) => Err(e.to_string()),
-    }
+fn gateway_token_cache() -> &'static Mutex<Option<String>> {
+    GATEWAY_TOKEN_CACHE.get_or_init(|| Mutex::new(None))
+}
+
+fn auth_tokens_cache() -> &'static Mutex<Option<StoredAuthTokens>> {
+    AUTH_TOKENS_CACHE.get_or_init(|| Mutex::new(None))
+}
+
+fn read_cached_gateway_token() -> Result<Option<String>, String> {
+    gateway_token_cache()
+        .lock()
+        .map_err(|e| format!("failed to lock gateway token cache: {e}"))
+        .map(|value| value.clone())
+}
+
+fn write_cached_gateway_token(token: Option<String>) -> Result<(), String> {
+    let mut cache = gateway_token_cache()
+        .lock()
+        .map_err(|e| format!("failed to lock gateway token cache: {e}"))?;
+    *cache = token;
+    Ok(())
+}
+
+fn read_cached_auth_tokens() -> Result<Option<StoredAuthTokens>, String> {
+    auth_tokens_cache()
+        .lock()
+        .map_err(|e| format!("failed to lock auth token cache: {e}"))
+        .map(|value| value.clone())
+}
+
+fn write_cached_auth_tokens(tokens: Option<StoredAuthTokens>) -> Result<(), String> {
+    let mut cache = auth_tokens_cache()
+        .lock()
+        .map_err(|e| format!("failed to lock auth token cache: {e}"))?;
+    *cache = tokens;
+    Ok(())
 }
 
 fn load_or_create_gateway_token(app: &AppHandle) -> Result<String, String> {
+    if let Some(token) = read_cached_gateway_token()? {
+        return Ok(token);
+    }
+
     let shared_path = shared_gateway_token_path(app)?;
 
     let explicit_env = env::var("ICLAW_GATEWAY_TOKEN")
@@ -5011,30 +5045,19 @@ fn load_or_create_gateway_token(app: &AppHandle) -> Result<String, String> {
         .filter(|value| !value.is_empty());
     if let Some(token) = explicit_env {
         write_gateway_token_file(&shared_path, &token)?;
-        sync_gateway_token_keyring(&token)?;
+        write_cached_gateway_token(Some(token.clone()))?;
         return Ok(token);
     }
 
     if let Some(token) = read_gateway_token_file(&shared_path)? {
-        sync_gateway_token_keyring(&token)?;
+        write_cached_gateway_token(Some(token.clone()))?;
         return Ok(token);
     }
 
-    let entry = Entry::new(AUTH_SERVICE, AUTH_GATEWAY_TOKEN_KEY).map_err(|e| e.to_string())?;
-    match entry.get_password() {
-        Ok(token) if !token.trim().is_empty() => {
-            let normalized = token.trim().to_string();
-            write_gateway_token_file(&shared_path, &normalized)?;
-            Ok(normalized)
-        }
-        Ok(_) | Err(keyring::Error::NoEntry) => {
-            let token = generate_gateway_token();
-            write_gateway_token_file(&shared_path, &token)?;
-            sync_gateway_token_keyring(&token)?;
-            Ok(token)
-        }
-        Err(e) => Err(e.to_string()),
-    }
+    let token = generate_gateway_token();
+    write_gateway_token_file(&shared_path, &token)?;
+    write_cached_gateway_token(Some(token.clone()))?;
+    Ok(token)
 }
 
 fn runtime_paths(app: &AppHandle) -> Result<RuntimePaths, String> {
@@ -6912,11 +6935,19 @@ fn save_auth_tokens(access_token: String, refresh_token: String) -> Result<bool,
     refresh
         .set_password(&refresh_token)
         .map_err(|e| e.to_string())?;
+    write_cached_auth_tokens(Some(StoredAuthTokens {
+        access_token,
+        refresh_token,
+    }))?;
     Ok(true)
 }
 
 #[tauri::command]
 fn load_auth_tokens() -> Result<Option<StoredAuthTokens>, String> {
+    if let Some(tokens) = read_cached_auth_tokens()? {
+        return Ok(Some(tokens));
+    }
+
     let access = Entry::new(AUTH_SERVICE, AUTH_ACCESS_KEY).map_err(|e| e.to_string())?;
     let refresh = Entry::new(AUTH_SERVICE, AUTH_REFRESH_KEY).map_err(|e| e.to_string())?;
 
@@ -6932,10 +6963,12 @@ fn load_auth_tokens() -> Result<Option<StoredAuthTokens>, String> {
         Err(e) => return Err(e.to_string()),
     };
 
-    Ok(Some(StoredAuthTokens {
+    let tokens = StoredAuthTokens {
         access_token,
         refresh_token,
-    }))
+    };
+    write_cached_auth_tokens(Some(tokens.clone()))?;
+    Ok(Some(tokens))
 }
 
 fn extension_grants_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -7452,6 +7485,7 @@ fn clear_auth_tokens() -> Result<bool, String> {
         }
     }
 
+    write_cached_auth_tokens(None)?;
     Ok(true)
 }
 
