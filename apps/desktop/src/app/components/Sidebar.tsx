@@ -12,14 +12,12 @@ import {
   PanelLeftOpen,
   Settings,
   MessageSquare,
-  Plus,
   Shield,
 } from 'lucide-react';
 import type { DesktopUpdateHint } from '@iclaw/sdk';
 import { AvatarDropdown } from './AvatarDropdown';
 import { DesktopUpdateCard } from './DesktopUpdateCard';
 import { RecentConversationsList } from './RecentConversationsList';
-import { Button } from './ui/Button';
 import { BRAND } from '../lib/brand';
 import { cn } from '../lib/cn';
 import type { RequiredResolvedMenuUiConfig } from '../lib/oem-runtime';
@@ -87,7 +85,6 @@ interface SidebarProps {
   selectedConversationId?: string | null;
   authenticated?: boolean;
   onOpenChat?: () => void;
-  onStartNewChat?: () => void;
   onOpenInvestmentExperts?: () => void;
   onOpenCron?: () => void;
   onOpenLobsterStore?: () => void;
@@ -116,7 +113,6 @@ interface SidebarProps {
   onUpgradeDesktopApp?: () => void;
   onRestartDesktopApp?: () => void;
   onSkipDesktopUpdate?: () => void;
-  newChatDisabledReason?: string | null;
 }
 
 interface SidebarItem {
@@ -186,67 +182,6 @@ const SidebarBrandHeader = memo(function SidebarBrandHeader({
       <div className="absolute right-2 top-1/2 -translate-y-1/2">
         <SidebarCollapseButton collapsed={collapsed} onToggle={onToggleCollapsed} />
       </div>
-    </div>
-  );
-});
-
-const SidebarNewChatBar = memo(function SidebarNewChatBar({
-  chatEnabled,
-  collapsed,
-  newChatDisabledReason,
-  onStartNewChat,
-}: {
-  chatEnabled: boolean;
-  collapsed: boolean;
-  newChatDisabledReason: string | null;
-  onStartNewChat?: () => void;
-}) {
-  traceSidebarRender('SidebarNewChatBar', {
-    chatEnabled,
-    collapsed,
-    disabled: Boolean(newChatDisabledReason),
-  });
-  if (!chatEnabled) {
-    return null;
-  }
-  if (collapsed) {
-    return (
-      <div className="border-b border-[var(--border-default)] p-3">
-        <Button
-          variant="secondary"
-          size="sm"
-          block
-          onClick={onStartNewChat}
-          disabled={Boolean(newChatDisabledReason)}
-          title={newChatDisabledReason || '新建对话'}
-          leadingIcon={
-            <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
-              <Plus className="h-3.5 w-3.5" />
-            </span>
-          }
-          className="h-10 justify-center rounded-[13px] border-[var(--sidebar-surface-border)] bg-[var(--sidebar-subtle-bg)] px-0 text-[0px] font-semibold text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[var(--sidebar-subtle-hover)] hover:text-[var(--text-primary)]"
-        />
-      </div>
-    );
-  }
-  return (
-    <div className="border-b border-[var(--border-default)] p-3">
-      <Button
-        variant="secondary"
-        size="sm"
-        block
-        onClick={onStartNewChat}
-        disabled={Boolean(newChatDisabledReason)}
-        title={newChatDisabledReason || '新建对话'}
-        leadingIcon={
-          <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
-            <Plus className="h-3.5 w-3.5" />
-          </span>
-        }
-        className="h-10 justify-center rounded-[13px] border-[var(--sidebar-surface-border)] bg-[var(--sidebar-subtle-bg)] px-3 text-[14px] font-semibold text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[var(--sidebar-subtle-hover)] hover:text-[var(--text-primary)]"
-      >
-        新建对话
-      </Button>
     </div>
   );
 });
@@ -546,7 +481,6 @@ function SidebarComponent({
   selectedConversationId = null,
   authenticated = false,
   onOpenChat,
-  onStartNewChat,
   onOpenInvestmentExperts,
   onOpenCron,
   onOpenLobsterStore,
@@ -575,7 +509,6 @@ function SidebarComponent({
   onUpgradeDesktopApp,
   onRestartDesktopApp,
   onSkipDesktopUpdate,
-  newChatDisabledReason = null,
 }: SidebarProps) {
   traceSidebarRender('Sidebar', {
     activeView,
@@ -716,12 +649,6 @@ function SidebarComponent({
       style={{ width: collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH }}
     >
       <SidebarBrandHeader brandText={brandText} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
-      <SidebarNewChatBar
-        chatEnabled={chatEnabled}
-        collapsed={collapsed}
-        newChatDisabledReason={newChatDisabledReason}
-        onStartNewChat={onStartNewChat}
-      />
 
       <div className="flex-1 overflow-y-auto px-2 py-1.5">
         <SidebarPrimaryNav groupedMainItems={groupedMainItems} collapsed={collapsed} />

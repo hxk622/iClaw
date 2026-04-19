@@ -4953,7 +4953,6 @@ function AuthedView({
           selectedConversationId={activeChatRoute.conversationId}
           authenticated={authenticated}
           onOpenChat={handleOpenChatView}
-          onStartNewChat={handleStartNewChat}
           onOpenInvestmentExperts={handleOpenInvestmentExpertsView}
           onOpenCron={handleOpenCronView}
           onOpenLobsterStore={handleOpenLobsterStoreView}
@@ -4982,7 +4981,6 @@ function AuthedView({
           onUpgradeDesktopApp={onUpgradeDesktopApp}
           onRestartDesktopApp={onRestartDesktopApp}
           onSkipDesktopUpdate={onSkipDesktopUpdate}
-          newChatDisabledReason={desktopUpdateNewRunBlockedReason}
         />
       </div>
       <div
