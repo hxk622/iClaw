@@ -61,6 +61,13 @@ async function resolveDefaultWorkspaceDir() {
   }
 }
 
+async function resolveRuntimeWorkspaceDir() {
+  const brandConfigPath = path.join(ROOT_DIR, 'apps/desktop/src-tauri/brand.generated.json');
+  const brandConfig = await readJson(brandConfigPath);
+  const appSlug = brandConfig.brandId || brandConfig.storageNamespace || 'caiclaw';
+  return path.join(os.homedir(), '.openclaw', 'apps', appSlug, 'workspace');
+}
+
 function buildPdfBuffer(lines) {
   const stream = [
     'BT',
@@ -182,36 +189,58 @@ Expected result
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const workspaceDir = args.outDir ? path.resolve(args.outDir) : await resolveDefaultWorkspaceDir();
-  const fixtureDir = path.join(workspaceDir, args.fixtureDir);
-  const relativeDir = path.relative(workspaceDir, fixtureDir).replace(/\\/g, '/');
+  const primaryWorkspaceDir = args.outDir ? path.resolve(args.outDir) : await resolveDefaultWorkspaceDir();
+  const runtimeWorkspaceDir = args.outDir ? null : await resolveRuntimeWorkspaceDir();
+  const workspaceDirs = Array.from(
+    new Set([primaryWorkspaceDir, runtimeWorkspaceDir].filter(Boolean)),
+  );
+  const fixtureDirs = workspaceDirs.map((workspaceDir) => ({
+    workspaceDir,
+    fixtureDir: path.join(workspaceDir, args.fixtureDir),
+  }));
+  const relativeDir = args.fixtureDir.replace(/\\/g, '/');
 
   if (args.printOnly) {
-    console.log(JSON.stringify({ workspaceDir, fixtureDir, relativeDir }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          workspaceDirs,
+          fixtureDirs: fixtureDirs.map((item) => item.fixtureDir),
+          relativeDir,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
-  await fs.mkdir(fixtureDir, { recursive: true });
+  for (const { fixtureDir } of fixtureDirs) {
+    await fs.mkdir(fixtureDir, { recursive: true });
 
-  const markdownPath = path.join(fixtureDir, 'artifact-preview-self-test.md');
-  const htmlPath = path.join(fixtureDir, 'artifact-preview-self-test.html');
-  const pdfPath = path.join(fixtureDir, 'artifact-preview-self-test.pdf');
-  const promptPath = path.join(fixtureDir, 'artifact-preview-self-test-prompts.txt');
+    const markdownPath = path.join(fixtureDir, 'artifact-preview-self-test.md');
+    const htmlPath = path.join(fixtureDir, 'artifact-preview-self-test.html');
+    const pdfPath = path.join(fixtureDir, 'artifact-preview-self-test.pdf');
+    const promptPath = path.join(fixtureDir, 'artifact-preview-self-test-prompts.txt');
 
-  await fs.writeFile(markdownPath, buildMarkdownFixture(), 'utf8');
-  await fs.writeFile(htmlPath, buildHtmlFixture(), 'utf8');
-  await fs.writeFile(
-    pdfPath,
-    buildPdfBuffer([
-      'iClaw Artifact Preview Self-Test',
-      'Generated automatically by scripts/artifact-preview-self-test.mjs',
-      `Workspace fixture dir: ${relativeDir}`,
-      'Use this PDF to validate the left artifact card and right preview pane.',
-    ]),
-  );
-  await fs.writeFile(promptPath, buildPromptFileContent(relativeDir), 'utf8');
+    await fs.writeFile(markdownPath, buildMarkdownFixture(), 'utf8');
+    await fs.writeFile(htmlPath, buildHtmlFixture(), 'utf8');
+    await fs.writeFile(
+      pdfPath,
+      buildPdfBuffer([
+        'iClaw Artifact Preview Self-Test',
+        'Generated automatically by scripts/artifact-preview-self-test.mjs',
+        `Workspace fixture dir: ${relativeDir}`,
+        'Use this PDF to validate the left artifact card and right preview pane.',
+      ]),
+    );
+    await fs.writeFile(promptPath, buildPromptFileContent(relativeDir), 'utf8');
+  }
 
-  console.log(`Artifact preview fixtures created in: ${fixtureDir}`);
+  console.log('Artifact preview fixtures created in:');
+  fixtureDirs.forEach(({ fixtureDir }) => {
+    console.log(`- ${fixtureDir}`);
+  });
   console.log('');
   console.log('Recommended smoke test prompt:');
   console.log(`请读取并概览 ${relativeDir}/artifact-preview-self-test.pdf`);
