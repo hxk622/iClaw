@@ -9,6 +9,7 @@ LATEST_LOG="$LOG_DIR/latest.log"
 DATA_SYNC_DETACH="${DATA_SYNC_SERVICE_DETACH:-1}"
 DATA_SYNC_SCRIPT="${DATA_SYNC_SERVICE_SCRIPT:-start}"
 HEALTH_RETRIES="${DATA_SYNC_SERVICE_HEALTH_RETRIES:-240}"
+DATA_SYNC_INTERNAL_TOKEN_DEFAULT="${DATA_SYNC_SERVICE_INTERNAL_TOKEN:-iclaw-dev-sync-token}"
 
 stop_existing_data_sync() {
   local pids=""
@@ -28,7 +29,7 @@ start_detached() {
   echo "[data-sync-dev] 启动 data-sync-service :$SYNC_PORT"
   (
     cd "$ROOT_DIR"
-    PORT="$SYNC_PORT" nohup pnpm --filter @iclaw/data-sync-service "$DATA_SYNC_SCRIPT" >"$LOG_FILE" 2>&1 &
+    PORT="$SYNC_PORT" DATA_SYNC_SERVICE_INTERNAL_TOKEN="$DATA_SYNC_INTERNAL_TOKEN_DEFAULT" nohup pnpm --filter @iclaw/data-sync-service "$DATA_SYNC_SCRIPT" >"$LOG_FILE" 2>&1 &
     echo $! > /tmp/iclaw-data-sync.pid
   )
   local pid
@@ -62,7 +63,7 @@ start_foreground() {
   echo "[data-sync-dev] 启动 data-sync-service :$SYNC_PORT (foreground)"
   echo "[data-sync-dev] Ctrl+C 将停止 data-sync-service"
   cd "$ROOT_DIR"
-  exec env PORT="$SYNC_PORT" pnpm --filter @iclaw/data-sync-service "$DATA_SYNC_SCRIPT"
+  exec env PORT="$SYNC_PORT" DATA_SYNC_SERVICE_INTERNAL_TOKEN="$DATA_SYNC_INTERNAL_TOKEN_DEFAULT" pnpm --filter @iclaw/data-sync-service "$DATA_SYNC_SCRIPT"
 }
 
 stop_existing_data_sync

@@ -11,6 +11,7 @@ CONTROL_PLANE_SCRIPT="${ICLAW_CONTROL_PLANE_SCRIPT:-start}"
 CONTROL_PLANE_HEALTH_RETRIES="${ICLAW_CONTROL_PLANE_HEALTH_RETRIES:-240}"
 DATA_SYNC_PORT="${DATA_SYNC_SERVICE_PORT:-2140}"
 DATA_SYNC_BASE_URL_DEFAULT="http://127.0.0.1:$DATA_SYNC_PORT"
+DATA_SYNC_INTERNAL_TOKEN_DEFAULT="${DATA_SYNC_SERVICE_INTERNAL_TOKEN:-iclaw-dev-sync-token}"
 
 port_pids_with_netstat() {
   netstat.exe -ano 2>/dev/null | awk -v port=":$CONTROL_PORT" '
@@ -46,7 +47,7 @@ start_control_plane_detached() {
   echo "[control-plane-dev] 启动 cloud control plane :$CONTROL_PORT"
   (
     cd "$ROOT_DIR"
-    PORT="$CONTROL_PORT" DATA_SYNC_SERVICE_BASE_URL="${DATA_SYNC_SERVICE_BASE_URL:-$DATA_SYNC_BASE_URL_DEFAULT}" nohup pnpm --filter @iclaw/control-plane "$CONTROL_PLANE_SCRIPT" >"$LOG_FILE" 2>&1 &
+    PORT="$CONTROL_PORT" DATA_SYNC_SERVICE_BASE_URL="${DATA_SYNC_SERVICE_BASE_URL:-$DATA_SYNC_BASE_URL_DEFAULT}" DATA_SYNC_SERVICE_INTERNAL_TOKEN="${DATA_SYNC_SERVICE_INTERNAL_TOKEN:-$DATA_SYNC_INTERNAL_TOKEN_DEFAULT}" nohup pnpm --filter @iclaw/control-plane "$CONTROL_PLANE_SCRIPT" >"$LOG_FILE" 2>&1 &
     echo $! > /tmp/iclaw-control-plane.pid
   )
   local pid
@@ -80,7 +81,7 @@ start_control_plane_foreground() {
   echo "[control-plane-dev] 启动 cloud control plane :$CONTROL_PORT (foreground)"
   echo "[control-plane-dev] Ctrl+C 将停止 control-plane"
   cd "$ROOT_DIR"
-  exec env PORT="$CONTROL_PORT" DATA_SYNC_SERVICE_BASE_URL="${DATA_SYNC_SERVICE_BASE_URL:-$DATA_SYNC_BASE_URL_DEFAULT}" pnpm --filter @iclaw/control-plane "$CONTROL_PLANE_SCRIPT"
+  exec env PORT="$CONTROL_PORT" DATA_SYNC_SERVICE_BASE_URL="${DATA_SYNC_SERVICE_BASE_URL:-$DATA_SYNC_BASE_URL_DEFAULT}" DATA_SYNC_SERVICE_INTERNAL_TOKEN="${DATA_SYNC_SERVICE_INTERNAL_TOKEN:-$DATA_SYNC_INTERNAL_TOKEN_DEFAULT}" pnpm --filter @iclaw/control-plane "$CONTROL_PLANE_SCRIPT"
 }
 
 stop_existing_control_plane
