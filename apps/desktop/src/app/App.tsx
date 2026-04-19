@@ -3010,6 +3010,29 @@ function AuthedView({
     [workspaceTabs],
   );
 
+  const notifyClosingRunningTabs = useCallback(
+    (tabsToClose: WorkspaceTabRecord[]) => {
+      const runningTabs = tabsToClose.filter((tab) => workspaceTabRuntimeById[tab.id]?.busy);
+      if (runningTabs.length === 0) {
+        return;
+      }
+      if (runningTabs.length === 1) {
+        onShowTransientToast({
+          tone: 'info',
+          title: '任务仍在运行',
+          text: `“${runningTabs[0].title}” 已从工作区关闭，但任务仍在后台运行，可在任务中心的历史任务中继续查看。`,
+        });
+        return;
+      }
+      onShowTransientToast({
+        tone: 'info',
+        title: '多个任务仍在运行',
+        text: `已关闭 ${runningTabs.length} 个正在运行的标签页，相关任务仍在后台运行，可在任务中心的历史任务中继续查看。`,
+      });
+    },
+    [onShowTransientToast, workspaceTabRuntimeById],
+  );
+
   useEffect(() => {
     if (selectedNotificationId && !selectedNotification) {
       setSelectedNotificationId(null);
@@ -3513,6 +3536,7 @@ function AuthedView({
       if (!target) {
         return;
       }
+      notifyClosingRunningTabs([target]);
 
       const targetSurfaceKey = buildChatSurfaceCacheKey(restoreActiveChatRoute(target.route));
       const remainingTabs = currentTabs.filter((tab) => tab.id !== tabId);
@@ -3556,7 +3580,7 @@ function AuthedView({
       }
       activateWorkspaceTab(nextTabId);
     },
-    [activateWorkspaceTab, ensureChatSurfaceEntry, pushWorkspaceTabVisit, setPrimaryView],
+    [activateWorkspaceTab, ensureChatSurfaceEntry, notifyClosingRunningTabs, pushWorkspaceTabVisit, setPrimaryView],
   );
 
   const handleRenameWorkspaceTab = useCallback((tabId: string, nextTitle: string) => {
@@ -3577,11 +3601,13 @@ function AuthedView({
       if (!target) {
         return;
       }
-      const idsToRemove = workspaceTabsRef.current.filter((tab) => tab.id !== tabId).map((tab) => tab.id);
+      const tabsToRemove = workspaceTabsRef.current.filter((tab) => tab.id !== tabId);
+      const idsToRemove = tabsToRemove.map((tab) => tab.id);
       if (idsToRemove.length === 0) {
         activateWorkspaceTab(tabId);
         return;
       }
+      notifyClosingRunningTabs(tabsToRemove);
       const surfaceKeysToRemove = new Set(
         workspaceTabsRef.current
           .filter((tab) => idsToRemove.includes(tab.id))
@@ -3597,7 +3623,7 @@ function AuthedView({
       setWorkspaceTabs((current) => closeOtherWorkspaceTabs(current, tabId));
       activateWorkspaceTab(tabId);
     },
-    [activateWorkspaceTab],
+    [activateWorkspaceTab, notifyClosingRunningTabs],
   );
 
   const handleCloseWorkspaceTabsToRight = useCallback(
@@ -3610,6 +3636,7 @@ function AuthedView({
       const tabsToKeep = currentTabs.slice(0, targetIndex + 1);
       const tabsToRemove = currentTabs.slice(targetIndex + 1);
       const idsToRemove = new Set(tabsToRemove.map((tab) => tab.id));
+      notifyClosingRunningTabs(tabsToRemove);
       const surfaceKeysToRemove = new Set(
         tabsToRemove.map((tab) => buildChatSurfaceCacheKey(restoreActiveChatRoute(tab.route))),
       );
@@ -3625,7 +3652,7 @@ function AuthedView({
         activateWorkspaceTab(tabId);
       }
     },
-    [activateWorkspaceTab],
+    [activateWorkspaceTab, notifyClosingRunningTabs],
   );
 
   const handleReorderWorkspaceTabs = useCallback((fromTabId: string, toTabId: string) => {
