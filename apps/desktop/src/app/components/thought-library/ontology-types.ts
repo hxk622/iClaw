@@ -58,6 +58,10 @@ export interface OntologyDocument {
   created_at: string;
   nodes: OntologyNode[];
   edges: OntologyEdge[];
+  metadata?: {
+    chunk_count?: number;
+    compiler_version?: string;
+  } | null;
 }
 
 export interface OntologyNodeCandidate {
@@ -95,6 +99,13 @@ export interface CompileRawToOntologyInput {
 
 export interface CompiledOntologyGraph {
   documents: OntologyDocument[];
+}
+
+export interface OntologyCompilerStats {
+  raw_count: number;
+  chunk_count: number;
+  node_count: number;
+  edge_count: number;
 }
 
 export interface GraphifyNodeViewModel {
