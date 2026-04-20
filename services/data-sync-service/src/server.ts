@@ -1,9 +1,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
-import { executeRegisteredSyncTask } from '../../../packages/market-sync-core/src/index.ts';
 import { config as controlPlaneConfig } from '../../control-plane/src/config.ts';
 import { logError, logInfo } from '../../control-plane/src/logger.ts';
 import { ensureControlPlaneSchema } from '../../control-plane/src/pg-store.ts';
+import { executeRegisteredSyncTask } from './runner.ts';
 import { startSyncTasks } from './scheduler.ts';
 import { MARKET_SYNC_TASKS } from './task-registry.ts';
 
