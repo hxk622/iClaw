@@ -24,7 +24,7 @@ export function buildKnowledgeLibraryContextPrompt(input: {
       : null;
   const graphifySummary = normalizeText(graphifyReport?.content || graphifyReport?.summary || '', 2400);
 
-  return `你当前正在围绕知识库中的一个${layerLabel}对象工作，请把它作为本轮对话的首要上下文。\n\n标题：${input.item.title}\n副标题：${input.item.subtitle}\n标签：${input.item.tags.join('、') || '无'}\n备注：${input.item.meta}\n摘要：${input.item.summary}${sourceLabel ? `\n来源：${sourceLabel}` : ''}${sourceUrl ? `\n来源链接：${sourceUrl}` : ''}${bodyText ? `\n正文：\n${bodyText.slice(0, 4000)}` : ''}${graphifySummary ? `\n\nGraphify 导航摘要：\n${graphifySummary}` : ''}\n\n请优先基于这个对象及其图谱摘要协作，只在证据不足时再回拉原始素材。先用 3 行以内说明你将如何继续协作，然后等待用户下一步提问。`;
+  return `你当前正在围绕知识库中的一个${layerLabel}对象工作，请把它作为本轮对话的首要上下文。\n\n标题：${input.item.title}\n副标题：${input.item.subtitle}\n标签：${input.item.tags.join('、') || '无'}\n备注：${input.item.meta}\n摘要：${input.item.summary}${sourceLabel ? `\n来源：${sourceLabel}` : ''}${sourceUrl ? `\n来源链接：${sourceUrl}` : ''}${bodyText ? `\n正文：\n${bodyText.slice(0, 4000)}` : ''}${graphifySummary ? `\n\n结构导航摘要：\n${graphifySummary}` : ''}\n\n请优先基于这个对象及其图谱摘要协作，只在证据不足时再回拉原始素材。先用 3 行以内说明你将如何继续协作，然后等待用户下一步提问。`;
 }
 
 export function buildKnowledgeLibraryGraphQueryPrompt(input: {
@@ -36,10 +36,10 @@ export function buildKnowledgeLibraryGraphQueryPrompt(input: {
   return `${buildKnowledgeLibraryContextPrompt({
     tab: input.tab,
     item: input.item,
-  })}\n\nGraphify 查询问题：${normalizeText(input.question, 400)}\n\nGraphify 查询结果：\n${normalizeText(
+  })}\n\n图谱查询问题：${normalizeText(input.question, 400)}\n\n图谱查询结果：\n${normalizeText(
     input.queryResult,
     6000,
-  )}\n\n请基于这份图查询结果继续分析，优先引用图中的节点、关系、confidence 和 source location，不要脱离图结构发挥。`;
+  )}\n\n请基于这份图查询结果继续分析，优先引用图中的节点、关系和来源位置，不要脱离图结构发挥。`;
 }
 
 export function buildKnowledgeLibraryNodeFocusPrompt(input: {

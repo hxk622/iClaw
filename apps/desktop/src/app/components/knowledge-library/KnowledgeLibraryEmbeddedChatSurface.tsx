@@ -10,6 +10,7 @@ import { buildKnowledgeLibraryGraphQueryPrompt } from './chat-context';
 import { runGraphifyQuery } from '@/app/lib/tauri-graphify';
 import type { ComposerSendPayload } from '../RichChatComposer';
 import { classifyGraphQueryIntent } from './graph-query-intent';
+import { appendRelevantGraphContextMemoryToPrompt } from './graph-memory-bridge';
 
 type KnowledgeLibraryEmbeddedChatSurfaceProps = {
   selectedItem: KnowledgeLibraryItem | null;
@@ -69,38 +70,58 @@ export const KnowledgeLibraryEmbeddedChatSurface = forwardRef<HTMLDivElement, Kn
     const sourceContext = resolveKnowledgeLibraryItemSourceContext(selectedItem);
     const transformSendPayload = useCallback(
       async (payload: ComposerSendPayload): Promise<ComposerSendPayload> => {
-        if (!autoGraphQueryEnabled || activeTab !== 'graph' || !selectedItem?.ontologyDocument) {
+        if (activeTab !== 'graph' || !selectedItem?.ontologyDocument) {
           return payload;
         }
         const graphPath = selectedItem.ontologyDocument.metadata?.graphify_graph_json_path || null;
         const question = payload.prompt.trim();
         if (!graphPath || !question) {
-          return payload;
+          const promptWithMemory = await appendRelevantGraphContextMemoryToPrompt({
+            basePrompt: payload.prompt,
+            ontologyDocument: selectedItem.ontologyDocument,
+            limit: 2,
+          });
+          return promptWithMemory && promptWithMemory !== payload.prompt
+            ? {
+                ...payload,
+                prompt: promptWithMemory,
+              }
+            : payload;
         }
-        const intent = classifyGraphQueryIntent({
-          question,
-          selectedNodeLabel: selectedGraphNodeLabel,
-        });
-        if (!intent.shouldUseGraph) {
-          return payload;
+        let nextPrompt = payload.prompt;
+        if (autoGraphQueryEnabled) {
+          const intent = classifyGraphQueryIntent({
+            question,
+            selectedNodeLabel: selectedGraphNodeLabel,
+          });
+          if (intent.shouldUseGraph) {
+            const result = await runGraphifyQuery({
+              graphPath,
+              question: intent.rewrittenQuestion,
+              useDfs: intent.useDfs,
+              budget: intent.budget,
+            });
+            if (result?.available && !result.error && result.stdout?.trim()) {
+              nextPrompt = buildKnowledgeLibraryGraphQueryPrompt({
+                tab: activeTab,
+                item: selectedItem,
+                question,
+                queryResult: result.stdout.trim(),
+              });
+            }
+          }
         }
-        const result = await runGraphifyQuery({
-          graphPath,
-          question: intent.rewrittenQuestion,
-          useDfs: intent.useDfs,
-          budget: intent.budget,
+        nextPrompt = await appendRelevantGraphContextMemoryToPrompt({
+          basePrompt: nextPrompt,
+          ontologyDocument: selectedItem.ontologyDocument,
+          limit: 2,
         });
-        if (!result?.available || result.error || !result.stdout?.trim()) {
+        if (!nextPrompt || nextPrompt === payload.prompt) {
           return payload;
         }
         return {
           ...payload,
-          prompt: buildKnowledgeLibraryGraphQueryPrompt({
-            tab: activeTab,
-            item: selectedItem,
-            question,
-            queryResult: result.stdout.trim(),
-          }),
+          prompt: nextPrompt,
         };
       },
       [activeTab, autoGraphQueryEnabled, selectedGraphNodeLabel, selectedItem],

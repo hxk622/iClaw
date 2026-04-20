@@ -79,10 +79,10 @@ export function buildGraphQueryMemoryRawMaterialInput(input: {
     excerpt: normalizeText(answer, 240),
     content_text: `# ${title}\n\n## Question\n${question || '未记录'}\n\n## Answer\n${answer || '未记录'}${
       sourceNodes.length > 0 ? `\n\n## Source Nodes\n${sourceNodes.map((node) => `- ${node}`).join('\n')}` : ''
-    }${input.savedPath ? `\n\n## Graphify Memory\n${input.savedPath}` : ''}`,
-    source_name: 'Graphify Query Memory',
+    }${input.savedPath ? `\n\n## 图谱记忆\n${input.savedPath}` : ''}`,
+    source_name: '图谱查询记忆',
     source_type: 'chat' as const,
-    tags: ['Graphify', 'Query Memory', input.queryType === 'path_query' ? 'Path' : 'Query'],
+    tags: ['图谱查询', '关系记忆', input.queryType === 'path_query' ? '路径' : '问答'],
     note: question || null,
     dedupe_key: `graphify-memory::${input.selectedItem?.id || 'unknown'}::${input.queryType}::${question.toLowerCase()}`,
   };
