@@ -70,6 +70,7 @@ const KNOWLEDGE_ACTION_BUTTON_CLASS =
   'inline-flex h-8 items-center justify-center rounded-[10px] border border-[var(--knowledge-shell-border)] bg-[var(--knowledge-action-bg)] text-[11px] text-[var(--text-primary)] transition hover:border-[rgba(212,165,116,0.28)]';
 import { classifyGraphQueryIntent } from './graph-query-intent';
 import { findOntologyShortestPath, getOntologyEdgeDetail, getOntologyNodeDetail } from './graph-navigation';
+import { useGraphReasoningSession, writeGraphReasoningSession } from './graph-reasoning-session';
 
 export function KnowledgeLibraryView({
   title,
@@ -257,6 +258,15 @@ export function KnowledgeLibraryView({
       graphCompilerJobs.find((job) => job.ontologyDocumentIds.includes(selectedOntologyDocument.id)) ?? null
     );
   }, [graphCompilerJobs, selectedOntologyDocument]);
+  const selectedOntologyGraphIdentity = useMemo(
+    () => selectedOntologyDocument?.metadata?.graph_identity || selectedOntologyDocument?.id || null,
+    [selectedOntologyDocument],
+  );
+  const selectedOntologyRevisionId = useMemo(
+    () => selectedOntologyDocument?.metadata?.revision_id || selectedOntologyDocument?.id || null,
+    [selectedOntologyDocument],
+  );
+  const graphReasoningSession = useGraphReasoningSession(selectedOntologyGraphIdentity);
   const selectedGraphNodeDetail = useMemo(
     () => (selectedOntologyDocument ? getOntologyNodeDetail(selectedOntologyDocument, selectedGraphNode?.id) : null),
     [selectedGraphNode?.id, selectedOntologyDocument],
@@ -483,17 +493,82 @@ export function KnowledgeLibraryView({
   }, [activeTab, graphViewMode, selectedOntologyGraphifyHtmlPath]);
 
   useEffect(() => {
-    setGraphifyQueryResult(null);
     setGraphifyQueryError(null);
-    setGraphifyQueryText('');
-    setGraphifyQueryUseDfs(false);
-    setSelectedGraphNode(null);
-    setGraphPathTargetNodeId(null);
-    setGraphPathResult(null);
-    setSelectedGraphEdgeId(null);
     setGraphifyQuerySaveBusy(null);
     setGraphifyQuerySaveMessage(null);
-  }, [selectedOntologyDocument?.id]);
+    if (!selectedOntologyDocument || !graphReasoningSession || !selectedOntologyRevisionId) {
+      setGraphifyQueryResult(null);
+      setGraphifyQueryText('');
+      setGraphifyQueryUseDfs(false);
+      setSelectedGraphNode(null);
+      setGraphPathTargetNodeId(null);
+      setGraphPathResult(null);
+      setSelectedGraphEdgeId(null);
+      return;
+    }
+    if (graphReasoningSession.ontologyRevisionId !== selectedOntologyRevisionId) {
+      setGraphifyQueryResult(null);
+      setGraphifyQueryText('');
+      setGraphifyQueryUseDfs(false);
+      setSelectedGraphNode(null);
+      setGraphPathTargetNodeId(null);
+      setGraphPathResult(null);
+      setSelectedGraphEdgeId(null);
+      return;
+    }
+    setGraphifyQueryText(graphReasoningSession.graphQueryText || '');
+    setGraphifyQueryUseDfs(graphReasoningSession.graphQueryUseDfs === true);
+    setGraphifyQueryResult(graphReasoningSession.graphQueryResult || null);
+    setSelectedGraphNode(
+      graphReasoningSession.selectedNodeId
+        ? (
+            selectedOntologyDocument.nodes.find((node) => node.id === graphReasoningSession.selectedNodeId) &&
+            {
+              id: graphReasoningSession.selectedNodeId,
+              label:
+                selectedOntologyDocument.nodes.find((node) => node.id === graphReasoningSession.selectedNodeId)?.label ||
+                graphReasoningSession.selectedNodeId,
+              type:
+                selectedOntologyDocument.nodes.find((node) => node.id === graphReasoningSession.selectedNodeId)?.node_type ||
+                'Concept',
+            }
+          ) || null
+        : null,
+    );
+    setGraphPathTargetNodeId(graphReasoningSession.pathTargetNodeId || null);
+    setGraphPathResult(graphReasoningSession.pathResult || null);
+    setSelectedGraphEdgeId(graphReasoningSession.selectedEdgeId || null);
+    setEmbeddedAutoGraphQueryEnabled(graphReasoningSession.autoGraphQueryEnabled !== false);
+  }, [graphReasoningSession, selectedOntologyDocument, selectedOntologyRevisionId]);
+
+  useEffect(() => {
+    if (!selectedOntologyGraphIdentity || !selectedOntologyRevisionId) {
+      return;
+    }
+    writeGraphReasoningSession({
+      graphIdentity: selectedOntologyGraphIdentity,
+      ontologyRevisionId: selectedOntologyRevisionId,
+      selectedNodeId: selectedGraphNode?.id || null,
+      selectedEdgeId: selectedGraphEdgeId,
+      pathTargetNodeId: graphPathTargetNodeId,
+      pathResult: graphPathResult,
+      graphQueryText,
+      graphQueryUseDfs,
+      graphQueryResult,
+      autoGraphQueryEnabled: embeddedAutoGraphQueryEnabled,
+    });
+  }, [
+    embeddedAutoGraphQueryEnabled,
+    graphPathResult,
+    graphPathTargetNodeId,
+    graphQueryResult,
+    graphQueryText,
+    graphQueryUseDfs,
+    selectedGraphEdgeId,
+    selectedGraphNode?.id,
+    selectedOntologyGraphIdentity,
+    selectedOntologyRevisionId,
+  ]);
 
   const handleRefresh = async () => {
     if (activeTab === 'materials') {

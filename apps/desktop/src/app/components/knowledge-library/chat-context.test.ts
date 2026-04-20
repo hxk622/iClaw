@@ -84,7 +84,7 @@ test('buildKnowledgeLibraryContextPrompt includes graphify report summary for on
     },
   });
 
-  assert.match(prompt, /Graphify 导航摘要/);
+  assert.match(prompt, /结构导航摘要/);
   assert.match(prompt, /图谱报告正文/);
 });
 
@@ -117,7 +117,7 @@ test('buildKnowledgeLibraryGraphQueryPrompt appends graph query result', () => {
     queryResult: 'Traversal: BFS | Start: [资本开支] | 4 nodes',
   });
 
-  assert.match(prompt, /Graphify 查询问题/);
+  assert.match(prompt, /图谱查询问题/);
   assert.match(prompt, /资本开支和现金流/);
   assert.match(prompt, /Traversal: BFS/);
 });
