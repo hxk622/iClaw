@@ -1,0 +1,117 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+import { config as controlPlaneConfig } from '../../../control-plane/src/config.ts';
+import { logInfo, logError } from '../../../control-plane/src/logger.ts';
+import { createPgPool } from '../../../control-plane/src/pg-connection.ts';
+import { runPythonScript } from '../../../control-plane/src/sync-tasks/utils/python-runner.ts';
+import { logTaskStart, logTaskSuccess, logTaskFailed } from '../../../control-plane/src/sync-tasks/utils/task-logger.ts';
+
+let poolInstance: any = null;
+function getPool() {
+  if (!poolInstance) {
+    poolInstance = createPgPool(controlPlaneConfig.databaseUrl, 'data-sync:stock-quotes');
+  }
+  return poolInstance;
+}
+
+export interface StockQuote {
+  stock_code: string;
+  stock_name: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  change: number;
+  change_percent: number;
+  volume: number;
+  amount: number;
+  turnover_rate: number;
+  pe_ttm: number;
+  pb: number;
+  total_market_cap: number;
+  float_market_cap: number;
+  trade_date: string;
+}
+
+type SyncTaskExecutionResult = {
+  syncCount: number;
+  dataSource: string;
+};
+
+export async function syncStockQuotes(): Promise<SyncTaskExecutionResult> {
+  const scriptPath = path.join(__dirname, '../python-scripts/fetch_stock_quotes.py');
+  const pool = getPool();
+  const taskId = await logTaskStart('sync_stock_quotes');
+
+  let syncCount = 0;
+  const dataSource = 'akshare+efinance';
+  const today = new Date().toISOString().split('T')[0];
+
+  try {
+    const quotes = await runPythonScript<StockQuote[]>(scriptPath, [], 120000);
+    logInfo(`Fetched ${quotes.length} stock quotes records`);
+    syncCount = quotes.length;
+
+    if (quotes.length < 5000) {
+      throw new Error(`Fetched only ${quotes.length} quotes, data is incomplete, abort sync`);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM stock_quotes WHERE trade_date = $1`, [today]);
+
+      const insertQuery = `
+        INSERT INTO stock_quotes (
+          stock_code, trade_date, open, high, low, close, volume, amount,
+          change, change_percent, turnover_rate, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)
+      `;
+
+      for (const quote of quotes) {
+        await client.query(insertQuery, [
+          quote.stock_code,
+          quote.trade_date || today,
+          quote.open || 0,
+          quote.high || 0,
+          quote.low || 0,
+          quote.close || 0,
+          quote.volume || 0,
+          quote.amount || 0,
+          quote.change || 0,
+          quote.change_percent || 0,
+          quote.turnover_rate || 0,
+        ]);
+      }
+
+      const countResult = await client.query(`SELECT COUNT(*) FROM stock_quotes WHERE trade_date = $1`, [today]);
+      const count = parseInt(countResult.rows[0].count, 10);
+      syncCount = count;
+
+      if (count < 5000) {
+        throw new Error(`Inserted only ${count} quotes, data incomplete, rollback`);
+      }
+
+      await client.query('COMMIT');
+      logInfo(`Successfully synced ${count} stock quotes for ${today}`);
+      await logTaskSuccess(taskId, count, dataSource);
+      return {
+        syncCount: count,
+        dataSource,
+      };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    const errorMsg = e instanceof Error ? e.message : String(e);
+    logError('Sync stock quotes failed', { error: e });
+    await logTaskFailed(taskId, errorMsg, syncCount);
+    throw e;
+  }
+}
