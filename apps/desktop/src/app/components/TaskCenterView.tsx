@@ -17,6 +17,7 @@ import { FilterPill } from '@/app/components/ui/FilterPill';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { cn } from '@/app/lib/cn';
 import { useChatConversations } from '@/app/lib/chat-conversations';
+import { buildCreditBlockedTurnMessage, isCreditBlockedTurnError } from '@/app/lib/chat-credit-block';
 import {
   CHAT_TURN_ARTIFACT_LABELS,
   type ChatTurnRecord,
@@ -635,6 +636,9 @@ function buildStatusMessage(turn: ChatTurnRecord, resultTypes: string[]): string
   }
 
   if (turn.status === 'failed') {
+    if (isCreditBlockedTurnError(turn.lastError)) {
+      return buildCreditBlockedTurnMessage(turn.lastError);
+    }
     return turn.lastError || '本轮对话执行失败，可回到对话重试';
   }
 

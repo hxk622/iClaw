@@ -1,3 +1,8 @@
+import {
+  buildCreditBlockedTurnMessage,
+  isCreditBlockedTurnError,
+} from './chat-credit-block.ts';
+
 export type ChatConversationProjectionConversation = {
   id: string;
   title: string | null;
@@ -13,6 +18,8 @@ export type ChatConversationProjectionTurn = {
   summary: string | null;
   prompt: string;
   source: 'chat' | 'cron';
+  status?: 'running' | 'completed' | 'failed';
+  lastError?: string | null;
 };
 
 export type ChatConversationProjectionSnapshot = {
@@ -159,6 +166,10 @@ export function buildConversationProjectionsCore(input: {
       const latestTurn = readLatestChatTurnForConversation(input.turns, conversation);
       const snapshotUserText = readLatestSnapshotRoleText(snapshot?.messages ?? [], 'user');
       const snapshotAssistantText = readLatestSnapshotRoleText(snapshot?.messages ?? [], 'assistant');
+      const creditBlockedSummary =
+        latestTurn?.status === 'failed' && isCreditBlockedTurnError(latestTurn.lastError)
+          ? buildCreditBlockedTurnMessage(latestTurn.lastError)
+          : null;
 
       const displayTitle =
         normalizeText(conversation.title) ||
@@ -168,6 +179,7 @@ export function buildConversationProjectionsCore(input: {
         '未命名对话';
       const displaySummary =
         snapshotAssistantText ||
+        creditBlockedSummary ||
         snapshotUserText ||
         normalizeText(conversation.summary) ||
         normalizeText(latestTurn?.summary) ||
@@ -186,7 +198,9 @@ export function buildConversationProjectionsCore(input: {
       const summarySource: ChatConversationProjection['summarySource'] =
         snapshotAssistantText
           ? 'snapshot-assistant'
-          : snapshotUserText
+          : creditBlockedSummary
+            ? 'turn'
+            : snapshotUserText
             ? 'snapshot-user'
             : normalizeText(conversation.summary)
               ? 'conversation'

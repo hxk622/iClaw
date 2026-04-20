@@ -9670,11 +9670,13 @@ export function OpenClawChatSurface({
                 className="pr-14"
                 title={
                   creditBlockNotice?.code === 'CREDIT_LIMIT_EXCEEDED'
-                    ? '本次消息超过单次额度限制，当前已被拦截'
-                    : '积分余额不足，当前消息已被拦截'
+                    ? '本次消息超过单次额度限制，当前未发送'
+                    : '积分余额不足，本次消息未发送'
                 }
                 description={
-                  creditBlockNotice?.message || '新积分将在次日发放。请先前往充值中心充值后再继续发送。'
+                  creditBlockNotice?.code === 'CREDIT_LIMIT_EXCEEDED'
+                    ? `这不是金融合规拦截，而是单次额度限制。${creditBlockNotice?.message || '请先缩短消息或切换更低成本模型后再继续发送。'}`
+                    : `这不是金融合规拦截，而是积分校验未通过。${creditBlockNotice?.message || '新积分将在次日发放。请先前往充值中心充值后再继续发送。'}`
                 }
                 action={
                   onOpenRechargeCenter ? (
