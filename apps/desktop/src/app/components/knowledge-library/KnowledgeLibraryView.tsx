@@ -433,7 +433,7 @@ export function KnowledgeLibraryView({
     setOpeningArtifactRefPath(path);
     setOutputArtifactActionMessage(null);
     try {
-      const opened = path.includes('graphify-jobs')
+      const opened = path.includes('graph-revisions')
         ? await openGraphifyOutputFile(path)
         : await openWorkspaceArtifact(path);
       if (!opened) {

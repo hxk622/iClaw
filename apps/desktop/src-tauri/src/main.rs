@@ -4372,10 +4372,10 @@ fn app_data_base_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(p.join("openclaw"))
 }
 
-fn graphify_jobs_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let path = app_data_base_dir(app)?.join("knowledge-library").join("graphify-jobs");
+fn graph_revisions_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = app_data_base_dir(app)?.join("knowledge-library").join("graph-revisions");
     fs::create_dir_all(&path)
-        .map_err(|e| format!("failed to create graphify jobs dir {}: {e}", path.to_string_lossy()))?;
+        .map_err(|e| format!("failed to create graph revisions dir {}: {e}", path.to_string_lossy()))?;
     Ok(path)
 }
 
@@ -4413,8 +4413,8 @@ fn short_random_suffix() -> String {
     bytes.iter().map(|byte| format!("{:02x}", byte)).collect::<String>()
 }
 
-fn graphify_job_dir(app: &AppHandle, label: &str) -> Result<PathBuf, String> {
-    let root = graphify_jobs_root_dir(app)?;
+fn graphify_revision_dir(app: &AppHandle, label: &str) -> Result<PathBuf, String> {
+    let root = graph_revisions_root_dir(app)?;
     let dir = root.join(format!(
         "{}-{}-{}",
         slugify_for_path(label),
@@ -4422,7 +4422,7 @@ fn graphify_job_dir(app: &AppHandle, label: &str) -> Result<PathBuf, String> {
         short_random_suffix()
     ));
     fs::create_dir_all(&dir)
-        .map_err(|e| format!("failed to create graphify job dir {}: {e}", dir.to_string_lossy()))?;
+        .map_err(|e| format!("failed to create graph revision dir {}: {e}", dir.to_string_lossy()))?;
     Ok(dir)
 }
 
@@ -4507,7 +4507,7 @@ fn resolve_graphify_output_path(path: &str, app: &AppHandle) -> Result<PathBuf, 
     let resolved = if candidate.is_absolute() {
         candidate
     } else {
-        graphify_jobs_root_dir(app)?.join(candidate)
+        graph_revisions_root_dir(app)?.join(candidate)
     };
     let canonical = resolved.canonicalize().map_err(|e| {
         format!(
@@ -4515,8 +4515,8 @@ fn resolve_graphify_output_path(path: &str, app: &AppHandle) -> Result<PathBuf, 
             resolved.to_string_lossy()
         )
     })?;
-    let allowed_root = graphify_jobs_root_dir(app)?.canonicalize().map_err(|e| {
-        format!("failed to resolve graphify jobs root for security check: {e}")
+    let allowed_root = graph_revisions_root_dir(app)?.canonicalize().map_err(|e| {
+        format!("failed to resolve graph revisions root for security check: {e}")
     })?;
     if !canonical.starts_with(&allowed_root) {
         return Err(String::from("graphify output path escapes allowed root"));
@@ -9353,7 +9353,7 @@ fn run_graphify_compile(
     app: AppHandle,
     input: GraphifyCompileRequestInput,
 ) -> Result<GraphifyCompileResultPayload, String> {
-    let corpus_dir = graphify_job_dir(&app, &input.corpus_label)?;
+    let corpus_dir = graphify_revision_dir(&app, &input.corpus_label)?;
     let corpus_items_dir = corpus_dir.join("corpus");
     fs::create_dir_all(&corpus_items_dir).map_err(|e| {
         format!(

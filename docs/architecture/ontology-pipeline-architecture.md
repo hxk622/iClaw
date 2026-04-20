@@ -187,6 +187,12 @@ Graphify 在 iClaw 中的角色应明确为：
 - 节点/边关系抽取
 - 后续 query backend 候选
 
+在本地 canonical 架构下，这些原生产物应落在 revision 目录，而不是单一覆盖式 `graphify-out/`：
+
+```text
+knowledge-library/graph-revisions/<graph-identity>/<revision-id>/
+```
+
 ### 不负责
 
 - RawMaterial 定义

@@ -106,6 +106,24 @@ Raw 经过编译进入 Ontology：
 - 第一栏 Ontology tab 展示的是编译结果
 - Graphify 是编译后端，不是 tab 本身
 
+对于本地 canonical store，编译产物建议固定存放到：
+
+```text
+app_data/openclaw/knowledge-library/graph-revisions/
+  <graph-identity>/
+  <revision-id>/
+```
+
+其中：
+
+- `graph.json`
+- `GRAPH_REPORT.md`
+- `graph.html`
+- `manifest.json`
+- `memory/`
+
+都属于 compiler asset，不是 UI 自己拼出来的临时文件。
+
 ### Step C：Produce
 
 Raw / Ontology 共同驱动 Output：
