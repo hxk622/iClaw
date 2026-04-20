@@ -35,7 +35,9 @@ function installStorageShim(): void {
 
 test('ontology storage keeps latest pointer per graph identity', async () => {
   installStorageShim();
-  const { listOntologyDocuments, getOntologyDocumentById, upsertOntologyDocument } = await import('./ontology-storage.ts');
+  const { listOntologyDocuments, listOntologyRevisionsByIdentity, getOntologyDocumentById, upsertOntologyDocument } = await import(
+    './ontology-storage.ts'
+  );
 
   const first = upsertOntologyDocument({
     id: 'ontology::sample',
@@ -77,4 +79,8 @@ test('ontology storage keeps latest pointer per graph identity', async () => {
   assert.notEqual(first.id, second.id);
   assert.equal(getOntologyDocumentById('ontology::sample')?.summary, '第二版');
   assert.equal(getOntologyDocumentById(first.id)?.summary, '第一版');
+  assert.deepEqual(
+    listOntologyRevisionsByIdentity('ontology::sample').map((item) => item.summary),
+    ['第二版', '第一版'],
+  );
 });

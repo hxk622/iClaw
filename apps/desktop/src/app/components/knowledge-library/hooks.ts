@@ -158,6 +158,51 @@ export function useOntologyDocumentDetail(input: {
   return { item, loading, error };
 }
 
+export function useOntologyRevisions(input: {
+  repository: KnowledgeLibraryRepository;
+  graphIdentity: string | null;
+  refreshKey?: number;
+}) {
+  const { repository, graphIdentity, refreshKey = 0 } = input;
+  const [items, setItems] = useState<OntologyDocument[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!graphIdentity) {
+      setItems([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    void repository
+      .listOntologyRevisionsByIdentity(graphIdentity)
+      .then((next) => {
+        if (!cancelled) {
+          setItems(next);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'failed_to_load_ontology_revisions');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [graphIdentity, refreshKey, repository]);
+
+  return { items, loading, error };
+}
+
 export function useOutputArtifacts(input: {
   repository: KnowledgeLibraryRepository;
   query: string;

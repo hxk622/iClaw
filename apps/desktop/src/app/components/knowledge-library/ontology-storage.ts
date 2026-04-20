@@ -82,6 +82,20 @@ export function getOntologyDocumentById(id: string): OntologyDocument | null {
   return store.items.find((item) => getOntologyGraphIdentity(item) === id) || null;
 }
 
+export function listOntologyRevisionsByIdentity(graphIdentity: string): OntologyDocument[] {
+  const safeIdentity = String(graphIdentity || '').trim();
+  if (!safeIdentity) {
+    return [];
+  }
+  return readStore().items
+    .filter((item) => getOntologyGraphIdentity(item) === safeIdentity)
+    .sort((left, right) =>
+      String(right.metadata?.compiled_at || right.updated_at || '').localeCompare(
+        String(left.metadata?.compiled_at || left.updated_at || ''),
+      ),
+    );
+}
+
 export function upsertOntologyDocument(document: OntologyDocument): OntologyDocument {
   const store = readStore();
   const next: OntologyDocument = withOntologyRevisionMetadata({

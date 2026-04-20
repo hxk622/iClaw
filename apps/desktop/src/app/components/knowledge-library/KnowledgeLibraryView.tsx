@@ -24,7 +24,16 @@ import { KnowledgeLibraryEmbeddedChatSurface } from './KnowledgeLibraryEmbeddedC
 import type { IClawClient } from '@iclaw/sdk';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
 import { createLocalKnowledgeLibraryRepository } from './repository';
-import { useCreateRawMaterial, useOntologyDocumentDetail, useOntologyDocuments, useOutputArtifactDetail, useOutputArtifacts, useRawMaterialDetail, useRawMaterials } from './hooks';
+import {
+  useCreateRawMaterial,
+  useOntologyDocumentDetail,
+  useOntologyDocuments,
+  useOntologyRevisions,
+  useOutputArtifactDetail,
+  useOutputArtifacts,
+  useRawMaterialDetail,
+  useRawMaterials,
+} from './hooks';
 import { mapRawMaterialToKnowledgeLibraryItem } from './raw-mappers';
 import { mapOntologyDocumentToKnowledgeLibraryItem } from './ontology-mappers';
 import { GraphifyOntologyGraphView } from './GraphifyOntologyGraphView';
@@ -140,6 +149,7 @@ export function KnowledgeLibraryView({
   const [graphPathTargetNodeId, setGraphPathTargetNodeId] = useState<string | null>(null);
   const [graphPathResult, setGraphPathResult] = useState<string | null>(null);
   const [selectedGraphEdgeId, setSelectedGraphEdgeId] = useState<string | null>(null);
+  const [selectedGraphDetailId, setSelectedGraphDetailId] = useState<string | null>(initialState.selectedByTab.graph);
   const [embeddedChatSeedPrompt, setEmbeddedChatSeedPrompt] = useState<string | null>(null);
   const [embeddedChatSeedPromptKey, setEmbeddedChatSeedPromptKey] = useState<string | null>(null);
   const [embeddedAutoGraphQueryEnabled, setEmbeddedAutoGraphQueryEnabled] = useState(true);
@@ -184,6 +194,7 @@ export function KnowledgeLibraryView({
 
   const selectedId = selectedByTab[activeTab];
   const selectedItem = useMemo(() => items.find((item) => item.id === selectedId) || items[0] || null, [items, selectedId]);
+  const selectedGraphDocumentId = activeTab === 'graph' ? selectedGraphDetailId || selectedItem?.id || null : null;
   const { item: selectedRawMaterial } = useRawMaterialDetail({
     repository,
     rawMaterialId: activeTab === 'materials' ? selectedItem?.id || null : null,
@@ -191,7 +202,7 @@ export function KnowledgeLibraryView({
   });
   const { item: selectedOntologyDocument } = useOntologyDocumentDetail({
     repository,
-    ontologyDocumentId: activeTab === 'graph' ? selectedItem?.id || null : null,
+    ontologyDocumentId: selectedGraphDocumentId,
     refreshKey: ontologyRefreshKey,
   });
   const { item: selectedOutputArtifact } = useOutputArtifactDetail({
@@ -250,6 +261,13 @@ export function KnowledgeLibraryView({
     () => selectedOntologyDocument?.metadata?.graph_identity || selectedOntologyDocument?.id || null,
     [selectedOntologyDocument],
   );
+  const { items: selectedOntologyRevisions } = useOntologyRevisions({
+    repository,
+    graphIdentity:
+      selectedOntologyGraphIdentity ||
+      (activeTab === 'graph' ? selectedItem?.ontologyDocument?.metadata?.graph_identity || selectedItem?.id || null : null),
+    refreshKey: ontologyRefreshKey,
+  });
   const selectedOntologyRevisionId = useMemo(
     () => selectedOntologyDocument?.metadata?.revision_id || selectedOntologyDocument?.id || null,
     [selectedOntologyDocument],
@@ -278,6 +296,12 @@ export function KnowledgeLibraryView({
       return { ...current, [activeTab]: selectedItem.id };
     });
   }, [activeTab, selectedItem]);
+
+  useEffect(() => {
+    if (activeTab === 'graph' && !selectedGraphDetailId && selectedItem?.id) {
+      setSelectedGraphDetailId(selectedItem.id);
+    }
+  }, [activeTab, selectedGraphDetailId, selectedItem?.id]);
 
   useEffect(() => {
     writeKnowledgeLibraryState({ activeTab, selectedByTab });
@@ -372,6 +396,9 @@ export function KnowledgeLibraryView({
       ...current,
       [nextTab]: current[nextTab] || nextItems[0]?.id || null,
     }));
+    if (nextTab === 'graph') {
+      setSelectedGraphDetailId(selectedByTab.graph || nextItems[0]?.id || null);
+    }
     if (nextTab !== 'graph') {
       setGraphViewMode('page');
     }
@@ -675,6 +702,7 @@ export function KnowledgeLibraryView({
         setOntologyRefreshKey((current) => current + 1);
         setActiveTab('graph');
         setSelectedByTab((current) => ({ ...current, graph: created.id }));
+        setSelectedGraphDetailId(created.id);
       }
     } finally {
       setFeedbackBusy(null);
@@ -851,6 +879,7 @@ export function KnowledgeLibraryView({
         graph: documents[0]?.id || current.graph,
         artifacts: savedOutput.id || current.artifacts,
       }));
+      setSelectedGraphDetailId(documents[0]?.id || selectedOntologyDocument.id);
       setGraphifyQuerySaveMessage('已沉淀为成果，并触发图谱更新。');
     } catch (error) {
       setGraphifyQuerySaveMessage(error instanceof Error ? error.message : '保存图谱记忆失败。');
@@ -1012,18 +1041,24 @@ export function KnowledgeLibraryView({
               </div>
             ) : null}
             {items.map((item) => {
-              const active = selectedItem?.id === item.id;
+              const active =
+                activeTab === 'graph'
+                  ? (item.ontologyDocument?.metadata?.graph_identity || item.id) === selectedOntologyGraphIdentity
+                  : selectedItem?.id === item.id;
               const Icon = item.icon;
               return (
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
                     setSelectedByTab((current) => ({
                       ...current,
                       [activeTab]: item.id,
-                    }))
-                  }
+                    }));
+                    if (activeTab === 'graph') {
+                      setSelectedGraphDetailId(item.id);
+                    }
+                  }}
                   className={cn(
                     'w-full rounded-[14px] border px-3 py-3 text-left transition',
                     active
@@ -1379,6 +1414,47 @@ export function KnowledgeLibraryView({
                               </div>
                             ) : null}
                           </div>
+                          {selectedOntologyRevisions.length > 0 ? (
+                            <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
+                              <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">Revision 历史</div>
+                              <div className="mt-3 space-y-2">
+                                {selectedOntologyRevisions.slice(0, 6).map((revision) => {
+                                  const activeRevision =
+                                    (revision.metadata?.revision_id || revision.id) === selectedOntologyRevisionId;
+                                  return (
+                                    <button
+                                      key={revision.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedGraphDetailId(revision.id);
+                                        setGraphViewMode('page');
+                                      }}
+                                      className={cn(
+                                        'w-full rounded-[12px] border px-3 py-2 text-left transition',
+                                        activeRevision
+                                          ? 'border-[rgba(212,165,116,0.34)] bg-[rgba(212,165,116,0.10)]'
+                                          : 'border-[rgba(0,0,0,0.08)] bg-white/70 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#1A1A1A]',
+                                      )}
+                                    >
+                                      <div className="text-[12px] text-[#1E293B] dark:text-[#E8E8E3]">
+                                        {revision.metadata?.compiled_at
+                                          ? new Date(revision.metadata.compiled_at).toLocaleString()
+                                          : new Date(revision.updated_at).toLocaleString()}
+                                      </div>
+                                      <div className="mt-1 break-all text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                        {(revision.metadata?.revision_id || revision.id).slice(0, 72)}
+                                      </div>
+                                      {revision.metadata?.previous_revision_id ? (
+                                        <div className="mt-1 break-all text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                          prev: {String(revision.metadata.previous_revision_id).slice(0, 56)}
+                                        </div>
+                                      ) : null}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : null}
                           {selectedOntologyGraphifyReportArtifact ? (
                             <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">
                               <div className="text-[12px] text-[#64748B] dark:text-[#94A3B8]">结构导航摘要</div>

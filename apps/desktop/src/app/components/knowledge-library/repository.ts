@@ -6,7 +6,7 @@ import {
   upsertRawMaterial,
 } from './raw-storage.ts';
 import type { CreateRawMaterialInput, RawMaterial } from './types.ts';
-import { getOntologyDocumentById, listOntologyDocuments } from './ontology-storage.ts';
+import { getOntologyDocumentById, listOntologyDocuments, listOntologyRevisionsByIdentity } from './ontology-storage.ts';
 import type { OntologyDocument } from './ontology-types.ts';
 import { buildOutputArtifactsFromOntologyDocuments } from './output-pipeline.ts';
 import { getOutputArtifactByDedupeKey, getOutputArtifactById, listOutputArtifacts, upsertOutputArtifact } from './output-storage.ts';
@@ -27,6 +27,7 @@ export interface KnowledgeLibraryRepository {
     query?: string;
     limit?: number;
   }): Promise<OntologyDocument[]>;
+  listOntologyRevisionsByIdentity(graphIdentity: string): Promise<OntologyDocument[]>;
   getOntologyDocumentById(id: string): Promise<OntologyDocument | null>;
   compileRawMaterialsToOntology(rawMaterials: RawMaterial[]): Promise<OntologyDocument[]>;
   listOutputArtifacts(input?: {
@@ -95,6 +96,9 @@ export function createLocalKnowledgeLibraryRepository(): KnowledgeLibraryReposit
     },
     async getOntologyDocumentById(id) {
       return getOntologyDocumentById(id);
+    },
+    async listOntologyRevisionsByIdentity(graphIdentity) {
+      return listOntologyRevisionsByIdentity(graphIdentity);
     },
     async compileRawMaterialsToOntology(rawMaterials) {
       const documents = await syncRawMaterialsIntoOntology(rawMaterials);
