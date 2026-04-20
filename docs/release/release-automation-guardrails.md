@@ -133,6 +133,33 @@ node scripts/verify-prod-deploy.mjs --component <control-plane|admin-web|home-we
 - `control-plane` / `admin-web` / `home-web` 发布后未真正切到当前构建
 - `home-web` 首页下载按钮仍指向旧包
 
+## 当前冻结发布顺序
+
+当前 Windows prod 重发顺序固定为：
+
+1. `version_record` / `test_report`
+2. `guardrails --mode pre`
+3. 发布 `control-plane`
+4. `verify-prod-deploy --component control-plane`
+5. 发布 `admin-web`
+6. `verify-prod-deploy --component admin-web`
+7. 如有需要，发布 `home-web`
+8. `verify-prod-deploy --component home-web`
+9. 本地构建桌面包
+10. `guardrails --mode local`
+11. 桌面自测
+12. 发布 downloads
+13. `guardrails --mode public`
+14. 发布 desktop release policy
+15. `guardrails --mode public --check-desktop-release-api`
+16. 沉淀新坑到脚本 / SOP，并整体 `commit + push`
+
+为什么这样排：
+
+- `control-plane` / `admin-web` 是桌面自测前置依赖
+- 桌面自测必须在 downloads 发布前完成
+- 不允许再把“服务端没到位”或“桌面包没自测”的版本直接暴露给 QA
+
 ## 这轮沉淀的高频坑
 
 本次明确转成 guardrail / SOP 的问题：

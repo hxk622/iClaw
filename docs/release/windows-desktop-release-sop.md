@@ -1,6 +1,6 @@
 # Windows Desktop Release SOP
 
-更新时间：2026-04-16
+更新时间：2026-04-20
 
 ## 1. 目标
 
@@ -39,6 +39,7 @@ node scripts/release-orchestrate-windows.mjs --brand <iclaw|caiclaw> --channel p
 补充：
 
 - `release-orchestrate-windows.mjs` 不带 `--execute` 时只输出 dry-run plan，适合先审命令
+- 当前 `release-orchestrate-windows.mjs` 只覆盖桌面构建、downloads 与 desktop release policy，不覆盖 `control-plane` / `admin-web` 前置发布与桌面自测
 - nginx `/downloads/`、`/runtime/` bucket 指向校验见：
   - [release-automation-guardrails.md](./release-automation-guardrails.md)
 
@@ -136,6 +137,33 @@ node scripts/release-orchestrate-windows.mjs --brand <iclaw|caiclaw> --channel p
 
 ## 4. 标准执行顺序
 
+### 4.0 当前冻结顺序
+
+正式 Windows 重发按以下顺序执行，不允许再把服务端发布放到桌面包发布之后：
+
+1. 建立 `version_record` / `test_report` 骨架
+2. 跑 `pre` guardrail
+3. 先发布 `control-plane`
+4. 发布后立即验真 `control-plane`
+5. 再发布 `admin-web`
+6. 发布后立即验真 `admin-web`
+7. 如本次改了下载页或官网，再发布 `home-web`
+8. 发布后立即验真 `home-web`
+9. 本地构建 Windows 桌面包
+10. 跑本地产物 guardrail
+11. 做桌面自测
+12. 发布 downloads
+13. 跑公网 manifest / installer 校验
+14. 发布 desktop release policy
+15. 跑 desktop release API 校验
+16. 把本轮踩坑沉淀到脚本 / SOP，并整体 `commit + push`
+
+原因：
+
+- 桌面自测必须依赖真实服务端基线
+- 否则测到的是“新客户端 + 旧服务端”的混合状态，结论不可信
+- downloads 必须放在桌面自测之后，否则坏包会先暴露给 QA
+
 ### 4.1 冻结基线
 
 1. 执行版本推进
@@ -165,6 +193,36 @@ node scripts/release-guard.mjs --brand <brand> --channel prod --target x86_64-pc
 
 必须检查 `dist/release-guard/*.json` 输出。
 
+### 4.2.1 服务端前置发布
+
+`control-plane`、`admin-web` 必须在桌面打包前先发布到 prod。
+
+推荐顺序：
+
+```bash
+bash scripts/deploy-control-plane.sh prod
+bash scripts/deploy-admin.sh prod
+```
+
+如本次官网下载页或品牌官网有改动，再追加：
+
+```bash
+bash scripts/deploy-home.sh prod
+```
+
+发布后必须立刻验真：
+
+```bash
+node scripts/verify-prod-deploy.mjs --component control-plane --brand caiclaw --channel prod
+node scripts/verify-prod-deploy.mjs --component admin-web --brand caiclaw --channel prod
+node scripts/verify-prod-deploy.mjs --component home-web --brand caiclaw --channel prod
+```
+
+说明：
+
+- `control-plane`、`admin-web` 是桌面自测前置条件，不允许延后到下载站发布之后
+- `home-web` 若未改，可不在桌面打包前强制发布；若改了下载页，则也必须前置
+
 ### 4.3 桌面构建
 
 按品牌串行执行：
@@ -180,6 +238,21 @@ APP_NAME=licaiclaw ICLAW_BRAND=licaiclaw ICLAW_DESKTOP_TARGETS=x86_64-pc-windows
 - 文件版本是否为本次四段版本
 - manifest 是否对应本次 installer
 - 未出现旧版本残留文件被误上传
+
+### 4.3.1 桌面自测
+
+桌面自测必须放在 downloads 发布之前。
+
+最少覆盖：
+
+1. 静默安装成功
+2. 首启成功
+3. `http://127.0.0.1:2126/health` 返回 `200`
+4. 登录正常
+5. 关键页面不白屏
+6. 关键日志无阻断性错误
+
+通过后，才允许进入 downloads 发布。
 
 ### 4.4 下载站发布
 
@@ -234,6 +307,11 @@ ICLAW_CONTROL_PLANE_PASSWORD='***' \
 ICLAW_NGINX_PASSWORD='***' \
 pnpm deploy:prod:marketing
 ```
+
+补充：
+
+- 该统一脚本更适合“服务端/官网整体发布”
+- 若是桌面重发，仍应遵守 `4.0` 的冻结顺序，不要跳过桌面自测直接发 downloads
 
 ## 5. 发布后必测项
 
@@ -328,6 +406,14 @@ pnpm deploy:prod:marketing
 
 - 上传到 dev MinIO
 - 在测试报告中回填对象路径
+
+每轮正式发版结束前，必须额外完成：
+
+1. 把本轮新踩到的坑沉淀到脚本或 SOP
+2. 把新增自动化、修复脚本、文档更新整体提交
+3. `git push` 到远端
+
+否则该轮发版不算闭环完成。
 
 ## 8. 本轮已确认的坑
 
