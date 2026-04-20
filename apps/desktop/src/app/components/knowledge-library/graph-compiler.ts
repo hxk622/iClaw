@@ -1,11 +1,13 @@
+import { getRawMaterialById } from './raw-storage.ts';
 import { upsertOntologyDocument } from './ontology-storage.ts';
 import { compileRawToOntology } from './ontology-pipeline.ts';
 import { buildOntologyDocumentsFromOutputArtifacts } from './output-ontology-pipeline.ts';
 import { importGraphifyGraphToOntologyDocument } from './graphify-importer.ts';
 import { buildGraphifyReportOutputArtifact } from './graphify-report-importer.ts';
 import type { OntologyDocument } from './ontology-types.ts';
+import { getOntologyGraphIdentity, getOntologyRevisionId, withOntologyRevisionMetadata } from './ontology-revisions.ts';
 import type { CreateOutputArtifactInput, OutputArtifact } from './output-types.ts';
-import { upsertOutputArtifact } from './output-storage.ts';
+import { getOutputArtifactById, upsertOutputArtifact } from './output-storage.ts';
 import type { RawMaterial } from './types.ts';
 import { runGraphifyCompile, type GraphifyCorpusItem } from '../../lib/tauri-graphify.ts';
 import { finishGraphCompilerJob, startGraphCompilerJob } from './graph-compiler-jobs.ts';
@@ -17,6 +19,12 @@ export interface GraphCompilerJobInput {
   trigger: GraphCompilerTrigger;
   rawMaterials?: RawMaterial[];
   outputArtifacts?: OutputArtifact[];
+  corpusLabel?: string | null;
+  graphIdentity?: string | null;
+  previousRevisionId?: string | null;
+  preferredDocumentTitle?: string | null;
+  preferredDocumentSummary?: string | null;
+  seedGraphPath?: string | null;
 }
 
 export interface GraphCompilerJobResult {
@@ -32,6 +40,23 @@ function normalizeText(value: string | null | undefined, maxLength = 24000): str
     return compact;
   }
   return `${compact.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function uniqueById<T extends { id: string }>(items: Array<T | null | undefined>): T[] {
+  const map = new Map<string, T>();
+  items.forEach((item) => {
+    if (item?.id) {
+      map.set(item.id, item);
+    }
+  });
+  return Array.from(map.values());
+}
+
+function uniqueStrings(values: string[] | null | undefined): string[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return Array.from(new Set(values.map((value) => normalizeText(value, 240)).filter(Boolean)));
 }
 
 function buildGraphifyCorpusItems(input: GraphCompilerJobInput): GraphifyCorpusItem[] {
@@ -90,6 +115,10 @@ function importGraphifyDocuments(
       trigger: input.trigger,
       rawMaterials: input.rawMaterials,
       outputArtifacts: input.outputArtifacts,
+      graphIdentity: input.graphIdentity,
+      previousRevisionId: input.previousRevisionId,
+      preferredTitle: input.preferredDocumentTitle,
+      preferredSummary: input.preferredDocumentSummary,
       graphifyMetadata: {
         corpusDir: graphifyResult.corpusDir,
         outputDir: graphifyResult.outputDir,
@@ -101,6 +130,33 @@ function importGraphifyDocuments(
   ];
 }
 
+function applyGraphCompilerContextToDocuments(
+  documents: OntologyDocument[],
+  input: GraphCompilerJobInput,
+  backend: GraphCompilerBackend,
+): OntologyDocument[] {
+  if (!documents.length) {
+    return documents;
+  }
+  return documents.map((document) =>
+    withOntologyRevisionMetadata({
+      ...document,
+      title: normalizeText(input.preferredDocumentTitle || '', 240) || document.title,
+      summary: normalizeText(input.preferredDocumentSummary || '', 240) || document.summary,
+      metadata: {
+        ...(document.metadata || null),
+        graph_identity: input.graphIdentity || document.metadata?.graph_identity || document.id,
+        previous_revision_id: input.previousRevisionId || document.metadata?.previous_revision_id || null,
+        compiler_backend: backend,
+        source_output_artifact_ids: uniqueStrings([
+          ...(document.metadata?.source_output_artifact_ids || []),
+          ...((input.outputArtifacts || []).map((item) => item.id) || []),
+        ]),
+      },
+    }),
+  );
+}
+
 export async function runLocalGraphCompilerJob(input: GraphCompilerJobInput): Promise<GraphCompilerJobResult> {
   const rawMaterials = Array.isArray(input.rawMaterials) ? input.rawMaterials : [];
   const outputArtifacts = Array.isArray(input.outputArtifacts) ? input.outputArtifacts : [];
@@ -109,7 +165,7 @@ export async function runLocalGraphCompilerJob(input: GraphCompilerJobInput): Pr
   return {
     backend: 'local-fallback',
     trigger: input.trigger,
-    documents: [...rawDocuments, ...outputDocuments],
+    documents: applyGraphCompilerContextToDocuments([...rawDocuments, ...outputDocuments], input, 'local-fallback'),
     outputArtifacts: [],
   };
 }
@@ -124,10 +180,11 @@ export async function runGraphCompilerJob(input: GraphCompilerJobInput): Promise
   try {
     const fallback = await runLocalGraphCompilerJob(input);
     const graphifyResult = await runGraphifyCompile({
-      corpusLabel: input.trigger,
+      corpusLabel: normalizeText(input.corpusLabel || input.graphIdentity || input.trigger, 240) || input.trigger,
       items: buildGraphifyCorpusItems(input),
       update: input.trigger === 'output_feedback',
       noViz: false,
+      seedGraphPath: input.seedGraphPath || null,
     }).catch(() => null);
 
     if (!graphifyResult || !graphifyResult.available || graphifyResult.error) {
@@ -173,15 +230,16 @@ export async function runGraphCompilerJob(input: GraphCompilerJobInput): Promise
     }
 
     const metadataDocuments = applyGraphifyMetadata(fallback.documents, graphifyResult);
+    const contextualDocuments = applyGraphCompilerContextToDocuments(metadataDocuments, input, 'graphify-v3');
     finishGraphCompilerJob(job.id, {
       status: 'succeeded',
       backend: 'graphify-v3',
-      ontologyDocumentIds: metadataDocuments.map((document) => document.id),
+      ontologyDocumentIds: contextualDocuments.map((document) => document.id),
     });
     return {
       backend: 'graphify-v3',
       trigger: input.trigger,
-      documents: metadataDocuments,
+      documents: contextualDocuments,
       outputArtifacts: [],
     };
   } catch (error) {
@@ -210,6 +268,38 @@ export async function syncOutputArtifactsIntoOntology(outputArtifacts: OutputArt
   const result = await runGraphCompilerJob({
     trigger: 'output_feedback',
     outputArtifacts,
+  });
+  result.outputArtifacts.forEach((item) => {
+    upsertOutputArtifact(item);
+  });
+  return result.documents.map((document) => upsertOntologyDocument(document));
+}
+
+export async function refreshOntologyDocumentFromGraphFeedback(input: {
+  ontologyDocument: OntologyDocument;
+  rawMaterials?: RawMaterial[];
+  outputArtifacts?: OutputArtifact[];
+}): Promise<OntologyDocument[]> {
+  const sourceRawMaterials = uniqueById(
+    uniqueStrings(input.ontologyDocument.source_raw_ids)
+      .map((id) => getRawMaterialById(id))
+      .concat(input.rawMaterials || []),
+  );
+  const sourceOutputArtifacts = uniqueById(
+    uniqueStrings(input.ontologyDocument.metadata?.source_output_artifact_ids || [])
+      .map((id) => getOutputArtifactById(id))
+      .concat(input.outputArtifacts || []),
+  );
+  const result = await runGraphCompilerJob({
+    trigger: 'output_feedback',
+    corpusLabel: getOntologyGraphIdentity(input.ontologyDocument),
+    graphIdentity: getOntologyGraphIdentity(input.ontologyDocument),
+    previousRevisionId: getOntologyRevisionId(input.ontologyDocument),
+    preferredDocumentTitle: input.ontologyDocument.title,
+    preferredDocumentSummary: input.ontologyDocument.summary,
+    seedGraphPath: input.ontologyDocument.metadata?.graphify_graph_json_path || null,
+    rawMaterials: sourceRawMaterials,
+    outputArtifacts: sourceOutputArtifacts,
   });
   result.outputArtifacts.forEach((item) => {
     upsertOutputArtifact(item);

@@ -1,6 +1,6 @@
 import type { KnowledgeLibraryRepository } from './repository';
 import type { KnowledgeLibraryItem, KnowledgeLibraryTab } from './model';
-import type { OutputArtifact } from './output-types';
+import type { CreateOutputArtifactInput, OutputArtifact } from './output-types';
 import type { OntologyDocument } from './ontology-types';
 
 export interface ExtractedChatFeedback {
@@ -85,6 +85,84 @@ export function buildGraphQueryMemoryRawMaterialInput(input: {
     tags: ['图谱查询', '关系记忆', input.queryType === 'path_query' ? '路径' : '问答'],
     note: question || null,
     dedupe_key: `graphify-memory::${input.selectedItem?.id || 'unknown'}::${input.queryType}::${question.toLowerCase()}`,
+  };
+}
+
+export function buildGraphReasoningOutputArtifactInput(input: {
+  selectedItem: KnowledgeLibraryItem | null;
+  ontologyDocument?: OntologyDocument | null;
+  question: string;
+  answer: string;
+  queryType: 'query' | 'path_query' | 'explain';
+  sourceNodes?: string[];
+  savedPath?: string | null;
+}): CreateOutputArtifactInput {
+  const titlePrefix =
+    input.queryType === 'path_query'
+      ? '图路径笔记'
+      : input.queryType === 'explain'
+        ? '节点解释笔记'
+        : '图查询笔记';
+  const type = input.queryType === 'path_query' ? 'graph_path_note' : 'graph_query_note';
+  const title = `${titlePrefix}：${input.selectedItem?.title || '未命名对象'}`;
+  const question = normalizeText(input.question || '', 1200);
+  const answer = normalizeText(input.answer || '', 16000);
+  const sourceNodes = Array.isArray(input.sourceNodes) ? input.sourceNodes.filter(Boolean).slice(0, 8) : [];
+  const graphIdentity =
+    input.ontologyDocument?.metadata?.graph_identity ||
+    input.ontologyDocument?.id ||
+    input.selectedItem?.id ||
+    'unknown';
+  const graphRevisionId =
+    input.ontologyDocument?.metadata?.revision_id ||
+    input.ontologyDocument?.id ||
+    null;
+  const sourceRawIds = currentItemSourceRawIds(input.selectedItem);
+  const sourceOntologyIds = currentItemSourceOntologyIds(input.selectedItem);
+
+  return {
+    type,
+    title,
+    summary: normalizeText(answer, 240),
+    content: `# ${title}\n\n## 图谱问题\n${question || '未记录'}\n\n## 图谱结果\n${answer || '未记录'}${
+      sourceNodes.length > 0 ? `\n\n## Source Nodes\n${sourceNodes.map((node) => `- ${node}`).join('\n')}` : ''
+    }${input.savedPath ? `\n\n## 图谱记忆文件\n${input.savedPath}` : ''}`,
+    content_format: 'markdown',
+    source_raw_ids: sourceRawIds,
+    source_ontology_ids: sourceOntologyIds,
+    status: 'draft',
+    publish_targets: [],
+    metadata: {
+      dedupe_key: `graph-reasoning-output::${graphIdentity}::${input.queryType}::${question.toLowerCase()}`,
+      generated_from: 'graph-reasoning',
+      source_surface: 'knowledge_graph',
+      graph_reasoning: {
+        query_type: input.queryType,
+        graph_identity: graphIdentity,
+        graph_revision_id: graphRevisionId,
+        source_nodes: sourceNodes,
+        saved_path: input.savedPath || null,
+      },
+      lineage: {
+        source: 'graph_reasoning',
+        artifact_kinds: [input.queryType === 'path_query' ? 'graph_path' : 'graph_query'],
+        artifact_refs: input.savedPath
+          ? [
+              {
+                kind: 'graph_memory',
+                path: input.savedPath,
+                title,
+              },
+            ]
+          : [],
+        prompt_excerpt: question || null,
+        source_raw_ids: sourceRawIds,
+        source_ontology_ids: sourceOntologyIds,
+        turn_id: null,
+        conversation_id: null,
+        session_key: null,
+      },
+    },
   };
 }
 

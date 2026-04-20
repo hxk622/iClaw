@@ -32,6 +32,10 @@ export interface ImportGraphifyGraphInput {
   trigger: 'raw_ingest' | 'output_feedback';
   rawMaterials?: RawMaterial[];
   outputArtifacts?: OutputArtifact[];
+  graphIdentity?: string | null;
+  previousRevisionId?: string | null;
+  preferredTitle?: string | null;
+  preferredSummary?: string | null;
   graphifyMetadata?: {
     corpusDir?: string | null;
     outputDir?: string | null;
@@ -73,6 +77,15 @@ function parseGraphifyJson(raw: string): GraphifyJson {
 }
 
 function resolveDocumentIdentity(input: ImportGraphifyGraphInput): { id: string; title: string; summary: string } {
+  if (input.graphIdentity) {
+    return {
+      id: safeId([input.graphIdentity]),
+      title: normalizeText(input.preferredTitle || '', 240) || '图谱',
+      summary:
+        normalizeText(input.preferredSummary || '', 240) ||
+        `由 graphify v3 基于${input.trigger === 'output_feedback' ? '成果反馈' : '素材输入'}编译生成。`,
+    };
+  }
   const rawMaterials = input.rawMaterials ?? [];
   const outputArtifacts = input.outputArtifacts ?? [];
   if (outputArtifacts.length === 1) {
@@ -239,6 +252,7 @@ export function importGraphifyGraphToOntologyDocument(input: ImportGraphifyGraph
         compiledAt: now,
         sourceSignature,
       }),
+      previous_revision_id: input.previousRevisionId || null,
       compiled_at: now,
       source_signature: sourceSignature,
       chunk_count: 0,

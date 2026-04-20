@@ -15,6 +15,8 @@ function formatRelativeTime(timestamp: string): string {
 function resolveIcon(type: OutputArtifact['type']) {
   switch (type) {
     case 'memo':
+    case 'graph_query_note':
+    case 'graph_path_note':
       return StickyNote;
     case 'ppt':
       return Presentation;
@@ -29,6 +31,10 @@ function subtitle(type: OutputArtifact['type']) {
   switch (type) {
     case 'memo':
       return 'Memo · 草稿';
+    case 'graph_query_note':
+      return '图查询笔记 · 草稿';
+    case 'graph_path_note':
+      return '图路径笔记 · 草稿';
     case 'wechat_post':
       return '公众号内容 · 草稿';
     case 'xhs_post':

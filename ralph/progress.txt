@@ -3,3 +3,20 @@ Ralph Progress
 
 Project: iClaw Graphify Knowledge Flywheel Completion
 Branch: ralph/graphify-knowledge-flywheel
+
+Status: completed
+
+Completed stories
+- US-001 real graphify compiler runner shipped through desktop Tauri + repo-local Python runner
+- US-002 ontology revisions and latest pointers persisted locally
+- US-003 graph.json / GRAPH_REPORT.md / graph.html imported into ontology/output stores
+- US-004 graph compiler jobs persist state and surface current revision on ontology status
+- US-005 save-result now triggers seeded graph update into a new ontology revision
+- US-006 graph reasoning session state persists by graph identity and revision
+- US-007 graph context cards are written into local OpenClaw memory
+- US-008 chat injection reuses only revision-matching graph context cards
+- US-009 node and edge evidence panels are available in ontology navigation
+- US-010 graph query and path saves now create first-class output artifacts and recompile via output feedback
+
+Notes
+- Execution was completed directly on `main`; Ralph files were updated after code landed so the plan matches the repository state again.

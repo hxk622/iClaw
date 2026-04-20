@@ -37,9 +37,10 @@ import {
 import { openWorkspaceArtifact } from '@/app/lib/tauri-artifact-preview';
 import { openGraphifyOutputFile, readGraphifyOutputText } from '@/app/lib/tauri-graphify-output';
 import { runGraphifyQuery, runGraphifySaveResult } from '@/app/lib/tauri-graphify';
-import { getOutputArtifactByDedupeKey } from './output-storage';
+import { getOutputArtifactByDedupeKey, upsertOutputArtifact } from './output-storage';
 import type { RawMaterial } from './types';
 import {
+  buildGraphReasoningOutputArtifactInput,
   buildGraphQueryMemoryRawMaterialInput,
   extractChatFeedbackFromContainer,
   saveChatFeedbackAsMemo,
@@ -56,6 +57,7 @@ import {
   importBrowserCaptureBatchIntoKnowledgeFlywheel,
   importBrowserCaptureIntoKnowledgeFlywheel,
 } from './flywheel-service';
+import { refreshOntologyDocumentFromGraphFeedback } from './graph-compiler';
 import { useGraphCompilerJobs } from './graph-compiler-jobs';
 import { classifyGraphQueryIntent } from './graph-query-intent';
 import { findOntologyShortestPath, getOntologyEdgeDetail, getOntologyNodeDetail } from './graph-navigation';
@@ -787,7 +789,7 @@ export function KnowledgeLibraryView({
     answer: string;
     sourceNodes: string[];
   }) => {
-    if (!selectedOntologyGraphifyGraphPath || !effectiveSelectedItem) {
+    if (!selectedOntologyGraphifyGraphPath || !effectiveSelectedItem || !selectedOntologyDocument) {
       return;
     }
     const busyKey = input.queryType === 'path_query' ? 'path' : 'query';
@@ -815,14 +817,41 @@ export function KnowledgeLibraryView({
           savedPath: result.savedPath,
         }),
       );
-      const documents = await repository.compileRawMaterialsToOntology([raw]);
-      if (documents.length > 0) {
-        await repository.generateOutputArtifactsFromOntology(documents);
-      }
+      const outputInput = buildGraphReasoningOutputArtifactInput({
+        selectedItem: effectiveSelectedItem,
+        ontologyDocument: selectedOntologyDocument,
+        question: input.question,
+        answer: input.answer,
+        queryType: input.queryType,
+        sourceNodes: input.sourceNodes,
+        savedPath: result.savedPath,
+      });
+      const outputDedupeKey =
+        outputInput.metadata && typeof outputInput.metadata === 'object'
+          ? (outputInput.metadata as Record<string, unknown>).dedupe_key
+          : null;
+      const existingOutput =
+        typeof outputDedupeKey === 'string' && outputDedupeKey.trim()
+          ? getOutputArtifactByDedupeKey(outputDedupeKey)
+          : null;
+      const savedOutput = upsertOutputArtifact({
+        ...outputInput,
+        id: existingOutput?.id,
+      });
+      const documents = await refreshOntologyDocumentFromGraphFeedback({
+        ontologyDocument: selectedOntologyDocument,
+        rawMaterials: [raw],
+        outputArtifacts: [savedOutput],
+      });
       setMaterialsRefreshKey((current) => current + 1);
       setOntologyRefreshKey((current) => current + 1);
       setOutputRefreshKey((current) => current + 1);
-      setGraphifyQuerySaveMessage('已保存到知识库，图谱会继续整理。');
+      setSelectedByTab((current) => ({
+        ...current,
+        graph: documents[0]?.id || current.graph,
+        artifacts: savedOutput.id || current.artifacts,
+      }));
+      setGraphifyQuerySaveMessage('已沉淀为成果，并触发图谱更新。');
     } catch (error) {
       setGraphifyQuerySaveMessage(error instanceof Error ? error.message : '保存图谱记忆失败。');
     } finally {
@@ -1344,6 +1373,11 @@ export function KnowledgeLibraryView({
                                   ? '图谱关系仍在补充'
                                   : '图谱已更新'}
                             </div>
+                            {selectedOntologyRevisionId ? (
+                              <div className="mt-2 break-all text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                                当前 revision：{selectedOntologyRevisionId}
+                              </div>
+                            ) : null}
                           </div>
                           {selectedOntologyGraphifyReportArtifact ? (
                             <div className="rounded-[14px] border border-[rgba(0,0,0,0.08)] bg-[#FAFAF8] px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#252525]">

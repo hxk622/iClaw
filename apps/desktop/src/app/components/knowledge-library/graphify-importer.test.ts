@@ -6,6 +6,10 @@ import { importGraphifyGraphToOntologyDocument } from './graphify-importer.ts';
 test('importGraphifyGraphToOntologyDocument converts node-link graph into OntologyDocument', () => {
   const document = importGraphifyGraphToOntologyDocument({
     trigger: 'output_feedback',
+    graphIdentity: 'ontology::sample',
+    previousRevisionId: 'ontology::sample::rev::20260419::prev1234',
+    preferredTitle: '宁德时代图谱',
+    preferredSummary: '延续当前图谱 revision 做更新。',
     graphJsonText: JSON.stringify({
       directed: true,
       multigraph: false,
@@ -68,6 +72,10 @@ test('importGraphifyGraphToOntologyDocument converts node-link graph into Ontolo
     },
   });
 
+  assert.equal(document.metadata?.graph_identity, 'ontology::sample');
+  assert.equal(document.metadata?.previous_revision_id, 'ontology::sample::rev::20260419::prev1234');
+  assert.equal(document.title, '宁德时代图谱');
+  assert.equal(document.summary, '延续当前图谱 revision 做更新。');
   assert.equal(document.metadata?.compiler_backend, 'graphify-v3');
   assert.equal(document.metadata?.graphify_graph_json_path, '/tmp/job/corpus/graphify-out/graph.json');
   assert.equal(document.nodes.length, 2);

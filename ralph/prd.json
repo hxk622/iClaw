@@ -16,8 +16,8 @@
         "Tests pass"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed via repo-local graphify runner wired through desktop Tauri and scripts/graphify_compile_runner.py."
     },
     {
       "id": "US-002",
@@ -31,8 +31,8 @@
         "Tests pass"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Ontology storage now persists revision_id, graph_identity, compiled_at, source_signature, previous_revision_id, and latest pointers."
     },
     {
       "id": "US-003",
@@ -47,8 +47,8 @@
         "Tests pass"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "graph.json, GRAPH_REPORT.md, and graph.html now import into OntologyDocument metadata and OutputArtifact records by revision."
     },
     {
       "id": "US-004",
@@ -62,8 +62,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Graph compiler jobs persist status, backend, source ids, ontology document revision ids, and surface current revision in the ontology status card."
     },
     {
       "id": "US-005",
@@ -77,8 +77,8 @@
         "Tests pass"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "save-result now creates feedback raw/output records and triggers a seeded graphify update that produces a new ontology revision plus refreshed report/html assets."
     },
     {
       "id": "US-006",
@@ -92,8 +92,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Graph reasoning session state persists focused node, edge, path, query text/result, and auto-query mode by graph identity and revision."
     },
     {
       "id": "US-007",
@@ -107,8 +107,8 @@
         "Tests pass"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Graph query and shortest-path actions write compact graph context cards into local OpenClaw memory."
     },
     {
       "id": "US-008",
@@ -122,8 +122,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Main chat and embedded chat both reuse graph context memory only when graph identity and revision match."
     },
     {
       "id": "US-009",
@@ -137,8 +137,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Ontology navigation now exposes dedicated node and edge evidence detail panels with raw/chunk/source metadata."
     },
     {
       "id": "US-010",
@@ -152,8 +152,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Graph query and shortest-path saves now create first-class output artifacts with stable dedupe keys, lineage metadata, and output_feedback recompilation."
     }
   ]
 }

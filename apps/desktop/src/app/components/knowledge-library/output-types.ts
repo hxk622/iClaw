@@ -1,5 +1,7 @@
 export type OutputArtifactType =
   | 'memo'
+  | 'graph_query_note'
+  | 'graph_path_note'
   | 'expert'
   | 'card'
   | 'article'

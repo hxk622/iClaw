@@ -249,6 +249,7 @@ struct GraphifyCompileRequestInput {
     items: Vec<GraphifyCorpusItemInput>,
     update: Option<bool>,
     no_viz: Option<bool>,
+    seed_graph_path: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -4424,6 +4425,62 @@ fn graphify_revision_dir(app: &AppHandle, label: &str) -> Result<PathBuf, String
     fs::create_dir_all(&dir)
         .map_err(|e| format!("failed to create graph revision dir {}: {e}", dir.to_string_lossy()))?;
     Ok(dir)
+}
+
+fn copy_file_if_exists(source: &Path, destination: &Path) -> Result<(), String> {
+    if !source.exists() {
+        return Ok(());
+    }
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "failed to create destination parent {}: {e}",
+                parent.to_string_lossy()
+            )
+        })?;
+    }
+    fs::copy(source, destination).map_err(|e| {
+        format!(
+            "failed to copy file {} -> {}: {e}",
+            source.to_string_lossy(),
+            destination.to_string_lossy()
+        )
+    })?;
+    Ok(())
+}
+
+fn seed_graphify_output_dir(
+    app: &AppHandle,
+    destination_output_dir: &Path,
+    seed_graph_path: &str,
+) -> Result<(), String> {
+    let resolved_graph_path = resolve_graphify_output_path(seed_graph_path, app)?;
+    if !resolved_graph_path.exists() {
+        return Ok(());
+    }
+    let Some(source_output_dir) = resolved_graph_path.parent() else {
+        return Ok(());
+    };
+    fs::create_dir_all(destination_output_dir).map_err(|e| {
+        format!(
+            "failed to create seeded graphify output dir {}: {e}",
+            destination_output_dir.to_string_lossy()
+        )
+    })?;
+    for file_name in ["graph.json", "GRAPH_REPORT.md", "graph.html", "manifest.json"] {
+        copy_file_if_exists(
+            &source_output_dir.join(file_name),
+            &destination_output_dir.join(file_name),
+        )?;
+    }
+    for dir_name in ["memory", "cache"] {
+        let source_dir = source_output_dir.join(dir_name);
+        let destination_dir = destination_output_dir.join(dir_name);
+        if source_dir.is_dir() {
+            copy_dir_recursive(&source_dir, &destination_dir)?;
+        }
+    }
+    Ok(())
 }
 
 fn write_graphify_corpus_item(path: &Path, item: &GraphifyCorpusItemInput) -> Result<(), String> {
@@ -9411,6 +9468,11 @@ fn run_graphify_compile(
     };
 
     let output_dir = corpus_items_dir.join("graphify-out");
+    if input.update.unwrap_or(false) {
+        if let Some(seed_graph_path) = input.seed_graph_path.as_deref() {
+            seed_graphify_output_dir(&app, &output_dir, seed_graph_path)?;
+        }
+    }
     let runner_path = graphify_compile_runner_path(&app);
     let mut command = Command::new(python_command);
     command.arg(&runner_path);

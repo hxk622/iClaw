@@ -14,6 +14,7 @@ export type GraphifyCompileRequest = {
   items: GraphifyCorpusItem[];
   update?: boolean;
   noViz?: boolean;
+  seedGraphPath?: string | null;
 };
 
 export type GraphifyCompileResult = {
