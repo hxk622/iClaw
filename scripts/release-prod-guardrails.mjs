@@ -148,12 +148,13 @@ async function collectShellScriptsWithCrLf() {
 
   for (const relativePath of releaseCriticalScripts) {
     const fullPath = path.join(rootDir, relativePath);
-    const buffer = await fs.readFile(fullPath).catch(() => null);
+    const rawText = await fs.readFile(fullPath, 'utf8').catch(() => null);
+    const buffer = rawText == null ? null : Buffer.from(rawText, 'utf8');
     if (!buffer) {
       offenders.push(`${relativePath} (missing)`);
       continue;
     }
-    if (buffer.includes(Buffer.from('\r\n'))) {
+    if (/\r\n/.test(rawText)) {
       offenders.push(relativePath);
     }
   }
