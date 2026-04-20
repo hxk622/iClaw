@@ -54,12 +54,8 @@ import {
   resolveOpenClawChatRecoveryAction,
 } from '@/app/lib/openclaw-chat-recovery';
 import {
-  buildArtifactOpenActionLabel,
   extractArtifactExtension,
-  resolveArtifactPreviewKind,
-  type ArtifactPreviewKind,
 } from '@/app/lib/artifact-preview';
-import { buildArtifactWorkspaceNameCandidates } from '@/app/lib/artifact-workspace-path';
 import {
   openWorkspaceArtifact,
   readWorkspaceArtifactBase64,
@@ -70,6 +66,22 @@ import {
   deriveOpenClawChatSurfaceLifecycle,
   shouldShowOpenClawWelcomePage,
 } from '@/app/lib/openclaw-chat-connection';
+import {
+  buildOutputArtifactsProtocolInstruction,
+  parseChatTurnOutputArtifacts,
+  selectAutoOpenOutputArtifact,
+} from '@/app/lib/chat-output-artifacts';
+import {
+  areArtifactPathsEquivalent,
+  buildArtifactPreviewLoadingState,
+  buildArtifactPreviewTitle,
+  loadArtifactPreviewState,
+  type ArtifactPreviewState,
+} from '@/app/lib/chat-artifact-preview';
+import {
+  isLikelyInternalToolTraceText,
+  resolveAssistantAnchorIndex,
+} from '@/app/lib/openclaw-chat-grouping';
 import {
   buildComposerModelOptions,
   findComposerModelOption,
@@ -452,6 +464,10 @@ function buildSkillScopedPrompt(payload: ComposerSendPayload): string {
     payload.selectedStockContextLabel ? `本次对话请聚焦标的「${payload.selectedStockContextLabel}」，除非用户明确要求，否则不要扩展到其它标的。` : null,
     payload.selectedWatchlistLabel ? `如果涉及用户关注标的，请优先围绕「${payload.selectedWatchlistLabel}」这组自选股展开分析。` : null,
     payload.selectedOutputLabel ? `输出形式请优先按「${payload.selectedOutputLabel}」呈现。` : null,
+    buildOutputArtifactsProtocolInstruction({
+      selectedOutput: payload.selectedOutput,
+      selectedOutputLabel: payload.selectedOutputLabel,
+    }),
   ].filter((line): line is string => Boolean(line));
 
   return `${instructionParts.join('\n')}\n\n已选控制项：${controlLines.join('｜')}\n\n用户任务：${prompt}`;
@@ -568,14 +584,6 @@ const ARTIFACT_PATH_PATTERN = new RegExp(
   'ig',
 );
 
-type ArtifactAutoOpenState = {
-  lastBusy: boolean;
-  runSequence: number;
-  pendingRunSequence: number | null;
-  pendingScanCount: number;
-  lastOpenedToken: string | null;
-};
-
 type ActiveChatTurnRun = {
   turnId: string;
   baselineError: string | null;
@@ -665,24 +673,6 @@ type DraggedFileSummary = {
   pdfCount: number;
   videoCount: number;
   unsupportedCount: number;
-};
-
-type ArtifactPreviewState = {
-  title: string;
-  path: string;
-  kind: ArtifactPreviewKind;
-  content: string | null;
-  sizeBytes?: number | null;
-  loading: boolean;
-  error: string | null;
-  openPath: string | null;
-  actionLabel: string | null;
-  actionError: string | null;
-  sourceTurnId: string | null;
-  sourcePromptText: string | null;
-  sourceAnswerText: string | null;
-  sourceRawIds: string[];
-  sourceOntologyIds: string[];
 };
 
 type ArtifactPromotionState = {
@@ -1104,49 +1094,6 @@ function extractArtifactInlineContentFromCard(card: HTMLElement): string | null 
   return sections.join('\n\n');
 }
 
-function buildArtifactPreviewTitle(path: string): string {
-  const normalized = path.replace(/\\/g, '/');
-  const segments = normalized.split('/').filter(Boolean);
-  return segments.at(-1) ?? normalized;
-}
-
-function buildArtifactPathMatchCandidates(path: string | null | undefined): string[] {
-  if (!path) {
-    return [];
-  }
-
-  const normalized = path.replace(/\\/g, '/').trim();
-  if (!normalized) {
-    return [];
-  }
-
-  const candidates = new Set<string>();
-  candidates.add(normalized);
-  candidates.add(normalized.replace(/^\.\/+/, ''));
-  candidates.add(normalized.replace(/^\/+/, ''));
-
-  const workspaceIndex = normalized.toLowerCase().lastIndexOf('/workspace/');
-  if (workspaceIndex >= 0) {
-    candidates.add(normalized.slice(workspaceIndex + '/workspace/'.length));
-  }
-
-  const segments = normalized.split('/').filter(Boolean);
-  if (segments.length > 0) {
-    candidates.add(segments.at(-1) ?? normalized);
-  }
-
-  return Array.from(candidates).filter(Boolean);
-}
-
-function areArtifactPathsEquivalent(a: string | null | undefined, b: string | null | undefined): boolean {
-  const aCandidates = buildArtifactPathMatchCandidates(a);
-  const bCandidates = new Set(buildArtifactPathMatchCandidates(b));
-  if (aCandidates.length === 0 || bCandidates.size === 0) {
-    return false;
-  }
-  return aCandidates.some((candidate) => bCandidates.has(candidate));
-}
-
 function formatArtifactFileSize(sizeBytes: number | null | undefined): string | null {
   if (typeof sizeBytes !== 'number' || !Number.isFinite(sizeBytes) || sizeBytes < 0) {
     return null;
@@ -1215,31 +1162,6 @@ function isLikelyArtifactToolCard(card: HTMLElement): boolean {
   }
 
   return ARTIFACT_CARD_KEYWORDS.some((keyword) => normalized.includes(keyword));
-}
-
-function findLatestArtifactToolCard(host: HTMLElement): HTMLElement | null {
-  const groups = Array.from(host.querySelectorAll('.chat-group.assistant')).reverse();
-  for (const group of groups) {
-    const cards = Array.from(group.querySelectorAll('.chat-tool-card--clickable')).reverse();
-    if (cards.length === 0) {
-      continue;
-    }
-    for (const candidate of cards) {
-      if (candidate instanceof HTMLElement && isLikelyArtifactToolCard(candidate)) {
-        return candidate;
-      }
-    }
-  }
-  return null;
-}
-
-function hasAnyArtifactToolCard(host: HTMLElement | null): boolean {
-  if (!host) {
-    return false;
-  }
-  return Array.from(host.querySelectorAll('.chat-tool-card--clickable')).some(
-    (node): boolean => node instanceof HTMLElement && isLikelyArtifactToolCard(node),
-  );
 }
 
 function collectLatestArtifactKinds(host: HTMLElement | null): ReturnType<typeof inferChatTurnArtifactsFromText> {
@@ -1341,28 +1263,10 @@ function findFocusedTurnGroup(host: HTMLElement, prompt: string): HTMLElement | 
 }
 
 function isLikelyInternalToolTraceGroup(group: HTMLElement): boolean {
-  const normalized = buildNormalizedGroupText(group);
-  if (!normalized) {
-    return false;
-  }
-
-  const hasToolOutputHeading = normalized.includes('tool output');
-  const hasCommandTrace = normalized.includes('command:');
-  const hasToolCompletionTrace =
-    normalized.includes('tool completed successfully') ||
-    normalized.includes('no output') ||
-    normalized.includes('no output - tool completed successfully');
-  const hasFileActionTrace =
-    normalized.includes(' with from ') ||
-    normalized.includes(' with to ') ||
-    normalized.includes('/users/') ||
-    normalized.includes('/tmp/');
-
-  if (hasToolOutputHeading && (hasCommandTrace || hasToolCompletionTrace || hasFileActionTrace)) {
-    return true;
-  }
-
-  return group.classList.contains('tool') && (hasCommandTrace || hasToolCompletionTrace);
+  return isLikelyInternalToolTraceText({
+    text: buildNormalizedGroupText(group),
+    groupIsTool: group.classList.contains('tool'),
+  });
 }
 
 function collapseArtifactToolCardInlineBody(card: HTMLElement): void {
@@ -4743,15 +4647,6 @@ export function OpenClawChatSurface({
   const consumedFocusedTurnKeyRef = useRef<string | null>(null);
   const focusedTurnHighlightTimerRef = useRef<number | null>(null);
   const shellDragDepthRef = useRef(0);
-  const artifactAutoOpenStateRef = useRef<ArtifactAutoOpenState>({
-    lastBusy: false,
-    runSequence: 0,
-    pendingRunSequence: null,
-    pendingScanCount: 0,
-    lastOpenedToken: null,
-  });
-  const artifactAutoOpenTimerRef = useRef<number | null>(null);
-  const artifactAutoOpenBurstTimersRef = useRef<number[]>([]);
   const usageSettlementTimersRef = useRef<number[]>([]);
   const usageSettlementAttemptSequenceRef = useRef(0);
   const usageSettlementDiagnosticsRef = useRef<UsageSettlementAttemptDiagnostic[]>([]);
@@ -4825,7 +4720,6 @@ export function OpenClawChatSurface({
     message: null,
     artifactToken: null,
   });
-  const [hasArtifactWorkbench, setHasArtifactWorkbench] = useState(false);
   const [creditEstimate, setCreditEstimate] = useState<ComposerCreditEstimateState>({
     loading: false,
     low: null,
@@ -4927,6 +4821,7 @@ export function OpenClawChatSurface({
   const forcedSnapshotRestoreScopeRef = useRef<string | null>(null);
   const artifactPreviewWorkspaceDirRef = useRef<string | null>(null);
   const artifactPreviewRequestSeqRef = useRef(0);
+  const artifactAutoOpenTokenRef = useRef<string | null>(null);
   const sessionTransitionHideTimerRef = useRef<number | null>(null);
   const surfaceReactivationTimerRef = useRef<number | null>(null);
   const connectionLossTimerRef = useRef<number | null>(null);
@@ -5033,15 +4928,6 @@ export function OpenClawChatSurface({
     [syncScrollToBottomState],
   );
 
-  const clearArtifactAutoOpenTimers = useCallback(() => {
-    if (artifactAutoOpenTimerRef.current != null) {
-      window.clearTimeout(artifactAutoOpenTimerRef.current);
-      artifactAutoOpenTimerRef.current = null;
-    }
-    artifactAutoOpenBurstTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-    artifactAutoOpenBurstTimersRef.current = [];
-  }, []);
-
   const clearMessageActionTimers = useCallback(() => {
     messageActionTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     messageActionTimersRef.current = [];
@@ -5125,32 +5011,46 @@ export function OpenClawChatSurface({
     }
   }, []);
 
-  const openArtifactPreviewFromCard = useCallback(
-    async (card: HTMLElement) => {
+  const openArtifactPreview = useCallback(
+    async (input: {
+      path: string | null;
+      inlineContent?: string | null;
+      title?: string | null;
+      sourceTurnId: string | null;
+      sourcePromptText: string | null;
+      sourceAnswerText: string | null;
+      closeSidebar?: boolean;
+    }) => {
       const app = appRef.current;
       const request = app?.client?.request;
       if (!app?.connected || typeof request !== 'function') {
         return false;
       }
 
-      app.handleCloseSidebar?.();
+      if (input.closeSidebar !== false) {
+        app.handleCloseSidebar?.();
+      }
 
-      const path = extractArtifactPathFromCard(card);
-      const inlineContent = extractArtifactInlineContentFromCard(card);
-      const previewPath = path ?? 'artifact';
-      const previewKind = resolveArtifactPreviewKind(path);
-      const title = buildArtifactPreviewTitle(previewPath);
-      const sourceTurn = resolveArtifactSourceTurnFromCard({
-        card,
-        conversationId,
-      });
-      const artifactToken = [sourceTurn.turnId || 'unknown', previewPath].join('::');
+      const previewPath = input.path ?? 'artifact';
+      const artifactToken = [input.sourceTurnId || 'unknown', previewPath].join('::');
       const sourceRawIds = Array.isArray(outputPromotionSourceContext?.rawMaterialIds)
         ? Array.from(new Set(outputPromotionSourceContext.rawMaterialIds.filter(Boolean)))
         : [];
       const sourceOntologyIds = Array.isArray(outputPromotionSourceContext?.ontologyIds)
         ? Array.from(new Set(outputPromotionSourceContext.ontologyIds.filter(Boolean)))
         : [];
+      const previewInput = {
+        path: input.path,
+        inlineContent: input.inlineContent,
+        title: input.title?.trim() || buildArtifactPreviewTitle(previewPath),
+        source: {
+          turnId: input.sourceTurnId,
+          promptText: input.sourcePromptText,
+          answerText: input.sourceAnswerText,
+          rawIds: sourceRawIds,
+          ontologyIds: sourceOntologyIds,
+        },
+      };
       const requestSeq = artifactPreviewRequestSeqRef.current + 1;
       artifactPreviewRequestSeqRef.current = requestSeq;
       setArtifactPromotionState({
@@ -5159,297 +5059,73 @@ export function OpenClawChatSurface({
         artifactToken,
       });
 
-      if (!path && inlineContent) {
-        setArtifactPreview({
-          title,
-          path: previewPath,
-          kind: 'text',
-          content: inlineContent,
-          sizeBytes: null,
-          loading: false,
-          error: null,
-          openPath: null,
-          actionLabel: null,
-          actionError: null,
-          sourceTurnId: sourceTurn.turnId,
-          sourcePromptText: sourceTurn.promptText,
-          sourceAnswerText: sourceTurn.answerText || inlineContent,
-          sourceRawIds,
-          sourceOntologyIds,
-        });
-        return true;
+      const seed = buildArtifactPreviewLoadingState(previewInput);
+      setArtifactPreview(seed);
+
+      if (!seed.loading) {
+        return seed.error == null;
       }
 
-      if (!path) {
-        setArtifactPreview({
-          title,
-          path: previewPath,
-          kind: 'unsupported',
-          content: null,
-          sizeBytes: null,
-          loading: false,
-          error: '未解析到制品文件路径，当前无法在右侧分屏展示真实内容。',
-          openPath: null,
-          actionLabel: null,
-          actionError: null,
-          sourceTurnId: sourceTurn.turnId,
-          sourcePromptText: sourceTurn.promptText,
-          sourceAnswerText: sourceTurn.answerText,
-          sourceRawIds,
-          sourceOntologyIds,
-        });
-        return false;
-      }
-
-      setArtifactPreview({
-        title,
-        path,
-        kind: previewKind,
-        content: null,
-        sizeBytes: null,
-        loading: true,
-        error: null,
-        openPath: null,
-        actionLabel: null,
-        actionError: null,
-        sourceTurnId: sourceTurn.turnId,
-        sourcePromptText: sourceTurn.promptText,
-        sourceAnswerText: sourceTurn.answerText,
-        sourceRawIds,
-        sourceOntologyIds,
-      });
-
-      const workspaceDir = await ensureArtifactPreviewWorkspaceDir();
-      const nameCandidates = buildArtifactWorkspaceNameCandidates(path, workspaceDir);
-
-      if (previewKind === 'pdf') {
-        let resolvedPdfContent: string | null = null;
-        let resolvedPdfPath: string | null = null;
-        let resolvedPdfSizeBytes: number | null = null;
-
-        for (const candidateName of nameCandidates) {
-          try {
-            const result = await readWorkspaceArtifactBase64(candidateName);
-            if (result?.base64) {
-              resolvedPdfContent = `data:${result.mimeType || 'application/pdf'};base64,${result.base64}`;
-              resolvedPdfPath = result.path || candidateName;
-              resolvedPdfSizeBytes = typeof result.sizeBytes === 'number' ? result.sizeBytes : null;
-              break;
-            }
-          } catch {
-            // Try the next candidate before surfacing a failure.
-          }
-        }
-
-        if (artifactPreviewRequestSeqRef.current !== requestSeq) {
-          return true;
-        }
-
-        if (!resolvedPdfContent) {
-          setArtifactPreview({
-            title,
-            path,
-            kind: previewKind,
-            content: null,
-            sizeBytes: null,
-            loading: false,
-            error: '已识别到 PDF 制品，但当前桌面端没有拿到可预览的二进制内容。',
-            openPath: null,
-            actionLabel: null,
-            actionError: null,
-            sourceTurnId: sourceTurn.turnId,
-            sourcePromptText: sourceTurn.promptText,
-            sourceAnswerText: sourceTurn.answerText,
-            sourceRawIds,
-            sourceOntologyIds,
-          });
-          return false;
-        }
-
-        setArtifactPreview({
-          title,
-          path: resolvedPdfPath ?? path,
-          kind: previewKind,
-          content: resolvedPdfContent,
-          sizeBytes: resolvedPdfSizeBytes,
-          loading: false,
-          error: null,
-          openPath: resolvedPdfPath ?? path,
-          actionLabel: buildArtifactOpenActionLabel(resolvedPdfPath ?? path),
-          actionError: null,
-          sourceTurnId: sourceTurn.turnId,
-          sourcePromptText: sourceTurn.promptText,
-          sourceAnswerText: sourceTurn.answerText,
-          sourceRawIds,
-          sourceOntologyIds,
-        });
-        return true;
-      }
-
-      if (previewKind === 'office') {
-        let resolvedOfficePath: string | null = null;
-        let resolvedOfficeSizeBytes: number | null = null;
-
-        for (const candidateName of nameCandidates) {
-          try {
-            const result = await resolveWorkspaceArtifactPath(candidateName);
-            if (result?.path) {
-              resolvedOfficePath = result.path;
-              resolvedOfficeSizeBytes = typeof result.sizeBytes === 'number' ? result.sizeBytes : null;
-              break;
-            }
-          } catch {
-            // Try the next candidate before surfacing a failure.
-          }
-        }
-
-        if (artifactPreviewRequestSeqRef.current !== requestSeq) {
-          return true;
-        }
-
-        if (!resolvedOfficePath) {
-          setArtifactPreview({
-            title,
-            path,
-            kind: previewKind,
-            content: null,
-            sizeBytes: null,
-            loading: false,
-            error: '已识别到 Office 制品，但当前桌面端没有定位到可打开的原文件。',
-            openPath: null,
-            actionLabel: null,
-            actionError: null,
-            sourceTurnId: sourceTurn.turnId,
-            sourcePromptText: sourceTurn.promptText,
-            sourceAnswerText: sourceTurn.answerText,
-            sourceRawIds,
-            sourceOntologyIds,
-          });
-          return false;
-        }
-
-        setArtifactPreview({
-          title,
-          path: resolvedOfficePath,
-          kind: previewKind,
-          content: null,
-          sizeBytes: resolvedOfficeSizeBytes,
-          loading: false,
-          error: null,
-          openPath: resolvedOfficePath,
-          actionLabel: buildArtifactOpenActionLabel(resolvedOfficePath),
-          actionError: null,
-          sourceTurnId: sourceTurn.turnId,
-          sourcePromptText: sourceTurn.promptText,
-          sourceAnswerText: sourceTurn.answerText,
-          sourceRawIds,
-          sourceOntologyIds,
-        });
-        return true;
-      }
-
-      if (previewKind === 'unsupported') {
-        let resolvedUnsupportedPath: string | null = null;
-
-        for (const candidateName of nameCandidates) {
-          try {
-            const result = await resolveWorkspaceArtifactPath(candidateName);
-            if (result?.path) {
-              resolvedUnsupportedPath = result.path;
-              break;
-            }
-          } catch {
-            // Try the next candidate before surfacing a failure.
-          }
-        }
-
-        if (artifactPreviewRequestSeqRef.current !== requestSeq) {
-          return true;
-        }
-
-        setArtifactPreview({
-          title,
-          path: resolvedUnsupportedPath ?? path,
-          kind: previewKind,
-          content: null,
-          sizeBytes: null,
-          loading: false,
-          error: `暂不支持直接预览 ${extractArtifactExtension(path)?.toUpperCase() ?? '该'} 文件。`,
-          openPath: resolvedUnsupportedPath,
-          actionLabel: resolvedUnsupportedPath ? buildArtifactOpenActionLabel(resolvedUnsupportedPath) : null,
-          actionError: null,
-          sourceTurnId: sourceTurn.turnId,
-          sourcePromptText: sourceTurn.promptText,
-          sourceAnswerText: sourceTurn.answerText,
-          sourceRawIds,
-          sourceOntologyIds,
-        });
-        return false;
-      }
-
-      let resolvedContent: string | null = null;
-      let resolvedName: string | null = null;
-      for (const candidateName of nameCandidates) {
-        try {
+      const preview = await loadArtifactPreviewState(previewInput, {
+        getWorkspaceDir: ensureArtifactPreviewWorkspaceDir,
+        readTextFile: async (name) => {
           const result = await request<{file?: {content?: string | null}} | null>('agents.files.get', {
             agentId: 'main',
-            name: candidateName,
+            name,
           });
-          if (typeof result?.file?.content === 'string') {
-            resolvedContent = result.file.content;
-            resolvedName = candidateName;
-            break;
-          }
-        } catch {
-          // Try the next candidate before surfacing a failure.
-        }
-      }
+          return typeof result?.file?.content === 'string'
+            ? {
+                content: result.file.content,
+              }
+            : null;
+        },
+        readBinaryFile: async (name) => {
+          const result = await readWorkspaceArtifactBase64(name);
+          return result
+            ? {
+                path: result.path,
+                mimeType: result.mimeType,
+                base64: result.base64,
+                sizeBytes: typeof result.sizeBytes === 'number' ? result.sizeBytes : null,
+              }
+            : null;
+        },
+        resolvePath: async (name) => {
+          const result = await resolveWorkspaceArtifactPath(name);
+          return result
+            ? {
+                path: result.path,
+                sizeBytes: typeof result.sizeBytes === 'number' ? result.sizeBytes : null,
+              }
+            : null;
+        },
+      });
 
       if (artifactPreviewRequestSeqRef.current !== requestSeq) {
         return true;
       }
 
-      if (resolvedContent == null) {
-        setArtifactPreview({
-          title,
-          path,
-          kind: previewKind,
-          content: null,
-          sizeBytes: null,
-          loading: false,
-          error: '已识别到制品卡片，但没有从 OpenClaw workspace 读到对应文件内容。',
-          openPath: null,
-          actionLabel: null,
-          actionError: null,
-          sourceTurnId: sourceTurn.turnId,
-          sourcePromptText: sourceTurn.promptText,
-          sourceAnswerText: sourceTurn.answerText,
-          sourceRawIds,
-          sourceOntologyIds,
-        });
-        return false;
-      }
+      setArtifactPreview(preview);
+      return preview.error == null;
+    },
+    [ensureArtifactPreviewWorkspaceDir, outputPromotionSourceContext],
+  );
 
-      setArtifactPreview({
-        title,
-        path: resolvedName ?? path,
-        kind: previewKind,
-        content: resolvedContent,
-        sizeBytes: null,
-        loading: false,
-        error: null,
-        openPath: resolvedName ?? path,
-        actionLabel: null,
-        actionError: null,
+  const openArtifactPreviewFromCard = useCallback(
+    async (card: HTMLElement) => {
+      const sourceTurn = resolveArtifactSourceTurnFromCard({
+        card,
+        conversationId,
+      });
+      return openArtifactPreview({
+        path: extractArtifactPathFromCard(card),
+        inlineContent: extractArtifactInlineContentFromCard(card),
         sourceTurnId: sourceTurn.turnId,
         sourcePromptText: sourceTurn.promptText,
-        sourceAnswerText: sourceTurn.answerText || resolvedContent,
-        sourceRawIds,
-        sourceOntologyIds,
+        sourceAnswerText: sourceTurn.answerText,
       });
-      return true;
     },
-    [conversationId, ensureArtifactPreviewWorkspaceDir, outputPromotionSourceContext],
+    [conversationId, openArtifactPreview],
   );
 
   useEffect(() => {
@@ -5590,48 +5266,6 @@ export function OpenClawChatSurface({
       });
     },
     [appName, creditClient, creditToken, renderState.groupCount, selectedModelId],
-  );
-
-  const tryAutoOpenArtifactCard = useCallback(() => {
-    const host = hostRef.current;
-    const state = artifactAutoOpenStateRef.current;
-    if (!host || state.pendingRunSequence == null) {
-      return false;
-    }
-
-    const candidate = findLatestArtifactToolCard(host);
-    if (!candidate) {
-      if (state.pendingScanCount >= 12) {
-        state.pendingRunSequence = null;
-      }
-      return false;
-    }
-
-    const signature = buildToolCardSignature(candidate);
-    const token = `${state.pendingRunSequence}:${signature}`;
-    if (state.lastOpenedToken === token) {
-      state.pendingRunSequence = null;
-      return true;
-    }
-
-    state.lastOpenedToken = token;
-    state.pendingRunSequence = null;
-    void openArtifactPreviewFromCard(candidate);
-    return true;
-  }, [openArtifactPreviewFromCard]);
-
-  const queueArtifactAutoOpenScan = useCallback(
-    (delay = 80) => {
-      if (artifactAutoOpenTimerRef.current != null) {
-        window.clearTimeout(artifactAutoOpenTimerRef.current);
-      }
-      artifactAutoOpenTimerRef.current = window.setTimeout(() => {
-        artifactAutoOpenTimerRef.current = null;
-        artifactAutoOpenStateRef.current.pendingScanCount += 1;
-        tryAutoOpenArtifactCard();
-      }, delay);
-    },
-    [tryAutoOpenArtifactCard],
   );
 
   const resolveChatSelection = useCallback((): { text: string; label: string } | null => {
@@ -6158,13 +5792,7 @@ export function OpenClawChatSurface({
     renderRecoveryAttemptsRef.current = 0;
     clearOverloadedGeneralSessionRotationTimer();
     overloadedGeneralSessionRef.current = null;
-    artifactAutoOpenStateRef.current = {
-      lastBusy: false,
-      runSequence: 0,
-      pendingRunSequence: null,
-      pendingScanCount: 0,
-      lastOpenedToken: null,
-    };
+    artifactAutoOpenTokenRef.current = null;
     activeChatTurnRunRef.current = null;
     pendingUsageSettlementsRef.current = filterPendingUsageSettlementsForSession(
       storedPendingUsageSettlementsRef.current,
@@ -6172,7 +5800,6 @@ export function OpenClawChatSurface({
       conversationId,
     );
     setPendingSettlementCount(0);
-    clearArtifactAutoOpenTimers();
     clearUsageSettlementTimers();
     modelLoadVersionRef.current += 1;
     setResolvedModelSessionKey(null);
@@ -6200,7 +5827,6 @@ export function OpenClawChatSurface({
     artifactPreviewRequestSeqRef.current += 1;
     setArtifactPreview(null);
   }, [
-    clearArtifactAutoOpenTimers,
     clearAutoRecoveryTimer,
     clearOverloadedGeneralSessionRotationTimer,
     clearUsageSettlementTimers,
@@ -6959,29 +6585,6 @@ export function OpenClawChatSurface({
   }, []);
 
   useEffect(() => {
-    const host = hostRef.current;
-    if (!host) {
-      return;
-    }
-
-    const scheduleArtifactAutoOpenScanTask = createCoalescedDomTask(() => {
-      if (artifactAutoOpenStateRef.current.pendingRunSequence == null) {
-        return;
-      }
-      queueArtifactAutoOpenScan(90);
-    });
-    const observer = new MutationObserver(() => {
-      scheduleArtifactAutoOpenScanTask.schedule();
-    });
-    observer.observe(host, { childList: true, subtree: true });
-
-    return () => {
-      observer.disconnect();
-      scheduleArtifactAutoOpenScanTask.cancel();
-    };
-  }, [queueArtifactAutoOpenScan]);
-
-  useEffect(() => {
     const authRole = appRef.current?.hello?.auth?.role ?? null;
     const authScopes = appRef.current?.hello?.auth?.scopes ?? null;
     const snapshot = JSON.stringify({
@@ -7185,29 +6788,6 @@ export function OpenClawChatSurface({
   }, [resolveActiveThread, status.connected, status.busy, syncScrollToBottomState]);
 
   useEffect(() => {
-    const state = artifactAutoOpenStateRef.current;
-
-    if (status.busy && !state.lastBusy) {
-      state.runSequence += 1;
-      state.pendingRunSequence = null;
-      state.pendingScanCount = 0;
-    } else if (!status.busy && state.lastBusy) {
-      state.pendingRunSequence = state.runSequence;
-      state.pendingScanCount = 0;
-      clearArtifactAutoOpenTimers();
-      [60, 220, 700, 1400].forEach((delay) => {
-        const timer = window.setTimeout(() => {
-          artifactAutoOpenStateRef.current.pendingScanCount += 1;
-          tryAutoOpenArtifactCard();
-        }, delay);
-        artifactAutoOpenBurstTimersRef.current.push(timer);
-      });
-    }
-
-    state.lastBusy = status.busy;
-  }, [clearArtifactAutoOpenTimers, status.busy, tryAutoOpenArtifactCard]);
-
-  useEffect(() => {
     const syncSurfaceState = () => {
       const app = appRef.current;
       const host = hostRef.current;
@@ -7339,10 +6919,9 @@ export function OpenClawChatSurface({
     );
 
     return () => {
-      clearArtifactAutoOpenTimers();
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [clearArtifactAutoOpenTimers, scrollChatToBottom, status.connected]);
+  }, [scrollChatToBottom, status.connected]);
 
   useEffect(() => {
     if (!shellAuthenticated) {
@@ -7613,13 +7192,52 @@ export function OpenClawChatSurface({
   }, [artifactPreview, renderState.chatMessageCount, renderState.groupCount]);
 
   useEffect(() => {
-    const host = hostRef.current;
-    if (!host) {
-      setHasArtifactWorkbench(false);
+    if (!status.connected) {
       return;
     }
-    setHasArtifactWorkbench(hasAnyArtifactToolCard(host));
-  }, [renderState.chatMessageCount, renderState.groupCount, status.busy, sessionKey, conversationId]);
+
+    const selectedOutputArtifact = selectAutoOpenOutputArtifact(chatTurns, conversationId);
+    if (!selectedOutputArtifact) {
+      return;
+    }
+
+    const sourceTurn =
+      chatTurns.find((turn) => turn.id === selectedOutputArtifact.turnId && turn.source === 'chat') ?? null;
+    if (!sourceTurn) {
+      return;
+    }
+
+    const artifactToken = [sourceTurn.id, selectedOutputArtifact.artifact.path].join('::');
+    if (artifactAutoOpenTokenRef.current === artifactToken) {
+      return;
+    }
+
+    const activePath = artifactPreview?.openPath ?? artifactPreview?.path ?? null;
+    const alreadyShowingSelectedArtifact =
+      artifactPreview?.sourceTurnId === sourceTurn.id &&
+      areArtifactPathsEquivalent(activePath, selectedOutputArtifact.artifact.path);
+    if (alreadyShowingSelectedArtifact) {
+      artifactAutoOpenTokenRef.current = artifactToken;
+      return;
+    }
+
+    artifactAutoOpenTokenRef.current = artifactToken;
+    void openArtifactPreview({
+      path: selectedOutputArtifact.artifact.path,
+      title: selectedOutputArtifact.artifact.title,
+      sourceTurnId: sourceTurn.id,
+      sourcePromptText: sourceTurn.prompt,
+      sourceAnswerText: sourceTurn.summary,
+    });
+  }, [
+    artifactPreview?.openPath,
+    artifactPreview?.path,
+    artifactPreview?.sourceTurnId,
+    chatTurns,
+    conversationId,
+    openArtifactPreview,
+    status.connected,
+  ]);
 
   useEffect(() => {
     if (!selectionMenu) {
@@ -8004,15 +7622,23 @@ export function OpenClawChatSurface({
       return;
     }
 
-    const artifacts = collectLatestArtifactKinds(hostRef.current);
     const app = appRef.current;
     const assistantGroup =
       app && Array.isArray(app.chatMessages)
         ? findAssistantGroupForRun(app.chatMessages, activeRun.runId, activeRun.startedAt)
         : null;
-    const assistantText =
+    const rawAssistantText =
       assistantGroup ? extractChatMessageGroupText(assistantGroup) : '';
-    const finalAnswer = assistantText || activeRun.prompt;
+    const parsedOutputArtifacts = parseChatTurnOutputArtifacts(rawAssistantText);
+    const finalAnswer = parsedOutputArtifacts.cleanedAnswer || rawAssistantText || activeRun.prompt;
+    const artifacts =
+      parsedOutputArtifacts.outputArtifacts.length > 0
+        ? inferChatTurnArtifactsFromText(
+            parsedOutputArtifacts.outputArtifacts
+              .map((artifact) => `${artifact.kind} ${artifact.title} ${artifact.path}`)
+              .join('\n'),
+          )
+        : collectLatestArtifactKinds(hostRef.current);
     const messageFinanceCompliance = extractChatMessageGroupFinanceCompliance(assistantGroup);
     const explicitFinanceCompliance =
       (messageFinanceCompliance as typeof activeRun extends never ? never : Record<string, unknown> | null)
@@ -8094,12 +7720,14 @@ export function OpenClawChatSurface({
       markChatTurnFailed({
         id: activeRun.turnId,
         artifacts,
+        outputArtifacts: parsedOutputArtifacts.outputArtifacts,
         error: activeRun.failureMessage,
       });
     } else {
       markChatTurnCompleted({
         id: activeRun.turnId,
         artifacts,
+        outputArtifacts: parsedOutputArtifacts.outputArtifacts,
       });
     }
     if (financeCompliance) {
@@ -9211,7 +8839,9 @@ export function OpenClawChatSurface({
     };
   }, [focusedTurnId, focusedTurnKey, renderState.groupCount, renderState.chatMessageCount, surfaceVisible]);
 
-  const allowWelcomeForCurrentRoute = shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId);
+  const allowWelcomeForCurrentRoute =
+    optimisticEmptySessionActive &&
+    shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId);
   const preferBrandWelcomeForRoute = allowWelcomeForCurrentRoute;
 
   const showWelcomePage = shouldShowOpenClawWelcomePage({
@@ -9245,7 +8875,6 @@ export function OpenClawChatSurface({
       ? artifactPromotionState.message
       : null;
   const artifactWorkbenchVisible = Boolean(artifactPreview);
-
   const handlePromoteArtifactToKnowledgeLibrary = useCallback(async () => {
     if (!artifactPreview) {
       return;
@@ -9384,10 +9013,6 @@ export function OpenClawChatSurface({
         avatar.classList.add('user');
         return;
       }
-      if (group.classList.contains('tool')) {
-        avatar.classList.add('tool');
-        return;
-      }
       if (group.classList.contains('other')) {
         avatar.classList.add('other');
         return;
@@ -9427,14 +9052,13 @@ export function OpenClawChatSurface({
           return;
         }
 
-        const preferredAnchorIndex = assistantSegment.findIndex(
-          (group) =>
-            group.classList.contains('assistant') &&
-            !group.classList.contains('tool') &&
-            !isToolLikeChatGroup(group) &&
-            hasVisibleMessageContent(group),
+        const anchorIndex = resolveAssistantAnchorIndex(
+          assistantSegment.map((group) => ({
+            assistant: group.classList.contains('assistant'),
+            toolLike: group.classList.contains('tool') || isToolLikeChatGroup(group),
+            hasVisibleContent: hasVisibleMessageContent(group),
+          })),
         );
-        const anchorIndex = preferredAnchorIndex >= 0 ? preferredAnchorIndex : 0;
 
         assistantSegment.forEach((group, index) => {
           if (index === anchorIndex) {
