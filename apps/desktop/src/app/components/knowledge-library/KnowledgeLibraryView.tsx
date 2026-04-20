@@ -71,6 +71,7 @@ const KNOWLEDGE_ACTION_BUTTON_CLASS =
 import { classifyGraphQueryIntent } from './graph-query-intent';
 import { findOntologyShortestPath, getOntologyEdgeDetail, getOntologyNodeDetail } from './graph-navigation';
 import { useGraphReasoningSession, writeGraphReasoningSession } from './graph-reasoning-session';
+import { persistGraphContextMemory } from './graph-memory-bridge';
 
 export function KnowledgeLibraryView({
   title,
@@ -729,10 +730,22 @@ export function KnowledgeLibraryView({
         return;
       }
       if (!result.available || result.error) {
-        setGraphifyQueryError(result.error || result.stderr || 'graphify query 失败。');
+        setGraphifyQueryError(result.error || result.stderr || '图谱关系查询失败。');
         return;
       }
-      setGraphifyQueryResult((result.stdout || '').trim() || 'graphify query 没有返回结果。');
+      const normalizedResult = (result.stdout || '').trim() || '图谱关系查询没有返回结果。';
+      setGraphifyQueryResult(normalizedResult);
+      if (selectedOntologyDocument) {
+        void persistGraphContextMemory({
+          ontologyDocument: selectedOntologyDocument,
+          kind: 'query',
+          question: graphifyQueryText.trim(),
+          answer: normalizedResult,
+          focusedNodeLabels: selectedGraphNode ? [selectedGraphNode.label] : [],
+          sourceOutputIds:
+            selectedOntologyDocument.metadata?.source_output_artifact_ids || [],
+        });
+      }
     } catch (error) {
       setGraphifyQueryError(error instanceof Error ? error.message : 'graphify query 失败。');
     } finally {
@@ -763,6 +776,16 @@ export function KnowledgeLibraryView({
     setGraphPathResult(text);
     setSelectedGraphEdgeId(result.edges[0]?.id || null);
     setGraphifyQuerySaveMessage(null);
+    if (selectedOntologyDocument) {
+      void persistGraphContextMemory({
+        ontologyDocument: selectedOntologyDocument,
+        kind: 'path',
+        question: `从 ${selectedGraphNode.label} 到 ${graphPathTargetNode?.label || ''} 的路径是什么？`,
+        answer: text,
+        focusedNodeLabels: [selectedGraphNode.label, graphPathTargetNode?.label || ''].filter(Boolean),
+        sourceOutputIds: selectedOntologyDocument.metadata?.source_output_artifact_ids || [],
+      });
+    }
   };
 
   const persistGraphifyQueryMemory = async (input: {

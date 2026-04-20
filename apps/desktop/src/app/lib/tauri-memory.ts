@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { isTauriRuntime } from './desktop-runtime';
+import { isTauriRuntime } from './desktop-runtime.ts';
 
 const MEMORY_DEV_ENDPOINT = '/__iclaw/memory';
 const MEMORY_SNAPSHOT_TIMEOUT_MS = 8000;
