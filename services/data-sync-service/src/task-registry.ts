@@ -1,8 +1,8 @@
 import type { SyncTaskDefinition } from '../../../packages/market-sync-core/src/types.ts';
-import { syncFinanceData } from '../../control-plane/src/sync-tasks/tasks/sync-finance-data.ts';
-import { syncIndustryConcept } from '../../control-plane/src/sync-tasks/tasks/sync-industry-concept.ts';
 import { syncMarketNews } from './tasks/sync-market-news.ts';
 import { syncMarketOverview } from './tasks/sync-market-overview.ts';
+import { syncIndustryConcept } from './tasks/sync-industry-concept.ts';
+import { syncFinanceData } from './tasks/sync-finance-data.ts';
 import { syncStockBasics } from './tasks/sync-stock-basics.ts';
 import { syncStockQuotes } from './tasks/sync-stock-quotes.ts';
 
